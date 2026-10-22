@@ -1,0 +1,23 @@
+server:
+  port: 8080
+  error:
+    include-message: never
+    include-stacktrace: never
+spring:
+  config:
+    import: optional:configtree:/run/db-credentials/
+  datasource:
+    url: ${DATABASE_URL}
+    username: ${DATABASE_USER}
+    password: ${DATABASE_PASSWORD:}
+  flyway:
+    enabled: true
+    default-schema: public
+  jackson:
+    deserialization:
+      fail-on-unknown-properties: true
+    time-zone: Asia/Seoul
+mybatis:
+  mapper-locations: classpath:mappers/*.xml
+  configuration:
+    call-setters-on-nulls: true
