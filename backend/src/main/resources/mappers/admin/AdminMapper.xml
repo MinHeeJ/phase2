@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sicost.admin.AdminMapper">
+  <resultMap id="groupResult" type="com.sicost.admin.AdminModels$CodeGroup"><constructor>
+    <arg column="cd_grp_id" javaType="java.lang.String"/><arg column="cd_grp_nm" javaType="java.lang.String"/><arg column="cd_grp_se_cd" javaType="java.lang.String"/>
+    <arg column="attr1_nm" javaType="java.lang.String"/><arg column="attr2_nm" javaType="java.lang.String"/><arg column="attr3_nm" javaType="java.lang.String"/>
+    <arg column="sort_seq" javaType="_int"/><arg column="use_yn" javaType="java.lang.String"/><arg column="code_count" javaType="_int"/>
+  </constructor></resultMap>
+  <resultMap id="codeResult" type="com.sicost.admin.AdminModels$CodeRow"><constructor>
+    <arg column="dtl_cd" javaType="java.lang.String"/><arg column="cd_nm" javaType="java.lang.String"/><arg column="sort_seq" javaType="_int"/><arg column="use_yn" javaType="java.lang.String"/>
+    <arg column="attr1_val" javaType="java.lang.String"/><arg column="attr2_val" javaType="java.lang.String"/><arg column="attr3_val" javaType="java.lang.String"/><arg column="aply_bgn_dt" javaType="java.time.LocalDate"/>
+  </constructor></resultMap>
+  <resultMap id="excelResult" type="com.sicost.admin.AdminModels$ExcelMap"><constructor>
+    <arg column="map_id" javaType="java.lang.String"/><arg column="excel_lbl_nm" javaType="java.lang.String"/><arg column="trns_cd_grp_id" javaType="java.lang.String"/><arg column="trns_cd" javaType="java.lang.String"/>
+    <arg column="cd_grp_nm" javaType="java.lang.String"/><arg column="cd_nm" javaType="java.lang.String"/><arg column="map_role_cd" javaType="java.lang.String"/><arg column="rmrk_desc" javaType="java.lang.String"/><arg column="use_yn" javaType="java.lang.String"/>
+  </constructor></resultMap>
+  <resultMap id="paramResult" type="com.sicost.admin.AdminModels$OperatingParam"><constructor>
+    <arg column="oprt_std_id" javaType="java.lang.String"/><arg column="aply_bgn_ym" javaType="java.lang.String"/><arg column="oprt_std_nm" javaType="java.lang.String"/><arg column="num_val" javaType="java.math.BigDecimal"/>
+    <arg column="txt_val" javaType="java.lang.String"/><arg column="unit_nm" javaType="java.lang.String"/><arg column="use_plc_desc" javaType="java.lang.String"/>
+  </constructor></resultMap>
+  <resultMap id="historyResult" type="com.sicost.admin.AdminModels$CodeChange"><constructor>
+    <arg column="chg_at" javaType="java.time.LocalDateTime"/><arg column="cd_grp_id" javaType="java.lang.String"/><arg column="cd_grp_nm" javaType="java.lang.String"/><arg column="dtl_cd" javaType="java.lang.String"/>
+    <arg column="cd_chg_ty_cd" javaType="java.lang.String"/><arg column="item_nm" javaType="java.lang.String"/><arg column="bfr_val" javaType="java.lang.String"/><arg column="aft_val" javaType="java.lang.String"/><arg column="chg_user_id" javaType="java.lang.Long"/>
+  </constructor></resultMap>
+  <sql id="groupSelect">SELECT g.cd_grp_id,g.cd_grp_nm,g.cd_grp_se_cd,g.attr1_nm,g.attr2_nm,g.attr3_nm,g.sort_seq,g.use_yn,(SELECT count(*)::integer FROM cmn.cd_dtl d WHERE d.cd_grp_id=g.cd_grp_id) AS code_count FROM cmn.cd_grp g</sql>
+  <select id="groups" resultMap="groupResult"><include refid="groupSelect"/> ORDER BY ${orderBy} LIMIT #{size} OFFSET #{offset}</select>
+  <select id="group" resultMap="groupResult"><include refid="groupSelect"/> WHERE g.cd_grp_id=#{group}</select>
+  <select id="groupCount" resultType="long">SELECT count(*) FROM cmn.cd_grp</select>
+  <select id="codes" resultMap="codeResult">SELECT dtl_cd,cd_nm,sort_seq,use_yn,attr1_val,attr2_val,attr3_val,aply_bgn_dt FROM cmn.cd_dtl WHERE cd_grp_id=#{group} ORDER BY ${orderBy} LIMIT #{size} OFFSET #{offset}</select>
+  <select id="codeCount" resultType="long">SELECT count(*) FROM cmn.cd_dtl WHERE cd_grp_id=#{group}</select>
+  <sql id="excelSelect">SELECT e.map_id::text,e.excel_lbl_nm,e.trns_cd_grp_id,e.trns_cd,g.cd_grp_nm,d.cd_nm,e.map_role_cd,e.rmrk_desc,e.use_yn FROM cmn.excel_map e JOIN cmn.cd_grp g ON g.cd_grp_id=e.trns_cd_grp_id JOIN cmn.cd_dtl d ON d.cd_grp_id=e.trns_cd_grp_id AND d.dtl_cd=e.trns_cd</sql>
+  <select id="excelMaps" resultMap="excelResult"><include refid="excelSelect"/> ORDER BY ${orderBy} LIMIT #{size} OFFSET #{offset}</select>
+  <select id="excelMap" resultMap="excelResult"><include refid="excelSelect"/> WHERE e.map_id=#{mapId}</select>
+  <select id="excelCount" resultType="long">SELECT count(*) FROM cmn.excel_map</select>
+  <select id="excelDuplicate" resultType="long">SELECT count(*) FROM cmn.excel_map WHERE excel_lbl_nm=#{excel_lbl_nm} AND trns_cd_grp_id=#{trns_cd_grp_id} AND trns_cd=#{trns_cd}</select>
+  <select id="activeCode" resultType="int">SELECT count(*) FROM cmn.cd_dtl WHERE cd_grp_id=#{group} AND dtl_cd=#{code} AND use_yn='Y'</select>
+  <sql id="historyFilter"><where><if test="group != null">h.cd_grp_id=#{group}</if></where></sql>
+  <select id="history" resultMap="historyResult">SELECT h.chg_at,h.cd_grp_id,CASE WHEN h.cd_grp_id='PARAM' THEN '기준값' ELSE coalesce(g.cd_grp_nm,h.cd_grp_id) END AS cd_grp_nm,h.dtl_cd,h.cd_chg_ty_cd,coalesce(h.item_nm,h.dtl_cd,h.cd_grp_id) AS item_nm,h.bfr_val,h.aft_val,h.chg_user_id FROM cmn.cd_hist h LEFT JOIN cmn.cd_grp g ON g.cd_grp_id=h.cd_grp_id <include refid="historyFilter"/> ORDER BY ${orderBy} LIMIT #{size} OFFSET #{offset}</select>
+  <select id="historyCount" resultType="long">SELECT count(*) FROM cmn.cd_hist h <include refid="historyFilter"/></select>
+  <sql id="effective">SELECT DISTINCT ON (oprt_std_id) oprt_std_id,aply_bgn_ym,oprt_std_nm,num_val,txt_val,unit_nm,use_plc_desc FROM cmn.oprt_std WHERE aply_bgn_ym &lt;= #{month} ORDER BY oprt_std_id,aply_bgn_ym DESC</sql>
+  <select id="params" resultMap="paramResult">SELECT * FROM (<include refid="effective"/>) p ORDER BY ${orderBy} LIMIT #{size} OFFSET #{offset}</select>
+  <select id="paramCount" resultType="long">SELECT count(DISTINCT oprt_std_id) FROM cmn.oprt_std WHERE aply_bgn_ym &lt;= #{month}</select>
+  <select id="versions" resultMap="paramResult">SELECT oprt_std_id,aply_bgn_ym,oprt_std_nm,num_val,txt_val,unit_nm,use_plc_desc FROM cmn.oprt_std WHERE oprt_std_id=#{key} ORDER BY ${orderBy} LIMIT #{size} OFFSET #{offset}</select>
+  <select id="versionCount" resultType="long">SELECT count(*) FROM cmn.oprt_std WHERE oprt_std_id=#{key}</select>
+  <select id="source" resultMap="paramResult">SELECT oprt_std_id,aply_bgn_ym,oprt_std_nm,num_val,txt_val,unit_nm,use_plc_desc FROM cmn.oprt_std WHERE oprt_std_id=#{key} AND aply_bgn_ym &lt;= #{month} ORDER BY aply_bgn_ym DESC LIMIT 1</select>
+  <select id="lastClosed" resultType="string">SELECT max(cls_ym) FROM fin.mth_cls WHERE cls_stts_cd='CLOSED'</select>
+  <insert id="insertGroup">INSERT INTO cmn.cd_grp(cd_grp_id,cd_grp_nm,cd_grp_se_cd,attr1_nm,attr2_nm,attr3_nm,sort_seq,created_by) SELECT #{row.cd_grp_id},#{row.cd_grp_nm},'BIZ',#{row.attr1_nm},#{row.attr2_nm},#{row.attr3_nm},coalesce(max(sort_seq),0)+1,#{userId} FROM cmn.cd_grp</insert>
+  <insert id="insertCode">INSERT INTO cmn.cd_dtl(cd_grp_id,dtl_cd,cd_nm,sort_seq,use_yn,attr1_val,attr2_val,attr3_val,aply_bgn_dt,created_by) VALUES(#{group},#{row.dtl_cd},#{row.cd_nm},#{row.sort_seq},'Y',#{row.attr1_val},#{row.attr2_val},#{row.attr3_val},#{row.aply_bgn_dt},#{userId})</insert>
+  <update id="updateCode">UPDATE cmn.cd_dtl <set>
+    <if test="changes.containsKey('cd_nm')">cd_nm=#{changes.cd_nm},</if><if test="changes.containsKey('sort_seq')">sort_seq=#{changes.sort_seq},</if>
+    <if test="changes.containsKey('use_yn')">use_yn=#{changes.use_yn},</if><if test="changes.containsKey('attr1_val')">attr1_val=#{changes.attr1_val},</if>
+    <if test="changes.containsKey('attr2_val')">attr2_val=#{changes.attr2_val},</if><if test="changes.containsKey('attr3_val')">attr3_val=#{changes.attr3_val},</if>
+    <if test="changes.containsKey('aply_bgn_dt')">aply_bgn_dt=#{changes.aply_bgn_dt,jdbcType=DATE},</if>updated_at=#{updatedAt},updated_by=#{userId}
+  </set> WHERE cd_grp_id=#{group} AND dtl_cd=#{row.dtl_cd}</update>
+  <insert id="insertExcel" useGeneratedKeys="true" keyProperty="mapId" keyColumn="map_id">INSERT INTO cmn.excel_map(excel_lbl_nm,trns_cd_grp_id,trns_cd,map_role_cd,rmrk_desc,created_by) VALUES(#{row.excel_lbl_nm},#{row.trns_cd_grp_id},#{row.trns_cd},#{row.map_role_cd},#{row.rmrk_desc},#{userId})</insert>
+  <update id="patchExcel">UPDATE cmn.excel_map <set><if test="changes.containsKey('map_role_cd')">map_role_cd=#{changes.map_role_cd},</if><if test="changes.containsKey('rmrk_desc')">rmrk_desc=#{changes.rmrk_desc},</if><if test="changes.containsKey('use_yn')">use_yn=#{changes.use_yn},</if></set> WHERE map_id=#{mapId}</update>
+  <insert id="saveParam">INSERT INTO cmn.oprt_std(oprt_std_id,aply_bgn_ym,oprt_std_nm,num_val,txt_val,unit_nm,use_plc_desc,oprt_std_desc,created_by) SELECT oprt_std_id,#{month},oprt_std_nm,#{num},#{text},unit_nm,use_plc_desc,oprt_std_desc,#{userId} FROM cmn.oprt_std WHERE oprt_std_id=#{key} AND aply_bgn_ym=#{sourceMonth} ON CONFLICT(oprt_std_id,aply_bgn_ym) DO UPDATE SET num_val=EXCLUDED.num_val,txt_val=EXCLUDED.txt_val</insert>
+  <insert id="insertHistory">INSERT INTO cmn.cd_hist(cd_grp_id,dtl_cd,cd_chg_ty_cd,item_nm,bfr_val,aft_val,chg_user_id) VALUES(#{group},#{code},#{type},#{item},#{before},#{after},#{userId})</insert>
+</mapper>

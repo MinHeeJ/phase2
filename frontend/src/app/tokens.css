@@ -1,0 +1,93 @@
+@font-face {
+  font-family: Pretendard;
+  src: url("/fonts/PretendardVariable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+:root {
+  --primary: #1d4ed8;
+  --primary-hover: #1e40af;
+  --primary-bg: #eff6ff;
+  --text: #111827;
+  --text-sub: #4b5563;
+  --text-disabled: #9ca3af;
+  --border: #d1d5db;
+  --divider: #e5e7eb;
+  --bg: #f9fafb;
+  --surface: #ffffff;
+  --header-bg: #f3f4f6;
+  --readonly-bg: #f3f4f6;
+  --success: #15803d;
+  --success-bg: #f0fdf4;
+  --warning: #b45309;
+  --warning-bg: #fffbeb;
+  --danger: #b91c1c;
+  --danger-bg: #fef2f2;
+  --info: #0369a1;
+  --info-bg: #f0f9ff;
+  --locked: #4b5563;
+  --locked-bg: #f3f4f6;
+  --font-family: Pretendard, "Malgun Gothic", sans-serif;
+  --title-size: 20px;
+  --title-line: 28px;
+  --title-weight: 700;
+  --section-size: 16px;
+  --section-line: 24px;
+  --section-weight: 600;
+  --kpi-size: 24px;
+  --kpi-line: 32px;
+  --kpi-weight: 700;
+  --body-size: 14px;
+  --body-line: 20px;
+  --body-weight: 400;
+  --table-size: 13px;
+  --table-line: 20px;
+  --table-weight: 400;
+  --label-size: 13px;
+  --label-line: 18px;
+  --label-weight: 500;
+  --caption-size: 12px;
+  --caption-line: 16px;
+  --caption-weight: 400;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --radius-control: 4px;
+  --radius-panel: 8px;
+  --shadow-dropdown: 0 2px 4px rgba(0, 0, 0, 0.08);
+  --shadow-dialog: 0 8px 24px rgba(0, 0, 0, 0.16);
+  --control-height: 36px;
+  --control-small-height: 28px;
+  --row-height: 40px;
+  --dense-row-height: 32px;
+  --label-width: 120px;
+  --sidebar-width: 240px;
+  --sidebar-collapsed-width: 64px;
+  --content-padding: 24px;
+  --header-height: 56px;
+  --motion-fast: 160ms;
+  --panel-min-height: 240px;
+  --table-min-width: 640px;
+  --inline-input-width: 144px;
+  --overlay-bg: rgba(0, 0, 0, 0.16);
+}
+@media (min-width: 768px) and (max-width: 1279px) {
+  :root {
+    --sidebar-width: 64px;
+    --content-padding: 16px;
+  }
+}
+@media (max-width: 767px) {
+  :root {
+    --sidebar-width: 0px;
+    --content-padding: 16px;
+    --control-height: 44px;
+    --control-small-height: 44px;
+    --body-size: 16px;
+    --body-line: 24px;
+  }
+}

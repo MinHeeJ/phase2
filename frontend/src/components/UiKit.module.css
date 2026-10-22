@@ -1,0 +1,391 @@
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  height: var(--control-height);
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  font-size: var(--label-size);
+  line-height: var(--label-line);
+  font-weight: var(--label-weight);
+  white-space: nowrap;
+}
+.primary {
+  color: var(--surface);
+  background: var(--primary);
+  border-color: var(--primary);
+}
+.primary:hover:not(:disabled) {
+  background: var(--primary-hover);
+}
+.secondary {
+  color: var(--text);
+  background: var(--surface);
+}
+.text {
+  color: var(--text-sub);
+  background: transparent;
+  text-align: left;
+}
+.button.text {
+  border-color: transparent;
+}
+.danger {
+  color: var(--danger);
+  background: var(--danger-bg);
+}
+.button.danger {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: var(--surface);
+}
+.button:disabled {
+  color: var(--text-disabled);
+  background: var(--readonly-bg);
+  border-color: var(--border);
+}
+.small {
+  height: var(--control-small-height);
+}
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: var(--space-2);
+  margin-left: auto;
+}
+.spinner {
+  animation: spin 1s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.tablePanel {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+  background: var(--surface);
+  min-width: 0;
+}
+.toolbar {
+  min-height: var(--dense-row-height);
+  padding: var(--space-2) var(--space-3);
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.tableScroll {
+  overflow: auto;
+  max-width: 100%;
+}
+.table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: var(--table-size);
+  line-height: var(--table-line);
+  font-weight: var(--table-weight);
+}
+.table th,
+.table td {
+  height: var(--row-height);
+  border-bottom: 1px solid var(--divider);
+  padding: var(--space-2) var(--space-3);
+}
+.table th {
+  position: sticky;
+  top: 0;
+  background: var(--header-bg);
+  font-weight: var(--section-weight);
+}
+.dense th,
+.dense td {
+  height: var(--dense-row-height);
+  padding-top: var(--space-1);
+  padding-bottom: var(--space-1);
+}
+.number {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.code,
+.status,
+.date {
+  text-align: center;
+}
+.table td.text {
+  color: var(--text);
+}
+:global(.numeric) {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+:global(.negative) {
+  color: var(--danger);
+}
+.pagination {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  padding-top: var(--space-3);
+  font-size: var(--caption-size);
+  line-height: var(--caption-line);
+}
+.pagination button {
+  border: 0;
+  background: var(--surface);
+  color: var(--text);
+  min-width: var(--control-small-height);
+  min-height: var(--control-small-height);
+  border-radius: var(--radius-control);
+}
+.pagination button[aria-current="page"] {
+  color: var(--surface);
+  background: var(--primary);
+}
+.pagination button:disabled {
+  color: var(--text-disabled);
+}
+.pagination select {
+  margin-left: auto;
+}
+.tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+}
+.tabs button {
+  height: var(--control-height);
+  padding: 0 var(--space-4);
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: var(--surface);
+  color: var(--text-sub);
+}
+.tabs button[aria-selected="true"] {
+  border-bottom-color: var(--primary);
+  color: var(--primary);
+}
+.badge {
+  display: inline-flex;
+  border-radius: var(--radius-control);
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--caption-size);
+  line-height: var(--caption-line);
+}
+.success {
+  color: var(--success);
+  background: var(--success-bg);
+}
+.warning {
+  color: var(--warning);
+  background: var(--warning-bg);
+}
+.info {
+  color: var(--info);
+  background: var(--info-bg);
+}
+.locked {
+  color: var(--locked);
+  background: var(--locked-bg);
+}
+.category {
+  color: var(--text-sub);
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+.query {
+  display: flex;
+  align-items: end;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  padding: var(--space-4);
+}
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.16);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: var(--space-4);
+}
+.dialog {
+  width: 640px;
+  max-width: 100%;
+  max-height: calc(100dvh - var(--space-8));
+  overflow: auto;
+  padding: var(--space-6);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+  box-shadow: var(--shadow-dialog);
+}
+.dialog header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+.dialog h2 {
+  margin: 0;
+}
+.confirm {
+  width: 400px;
+}
+.toast {
+  position: fixed;
+  right: var(--space-6);
+  top: var(--space-6);
+  padding: var(--space-4);
+  color: var(--success);
+  background: var(--success-bg);
+  border-radius: var(--radius-panel);
+  box-shadow: var(--shadow-dialog);
+  z-index: 200;
+}
+.lockedBanner {
+  padding: var(--space-3) var(--space-4);
+  color: var(--locked);
+  background: var(--locked-bg);
+}
+.errorBanner {
+  padding: var(--space-3) var(--space-4);
+  color: var(--danger);
+  background: var(--danger-bg);
+  border: 1px solid var(--danger);
+}
+.skeleton {
+  height: var(--space-8);
+  background: var(--readonly-bg);
+  border-radius: var(--radius-control);
+}
+.empty {
+  text-align: center;
+  padding: var(--space-8);
+  color: var(--text-sub);
+}
+.secondary:hover:not(:disabled),
+.text:hover:not(:disabled) {
+  background: var(--primary-bg);
+  border-color: var(--primary);
+  color: var(--primary);
+}
+.tablePanel {
+  overflow: hidden;
+}
+.toolbar {
+  align-items: center;
+  border-bottom: 1px solid var(--divider);
+  font-size: var(--label-size);
+}
+.toolbar label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--text-sub);
+}
+.tableScroll {
+  max-height: calc(100dvh - var(--panel-min-height));
+}
+.table {
+  min-width: var(--table-min-width);
+}
+.table th {
+  z-index: 1;
+  white-space: nowrap;
+  color: var(--text-sub);
+}
+.table tbody tr:hover {
+  background: var(--primary-bg);
+}
+.table td > :global([data-field]) {
+  display: block;
+  min-width: var(--inline-input-width);
+  position: relative;
+}
+.table td > :global([data-field]) > label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.table td :global(input:not([type="checkbox"])),
+.table td :global(select) {
+  font-size: var(--table-size);
+  padding: var(--space-1) var(--space-2);
+}
+.dense td :global(input:not([type="checkbox"])),
+.dense td :global(select) {
+  min-height: var(--control-small-height);
+  height: var(--control-small-height);
+}
+.query {
+  background: var(--surface);
+  border: 1px solid var(--divider);
+  border-radius: var(--radius-panel);
+}
+.tabs {
+  gap: var(--space-2);
+}
+.tabs button {
+  background: transparent;
+  font-weight: var(--section-weight);
+}
+.tabs button:hover {
+  color: var(--primary);
+  background: var(--primary-bg);
+}
+.overlay {
+  background: var(--overlay-bg);
+}
+.dialog > header {
+  padding-bottom: var(--space-4);
+  border-bottom: 1px solid var(--divider);
+}
+.dialog .actions {
+  border-top: 1px solid var(--divider);
+  padding-top: var(--space-4);
+  width: 100%;
+}
+.lockedBanner {
+  border: 1px solid var(--divider);
+  border-radius: var(--radius-control);
+  font-size: var(--label-size);
+}
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--readonly-bg),
+    var(--divider),
+    var(--readonly-bg)
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.6s ease-in-out infinite;
+}
+@keyframes shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation: none;
+  }
+}
+@media (max-width: 767px) {
+  .query {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .dialog {
+    padding: var(--space-4);
+  }
+}

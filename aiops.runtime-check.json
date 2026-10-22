@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "backend": {
+    "service": "backend",
+    "container_port": 8080,
+    "health": {
+      "operation_id": "getHealth",
+      "method": "GET",
+      "path": "/api/health",
+      "expect": [
+        { "path": "success", "op": "equals", "value": true },
+        { "path": "meta", "op": "type", "value": "object" }
+      ]
+    }
+  },
+  "auth": { "required": false },
+  "first_menu": {
+    "route": "/UI-16",
+    "operation_id": "getMenus",
+    "method": "GET",
+    "path": "/api/menus",
+    "expect": [ { "path": "data", "op": "type", "value": "array" } ]
+  }
+}
