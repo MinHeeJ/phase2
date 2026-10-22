@@ -1,0 +1,105 @@
+@import "./tokens.css";
+@font-face {
+  font-family: Pretendard;
+  src: url("/fonts/PretendardVariable.woff2") format("woff2");
+  font-weight: 45 920;
+  font-style: normal;
+  font-display: swap;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font:
+    var(--body-weight) var(--body-size) / var(--body-line) Pretendard,
+    "Malgun Gothic",
+    sans-serif;
+}
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+button,
+input,
+select {
+  min-height: var(--control-height);
+}
+button {
+  cursor: pointer;
+}
+button:disabled {
+  cursor: default;
+  color: var(--text-disabled);
+}
+input,
+select,
+textarea {
+  max-width: 100%;
+  min-width: 0;
+}
+a {
+  color: var(--primary);
+}
+button,
+a,
+input,
+select,
+textarea {
+  transition:
+    background-color var(--motion-fast),
+    color var(--motion-fast),
+    border-color var(--motion-fast);
+}
+:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+input[type="checkbox"] {
+  accent-color: var(--primary);
+  min-height: 0;
+  flex-shrink: 0;
+}
+svg {
+  flex-shrink: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+h1 {
+  font-size: var(--title-size);
+  line-height: var(--title-line);
+  font-weight: var(--title-weight);
+}
+h2 {
+  font-size: var(--section-size);
+  line-height: var(--section-line);
+  font-weight: var(--section-weight);
+}
+.danger {
+  color: var(--danger);
+}
+.numeric {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+@media (max-width: 767px) {
+  body {
+    font-size: var(--section-size);
+    line-height: var(--section-line);
+  }
+  button,
+  input,
+  select {
+    min-height: 44px;
+  }
+}

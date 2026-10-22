@@ -1,0 +1,186 @@
+.heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+.heading h1 {
+  font-size: var(--title-size);
+  line-height: var(--title-line);
+  font-weight: var(--title-weight);
+}
+.heading small {
+  color: var(--text-sub);
+  font-size: var(--caption-size);
+}
+.codeLayout {
+  display: grid;
+  grid-template-columns: var(--sidebar-expanded) minmax(0, 1fr);
+  gap: var(--space-4);
+  margin-top: var(--space-4);
+}
+.codeLayout aside {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  padding: var(--space-2);
+  border-radius: var(--radius-panel);
+  align-self: start;
+}
+.groupHeading {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-3);
+  color: var(--text-sub);
+  border-bottom: 1px solid var(--divider);
+  font-size: var(--label-size);
+}
+.groupLabel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.groupLabel small {
+  color: var(--text-sub);
+  font-size: var(--caption-size);
+  font-weight: var(--caption-weight);
+}
+.codeLayout aside button {
+  justify-content: space-between;
+  text-align: left;
+  height: auto;
+  padding: var(--space-3);
+  border-color: transparent;
+}
+.codeLayout aside button[aria-pressed="true"] {
+  background: var(--primary-bg);
+  color: var(--primary);
+}
+.region {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.region h2 {
+  font-size: var(--section-size);
+  line-height: var(--section-line);
+  font-weight: var(--section-weight);
+  margin: 0;
+}
+.region {
+  margin-top: var(--space-4);
+}
+.region > button {
+  align-self: flex-start;
+}
+.region > section > h3 {
+  font-size: var(--section-size);
+  margin: var(--space-6) 0 var(--space-3);
+}
+.region input,
+.region select,
+.desktopOnly input,
+.desktopOnly select {
+  min-height: var(--control-height);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--text);
+  padding: var(--space-1) var(--space-2);
+  font: inherit;
+  max-width: 100%;
+}
+.region input[type="text"] {
+  width: 100%;
+}
+.region input[type="number"] {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.region input[readonly],
+.region input:disabled {
+  background: var(--readonly-bg);
+  color: var(--text-sub);
+}
+.region input[aria-invalid="true"] {
+  border-color: var(--danger);
+}
+.region span[role="alert"] {
+  display: block;
+  color: var(--danger);
+  font-size: var(--caption-size);
+}
+.tableScroll {
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+  max-height: 70vh;
+}
+.tableScroll table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: var(--table-size);
+  background: var(--surface);
+}
+.tableScroll th {
+  background: var(--header-bg);
+  font-weight: var(--table-heading-weight);
+  position: sticky;
+  top: 0;
+}
+.tableScroll th,
+.tableScroll td {
+  border-bottom: 1px solid var(--divider);
+  padding: var(--space-2);
+  text-align: left;
+}
+.tableScroll caption {
+  text-align: left;
+  padding: var(--space-3);
+  background: var(--surface);
+  color: var(--text-sub);
+}
+.tableScroll caption label {
+  float: right;
+}
+.tableScroll th {
+  z-index: 1;
+  white-space: nowrap;
+  color: var(--text-sub);
+}
+.tableScroll td {
+  height: calc(var(--control-height) + var(--space-4));
+}
+.tableScroll td:last-child {
+  white-space: nowrap;
+}
+.tableScroll td:last-child button + button {
+  margin-left: var(--space-2);
+}
+.tableScroll tbody tr:hover {
+  background: var(--primary-bg);
+}
+.mobileOnly {
+  display: none;
+}
+@media (max-width: 1279px) {
+  .codeLayout {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 3fr);
+  }
+}
+@media (max-width: 767px) {
+  .desktopOnly {
+    display: none;
+  }
+  .mobileOnly {
+    display: block;
+    padding: var(--space-4);
+  }
+}

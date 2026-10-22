@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sicost.shared.SharedReadMapper">
+  <resultMap id="codeOption" type="com.sicost.shared.SharedReadModels$CodeOption">
+    <constructor>
+      <arg column="dtl_cd" javaType="java.lang.String"/>
+      <arg column="cd_nm" javaType="java.lang.String"/>
+      <arg column="attr1_val" javaType="java.lang.String"/>
+      <arg column="attr2_val" javaType="java.lang.String"/>
+      <arg column="attr3_val" javaType="java.lang.String"/>
+    </constructor>
+  </resultMap>
+  <resultMap id="menuRow" type="com.sicost.shared.SharedReadModels$MenuRow">
+    <constructor>
+      <idArg column="menu_id" javaType="_long"/>
+      <arg column="upr_menu_id" javaType="java.lang.Long"/>
+      <arg column="menu_nm" javaType="java.lang.String"/>
+      <arg column="scrn_id" javaType="java.lang.String"/>
+      <arg column="icon_nm" javaType="java.lang.String"/>
+      <arg column="mobile" javaType="_boolean"/>
+    </constructor>
+  </resultMap>
+  <resultMap id="monthClose" type="com.sicost.shared.SharedReadModels$MonthClose">
+    <constructor>
+      <idArg column="cls_ym" javaType="java.lang.String"/>
+      <arg column="cls_stts_cd" javaType="java.lang.String"/>
+    </constructor>
+  </resultMap>
+  <resultMap id="operatingParam" type="com.sicost.shared.SharedReadModels$OperatingParam">
+    <constructor>
+      <idArg column="oprt_std_id" javaType="java.lang.String"/>
+      <arg column="aply_bgn_ym" javaType="java.lang.String"/>
+      <arg column="oprt_std_nm" javaType="java.lang.String"/>
+      <arg column="num_val" javaType="java.math.BigDecimal"/>
+      <arg column="txt_val" javaType="java.lang.String"/>
+      <arg column="unit_nm" javaType="java.lang.String"/>
+      <arg column="use_plc_desc" javaType="java.lang.String"/>
+    </constructor>
+  </resultMap>
+  <select id="groupExists" resultType="boolean">
+    SELECT EXISTS(SELECT 1 FROM cmn.cd_grp WHERE cd_grp_id = #{group})
+  </select>
+  <select id="codeOptions" resultMap="codeOption">
+    SELECT dtl_cd, cd_nm, attr1_val, attr2_val, attr3_val
+    FROM cmn.cd_dtl
+    WHERE cd_grp_id = #{group} AND use_yn = 'Y'
+    ORDER BY sort_seq, dtl_cd
+  </select>
+  <select id="menus" resultMap="menuRow">
+    SELECT menu_id, upr_menu_id, menu_nm, scrn_id, icon_nm, mbl_expsr_yn = 'Y' AS mobile
+    FROM sys.menu WHERE use_yn = 'Y' ORDER BY sort_seq, menu_id
+  </select>
+  <select id="monthClose" resultMap="monthClose">
+    SELECT cls_ym, cls_stts_cd FROM fin.mth_cls
+    WHERE cls_ym &gt;= #{from} AND cls_ym &lt;= #{to} ORDER BY cls_ym
+  </select>
+  <select id="effectiveParam" resultMap="operatingParam">
+    SELECT oprt_std_id, aply_bgn_ym, oprt_std_nm, num_val, txt_val, unit_nm, use_plc_desc
+    FROM cmn.oprt_std WHERE oprt_std_id = #{key} AND aply_bgn_ym &lt;= #{month}
+    ORDER BY aply_bgn_ym DESC LIMIT 1
+  </select>
+</mapper>
