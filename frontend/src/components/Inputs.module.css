@@ -1,0 +1,73 @@
+.form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4) var(--space-6);
+}
+.form > :global(section),
+.form > :global(div:last-child) {
+  grid-column: 1 / -1;
+}
+.field {
+  display: grid;
+  grid-template-columns: var(--label-width) minmax(0, 1fr);
+  align-items: start;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.field label {
+  padding-top: var(--space-2);
+  font-size: var(--label-size);
+  line-height: var(--label-line);
+  font-weight: var(--label-weight);
+}
+.control {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: var(--space-1);
+}
+.input {
+  width: 100%;
+  min-height: var(--control-height);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  color: var(--text);
+  background: var(--surface);
+}
+.input[readonly],
+.input:disabled {
+  background: var(--readonly-bg);
+}
+.input[aria-invalid="true"] {
+  border-color: var(--danger);
+}
+.amount {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.required,
+.error {
+  color: var(--danger);
+}
+.counter,
+.error {
+  font-size: var(--caption-size);
+  line-height: var(--caption-line);
+}
+.counter {
+  text-align: right;
+  color: var(--text-sub);
+}
+@media (max-width: 767px) {
+  .form {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .field {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-1);
+  }
+  .field label {
+    padding-top: 0;
+  }
+}

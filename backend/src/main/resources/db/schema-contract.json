@@ -1,0 +1,759 @@
+[
+  {
+    "table": "cmn.cd_grp",
+    "columns": [
+      {
+        "name": "cd_grp_id",
+        "type": "character varying",
+        "length": 30,
+        "precision": null,
+        "scale": null,
+        "nullable": false,
+        "identity": ""
+      },
+      {
+        "name": "cd_grp_nm",
+        "type": "character varying",
+        "length": 100,
+        "precision": null,
+        "scale": null,
+        "nullable": false,
+        "identity": ""
+      },
+      {
+        "name": "cd_grp_se_cd",
+        "type": "character varying",
+        "length": 10,
+        "precision": null,
+        "scale": null,
+        "nullable": false,
+        "identity": ""
+      },
+      {
+        "name": "attr1_nm",
+        "type": "character varying",
+        "length": 50,
+        "precision": null,
+        "scale": null,
+        "nullable": true,
+        "identity": ""
+      },
+      {
+        "name": "attr2_nm",
+        "type": "character varying",
+        "length": 50,
+        "precision": null,
+        "scale": null,
+        "nullable": true,
+        "identity": ""
+      },
+      {
+        "name": "attr3_nm",
+        "type": "character varying",
+        "length": 50,
+        "precision": null,
+        "scale": null,
+        "nullable": true,
+        "identity": ""
+      },
+      {
+        "name": "cd_grp_desc",
+        "type": "character varying",
+        "length": 500,
+        "precision": null,
+        "scale": null,
+        "nullable": true,
+        "identity": ""
+      },
+      {
+        "name": "sort_seq",
+        "type": "integer",
+        "length": null,
+        "precision": null,
+        "scale": null,
+        "nullable": false,
+        "identity": ""
+      },
+      {
+        "name": "use_yn",
+        "type": "character",
+        "length": 1,
+        "precision": null,
+        "scale": null,
+        "nullable": false,
+        "identity": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp without time zone",
+        "length": null,
+        "precision": null,
+        "scale": null,
+        "nullable": false,
+        "identity": ""
+      },
+      {
+        "name": "created_by",
+        "type": "bigint",
+        "length": null,
+        "precision": null,
+        "scale": null,
+        "nullable": true,
+        "identity": ""
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp without time zone",
+        "length": null,
+        "precision": null,
+        "scale": null,
+        "nullable": true,
+        "identity": ""
+      },
+      {
+        "name": "updated_by",
+        "type": "bigint",
+        "length": null,
+        "precision": null,
+        "scale": null,
+        "nullable": true,
+        "identity": ""
+      }
+    ],
+    "primaryKey": [
+      "cd_grp_id"
+    ],
+    "foreignKeys": []
+  },
+  {
+    "table": "cmn.cd_dtl",
+    "columns": [
+      {
+        "name": "cd_grp_id",
+        "type": "character varying",
+        "length": 30,
+        "precision": null,
+        "scale": null,
+        "nullable": false,
+        "identity": ""
+      },
+      {
+        "name": "dtl_cd",
+        "type": "character varying",
+        "length": 30,
+        "precision": null,
+        "scale": null,
+        "nullable": false,
+        "identity": ""
+      },
+      {
+        "name": "cd_nm",
+        "type": "character varying",
+        "length": 100,
+        "precision": null,
+        "scale": null,
+        "nullable": false,
+        "identity": ""
+      },
+      {
+        "name": "attr1_val",
+        "type": "character varying",
+        "length": 100,
+        "precision": null,
+        "scale": null,
+        "nullable": true,
+        "identity": ""
+      },
+      {
+        "name": "attr2_val",
+        "type": "character varying",
+        "length": 100,
+        "precision": null,
+        "scale": null,
+        "nullable": true,
+        "identity": ""
+      },
+      {
+        "name": "attr3_val",
+        "type": "character varying",
+        "length": 100,
+        "precision": null,
+        "scale": null,
+        "nullable": true,
+        "identity": ""
+      },
+      {
+        "name": "sort_seq",
+        "type": "integer",
+        "length": null,
+        "precision": null,
+        "scale": null,
+        "nullable": false,
+        "identity": ""
+      },
+      {
+        "name": "use_yn",
+        "type": "character",
+        "length": 1,
+        "precision": null,
+        "scale": null,
+        "nullable": false,
+        "identity": ""
+      },
+      {
+        "name": "aply_bgn_dt",
+        "type": "date",
+        "length": null,
+        "precision": null,
+        "scale": null,
+        "nullable": true,
+        "identity": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp without time zone",
+        "length": null,
+        "precision": null,
+        "scale": null,
+        "nullable": false,
+        "identity": ""
+      },
+      {
+        "name": "created_by",
+        "type": "bigint",
+        "length": null,
+        "precision": null,
+        "scale": null,
+        "nullable": true,
+        "identity": ""
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp without time zone",
+        "length": null,
+        "precision": null,
+        "scale": null,
+        "nullable": true,
+        "identity": ""
+      },
+      {
+        "name": "updated_by",
+        "type": "bigint",
+        "length": null,
+        "precision": null,
+        "scale": null,
+        "nullable": true,
+        "identity": ""
+      }
+    ],
+    "primaryKey": [
+      "cd_grp_id",
+      "dtl_cd"
+    ],
+    "foreignKeys": [
+      {
+        "name": "fk_cd_dtl_cd_grp",
+        "columns": [
+          "cd_grp_id"
+        ],
+        "parent": "cmn.cd_grp",
+        "parentColumns": [
+          "cd_grp_id"
+        ]
+      }
+    ]
+  },
+  {
+    "table": "cmn.cd_hist",
+    "columns": [
+      {
+        "name": "cd_hist_id",
+        "type": "bigint",
+        "length": null,
+        "precision": null,
+        "scale": null,
+        "nullable": false,
+        "identity": "BY DEFAULT"
+      },
+      {
+        "name": "cd_grp_id",
+        "type": "character varying",
+        "length": 30,
+        "precision": null,
+        "scale": null,
+        "nullable": false,
+        "identity": ""
+      },
+      {
+        "name": "dtl_cd",
+        "type": "character varying",
+        "length": 30,
+        "precision": null,
+        "scale": null,
+        "nullable": true,
+        "identity": ""
+      },
+      {
+        "name": "cd_chg_ty_cd",
+        "type": "character varying",
+        "length": 10,
+        "precision": null,
+        "scale": null,
+        "nullable": false,
+        "identity": ""
+      },
+      {
+        "name": "item_nm",
+        "type": "character varying",
+        "length": 50,
+        "precision": null,
+        "scale": null,
+        "nullable": true,
+        "identity": ""
+      },
+      {
+        "name": "bfr_val",
+        "type": "character varying",
+        "length": 500,
+        "precision": null,
+        "scale": null,
+        "nullable": true,
+        "identity": ""
+      },
+      {
+        "name": "aft_val",
+        "type": "character varying",
+        "length": 500,
+        "precision": null,
+        "scale": null,
+        "nullable": true,
+        "identity": ""
+      },
+      {
+        "name": "chg_user_id",
+        "type": "bigint",
+        "length": null,
+        "precision": null,
+        "scale": null,
+        "nullable": true,
+        "identity": ""
+      },
+      {
+        "name": "chg_at",
+        "type": "timestamp without time zone",
+        "length": null,
+        "precision": null,
+        "scale": null,
+        "nullable": false,
+        "identity": ""
+      }
+    ],
+    "primaryKey": [
+      "cd_hist_id"
+    ],
+    "foreignKeys": []
+  },
+  {
+    "table": "cmn.excel_map",
+    "columns": [
+      {
+        "name": "map_id",
+        "type": "bigint",
+        "length": null,
+        "precision": null,
+        "scale": null,
+        "nullable": false,
+        "identity": "BY DEFAULT"
+      },
+      {
+        "name": "excel_lbl_nm",
+        "type": "character varying",
+        "length": 100,
+        "precision": null,
+        "scale": null,
+        "nullable": false,
+        "identity": ""
+      },
+      {
+        "name": "trns_cd_grp_id",
+        "type": "character varying",
+        "length": 30,
+        "precision": null,
+        "scale": null,
+        "nullable": false,
+        "identity": ""
+      },
+      {
+        "name": "trns_cd",
+        "type": "character varying",
+        "length": 30,
+        "precision": null,
+        "scale": null,
+        "nullable": false,
+        "identity": ""
+      },
+      {
+        "name": "map_role_cd",
+        "type": "character varying",
+        "length": 10,
+        "precision": null,
+        "scale": null,
+        "nullable": false,
+        "identity": ""
+      },
+      {
+        "name": "rmrk_desc",
+        "type": "character varying",
+        "length": 200,
+        "precision": null,
+        "scale": null,
+        "nullable": true,
+        "identity": ""
+      },
+      {
+        "name": "use_yn",
+        "type": "character",
+        "length": 1,
+        "precision": null,
+        "scale": null,
+        "nullable": false,
+        "identity": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp without time zone",
+        "length": null,
+        "precision": null,
+        "scale": null,
+        "nullable": false,
+        "identity": ""
+      },
+      {
+        "name": "created_by",
+        "type": "bigint",
+        "length": null,
+        "precision": null,
+        "scale": null,
+        "nullable": true,
+        "identity": ""
+      }
+    ],
+    "primaryKey": [
+      "map_id"
+    ],
+    "foreignKeys": [
+      {
+        "name": "fk_excel_map_cd_dtl",
+        "columns": [
+          "trns_cd_grp_id",
+          "trns_cd"
+        ],
+        "parent": "cmn.cd_dtl",
+        "parentColumns": [
+          "cd_grp_id",
+          "dtl_cd"
+        ]
+      }
+    ]
+  },
+  {
+    "table": "cmn.oprt_std",
+    "columns": [
+      {
+        "name": "oprt_std_id",
+        "type": "character varying",
+        "length": 50,
+        "precision": null,
+        "scale": null,
+        "nullable": false,
+        "identity": ""
+      },
+      {
+        "name": "aply_bgn_ym",
+        "type": "character",
+        "length": 7,
+        "precision": null,
+        "scale": null,
+        "nullable": false,
+        "identity": ""
+      },
+      {
+        "name": "oprt_std_nm",
+        "type": "character varying",
+        "length": 100,
+        "precision": null,
+        "scale": null,
+        "nullable": false,
+        "identity": ""
+      },
+      {
+        "name": "num_val",
+        "type": "numeric",
+        "length": null,
+        "precision": 18,
+        "scale": 4,
+        "nullable": true,
+        "identity": ""
+      },
+      {
+        "name": "txt_val",
+        "type": "character varying",
+        "length": 200,
+        "precision": null,
+        "scale": null,
+        "nullable": true,
+        "identity": ""
+      },
+      {
+        "name": "unit_nm",
+        "type": "character varying",
+        "length": 20,
+        "precision": null,
+        "scale": null,
+        "nullable": true,
+        "identity": ""
+      },
+      {
+        "name": "use_plc_desc",
+        "type": "character varying",
+        "length": 100,
+        "precision": null,
+        "scale": null,
+        "nullable": true,
+        "identity": ""
+      },
+      {
+        "name": "oprt_std_desc",
+        "type": "character varying",
+        "length": 500,
+        "precision": null,
+        "scale": null,
+        "nullable": true,
+        "identity": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp without time zone",
+        "length": null,
+        "precision": null,
+        "scale": null,
+        "nullable": false,
+        "identity": ""
+      },
+      {
+        "name": "created_by",
+        "type": "bigint",
+        "length": null,
+        "precision": null,
+        "scale": null,
+        "nullable": true,
+        "identity": ""
+      }
+    ],
+    "primaryKey": [
+      "oprt_std_id",
+      "aply_bgn_ym"
+    ],
+    "foreignKeys": []
+  },
+  {
+    "table": "sys.menu",
+    "columns": [
+      {
+        "name": "menu_id",
+        "type": "bigint",
+        "length": null,
+        "precision": null,
+        "scale": null,
+        "nullable": false,
+        "identity": "BY DEFAULT"
+      },
+      {
+        "name": "upr_menu_id",
+        "type": "bigint",
+        "length": null,
+        "precision": null,
+        "scale": null,
+        "nullable": true,
+        "identity": ""
+      },
+      {
+        "name": "menu_nm",
+        "type": "character varying",
+        "length": 50,
+        "precision": null,
+        "scale": null,
+        "nullable": false,
+        "identity": ""
+      },
+      {
+        "name": "scrn_id",
+        "type": "character varying",
+        "length": 10,
+        "precision": null,
+        "scale": null,
+        "nullable": true,
+        "identity": ""
+      },
+      {
+        "name": "icon_nm",
+        "type": "character varying",
+        "length": 30,
+        "precision": null,
+        "scale": null,
+        "nullable": true,
+        "identity": ""
+      },
+      {
+        "name": "sort_seq",
+        "type": "integer",
+        "length": null,
+        "precision": null,
+        "scale": null,
+        "nullable": false,
+        "identity": ""
+      },
+      {
+        "name": "use_yn",
+        "type": "character",
+        "length": 1,
+        "precision": null,
+        "scale": null,
+        "nullable": false,
+        "identity": ""
+      },
+      {
+        "name": "mbl_expsr_yn",
+        "type": "character",
+        "length": 1,
+        "precision": null,
+        "scale": null,
+        "nullable": false,
+        "identity": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp without time zone",
+        "length": null,
+        "precision": null,
+        "scale": null,
+        "nullable": false,
+        "identity": ""
+      },
+      {
+        "name": "created_by",
+        "type": "bigint",
+        "length": null,
+        "precision": null,
+        "scale": null,
+        "nullable": true,
+        "identity": ""
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp without time zone",
+        "length": null,
+        "precision": null,
+        "scale": null,
+        "nullable": true,
+        "identity": ""
+      },
+      {
+        "name": "updated_by",
+        "type": "bigint",
+        "length": null,
+        "precision": null,
+        "scale": null,
+        "nullable": true,
+        "identity": ""
+      }
+    ],
+    "primaryKey": [
+      "menu_id"
+    ],
+    "foreignKeys": [
+      {
+        "name": "fk_menu_upr_menu",
+        "columns": [
+          "upr_menu_id"
+        ],
+        "parent": "sys.menu",
+        "parentColumns": [
+          "menu_id"
+        ]
+      }
+    ]
+  },
+  {
+    "table": "fin.mth_cls",
+    "columns": [
+      {
+        "name": "cls_ym",
+        "type": "character",
+        "length": 7,
+        "precision": null,
+        "scale": null,
+        "nullable": false,
+        "identity": ""
+      },
+      {
+        "name": "cls_stts_cd",
+        "type": "character varying",
+        "length": 10,
+        "precision": null,
+        "scale": null,
+        "nullable": false,
+        "identity": ""
+      },
+      {
+        "name": "cls_user_id",
+        "type": "bigint",
+        "length": null,
+        "precision": null,
+        "scale": null,
+        "nullable": true,
+        "identity": ""
+      },
+      {
+        "name": "cls_at",
+        "type": "timestamp without time zone",
+        "length": null,
+        "precision": null,
+        "scale": null,
+        "nullable": true,
+        "identity": ""
+      },
+      {
+        "name": "rls_user_id",
+        "type": "bigint",
+        "length": null,
+        "precision": null,
+        "scale": null,
+        "nullable": true,
+        "identity": ""
+      },
+      {
+        "name": "rls_at",
+        "type": "timestamp without time zone",
+        "length": null,
+        "precision": null,
+        "scale": null,
+        "nullable": true,
+        "identity": ""
+      },
+      {
+        "name": "rls_rsn_desc",
+        "type": "character varying",
+        "length": 500,
+        "precision": null,
+        "scale": null,
+        "nullable": true,
+        "identity": ""
+      }
+    ],
+    "primaryKey": [
+      "cls_ym"
+    ],
+    "foreignKeys": []
+  }
+]
