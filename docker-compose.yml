@@ -1,0 +1,69 @@
+services:
+  db-credentials:
+    image: postgres:16.6-alpine3.20
+    user: "0:0"
+    entrypoint: ["sh", "/opt/init-db-credentials.sh"]
+    network_mode: none
+    volumes:
+      - db-credentials:/run/db-credentials
+      - ./infra/init-db-credentials.sh:/opt/init-db-credentials.sh:ro
+    restart: "no"
+  db:
+    image: postgres:16.6-alpine3.20
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-si_cost}
+      POSTGRES_USER: ${POSTGRES_USER:-si_cost}
+      POSTGRES_PASSWORD_FILE: /run/db-credentials/spring.datasource.password
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - db-credentials:/run/db-credentials:ro
+    depends_on:
+      db-credentials:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+  backend:
+    image: si-cost-backend:1.0.0
+    pull_policy: build
+    build:
+      context: backend
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: jdbc:postgresql://db:5432/${POSTGRES_DB:-si_cost}
+      DATABASE_USER: ${POSTGRES_USER:-si_cost}
+      TZ: Asia/Seoul
+    volumes:
+      - db-credentials:/run/db-credentials:ro
+    ports:
+      - "${BACKEND_PORT:-8080}:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS -o /dev/null http://127.0.0.1:8080/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+  frontend:
+    image: si-cost-frontend:1.0.0
+    pull_policy: build
+    build:
+      context: frontend
+      dockerfile: Dockerfile
+    ports:
+      - "${FRONTEND_PORT:-3000}:8080"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+volumes:
+  pgdata:
+  db-credentials:

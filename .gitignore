@@ -1,0 +1,21 @@
+node_modules/
+.next/
+dist/
+build/
+target/
+coverage/
+.vite/
+.cache/
+*.log
+*.local
+__pycache__/
+*.pyc
+.env
+.env.*
+
+# Playwright verifier artifacts
+test-results/
+**/test-results/
+playwright-report/
+**/playwright-report/
+.aiops-code-context/

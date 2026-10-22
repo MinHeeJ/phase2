@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sicost.persistence.CostMapper">
+  <select id="menus" resultType="map">SELECT menu_id AS "menuId", upr_menu_id AS "parentId", menu_nm AS name, scrn_id AS "screenId", icon_nm AS icon, mbl_expsr_yn='Y' AS mobile FROM sys.menu WHERE use_yn='Y' ORDER BY sort_seq, menu_id</select>
+  <select id="months" resultType="map">SELECT cls_ym AS month, cls_stts_cd AS status FROM fin.mth_cls WHERE cls_ym BETWEEN #{from} AND #{to} ORDER BY cls_ym</select>
+  <select id="lastClosedMonth" resultType="string">SELECT max(cls_ym) FROM fin.mth_cls WHERE cls_stts_cd='CLOSED'</select>
+  <sql id="groupFields">g.cd_grp_id,g.cd_grp_nm,g.cd_grp_se_cd,g.attr1_nm,g.attr2_nm,g.attr3_nm,g.sort_seq,g.use_yn,(SELECT count(*) FROM cmn.cd_dtl d WHERE d.cd_grp_id=g.cd_grp_id) AS "codeCount"</sql>
+  <select id="groups" resultType="map">SELECT <include refid="groupFields"/> FROM cmn.cd_grp g ORDER BY sort_seq,cd_grp_id</select>
+  <select id="group" resultType="map">SELECT <include refid="groupFields"/> FROM cmn.cd_grp g WHERE g.cd_grp_id=#{group}</select>
+  <select id="codes" resultType="map">SELECT dtl_cd,cd_nm,attr1_val,attr2_val,attr3_val,sort_seq,use_yn,to_char(aply_bgn_dt,'YYYY-MM-DD') AS aply_bgn_dt FROM cmn.cd_dtl WHERE cd_grp_id=#{group} ORDER BY sort_seq,dtl_cd</select>
+  <select id="options" resultType="map">SELECT dtl_cd AS code,cd_nm AS name,attr1_val AS attr1,attr2_val AS attr2,attr3_val AS attr3 FROM cmn.cd_dtl WHERE cd_grp_id=#{group} AND use_yn='Y' ORDER BY sort_seq,dtl_cd</select>
+  <insert id="insertGroup">INSERT INTO cmn.cd_grp(cd_grp_id,cd_grp_nm,attr1_nm,attr2_nm,attr3_nm,cd_grp_se_cd,sort_seq,created_by) VALUES(#{cd_grp_id},#{cd_grp_nm},#{attr1_nm,jdbcType=VARCHAR},#{attr2_nm,jdbcType=VARCHAR},#{attr3_nm,jdbcType=VARCHAR},'BIZ',(SELECT coalesce(max(sort_seq),0)+1 FROM cmn.cd_grp),#{actor,jdbcType=BIGINT})</insert>
+  <insert id="insertCode">INSERT INTO cmn.cd_dtl(cd_grp_id,dtl_cd,cd_nm,attr1_val,attr2_val,attr3_val,sort_seq,use_yn,aply_bgn_dt,created_by) VALUES(#{cd_grp_id},#{dtl_cd},#{cd_nm},#{attr1_val,jdbcType=VARCHAR},#{attr2_val,jdbcType=VARCHAR},#{attr3_val,jdbcType=VARCHAR},#{sort_seq},'Y',CAST(#{aply_bgn_dt,jdbcType=VARCHAR} AS date),#{actor,jdbcType=BIGINT})</insert>
+  <update id="updateCode">UPDATE cmn.cd_dtl <set>
+    <if test="changes.containsKey('cd_nm')">cd_nm=#{changes.cd_nm},</if>
+    <if test="changes.containsKey('sort_seq')">sort_seq=#{changes.sort_seq},</if>
+    <if test="changes.containsKey('use_yn')">use_yn=#{changes.use_yn},</if>
+    <if test="changes.containsKey('attr1_val')">attr1_val=#{changes.attr1_val,jdbcType=VARCHAR},</if>
+    <if test="changes.containsKey('attr2_val')">attr2_val=#{changes.attr2_val,jdbcType=VARCHAR},</if>
+    <if test="changes.containsKey('attr3_val')">attr3_val=#{changes.attr3_val,jdbcType=VARCHAR},</if>
+    <if test="changes.containsKey('aply_bgn_dt')">aply_bgn_dt=CAST(#{changes.aply_bgn_dt,jdbcType=VARCHAR} AS date),</if>
+    updated_at=CURRENT_TIMESTAMP,updated_by=#{actor,jdbcType=BIGINT}
+  </set> WHERE cd_grp_id=#{cd_grp_id} AND dtl_cd=#{dtl_cd}</update>
+  <sql id="mapFields">m.map_id::text AS map_id,m.excel_lbl_nm,m.trns_cd_grp_id,m.trns_cd,g.cd_grp_nm,d.cd_nm,m.map_role_cd,m.rmrk_desc,m.use_yn</sql>
+  <sql id="mapJoin">FROM cmn.excel_map m JOIN cmn.cd_grp g ON g.cd_grp_id=m.trns_cd_grp_id JOIN cmn.cd_dtl d ON d.cd_grp_id=m.trns_cd_grp_id AND d.dtl_cd=m.trns_cd</sql>
+  <select id="maps" resultType="map">SELECT <include refid="mapFields"/> <include refid="mapJoin"/> ORDER BY m.excel_lbl_nm,m.map_id</select>
+  <select id="excelMap" resultType="map">SELECT <include refid="mapFields"/> <include refid="mapJoin"/> WHERE m.map_id=CAST(#{mapId} AS bigint)</select>
+  <insert id="insertMap" useGeneratedKeys="true" keyProperty="map_id" keyColumn="map_id">INSERT INTO cmn.excel_map(excel_lbl_nm,trns_cd_grp_id,trns_cd,map_role_cd,rmrk_desc,created_by) VALUES(#{excel_lbl_nm},#{trns_cd_grp_id},#{trns_cd},#{map_role_cd},#{rmrk_desc,jdbcType=VARCHAR},#{actor,jdbcType=BIGINT})</insert>
+  <update id="updateMap">UPDATE cmn.excel_map <set>
+    <if test="changes.containsKey('map_role_cd')">map_role_cd=#{changes.map_role_cd},</if>
+    <if test="changes.containsKey('rmrk_desc')">rmrk_desc=#{changes.rmrk_desc,jdbcType=VARCHAR},</if>
+    <if test="changes.containsKey('use_yn')">use_yn=#{changes.use_yn},</if>
+  </set> WHERE map_id=CAST(#{map_id} AS bigint)</update>
+  <select id="history" resultType="map">SELECT h.cd_grp_id,CASE WHEN h.cd_grp_id='PARAM' THEN '기준값' ELSE g.cd_grp_nm END AS cd_grp_nm,h.dtl_cd,h.cd_chg_ty_cd,h.item_nm,h.bfr_val,h.aft_val,h.chg_user_id,to_char(h.chg_at,'YYYY-MM-DD HH24:MI:SS') AS chg_at FROM cmn.cd_hist h LEFT JOIN cmn.cd_grp g ON g.cd_grp_id=h.cd_grp_id <where><if test="group != null and group != ''">h.cd_grp_id=#{group}</if></where> ORDER BY h.chg_at DESC,h.cd_hist_id DESC</select>
+  <insert id="appendHistory">INSERT INTO cmn.cd_hist(cd_grp_id,dtl_cd,cd_chg_ty_cd,item_nm,bfr_val,aft_val,chg_user_id) VALUES(#{cd_grp_id},#{dtl_cd,jdbcType=VARCHAR},#{cd_chg_ty_cd},#{item_nm},#{bfr_val,jdbcType=VARCHAR},#{aft_val,jdbcType=VARCHAR},#{actor,jdbcType=BIGINT})</insert>
+  <sql id="paramFields">oprt_std_id,aply_bgn_ym,oprt_std_nm,num_val,txt_val,unit_nm,use_plc_desc</sql>
+  <select id="currentParams" resultType="map">SELECT DISTINCT ON (oprt_std_id) <include refid="paramFields"/> FROM cmn.oprt_std WHERE aply_bgn_ym &lt;= #{month} ORDER BY oprt_std_id,aply_bgn_ym DESC</select>
+  <select id="versions" resultType="map">SELECT <include refid="paramFields"/> FROM cmn.oprt_std WHERE oprt_std_id=#{key} ORDER BY aply_bgn_ym DESC</select>
+  <select id="effective" resultType="map">SELECT <include refid="paramFields"/> FROM cmn.oprt_std WHERE oprt_std_id=#{key} AND aply_bgn_ym &lt;= #{month} ORDER BY aply_bgn_ym DESC LIMIT 1</select>
+  <insert id="saveParam">INSERT INTO cmn.oprt_std(oprt_std_id,aply_bgn_ym,oprt_std_nm,num_val,txt_val,unit_nm,use_plc_desc,created_by) VALUES(#{oprt_std_id},#{aply_bgn_ym},#{oprt_std_nm},#{num_val,jdbcType=DECIMAL},#{txt_val,jdbcType=VARCHAR},#{unit_nm,jdbcType=VARCHAR},#{use_plc_desc,jdbcType=VARCHAR},#{actor,jdbcType=BIGINT}) ON CONFLICT(oprt_std_id,aply_bgn_ym) DO UPDATE SET num_val=EXCLUDED.num_val,txt_val=EXCLUDED.txt_val</insert>
+</mapper>
