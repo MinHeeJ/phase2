@@ -1,0 +1,61 @@
+.region {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--text);
+  font-size: var(--body-size);
+}
+.writeControls {
+  display: flex;
+  position: relative;
+  gap: var(--space-2);
+}
+.menu {
+  position: absolute;
+  right: 0;
+  top: 40px;
+  z-index: 5;
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-2);
+  min-width: 160px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  box-shadow: var(--shadow-dropdown);
+}
+.help {
+  color: var(--text-sub);
+  font-size: var(--table-size);
+  margin: var(--space-2) 0 var(--space-4);
+}
+.footer {
+  display: flex;
+  gap: var(--space-2);
+  justify-content: flex-end;
+  margin-top: var(--space-6);
+}
+.destructive {
+  background: var(--danger);
+  color: var(--surface);
+  border-color: var(--danger);
+}
+.range {
+  display: grid;
+  gap: var(--space-4);
+}
+.range label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.export {
+  display: inline-block;
+}
+@media (max-width: 767px) {
+  .writeControls,
+  .export {
+    display: none;
+  }
+}

@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sicost.uploadsops.UploadMapper">
+  <resultMap id="code" type="com.sicost.uploadsops.UploadModels$Code"><constructor>
+    <arg column="grp" javaType="java.lang.String"/><arg column="code" javaType="java.lang.String"/><arg column="name" javaType="java.lang.String"/><arg column="label" javaType="java.lang.String"/>
+  </constructor></resultMap>
+  <resultMap id="original" type="com.sicost.uploadsops.UploadModels$Original"><constructor><arg column="file_nm" javaType="java.lang.String"/><arg column="file_path_addr" javaType="java.lang.String"/></constructor></resultMap>
+  <resultMap id="issue" type="com.sicost.uploadsops.UploadModels$StoredIssue"><constructor>
+    <arg column="err_svrt_cd" javaType="java.lang.String"/><arg column="row_no" javaType="_int"/><arg column="clmn_nm" javaType="java.lang.String"/><arg column="input_val" javaType="java.lang.String"/><arg column="msg_desc" javaType="java.lang.String"/>
+  </constructor></resultMap>
+  <select id="codes" resultMap="code">SELECT d.cd_grp_id AS grp,d.dtl_cd AS code,d.cd_nm AS name,NULL::text AS label FROM cmn.cd_dtl d JOIN cmn.cd_grp g ON g.cd_grp_id=d.cd_grp_id WHERE d.use_yn='Y' AND g.use_yn='Y' AND d.cd_grp_id IN ('PARTNER_KIND','INDUSTRY','BANK') ORDER BY d.cd_grp_id,d.sort_seq,d.dtl_cd</select>
+  <select id="mappings" resultMap="code">SELECT d.cd_grp_id AS grp,d.dtl_cd AS code,d.cd_nm AS name,m.excel_lbl_nm AS label FROM cmn.excel_map m JOIN cmn.cd_dtl d ON d.cd_grp_id=m.trns_cd_grp_id AND d.dtl_cd=m.trns_cd JOIN cmn.cd_grp g ON g.cd_grp_id=d.cd_grp_id WHERE m.use_yn='Y' AND d.use_yn='Y' AND g.use_yn='Y' AND d.cd_grp_id IN ('PARTNER_KIND','INDUSTRY','BANK')</select>
+  <select id="existing" resultType="string">SELECT ptnr_nm FROM mst.ptnr WHERE biz_reg_no=#{bizNo}</select>
+  <select id="original" resultMap="original">SELECT file_nm,file_path_addr FROM sys.upld WHERE upld_id=#{id} AND form_cd='B.7'</select>
+  <select id="issues" resultMap="issue">SELECT err_svrt_cd,row_no,clmn_nm,input_val,msg_desc,NULL AS fix FROM sys.upld_err WHERE upld_id=#{id} ORDER BY row_no,upld_err_id</select>
+  <select id="insertLedger" resultType="long" affectData="true" flushCache="true">INSERT INTO sys.upld(form_cd,scrn_id,file_nm,file_path_addr,tot_row_cnt,nrml_row_cnt,err_row_cnt,wrn_row_cnt,upld_stts_cd,ovwr_yn,upld_user_id) VALUES('B.7','UI-15',#{fileName},#{path},#{result.totalRows},#{result.okRows},#{result.errorRows},#{result.warningRows},#{status},'N',#{actor}) RETURNING upld_id</select>
+  <insert id="insertIssue">INSERT INTO sys.upld_err(upld_id,row_no,clmn_nm,err_svrt_cd,input_val,msg_desc) VALUES(#{id},#{issue.rowNo},#{issue.column},#{issue.severity},#{issue.rawValue},#{issue.message})</insert>
+  <select id="nextPartnerId" resultType="long">SELECT nextval('mst.seq_ptnr_id')</select>
+  <insert id="insertPartner">INSERT INTO mst.ptnr(ptnr_id,ptnr_no,ptnr_se_cd,ptnr_nm,biz_reg_no,ceo_nm,indty_cd,chrg_nm,chrg_tel_no,txinv_email_addr,bank_cd,acnt_no,dpstr_nm,rmrk_desc,use_yn,upld_id,created_by) VALUES(#{id},#{no},#{row.kind},#{row.name},#{row.bizNo},#{row.ceo},#{row.industry},#{row.contact},#{row.phone},#{row.email},#{row.bank},#{row.account},#{row.holder},#{row.remark},'Y',#{uploadId},#{actor})</insert>
+  <insert id="history">INSERT INTO sys.data_chg_hist(tbl_nm,obj_rec_id,data_chg_ty_cd,aft_val,rsn_desc,chg_user_id) VALUES('mst.ptnr',CAST(#{id} AS text),'INSERT',#{name},'엑셀 업로드 #' || CAST(#{uploadId} AS text),#{actor})</insert>
+  <insert id="access">INSERT INTO sys.acs_hist(user_id,acs_ty_cd,scrn_id,obj_desc,dtl_desc) VALUES(#{actor},#{type},'UI-15',#{fileName},#{detail})</insert>
+</mapper>

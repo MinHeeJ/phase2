@@ -58,6 +58,11 @@ beforeEach(() => {
   });
   fetcher = vi.fn(async (url: string) => {
     if (url === "/api/menus") return response(menus);
+    if (url.startsWith("/api/codes/")) return response([]);
+    if (url.startsWith("/api/partners?"))
+      return response({ items: [], total: 0, page: 1, size: 50 });
+    if (url.startsWith("/api/sales-parts?"))
+      return response({ items: [], total: 0, page: 1, size: 50 });
     if (url.startsWith("/api/month-close?")) return response([]);
     if (url.startsWith("/api/admin/code-groups?"))
       return response({
@@ -132,7 +137,61 @@ describe("application route registration", () => {
       fetcher.mock.calls.some(([url]) => String(url).includes("/auth/")),
     ).toBe(false);
   });
-  it.each(["/UI-06", "/UI-99", "/UI-27/M3", "/login"])(
+  it("mounts the sales part tab and upload window under the existing partner route", async () => {
+    mount("/UI-15");
+    await screen.findByTestId("partners-screen");
+    fireEvent.click(screen.getByRole("button", { name: "엑셀 업로드" }));
+    expect(screen.getByTestId("upload-select-dialog")).toBeInTheDocument();
+    expect(screen.getByLabelText("현재 주소")).toHaveTextContent("/UI-15");
+    fireEvent.click(
+      within(screen.getByRole("dialog")).getByRole("button", { name: "취소" }),
+    );
+    fireEvent.click(screen.getByRole("tab", { name: "영업 파트" }));
+    expect(await screen.findByTestId("sales-parts-panel")).toBeInTheDocument();
+    await waitFor(() =>
+      expect(
+        fetcher.mock.calls.some(([url]) =>
+          String(url).startsWith("/api/sales-parts?"),
+        ),
+      ).toBe(true),
+    );
+    expect(
+      screen.queryByText("영업 파트 화면 연결이 필요합니다."),
+    ).not.toBeInTheDocument();
+    expect(
+      await screen.findByTestId("sales-part-export-open"),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("현재 주소")).toHaveTextContent("/UI-15");
+  });
+  it("keeps UI-15 available for mobile reads without the UI-27 PC guard", async () => {
+    Object.defineProperty(window, "innerWidth", {
+      configurable: true,
+      value: 375,
+    });
+    mount("/UI-15");
+    expect(await screen.findByTestId("partners-screen")).toBeInTheDocument();
+    expect(screen.queryByText("PC에서 이용해 주세요")).not.toBeInTheDocument();
+    expect(
+      screen.getByTestId("partner-export-actions").parentElement?.className,
+    ).toContain("mutation");
+  });
+  it("propagates partner form dirty state to the existing close guard", async () => {
+    mount("/UI-15");
+    fireEvent.click(await screen.findByTestId("partner-create"));
+    fireEvent.change(screen.getByLabelText("상호"), {
+      target: { value: "작성 중" },
+    });
+    await waitFor(() =>
+      expect(screen.getByLabelText("열린 화면")).toHaveTextContent("● UI-15"),
+    );
+    fireEvent.click(screen.getByLabelText("UI-15 닫기"));
+    expect(screen.getByRole("dialog")).toHaveTextContent(
+      "저장하지 않은 내용이 있습니다.",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "계속 작성" }));
+    expect(screen.getByLabelText("상호")).toHaveValue("작성 중");
+  });
+  it.each(["/UI-06", "/UI-99", "/UI-27/M3", "/UI-15/M1", "/login"])(
     "does not register unsupported route %s",
     async (path) => {
       mount(path);

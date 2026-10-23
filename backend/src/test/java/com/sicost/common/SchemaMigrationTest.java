@@ -58,8 +58,8 @@ class SchemaMigrationTest {
         new SchemaValidator(source, new ObjectMapper()).validate();
         assertThat(scalar("SELECT count(*) FROM information_schema.schemata WHERE schema_name IN ('cmn','sys','mst','bsn','prj','asgn','hr','cst','bill','fin','ai')")).isEqualTo(11);
         assertThat(scalar("SELECT count(*) FROM information_schema.tables WHERE table_type='BASE TABLE' AND table_schema IN ('cmn','sys','mst','bsn','prj','asgn','hr','cst','bill','fin','ai')")).isEqualTo(80);
-        Map<String, Integer> counts = Map.of("cmn.cd_grp", 36, "cmn.cd_dtl", 189, "sys.role", 5, "sys.menu", 41, "sys.role_menu_auth", 155, "fin.mth_cls", 10);
-        for (var entry : counts.entrySet()) assertThat(scalar("SELECT count(*) FROM " + entry.getKey())).as(entry.getKey()).isEqualTo(entry.getValue());
+        Map<String, Integer> counts = Map.of("cmn.cd_grp", 36, "cmn.cd_dtl", 199, "sys.role", 5, "sys.menu", 41, "sys.role_menu_auth", 155, "fin.mth_cls", 10);
+        for (var entry : counts.entrySet()) assertThat(scalar("SELECT count(*) FROM " + entry.getKey())).as(entry.getKey()).isEqualTo(entry.getValue().longValue());
         assertThat(scalar("SELECT count(*) FROM cmn.cd_dtl WHERE cd_grp_id='JOB'")).isEqualTo(12);
         assertThat(scalar("SELECT count(*) FROM cmn.cd_dtl WHERE cd_grp_id='JOB' AND dtl_cd IN ('BE','OPS')")).isEqualTo(2);
         assertThat(scalar("SELECT attr1_val::bigint FROM cmn.cd_dtl WHERE cd_grp_id='POSITION' AND dtl_cd='TL'")).isEqualTo(200000);

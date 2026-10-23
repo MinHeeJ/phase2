@@ -312,7 +312,7 @@ export function AppShell({
               return (
                 <div hidden={tab.id !== id} key={tab.id}>
                   {location ? (
-                    tab.id === "UI-27" ? (
+                    tab.id === "UI-27" || tab.id === "UI-15" ? (
                       <SharedMobileGuard
                         mobileAllowed={location.screen.mobile}
                         onDashboard={() => open("UI-16")}

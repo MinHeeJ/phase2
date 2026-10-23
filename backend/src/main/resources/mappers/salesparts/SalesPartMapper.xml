@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sicost.salesparts.SalesPartMapper">
+  <resultMap id="salesPartRow" type="com.sicost.salesparts.SalesPartModels$PartRow"><constructor>
+    <arg column="bsn_part_id" javaType="java.lang.String"/><arg column="bsn_part_nm" javaType="java.lang.String"/>
+    <arg column="hq_yn" javaType="java.lang.String"/><arg column="use_yn" javaType="java.lang.String"/><arg column="sort_seq" javaType="_int"/>
+    <arg column="peopleCount" javaType="_long"/><arg column="projectCount" javaType="_long"/>
+  </constructor></resultMap>
+  <resultMap id="salesPartStandard" type="com.sicost.salesparts.SalesPartModels$SalesPartStandard"><constructor>
+    <arg column="aply_bgn_ym" javaType="java.lang.String"/><arg column="ldr_nm" javaType="java.lang.String"/>
+    <arg column="prft_dstrb_rt" javaType="java.math.BigDecimal"/><arg column="bsn_fee_amt" javaType="_long"/>
+    <arg column="part_std_hist_id" javaType="java.lang.String"/><arg column="aply_end_ym" javaType="java.lang.String"/><arg column="status" javaType="java.lang.String"/>
+  </constructor></resultMap>
+  <sql id="salesPartProjection">
+    SELECT p.bsn_part_id,p.bsn_part_nm,p.hq_yn,p.use_yn,p.sort_seq,
+      (SELECT count(*) FROM mst.dev d WHERE d.bsn_part_id=p.bsn_part_id AND d.use_yn='Y' AND (d.rsgn_dt IS NULL OR d.rsgn_dt &gt; #{today})) AS "peopleCount",
+      (SELECT count(*) FROM prj.prj j WHERE j.bsn_part_id=p.bsn_part_id AND j.prj_stts_cd IN ('PLAN','RUN','HOLD')) AS "projectCount"
+    FROM mst.bsn_part p
+  </sql>
+  <select id="parts" resultMap="salesPartRow">
+    SELECT rows.*,c.ldr_nm,c.prft_dstrb_rt,c.bsn_fee_amt,c.aply_bgn_ym FROM (<include refid="salesPartProjection"/>) rows
+    LEFT JOIN LATERAL (SELECT s.ldr_nm,s.prft_dstrb_rt,s.bsn_fee_amt,s.aply_bgn_ym FROM mst.bsn_part_std_hist s
+      WHERE s.bsn_part_id=rows.bsn_part_id AND s.aply_bgn_ym &lt;= #{month} AND (s.aply_end_ym IS NULL OR s.aply_end_ym &gt;= #{month})
+      ORDER BY s.aply_bgn_ym DESC LIMIT 1) c ON true
+    ORDER BY ${order} LIMIT #{size} OFFSET #{offset}
+  </select>
+  <select id="count" resultType="long">SELECT count(*) FROM mst.bsn_part</select>
+  <select id="part" resultMap="salesPartRow"><include refid="salesPartProjection"/> WHERE p.bsn_part_id=#{id}</select>
+  <select id="standards" resultMap="salesPartStandard">
+    SELECT aply_bgn_ym,ldr_nm,prft_dstrb_rt,bsn_fee_amt,part_std_hist_id,aply_end_ym,
+      CASE WHEN aply_bgn_ym &gt; #{month} THEN '예정' WHEN aply_end_ym IS NULL OR aply_end_ym &gt;= #{month} THEN '적용 중' ELSE '지난 기준' END AS status
+    FROM mst.bsn_part_std_hist WHERE bsn_part_id=#{id} ORDER BY aply_bgn_ym DESC,part_std_hist_id DESC
+  </select>
+  <select id="lastClosed" resultType="string">SELECT max(cls_ym) FROM fin.mth_cls WHERE cls_stts_cd='CLOSED'</select>
+  <update id="lockParts">LOCK TABLE mst.bsn_part IN SHARE ROW EXCLUSIVE MODE</update>
+  <select id="nameExists" resultType="boolean">SELECT EXISTS(SELECT 1 FROM mst.bsn_part WHERE bsn_part_nm=#{name})</select>
+  <select id="insertPart" resultType="long" affectData="true" flushCache="true">
+    INSERT INTO mst.bsn_part(bsn_part_nm,hq_yn,sort_seq,use_yn,created_by)
+    SELECT #{input.bsn_part_nm},'N',COALESCE(max(sort_seq),0)+1,'Y',#{actor} FROM mst.bsn_part WHERE hq_yn='N' RETURNING bsn_part_id
+  </select>
+  <select id="insertStandard" resultType="long" affectData="true" flushCache="true">
+    INSERT INTO mst.bsn_part_std_hist(bsn_part_id,aply_bgn_ym,aply_end_ym,ldr_user_id,ldr_nm,prft_dstrb_rt,bsn_fee_amt,created_by)
+    VALUES(#{id},#{input.aply_bgn_ym},NULL,NULL,#{input.ldr_nm},#{input.prft_dstrb_rt},#{input.bsn_fee_amt},#{actor}) RETURNING part_std_hist_id
+  </select>
+  <insert id="appendHistory">
+    INSERT INTO sys.data_chg_hist(tbl_nm,obj_rec_id,data_chg_ty_cd,clmn_nm,bfr_val,aft_val,chg_user_id)
+    VALUES(#{table},#{id},'INSERT',NULL,NULL,#{after},#{actor})
+  </insert>
+</mapper>

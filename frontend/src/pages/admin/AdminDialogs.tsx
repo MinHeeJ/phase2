@@ -166,6 +166,7 @@ export function AdminWorkDialog({
       >
         <ErrorBanner error={error} onRetry={onRetry} pending={pending} />
         <form
+          data-testid="admin-work-form"
           ref={form}
           noValidate
           onSubmit={(e) => {

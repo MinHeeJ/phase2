@@ -49,7 +49,9 @@ export default function UI27Screen({
     <>
       <div className={styles.mobileOnly}>
         <p>PC에서 이용해 주세요</p>
-        <a href="/UI-16">대시보드로</a>
+        <a data-testid="common-codes-dashboard-link" href="/UI-16">
+          대시보드로
+        </a>
       </div>
       <section className={styles.desktopOnly} aria-label="공통코드 관리">
         <ScreenHeading
