@@ -1,0 +1,375 @@
+.button {
+  height: var(--control-height);
+  font-weight: var(--label-weight);
+  white-space: nowrap;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+}
+.primary {
+  color: var(--surface);
+  background: var(--primary);
+  border-color: var(--primary);
+}
+.primary:hover:not(:disabled) {
+  background: var(--primary-hover);
+}
+.secondary {
+  background: var(--surface);
+  color: var(--text);
+}
+.secondary:hover:not(:disabled),
+.text:hover:not(:disabled) {
+  background: var(--readonly-bg);
+}
+.button:disabled {
+  background: var(--readonly-bg);
+  border-color: var(--divider);
+  color: var(--text-disabled);
+}
+.text {
+  background: var(--surface);
+  color: var(--text);
+  border-color: transparent;
+  text-align: left;
+}
+.small {
+  height: var(--small-control-height);
+  min-height: var(--small-control-height);
+  padding: var(--space-1) var(--space-2);
+}
+.destructive {
+  color: var(--surface);
+  background: var(--danger);
+  border-color: var(--danger);
+}
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: var(--space-2);
+}
+.primaryAction {
+  margin-left: auto;
+}
+.spinner {
+  animation: turn 1s linear infinite;
+}
+@keyframes turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.badge {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--caption-size);
+  line-height: var(--caption-line);
+}
+.success {
+  color: var(--success);
+  background: var(--success-bg);
+}
+.warning {
+  color: var(--warning);
+  background: var(--warning-bg);
+}
+.danger {
+  color: var(--danger);
+  background: var(--danger-bg);
+}
+.info {
+  color: var(--info);
+  background: var(--info-bg);
+}
+.locked {
+  color: var(--locked);
+  background: var(--locked-bg);
+}
+.neutral {
+  color: var(--text-sub);
+  background: var(--surface);
+}
+.tabs {
+  display: flex;
+  gap: var(--space-6);
+  border-bottom: 1px solid var(--divider);
+  margin-bottom: var(--space-6);
+}
+.tabs button {
+  background: none;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  color: var(--text-sub);
+  padding: var(--space-3) var(--space-2);
+  font-weight: var(--section-weight);
+}
+.tabs button[aria-selected="true"] {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+}
+.tableRegion {
+  min-width: 0;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: var(--radius-panel);
+  overflow: hidden;
+}
+.toolbar {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  color: var(--text-sub);
+  font-size: var(--caption-size);
+  border-bottom: 1px solid var(--divider);
+}
+.toolbar label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.tableScroll {
+  overflow: auto;
+  max-width: 100%;
+  max-height: 70vh;
+}
+.tableScroll table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: var(--table-size);
+  line-height: var(--table-line);
+}
+.tableScroll th {
+  position: sticky;
+  top: 0;
+  background: var(--header-bg);
+  font-weight: var(--table-heading-weight);
+  z-index: 1;
+}
+.tableScroll th,
+.tableScroll td {
+  border-bottom: 1px solid var(--divider);
+  padding: var(--space-2) var(--space-3);
+}
+.tableScroll th {
+  white-space: nowrap;
+  color: var(--text-sub);
+}
+.tableScroll td {
+  height: calc(var(--control-height) + var(--space-4));
+}
+.tableScroll tbody tr:hover {
+  background: var(--primary-bg);
+}
+.tableScroll td input:not([type="checkbox"]) {
+  min-width: var(--form-label-width);
+  width: 100%;
+}
+.tableScroll .emptyCell {
+  height: var(--empty-height);
+  text-align: center;
+  color: var(--text-sub);
+}
+.dense tr {
+  height: var(--dense-row-height);
+}
+.dense td,
+.dense th {
+  padding: var(--space-1) var(--space-3);
+}
+.dense td {
+  height: var(--dense-row-height);
+}
+.dense td input:not([type="checkbox"]),
+.dense td select {
+  min-height: var(--small-control-height);
+  height: var(--small-control-height);
+}
+.number {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.code,
+.status,
+.date {
+  text-align: center;
+}
+.pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-1);
+  margin-top: var(--space-3);
+  font-size: var(--caption-size);
+  line-height: var(--caption-line);
+}
+.pagination button {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  min-width: var(--small-control-height);
+  border-radius: var(--radius-control);
+  color: var(--text-sub);
+}
+.pagination > span {
+  margin-right: auto;
+  color: var(--text-sub);
+}
+.pagination select {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  padding: var(--space-1) var(--space-2);
+  margin-left: var(--space-2);
+  background: var(--surface);
+}
+.pagination button[aria-current="page"] {
+  color: var(--surface);
+  background: var(--primary);
+}
+.pagination button:disabled {
+  color: var(--text-disabled);
+}
+.search {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--space-2);
+  background: var(--surface);
+  padding: var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+  margin-bottom: var(--space-4);
+}
+.search > label {
+  margin-right: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.search select {
+  min-width: var(--form-label-width);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  padding: var(--space-1) var(--space-2);
+}
+.backdrop {
+  position: fixed;
+  inset: 0;
+  background: var(--overlay-bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+  z-index: 50;
+}
+.modal {
+  width: min(720px, 100%);
+  min-width: min(560px, 100%);
+  max-height: 90vh;
+  overflow: auto;
+  padding: var(--space-6);
+  border-radius: var(--radius-panel);
+  background: var(--surface);
+  box-shadow: var(--shadow-overlay);
+}
+.confirmation {
+  width: min(400px, 100%);
+  min-width: 0;
+}
+.modal > h2 {
+  margin: 0 0 var(--space-6);
+  padding-bottom: var(--space-4);
+  border-bottom: 1px solid var(--divider);
+}
+.modal form {
+  display: grid;
+  gap: var(--space-4);
+}
+.modal form > div:last-child {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--divider);
+}
+.modal label > input:not([type="checkbox"]),
+.modal label > select {
+  min-height: var(--control-height);
+  padding: var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+}
+.toast {
+  position: fixed;
+  top: var(--space-6);
+  right: var(--space-6);
+  padding: var(--space-4);
+  color: var(--success);
+  background: var(--success-bg);
+  box-shadow: var(--shadow-overlay);
+  z-index: 100;
+}
+.lockedBanner {
+  padding: var(--space-3) var(--space-4);
+  color: var(--locked);
+  background: var(--locked-bg);
+  border: 1px solid var(--divider);
+  border-radius: var(--radius-control);
+}
+.errorBanner {
+  border: 1px solid var(--danger);
+  background: var(--danger-bg);
+  color: var(--danger);
+  padding: var(--space-3) var(--space-4);
+  margin-bottom: var(--space-4);
+}
+.skeleton {
+  min-height: 96px;
+  padding: var(--space-4);
+  background: var(--surface);
+  color: var(--text-sub);
+  border-radius: var(--radius-control);
+  border: 1px solid var(--divider);
+  display: grid;
+  gap: var(--space-3);
+}
+.skeleton i {
+  display: block;
+  height: var(--space-4);
+  background: var(--header-bg);
+  border-radius: var(--radius-control);
+  animation: pulse 1.4s ease-in-out infinite;
+}
+.skeleton i:last-child {
+  width: 60%;
+}
+@keyframes pulse {
+  50% {
+    opacity: 0.4;
+  }
+}
+.empty {
+  padding: var(--space-8);
+  text-align: center;
+  color: var(--text-sub);
+}
+@media (max-width: 767px) {
+  .button,
+  .small {
+    min-height: 44px;
+    height: auto;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation: none;
+  }
+}

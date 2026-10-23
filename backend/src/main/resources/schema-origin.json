@@ -1,0 +1,11 @@
+{
+  "source": "example/si_cost_schema_pg16_std.sql",
+  "sha256": "f654190eb098a554f24d79a43aae594f1b2ca2ac7df957c0af62a0c90931a32a",
+  "normalization": [
+    "remove executable DROP SCHEMA",
+    "CREATE TABLE/INDEX/SEQUENCE IF NOT EXISTS",
+    "append metadata comments"
+  ],
+  "tables": 80,
+  "schemas": 11
+}

@@ -1,0 +1,858 @@
+[
+  {
+    "table": "cmn.cd_grp",
+    "columns": [
+      {
+        "name": "cd_grp_id",
+        "type": "VARCHAR(30)",
+        "nullable": false,
+        "identity": false,
+        "default": null
+      },
+      {
+        "name": "cd_grp_nm",
+        "type": "VARCHAR(100)",
+        "nullable": false,
+        "identity": false,
+        "default": null
+      },
+      {
+        "name": "cd_grp_se_cd",
+        "type": "VARCHAR(10)",
+        "nullable": false,
+        "identity": false,
+        "default": "'BIZ'"
+      },
+      {
+        "name": "attr1_nm",
+        "type": "VARCHAR(50)",
+        "nullable": true,
+        "identity": false,
+        "default": null
+      },
+      {
+        "name": "attr2_nm",
+        "type": "VARCHAR(50)",
+        "nullable": true,
+        "identity": false,
+        "default": null
+      },
+      {
+        "name": "attr3_nm",
+        "type": "VARCHAR(50)",
+        "nullable": true,
+        "identity": false,
+        "default": null
+      },
+      {
+        "name": "cd_grp_desc",
+        "type": "VARCHAR(500)",
+        "nullable": true,
+        "identity": false,
+        "default": null
+      },
+      {
+        "name": "sort_seq",
+        "type": "INT",
+        "nullable": false,
+        "identity": false,
+        "default": "0"
+      },
+      {
+        "name": "use_yn",
+        "type": "CHAR(1)",
+        "nullable": false,
+        "identity": false,
+        "default": "'Y'"
+      },
+      {
+        "name": "created_at",
+        "type": "TIMESTAMP",
+        "nullable": false,
+        "identity": false,
+        "default": "CURRENT_TIMESTAMP"
+      },
+      {
+        "name": "created_by",
+        "type": "BIGINT",
+        "nullable": true,
+        "identity": false,
+        "default": null
+      },
+      {
+        "name": "updated_at",
+        "type": "TIMESTAMP",
+        "nullable": true,
+        "identity": false,
+        "default": null
+      },
+      {
+        "name": "updated_by",
+        "type": "BIGINT",
+        "nullable": true,
+        "identity": false,
+        "default": null
+      }
+    ],
+    "primaryKey": [
+      "cd_grp_id"
+    ],
+    "foreignKeys": [],
+    "uniqueKeys": []
+  },
+  {
+    "table": "cmn.cd_dtl",
+    "columns": [
+      {
+        "name": "cd_grp_id",
+        "type": "VARCHAR(30)",
+        "nullable": false,
+        "identity": false,
+        "default": null
+      },
+      {
+        "name": "dtl_cd",
+        "type": "VARCHAR(30)",
+        "nullable": false,
+        "identity": false,
+        "default": null
+      },
+      {
+        "name": "cd_nm",
+        "type": "VARCHAR(100)",
+        "nullable": false,
+        "identity": false,
+        "default": null
+      },
+      {
+        "name": "attr1_val",
+        "type": "VARCHAR(100)",
+        "nullable": true,
+        "identity": false,
+        "default": null
+      },
+      {
+        "name": "attr2_val",
+        "type": "VARCHAR(100)",
+        "nullable": true,
+        "identity": false,
+        "default": null
+      },
+      {
+        "name": "attr3_val",
+        "type": "VARCHAR(100)",
+        "nullable": true,
+        "identity": false,
+        "default": null
+      },
+      {
+        "name": "sort_seq",
+        "type": "INT",
+        "nullable": false,
+        "identity": false,
+        "default": "0"
+      },
+      {
+        "name": "use_yn",
+        "type": "CHAR(1)",
+        "nullable": false,
+        "identity": false,
+        "default": "'Y'"
+      },
+      {
+        "name": "aply_bgn_dt",
+        "type": "DATE",
+        "nullable": true,
+        "identity": false,
+        "default": null
+      },
+      {
+        "name": "created_at",
+        "type": "TIMESTAMP",
+        "nullable": false,
+        "identity": false,
+        "default": "CURRENT_TIMESTAMP"
+      },
+      {
+        "name": "created_by",
+        "type": "BIGINT",
+        "nullable": true,
+        "identity": false,
+        "default": null
+      },
+      {
+        "name": "updated_at",
+        "type": "TIMESTAMP",
+        "nullable": true,
+        "identity": false,
+        "default": null
+      },
+      {
+        "name": "updated_by",
+        "type": "BIGINT",
+        "nullable": true,
+        "identity": false,
+        "default": null
+      }
+    ],
+    "primaryKey": [
+      "cd_grp_id",
+      "dtl_cd"
+    ],
+    "foreignKeys": [
+      {
+        "name": "fk_cd_dtl_cd_grp",
+        "columns": [
+          "cd_grp_id"
+        ],
+        "parent": "cmn.cd_grp",
+        "targets": [
+          "cd_grp_id"
+        ]
+      }
+    ],
+    "uniqueKeys": []
+  },
+  {
+    "table": "cmn.cd_hist",
+    "columns": [
+      {
+        "name": "cd_hist_id",
+        "type": "BIGINT",
+        "nullable": false,
+        "identity": true,
+        "default": null
+      },
+      {
+        "name": "cd_grp_id",
+        "type": "VARCHAR(30)",
+        "nullable": false,
+        "identity": false,
+        "default": null
+      },
+      {
+        "name": "dtl_cd",
+        "type": "VARCHAR(30)",
+        "nullable": true,
+        "identity": false,
+        "default": null
+      },
+      {
+        "name": "cd_chg_ty_cd",
+        "type": "VARCHAR(10)",
+        "nullable": false,
+        "identity": false,
+        "default": null
+      },
+      {
+        "name": "item_nm",
+        "type": "VARCHAR(50)",
+        "nullable": true,
+        "identity": false,
+        "default": null
+      },
+      {
+        "name": "bfr_val",
+        "type": "VARCHAR(500)",
+        "nullable": true,
+        "identity": false,
+        "default": null
+      },
+      {
+        "name": "aft_val",
+        "type": "VARCHAR(500)",
+        "nullable": true,
+        "identity": false,
+        "default": null
+      },
+      {
+        "name": "chg_user_id",
+        "type": "BIGINT",
+        "nullable": true,
+        "identity": false,
+        "default": null
+      },
+      {
+        "name": "chg_at",
+        "type": "TIMESTAMP",
+        "nullable": false,
+        "identity": false,
+        "default": "CURRENT_TIMESTAMP"
+      }
+    ],
+    "primaryKey": [
+      "cd_hist_id"
+    ],
+    "foreignKeys": [],
+    "uniqueKeys": []
+  },
+  {
+    "table": "cmn.excel_map",
+    "columns": [
+      {
+        "name": "map_id",
+        "type": "BIGINT",
+        "nullable": false,
+        "identity": true,
+        "default": null
+      },
+      {
+        "name": "excel_lbl_nm",
+        "type": "VARCHAR(100)",
+        "nullable": false,
+        "identity": false,
+        "default": null
+      },
+      {
+        "name": "trns_cd_grp_id",
+        "type": "VARCHAR(30)",
+        "nullable": false,
+        "identity": false,
+        "default": null
+      },
+      {
+        "name": "trns_cd",
+        "type": "VARCHAR(30)",
+        "nullable": false,
+        "identity": false,
+        "default": null
+      },
+      {
+        "name": "map_role_cd",
+        "type": "VARCHAR(10)",
+        "nullable": false,
+        "identity": false,
+        "default": "'MAIN'"
+      },
+      {
+        "name": "rmrk_desc",
+        "type": "VARCHAR(200)",
+        "nullable": true,
+        "identity": false,
+        "default": null
+      },
+      {
+        "name": "use_yn",
+        "type": "CHAR(1)",
+        "nullable": false,
+        "identity": false,
+        "default": "'Y'"
+      },
+      {
+        "name": "created_at",
+        "type": "TIMESTAMP",
+        "nullable": false,
+        "identity": false,
+        "default": "CURRENT_TIMESTAMP"
+      },
+      {
+        "name": "created_by",
+        "type": "BIGINT",
+        "nullable": true,
+        "identity": false,
+        "default": null
+      }
+    ],
+    "primaryKey": [
+      "map_id"
+    ],
+    "foreignKeys": [
+      {
+        "name": "fk_excel_map_cd_dtl",
+        "columns": [
+          "trns_cd_grp_id",
+          "trns_cd"
+        ],
+        "parent": "cmn.cd_dtl",
+        "targets": [
+          "cd_grp_id",
+          "dtl_cd"
+        ]
+      }
+    ],
+    "uniqueKeys": [
+      [
+        "excel_lbl_nm",
+        "trns_cd_grp_id",
+        "trns_cd"
+      ]
+    ]
+  },
+  {
+    "table": "cmn.oprt_std",
+    "columns": [
+      {
+        "name": "oprt_std_id",
+        "type": "VARCHAR(50)",
+        "nullable": false,
+        "identity": false,
+        "default": null
+      },
+      {
+        "name": "aply_bgn_ym",
+        "type": "CHAR(7)",
+        "nullable": false,
+        "identity": false,
+        "default": "'2000-01'"
+      },
+      {
+        "name": "oprt_std_nm",
+        "type": "VARCHAR(100)",
+        "nullable": false,
+        "identity": false,
+        "default": null
+      },
+      {
+        "name": "num_val",
+        "type": "DECIMAL(18,4)",
+        "nullable": true,
+        "identity": false,
+        "default": null
+      },
+      {
+        "name": "txt_val",
+        "type": "VARCHAR(200)",
+        "nullable": true,
+        "identity": false,
+        "default": null
+      },
+      {
+        "name": "unit_nm",
+        "type": "VARCHAR(20)",
+        "nullable": true,
+        "identity": false,
+        "default": null
+      },
+      {
+        "name": "use_plc_desc",
+        "type": "VARCHAR(100)",
+        "nullable": true,
+        "identity": false,
+        "default": null
+      },
+      {
+        "name": "oprt_std_desc",
+        "type": "VARCHAR(500)",
+        "nullable": true,
+        "identity": false,
+        "default": null
+      },
+      {
+        "name": "created_at",
+        "type": "TIMESTAMP",
+        "nullable": false,
+        "identity": false,
+        "default": "CURRENT_TIMESTAMP"
+      },
+      {
+        "name": "created_by",
+        "type": "BIGINT",
+        "nullable": true,
+        "identity": false,
+        "default": null
+      }
+    ],
+    "primaryKey": [
+      "oprt_std_id",
+      "aply_bgn_ym"
+    ],
+    "foreignKeys": [],
+    "uniqueKeys": []
+  },
+  {
+    "table": "sys.role",
+    "columns": [
+      {
+        "name": "role_id",
+        "type": "BIGINT",
+        "nullable": false,
+        "identity": true,
+        "default": null
+      },
+      {
+        "name": "role_nm",
+        "type": "VARCHAR(50)",
+        "nullable": false,
+        "identity": false,
+        "default": null
+      },
+      {
+        "name": "role_desc",
+        "type": "VARCHAR(500)",
+        "nullable": true,
+        "identity": false,
+        "default": null
+      },
+      {
+        "name": "data_scope_cd",
+        "type": "VARCHAR(10)",
+        "nullable": false,
+        "identity": false,
+        "default": "'ALL'"
+      },
+      {
+        "name": "snstv_inq_yn",
+        "type": "CHAR(1)",
+        "nullable": false,
+        "identity": false,
+        "default": "'N'"
+      },
+      {
+        "name": "part_std_chg_auth_yn",
+        "type": "CHAR(1)",
+        "nullable": false,
+        "identity": false,
+        "default": "'N'"
+      },
+      {
+        "name": "admin_yn",
+        "type": "CHAR(1)",
+        "nullable": false,
+        "identity": false,
+        "default": "'N'"
+      },
+      {
+        "name": "bltin_yn",
+        "type": "CHAR(1)",
+        "nullable": false,
+        "identity": false,
+        "default": "'N'"
+      },
+      {
+        "name": "copy_role_id",
+        "type": "BIGINT",
+        "nullable": true,
+        "identity": false,
+        "default": null
+      },
+      {
+        "name": "sort_seq",
+        "type": "INT",
+        "nullable": false,
+        "identity": false,
+        "default": "0"
+      },
+      {
+        "name": "use_yn",
+        "type": "CHAR(1)",
+        "nullable": false,
+        "identity": false,
+        "default": "'Y'"
+      },
+      {
+        "name": "created_at",
+        "type": "TIMESTAMP",
+        "nullable": false,
+        "identity": false,
+        "default": "CURRENT_TIMESTAMP"
+      },
+      {
+        "name": "created_by",
+        "type": "BIGINT",
+        "nullable": true,
+        "identity": false,
+        "default": null
+      },
+      {
+        "name": "updated_at",
+        "type": "TIMESTAMP",
+        "nullable": true,
+        "identity": false,
+        "default": null
+      },
+      {
+        "name": "updated_by",
+        "type": "BIGINT",
+        "nullable": true,
+        "identity": false,
+        "default": null
+      }
+    ],
+    "primaryKey": [
+      "role_id"
+    ],
+    "foreignKeys": [],
+    "uniqueKeys": [
+      [
+        "role_nm"
+      ]
+    ]
+  },
+  {
+    "table": "sys.menu",
+    "columns": [
+      {
+        "name": "menu_id",
+        "type": "BIGINT",
+        "nullable": false,
+        "identity": true,
+        "default": null
+      },
+      {
+        "name": "upr_menu_id",
+        "type": "BIGINT",
+        "nullable": true,
+        "identity": false,
+        "default": null
+      },
+      {
+        "name": "menu_nm",
+        "type": "VARCHAR(50)",
+        "nullable": false,
+        "identity": false,
+        "default": null
+      },
+      {
+        "name": "scrn_id",
+        "type": "VARCHAR(10)",
+        "nullable": true,
+        "identity": false,
+        "default": null
+      },
+      {
+        "name": "icon_nm",
+        "type": "VARCHAR(30)",
+        "nullable": true,
+        "identity": false,
+        "default": null
+      },
+      {
+        "name": "sort_seq",
+        "type": "INT",
+        "nullable": false,
+        "identity": false,
+        "default": "0"
+      },
+      {
+        "name": "use_yn",
+        "type": "CHAR(1)",
+        "nullable": false,
+        "identity": false,
+        "default": "'Y'"
+      },
+      {
+        "name": "mbl_expsr_yn",
+        "type": "CHAR(1)",
+        "nullable": false,
+        "identity": false,
+        "default": "'Y'"
+      },
+      {
+        "name": "created_at",
+        "type": "TIMESTAMP",
+        "nullable": false,
+        "identity": false,
+        "default": "CURRENT_TIMESTAMP"
+      },
+      {
+        "name": "created_by",
+        "type": "BIGINT",
+        "nullable": true,
+        "identity": false,
+        "default": null
+      },
+      {
+        "name": "updated_at",
+        "type": "TIMESTAMP",
+        "nullable": true,
+        "identity": false,
+        "default": null
+      },
+      {
+        "name": "updated_by",
+        "type": "BIGINT",
+        "nullable": true,
+        "identity": false,
+        "default": null
+      }
+    ],
+    "primaryKey": [
+      "menu_id"
+    ],
+    "foreignKeys": [
+      {
+        "name": "fk_menu_upr_menu",
+        "columns": [
+          "upr_menu_id"
+        ],
+        "parent": "sys.menu",
+        "targets": [
+          "menu_id"
+        ]
+      }
+    ],
+    "uniqueKeys": [
+      [
+        "scrn_id"
+      ]
+    ]
+  },
+  {
+    "table": "sys.role_menu_auth",
+    "columns": [
+      {
+        "name": "role_id",
+        "type": "BIGINT",
+        "nullable": false,
+        "identity": false,
+        "default": null
+      },
+      {
+        "name": "menu_id",
+        "type": "BIGINT",
+        "nullable": false,
+        "identity": false,
+        "default": null
+      },
+      {
+        "name": "inq_auth_yn",
+        "type": "CHAR(1)",
+        "nullable": false,
+        "identity": false,
+        "default": "'N'"
+      },
+      {
+        "name": "reg_auth_yn",
+        "type": "CHAR(1)",
+        "nullable": false,
+        "identity": false,
+        "default": "'N'"
+      },
+      {
+        "name": "mdfcn_auth_yn",
+        "type": "CHAR(1)",
+        "nullable": false,
+        "identity": false,
+        "default": "'N'"
+      },
+      {
+        "name": "del_auth_yn",
+        "type": "CHAR(1)",
+        "nullable": false,
+        "identity": false,
+        "default": "'N'"
+      },
+      {
+        "name": "upld_auth_yn",
+        "type": "CHAR(1)",
+        "nullable": false,
+        "identity": false,
+        "default": "'N'"
+      },
+      {
+        "name": "dwnld_auth_yn",
+        "type": "CHAR(1)",
+        "nullable": false,
+        "identity": false,
+        "default": "'N'"
+      },
+      {
+        "name": "cnfrm_auth_yn",
+        "type": "CHAR(1)",
+        "nullable": false,
+        "identity": false,
+        "default": "'N'"
+      },
+      {
+        "name": "updated_at",
+        "type": "TIMESTAMP",
+        "nullable": true,
+        "identity": false,
+        "default": null
+      },
+      {
+        "name": "updated_by",
+        "type": "BIGINT",
+        "nullable": true,
+        "identity": false,
+        "default": null
+      }
+    ],
+    "primaryKey": [
+      "role_id",
+      "menu_id"
+    ],
+    "foreignKeys": [
+      {
+        "name": "fk_role_menu_auth_role",
+        "columns": [
+          "role_id"
+        ],
+        "parent": "sys.role",
+        "targets": [
+          "role_id"
+        ]
+      },
+      {
+        "name": "fk_role_menu_auth_menu",
+        "columns": [
+          "menu_id"
+        ],
+        "parent": "sys.menu",
+        "targets": [
+          "menu_id"
+        ]
+      }
+    ],
+    "uniqueKeys": []
+  },
+  {
+    "table": "fin.mth_cls",
+    "columns": [
+      {
+        "name": "cls_ym",
+        "type": "CHAR(7)",
+        "nullable": false,
+        "identity": false,
+        "default": null
+      },
+      {
+        "name": "cls_stts_cd",
+        "type": "VARCHAR(10)",
+        "nullable": false,
+        "identity": false,
+        "default": "'OPEN'"
+      },
+      {
+        "name": "cls_user_id",
+        "type": "BIGINT",
+        "nullable": true,
+        "identity": false,
+        "default": null
+      },
+      {
+        "name": "cls_at",
+        "type": "TIMESTAMP",
+        "nullable": true,
+        "identity": false,
+        "default": null
+      },
+      {
+        "name": "rls_user_id",
+        "type": "BIGINT",
+        "nullable": true,
+        "identity": false,
+        "default": null
+      },
+      {
+        "name": "rls_at",
+        "type": "TIMESTAMP",
+        "nullable": true,
+        "identity": false,
+        "default": null
+      },
+      {
+        "name": "rls_rsn_desc",
+        "type": "VARCHAR(500)",
+        "nullable": true,
+        "identity": false,
+        "default": null
+      }
+    ],
+    "primaryKey": [
+      "cls_ym"
+    ],
+    "foreignKeys": [],
+    "uniqueKeys": []
+  }
+]
