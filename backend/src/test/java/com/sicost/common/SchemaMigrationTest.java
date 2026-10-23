@@ -39,7 +39,7 @@ class SchemaMigrationTest {
         }
         String url = adminUrl.substring(0, adminUrl.lastIndexOf('/') + 1) + database;
         source = new DriverManagerDataSource(url, user, password);
-        flyway = Flyway.configure().dataSource(source).defaultSchema("public").locations("classpath:db/migration").load();
+        flyway = Flyway.configure().dataSource(source).defaultSchema("public").locations("classpath:db/migration").target("2").load();
         flyway.migrate();
     }
     @AfterEach void removeIsolatedDatabase() throws Exception {
@@ -90,6 +90,54 @@ class SchemaMigrationTest {
         flyway.validate();
         for (var migration : flyway.info().applied()) assertThat(migration.getChecksum()).isEqualTo(checksums.get(migration.getVersion().toString()));
         assertThat(scalar("SELECT count(*) FROM sys.menu")).isEqualTo(41);
+    }
+    @Test void bankMigrationAddsOnlyApprovedCodesAndPreservesExistingData() throws Exception {
+        String originalCodes = snapshot("SELECT d FROM cmn.cd_dtl d WHERE cd_grp_id <> 'BANK' ORDER BY cd_grp_id,dtl_cd");
+        String originalPartners = snapshot("SELECT p FROM mst.ptnr p ORDER BY ptnr_id");
+        String originalParts = snapshot("SELECT p FROM mst.bsn_part p ORDER BY bsn_part_id");
+        String originalStandards = snapshot("SELECT h FROM mst.bsn_part_std_hist h ORDER BY part_std_hist_id");
+        assertThat(scalar("SELECT count(*) FROM cmn.cd_dtl WHERE cd_grp_id='BANK'")).isZero();
+        flyway = Flyway.configure().dataSource(source).defaultSchema("public").locations("classpath:db/migration").load();
+        assertThat(flyway.migrate().migrationsExecuted).isEqualTo(1);
+        new SchemaValidator(source, new ObjectMapper()).validate();
+        assertThat(scalar("SELECT count(*) FROM cmn.cd_dtl")).isEqualTo(199);
+        assertThat(scalar("SELECT count(*) FROM cmn.cd_dtl WHERE cd_grp_id='BANK' AND use_yn='Y' AND created_by IS NULL")).isEqualTo(10);
+        String[] codes = {"KB", "SHINHAN", "WOORI", "HANA", "NH", "IBK", "SC", "KAKAO", "TOSS", "KBANK"};
+        String[] names = {"국민은행", "신한은행", "우리은행", "하나은행", "NH농협은행", "IBK기업은행", "SC제일은행", "카카오뱅크", "토스뱅크", "케이뱅크"};
+        try (var connection = source.getConnection(); var statement = connection.createStatement(); var rows = statement.executeQuery("SELECT dtl_cd,cd_nm,sort_seq FROM cmn.cd_dtl WHERE cd_grp_id='BANK' ORDER BY sort_seq")) {
+            for (int i=0;i<codes.length;i++) {
+                assertThat(rows.next()).isTrue();
+                assertThat(rows.getString(1)).isEqualTo(codes[i]);
+                assertThat(rows.getString(2)).isEqualTo(names[i]);
+                assertThat(rows.getInt(3)).isEqualTo(i+1);
+            }
+            assertThat(rows.next()).isFalse();
+        }
+        var factory = new org.mybatis.spring.SqlSessionFactoryBean();
+        factory.setDataSource(source);
+        factory.setMapperLocations(new org.springframework.core.io.ClassPathResource("mappers/shared/SharedReadMapper.xml"));
+        factory.afterPropertiesSet();
+        var mapper = new org.mybatis.spring.SqlSessionTemplate(factory.getObject()).getMapper(com.sicost.shared.SharedReadMapper.class);
+        assertThat(mapper.codeOptions("BANK")).extracting(com.sicost.shared.SharedReadModels.CodeOption::code).containsExactly(codes);
+        assertThat(mapper.codeOptions("BANK")).extracting(com.sicost.shared.SharedReadModels.CodeOption::name).containsExactly(names);
+        assertThat(snapshot("SELECT d FROM cmn.cd_dtl d WHERE cd_grp_id <> 'BANK' ORDER BY cd_grp_id,dtl_cd")).isEqualTo(originalCodes);
+        assertThat(snapshot("SELECT p FROM mst.ptnr p ORDER BY ptnr_id")).isEqualTo(originalPartners);
+        assertThat(snapshot("SELECT p FROM mst.bsn_part p ORDER BY bsn_part_id")).isEqualTo(originalParts);
+        assertThat(snapshot("SELECT h FROM mst.bsn_part_std_hist h ORDER BY part_std_hist_id")).isEqualTo(originalStandards);
+        Map<String, Integer> checksums = new LinkedHashMap<>();
+        for (var migration : flyway.info().applied()) checksums.put(migration.getVersion().toString(), migration.getChecksum());
+        String bankRows = snapshot("SELECT d FROM cmn.cd_dtl d WHERE cd_grp_id='BANK' ORDER BY sort_seq");
+        assertThat(flyway.migrate().migrationsExecuted).isZero();
+        flyway.validate();
+        for (var migration : flyway.info().applied()) assertThat(migration.getChecksum()).isEqualTo(checksums.get(migration.getVersion().toString()));
+        assertThat(snapshot("SELECT d FROM cmn.cd_dtl d WHERE cd_grp_id='BANK' ORDER BY sort_seq")).isEqualTo(bankRows);
+    }
+    String snapshot(String sql) throws Exception {
+        var values = new java.util.ArrayList<String>();
+        try (var connection = source.getConnection(); var statement = connection.createStatement(); var rows = statement.executeQuery(sql)) {
+            while (rows.next()) values.add(rows.getString(1));
+        }
+        return String.join("\n", values);
     }
     @Test void wrongTypeIsRejectedBeyondSuccessfulFlyway() throws Exception {
         try (var connection = source.getConnection(); var statement = connection.createStatement()) {

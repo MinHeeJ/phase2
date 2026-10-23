@@ -11,6 +11,9 @@ import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.MultipartException;
+import org.springframework.web.multipart.support.MissingServletRequestPartException;
 import org.springframework.web.servlet.NoHandlerFoundException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
@@ -33,6 +36,18 @@ public class ApiExceptionHandler {
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
     public ResponseEntity<ApiError> type(MethodArgumentTypeMismatchException ex, HttpServletRequest request) {
         return error(400, "INVALID_INPUT", "입력값을 확인하세요.", ex.getName(), request);
+    }
+    @ExceptionHandler(MissingServletRequestPartException.class)
+    public ResponseEntity<ApiError> missingPart(MissingServletRequestPartException ex, HttpServletRequest request) {
+        return error(400, "INVALID_INPUT", "파일을 선택하세요.", ex.getRequestPartName(), request);
+    }
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ApiError> uploadTooLarge(MaxUploadSizeExceededException ex, HttpServletRequest request) {
+        return error(413, "PAYLOAD_TOO_LARGE", "파일은 10MB 이하로 올려 주세요.", "file", request);
+    }
+    @ExceptionHandler(MultipartException.class)
+    public ResponseEntity<ApiError> multipart(MultipartException ex, HttpServletRequest request) {
+        return error(400, "INVALID_INPUT", "업로드 파일을 확인하세요.", "file", request);
     }
     @ExceptionHandler({HttpMessageNotReadableException.class, ConstraintViolationException.class})
     public ResponseEntity<ApiError> malformed(Exception ex, HttpServletRequest request) {
