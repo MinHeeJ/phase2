@@ -1,0 +1,161 @@
+.panel {
+  min-width: 0;
+}
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
+}
+.toolbar h2 {
+  font-size: var(--section-size);
+  margin: 0;
+}
+.notice {
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--info-bg);
+  color: var(--text-sub);
+  line-height: var(--body-line);
+}
+.tableScroll {
+  overflow: auto;
+  max-width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--divider);
+  border-radius: var(--radius-control);
+}
+.tableScroll table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: var(--table-size);
+  white-space: nowrap;
+}
+.tableScroll th,
+.tableScroll td {
+  height: 40px;
+  padding: 0 var(--space-3);
+  text-align: left;
+  border-bottom: 1px solid var(--divider);
+}
+.tableScroll th {
+  font-weight: var(--table-heading-weight);
+  background: var(--header-bg);
+}
+.tableScroll th button,
+.name {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  padding: var(--space-2) 0;
+}
+.name {
+  color: var(--primary);
+}
+.tableScroll tbody tr:hover {
+  background: var(--primary-bg);
+}
+.drawer {
+  position: fixed;
+  right: 0;
+  top: var(--header-height);
+  bottom: 0;
+  width: min(600px, 100vw);
+  z-index: 30;
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  padding: var(--space-6);
+  overflow: auto;
+  box-shadow: var(--shadow-overlay);
+}
+.drawer header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+.drawer h2 {
+  font-size: var(--section-size);
+  margin: 0;
+}
+.drawer h3 {
+  font-size: var(--section-size);
+}
+.info {
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) 1fr;
+  gap: var(--space-3);
+  margin: var(--space-6) 0;
+}
+.info dt {
+  color: var(--text-sub);
+}
+.info dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.actions {
+  display: flex;
+  gap: var(--space-2);
+  justify-content: flex-end;
+  margin-top: var(--space-4);
+  position: relative;
+}
+.menu {
+  position: absolute;
+  top: 40px;
+  right: 0;
+  z-index: 1;
+  display: grid;
+  padding: var(--space-2);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-dropdown);
+}
+.field {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-2);
+  margin: var(--space-4) 0;
+  font-size: var(--label-size);
+}
+.field input {
+  box-sizing: border-box;
+  width: 100%;
+  height: var(--control-height);
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+.field input[aria-invalid="true"] {
+  border-color: var(--danger);
+}
+.field span {
+  grid-column: 2;
+  color: var(--danger);
+}
+.field input:disabled {
+  background: var(--readonly-bg);
+}
+@media (max-width: 767px) {
+  .mutations {
+    display: none !important;
+  }
+  .drawer {
+    padding: var(--space-4);
+  }
+  .field {
+    grid-template-columns: 1fr;
+  }
+  .field span {
+    grid-column: 1;
+  }
+}

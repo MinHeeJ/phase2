@@ -216,6 +216,7 @@ function ParamValueDialog({
       <label>
         적용 시작월 *
         <input
+          data-testid="param-start-month"
           name="month"
           aria-label="적용 시작월"
           type="month"
@@ -295,7 +296,7 @@ export function ParamsTab({
     },
   ];
   return (
-    <section className={styles.region}>
+    <section data-testid="params-tab" className={styles.region}>
       <h2>기준값</h2>
       <ErrorBanner
         error={resource.error}

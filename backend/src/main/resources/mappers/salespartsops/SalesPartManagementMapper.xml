@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sicost.salespartsops.SalesPartManagementMapper">
+  <resultMap id="partRow" type="com.sicost.salespartsops.SalesPartModels$Part"><constructor>
+    <arg column="bsn_part_id" javaType="java.lang.String"/><arg column="bsn_part_nm" javaType="java.lang.String"/>
+    <arg column="hq_yn" javaType="java.lang.String"/><arg column="use_yn" javaType="java.lang.String"/>
+    <arg column="sort_seq" javaType="_int"/><arg column="peopleCount" javaType="_long"/><arg column="projectCount" javaType="_long"/>
+  </constructor></resultMap>
+  <resultMap id="standardRow" type="com.sicost.salespartsops.SalesPartModels$Standard"><constructor>
+    <arg column="part_std_hist_id" javaType="java.lang.String"/><arg column="aply_bgn_ym" javaType="java.lang.String"/>
+    <arg column="aply_end_ym" javaType="java.lang.String"/><arg column="ldr_nm" javaType="java.lang.String"/>
+    <arg column="prft_dstrb_rt" javaType="java.math.BigDecimal"/><arg column="bsn_fee_amt" javaType="_long"/><arg column="status" javaType="java.lang.String"/>
+  </constructor></resultMap>
+  <resultMap id="optionRow" type="com.sicost.salespartsops.SalesPartModels$Option"><constructor>
+    <arg column="id" javaType="java.lang.String"/><arg column="name" javaType="java.lang.String"/><arg column="hq" javaType="_boolean"/>
+  </constructor></resultMap>
+  <resultMap id="exportRow" type="com.sicost.salespartsops.SalesPartModels$ExportRow"><constructor>
+    <arg column="bsn_part_id" javaType="java.lang.String"/><arg column="bsn_part_nm" javaType="java.lang.String"/>
+    <arg column="ldr_nm" javaType="java.lang.String"/><arg column="prft_dstrb_rt" javaType="java.math.BigDecimal"/>
+    <arg column="bsn_fee_amt" javaType="java.lang.Long"/><arg column="aply_bgn_ym" javaType="java.lang.String"/>
+    <arg column="scheduledChanges" javaType="java.lang.String"/><arg column="peopleCount" javaType="_long"/>
+    <arg column="projectCount" javaType="_long"/><arg column="use_yn" javaType="java.lang.String"/><arg column="sort_seq" javaType="_int"/>
+  </constructor></resultMap>
+  <sql id="counts">
+    (SELECT count(*) FROM mst.dev d WHERE d.bsn_part_id=p.bsn_part_id AND d.use_yn='Y' AND (d.rsgn_dt IS NULL OR d.rsgn_dt &gt; #{today})) AS "peopleCount",
+    (SELECT count(*) FROM prj.prj j WHERE j.bsn_part_id=p.bsn_part_id AND j.prj_stts_cd IN ('PLAN','RUN','HOLD')) AS "projectCount"
+  </sql>
+  <sql id="partProjection">SELECT p.bsn_part_id,p.bsn_part_nm,p.hq_yn,p.use_yn,p.sort_seq,<include refid="counts"/> FROM mst.bsn_part p WHERE p.bsn_part_id=#{id}</sql>
+  <select id="lock" resultMap="partRow"><include refid="partProjection"/> FOR UPDATE OF p</select>
+  <select id="part" resultMap="partRow"><include refid="partProjection"/></select>
+  <select id="standards" resultMap="standardRow">
+    SELECT part_std_hist_id,aply_bgn_ym,aply_end_ym,ldr_nm,prft_dstrb_rt,bsn_fee_amt,
+      CASE WHEN aply_bgn_ym &gt; #{month} THEN '예정' WHEN aply_end_ym IS NULL OR aply_end_ym &gt;= #{month} THEN '적용 중' ELSE '지난 기준' END AS status
+    FROM mst.bsn_part_std_hist WHERE bsn_part_id=#{id} ORDER BY aply_bgn_ym,part_std_hist_id
+  </select>
+  <select id="lastClosed" resultType="string">SELECT max(cls_ym) FROM fin.mth_cls WHERE cls_stts_cd='CLOSED'</select>
+  <select id="options" resultMap="optionRow">SELECT bsn_part_id AS id,bsn_part_nm AS name,hq_yn='Y' AS hq FROM mst.bsn_part WHERE use_yn='Y' ORDER BY sort_seq,bsn_part_id</select>
+  <select id="nameExists" resultType="boolean">SELECT EXISTS(SELECT 1 FROM mst.bsn_part WHERE bsn_part_nm=#{value} AND bsn_part_id &lt;&gt; #{id})</select>
+  <update id="rename">UPDATE mst.bsn_part SET bsn_part_nm=#{value},updated_by=#{actor} WHERE bsn_part_id=#{id}</update>
+  <update id="use">UPDATE mst.bsn_part SET use_yn=#{value},updated_by=#{actor} WHERE bsn_part_id=#{id}</update>
+  <delete id="deleteScheduled">DELETE FROM mst.bsn_part_std_hist WHERE bsn_part_id=#{id} AND aply_bgn_ym &gt;= #{start} AND aply_bgn_ym &gt; #{month}</delete>
+  <update id="closePrevious">UPDATE mst.bsn_part_std_hist SET aply_end_ym=#{previous} WHERE bsn_part_id=#{id} AND aply_bgn_ym &lt; #{start} AND (aply_end_ym IS NULL OR aply_end_ym &gt;= #{start})</update>
+  <select id="insertStandard" resultType="long" affectData="true" flushCache="true">
+    INSERT INTO mst.bsn_part_std_hist(bsn_part_id,aply_bgn_ym,aply_end_ym,ldr_user_id,ldr_nm,prft_dstrb_rt,bsn_fee_amt,created_by)
+    VALUES(#{id},#{input.aply_bgn_ym},NULL,NULL,#{input.ldr_nm},#{input.prft_dstrb_rt},#{input.bsn_fee_amt},#{actor}) RETURNING part_std_hist_id
+  </select>
+  <insert id="appendHistory">INSERT INTO sys.data_chg_hist(tbl_nm,obj_rec_id,data_chg_ty_cd,clmn_nm,bfr_val,aft_val,chg_user_id) VALUES(#{table},#{id},#{type},#{column},#{before},#{after},#{actor})</insert>
+  <select id="exportRows" resultMap="exportRow">
+    SELECT * FROM (
+      SELECT p.bsn_part_id,p.bsn_part_nm,s.ldr_nm,s.prft_dstrb_rt,s.bsn_fee_amt,s.aply_bgn_ym,
+        (SELECT string_agg(h.aply_bgn_ym || ' ' || COALESCE(h.ldr_nm,'') || ' ' || h.prft_dstrb_rt || '% ' || h.bsn_fee_amt || '원', '; ' ORDER BY h.aply_bgn_ym)
+          FROM mst.bsn_part_std_hist h WHERE h.bsn_part_id=p.bsn_part_id AND h.aply_bgn_ym &gt; #{month}) AS "scheduledChanges",
+        <include refid="counts"/>,p.use_yn,p.sort_seq
+      FROM mst.bsn_part p LEFT JOIN LATERAL (
+        SELECT ldr_nm,prft_dstrb_rt,bsn_fee_amt,aply_bgn_ym FROM mst.bsn_part_std_hist h
+        WHERE h.bsn_part_id=p.bsn_part_id AND h.aply_bgn_ym &lt;= #{month} AND (h.aply_end_ym IS NULL OR h.aply_end_ym &gt;= #{month})
+        ORDER BY h.aply_bgn_ym DESC LIMIT 1
+      ) s ON true
+      <if test="ids != null">WHERE p.bsn_part_id IN <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach></if>
+    ) rows ORDER BY ${order}
+  </select>
+  <select id="existingIds" resultType="long">SELECT count(*) FROM mst.bsn_part WHERE bsn_part_id IN <foreach collection="list" item="id" open="(" separator="," close=")">#{id}</foreach></select>
+  <insert id="appendAccess">INSERT INTO sys.acs_hist(user_id,acs_ty_cd,scrn_id,obj_desc,dtl_desc) VALUES(#{actor},'DOWNLOAD','UI-15',#{filename},#{detail})</insert>
+</mapper>

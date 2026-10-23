@@ -1,0 +1,101 @@
+.region {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+.region input,
+.region select {
+  font: inherit;
+  min-height: var(--control-height);
+  padding: 0 var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--text);
+}
+.region label {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+}
+.region input[readonly] {
+  background: var(--readonly-bg);
+}
+.toolbar,
+.desktopActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+.toolbar {
+  justify-content: space-between;
+}
+.tableScroll {
+  max-width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+}
+.tableScroll table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: var(--table-size);
+  background: var(--surface);
+  white-space: nowrap;
+}
+.tableScroll th,
+.tableScroll td {
+  height: 40px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--divider);
+  text-align: left;
+}
+.tableScroll th {
+  background: var(--header-bg);
+  font-weight: var(--table-heading-weight);
+}
+.tableScroll tbody tr:hover {
+  background: var(--primary-bg);
+}
+.danger {
+  background: var(--danger) !important;
+  color: var(--surface) !important;
+}
+.drawer {
+  position: fixed;
+  inset: var(--topbar-height, 56px) 0 0 auto;
+  width: min(600px, 100%);
+  overflow: auto;
+  background: var(--surface);
+  padding: var(--space-6);
+  border-left: 1px solid var(--border);
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  box-sizing: border-box;
+}
+.drawer h2 {
+  margin: 0;
+  font-size: var(--title-size);
+}
+.drawer dl > div {
+  display: grid;
+  grid-template-columns: 140px minmax(0, 1fr);
+  gap: var(--space-2);
+  padding: var(--space-2) 0;
+}
+.drawer dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 767px) {
+  .desktopActions {
+    display: none;
+  }
+  .drawer {
+    padding: var(--space-4);
+  }
+}
