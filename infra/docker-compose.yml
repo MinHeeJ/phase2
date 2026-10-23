@@ -22,7 +22,10 @@ services:
       DB_URL: jdbc:postgresql://db:5432/${POSTGRES_DB:-sicost}
       DB_USER: ${POSTGRES_USER:-sicost}
       DB_PASSWORD: ${POSTGRES_PASSWORD:-dev-only-password}
+      UPLOAD_DIRECTORY: /app/data/uploads
       TZ: Asia/Seoul
+    volumes:
+      - uploads:/app/data/uploads
     ports:
       - "${BACKEND_PORT:-8081}:8080"
     depends_on:
@@ -51,3 +54,4 @@ services:
       retries: 20
 volumes:
   postgres-data:
+  uploads:

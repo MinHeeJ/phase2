@@ -6,6 +6,10 @@ server:
 spring:
   application:
     name: cost-management
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 11MB
   datasource:
     url: ${DB_URL}
     username: ${DB_USER}
@@ -23,6 +27,8 @@ spring:
     time-zone: Asia/Seoul
     deserialization:
       fail-on-unknown-properties: true
+sicost:
+  upload-directory: ${UPLOAD_DIRECTORY:${java.io.tmpdir}/sicost/uploads}
 mybatis:
   mapper-locations: classpath*:mappers/**/*.xml
   configuration:

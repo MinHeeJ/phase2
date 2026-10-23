@@ -312,7 +312,13 @@ export function AppShell({
               return (
                 <div hidden={tab.id !== id} key={tab.id}>
                   {location ? (
-                    tab.id === "UI-27" ? (
+                    tab.id === "UI-15" ? (
+                      renderBusiness(tab.id, {
+                        onDirtyChange: (value) => markDirty(tab.id, value),
+                        name: location.screen.name,
+                        groupName: location.group?.name,
+                      })
+                    ) : tab.id === "UI-27" ? (
                       <SharedMobileGuard
                         mobileAllowed={location.screen.mobile}
                         onDashboard={() => open("UI-16")}

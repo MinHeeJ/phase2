@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sicost.salespartsops.SalesPartActionMapper">
+  <resultMap id="part" type="com.sicost.salespartsops.SalesPartActionModels$Part"><constructor>
+    <arg column="bsn_part_id" javaType="java.lang.String"/><arg column="bsn_part_nm" javaType="java.lang.String"/>
+    <arg column="hq_yn" javaType="java.lang.String"/><arg column="use_yn" javaType="java.lang.String"/><arg column="sort_seq" javaType="_int"/>
+  </constructor></resultMap>
+  <resultMap id="option" type="com.sicost.salespartsops.SalesPartActionModels$Option"><constructor>
+    <arg column="id" javaType="java.lang.String"/><arg column="name" javaType="java.lang.String"/><arg column="hq" javaType="_boolean"/>
+  </constructor></resultMap>
+  <resultMap id="standard" type="com.sicost.salespartsops.SalesPartActionModels$Standard"><constructor>
+    <arg column="part_std_hist_id" javaType="java.lang.String"/><arg column="aply_bgn_ym" javaType="java.lang.String"/><arg column="aply_end_ym" javaType="java.lang.String"/>
+    <arg column="ldr_nm" javaType="java.lang.String"/><arg column="prft_dstrb_rt" javaType="java.math.BigDecimal"/><arg column="bsn_fee_amt" javaType="java.lang.Long"/><arg column="status" javaType="java.lang.String"/>
+  </constructor></resultMap>
+  <sql id="partColumns">bsn_part_id,bsn_part_nm,hq_yn,use_yn,sort_seq</sql>
+  <select id="part" resultMap="part">SELECT <include refid="partColumns"/> FROM mst.bsn_part WHERE bsn_part_id=CAST(#{id} AS bigint)</select>
+  <select id="lockPart" resultMap="part">SELECT <include refid="partColumns"/> FROM mst.bsn_part WHERE bsn_part_id=CAST(#{id} AS bigint) FOR UPDATE</select>
+  <select id="allParts" resultMap="part">SELECT <include refid="partColumns"/> FROM mst.bsn_part ORDER BY sort_seq,bsn_part_id</select>
+  <select id="options" resultMap="option">SELECT bsn_part_id AS id,bsn_part_nm AS name,hq_yn='Y' AS hq FROM mst.bsn_part WHERE use_yn='Y' ORDER BY sort_seq,bsn_part_id</select>
+  <select id="standards" resultMap="standard">SELECT part_std_hist_id,aply_bgn_ym,aply_end_ym,ldr_nm,prft_dstrb_rt,bsn_fee_amt,
+    CASE WHEN aply_bgn_ym &gt; #{month} THEN '예정' WHEN aply_end_ym IS NULL OR aply_end_ym &gt;= #{month} THEN '적용 중' ELSE '지난 기준' END AS status
+    FROM mst.bsn_part_std_hist WHERE bsn_part_id=CAST(#{id} AS bigint) ORDER BY aply_bgn_ym DESC,part_std_hist_id DESC</select>
+  <select id="lastClosed" resultType="string">SELECT max(cls_ym) FROM fin.mth_cls WHERE cls_stts_cd='CLOSED'</select>
+  <select id="people" resultType="long">SELECT count(*) FROM mst.dev WHERE bsn_part_id=CAST(#{id} AS bigint) AND use_yn='Y' AND (rsgn_dt IS NULL OR rsgn_dt &gt; #{today})</select>
+  <select id="projects" resultType="long">SELECT count(*) FROM prj.prj WHERE bsn_part_id=CAST(#{id} AS bigint) AND prj_stts_cd IN ('PLAN','RUN','HOLD')</select>
+  <select id="nameExists" resultType="boolean">SELECT EXISTS(SELECT 1 FROM mst.bsn_part WHERE bsn_part_nm=#{value} AND bsn_part_id != CAST(#{id} AS bigint))</select>
+  <update id="rename">UPDATE mst.bsn_part SET bsn_part_nm=#{value},updated_by=#{actor} WHERE bsn_part_id=CAST(#{id} AS bigint)</update>
+  <update id="state">UPDATE mst.bsn_part SET use_yn=#{value},updated_by=#{actor} WHERE bsn_part_id=CAST(#{id} AS bigint)</update>
+  <delete id="deleteStandard">DELETE FROM mst.bsn_part_std_hist WHERE part_std_hist_id=CAST(#{id} AS bigint)</delete>
+  <select id="standardReferences" resultType="long">SELECT count(*) FROM fin.part_stlm WHERE part_std_hist_id=CAST(#{id} AS bigint)</select>
+  <update id="closeStandard">UPDATE mst.bsn_part_std_hist SET aply_end_ym=#{month} WHERE part_std_hist_id=CAST(#{id} AS bigint)</update>
+  <select id="insertStandard" resultType="string" affectData="true" flushCache="true">INSERT INTO mst.bsn_part_std_hist(bsn_part_id,aply_bgn_ym,aply_end_ym,ldr_user_id,ldr_nm,prft_dstrb_rt,bsn_fee_amt,created_by)
+    VALUES(CAST(#{id} AS bigint),#{input.aply_bgn_ym},NULL,NULL,#{input.ldr_nm},#{input.prft_dstrb_rt},#{input.bsn_fee_amt},#{actor}) RETURNING part_std_hist_id</select>
+  <insert id="history">INSERT INTO sys.data_chg_hist(tbl_nm,obj_rec_id,data_chg_ty_cd,clmn_nm,bfr_val,aft_val,chg_user_id)
+    VALUES(#{table},#{id},#{type},#{field},#{before},#{after},#{actor})</insert>
+  <insert id="download">INSERT INTO sys.acs_hist(user_id,acs_ty_cd,scrn_id,obj_desc,dtl_desc) VALUES(#{actor},'DOWNLOAD','UI-15',#{filename},#{detail})</insert>
+</mapper>

@@ -1,0 +1,96 @@
+.screen {
+  min-width: 0;
+}
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  padding: var(--space-4) 0;
+}
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: var(--space-3) 0;
+}
+.toolbar > :last-child {
+  margin-left: auto;
+}
+.scroll {
+  max-width: 100%;
+  overflow: auto;
+  border: 1px solid var(--border);
+}
+.table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: var(--table-size);
+  line-height: var(--table-line);
+}
+.table th,
+.table td {
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--divider);
+  white-space: nowrap;
+  text-align: left;
+}
+.table th {
+  background: var(--header-bg);
+  font-weight: var(--table-heading-weight);
+}
+.table th button {
+  border: 0;
+  background: transparent;
+  color: inherit;
+}
+.danger {
+  color: var(--surface);
+  background: var(--danger);
+  border: 1px solid var(--danger);
+  border-radius: var(--radius-control);
+  padding: var(--space-2) var(--space-4);
+}
+.backdrop {
+  position: fixed;
+  inset: 0;
+  background: var(--overlay-bg);
+  z-index: 40;
+  display: flex;
+  justify-content: flex-end;
+}
+.drawer {
+  width: 600px;
+  max-width: 100vw;
+  background: var(--surface);
+  padding: var(--space-6);
+  overflow: auto;
+  border-left: 1px solid var(--border);
+}
+.drawer header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+.drawer dl {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  gap: var(--space-3);
+}
+.drawer dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.notice {
+  background: var(--locked-bg);
+  padding: var(--space-3);
+}
+@media (max-width: 767px) {
+  .writeOnly {
+    display: none !important;
+  }
+  .drawer {
+    width: 100vw;
+    padding: var(--space-4);
+  }
+}
