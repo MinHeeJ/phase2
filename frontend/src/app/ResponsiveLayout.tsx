@@ -59,6 +59,7 @@ export function ResponsiveLayout({
         {header}
       </header>
       <aside
+        data-testid="responsive-menu"
         className={styles.menu}
         aria-label="업무 메뉴"
         data-compact={width >= 768 && (width < 1280 ? !expanded : collapsed)}

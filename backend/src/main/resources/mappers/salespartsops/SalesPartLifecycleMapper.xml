@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sicost.salespartsops.SalesPartLifecycleMapper">
+  <resultMap id="option" type="com.sicost.salespartsops.SalesPartLifecycleModels$SalesPartOption"><constructor>
+    <arg column="id" javaType="java.lang.String"/><arg column="name" javaType="java.lang.String"/><arg column="hq" javaType="_boolean"/>
+  </constructor></resultMap>
+  <select id="lock" resultMap="com.sicost.salesparts.SalesPartMapper.partRow">
+    <include refid="com.sicost.salesparts.SalesPartMapper.partProjection"/> WHERE p.bsn_part_id=#{id} FOR UPDATE OF p
+  </select>
+  <select id="options" resultMap="option">
+    SELECT bsn_part_id::text AS id,bsn_part_nm AS name,hq_yn='Y' AS hq FROM mst.bsn_part WHERE use_yn='Y' ORDER BY sort_seq,bsn_part_id
+  </select>
+  <select id="nameExists" resultType="boolean">SELECT EXISTS(SELECT 1 FROM mst.bsn_part WHERE bsn_part_nm=#{name} AND bsn_part_id&lt;&gt;#{id})</select>
+  <update id="rename">UPDATE mst.bsn_part SET bsn_part_nm=#{value},updated_by=#{actor,jdbcType=BIGINT} WHERE bsn_part_id=#{id}</update>
+  <update id="state">UPDATE mst.bsn_part SET use_yn=#{value},updated_by=#{actor,jdbcType=BIGINT} WHERE bsn_part_id=#{id}</update>
+  <delete id="deleteScheduled">DELETE FROM mst.bsn_part_std_hist WHERE bsn_part_id=#{id} AND aply_bgn_ym&gt;=#{input.aply_bgn_ym}</delete>
+  <update id="closePrevious">UPDATE mst.bsn_part_std_hist SET aply_end_ym=#{previousMonth}
+    WHERE bsn_part_id=#{id} AND aply_bgn_ym&lt;#{input.aply_bgn_ym} AND (aply_end_ym IS NULL OR aply_end_ym&gt;=#{input.aply_bgn_ym})
+  </update>
+  <select id="insertStandard" resultType="long" affectData="true" flushCache="true">
+    INSERT INTO mst.bsn_part_std_hist(bsn_part_id,aply_bgn_ym,aply_end_ym,ldr_user_id,ldr_nm,prft_dstrb_rt,bsn_fee_amt,created_by)
+    VALUES(#{id},#{input.aply_bgn_ym},NULL,NULL,#{input.ldr_nm},#{input.prft_dstrb_rt},#{input.bsn_fee_amt},#{actor,jdbcType=BIGINT}) RETURNING part_std_hist_id
+  </select>
+  <insert id="audit">INSERT INTO sys.data_chg_hist(tbl_nm,obj_rec_id,data_chg_ty_cd,clmn_nm,bfr_val,aft_val,chg_user_id)
+    VALUES(#{tableName},#{recordId},#{type},#{column,jdbcType=VARCHAR},#{before,jdbcType=VARCHAR},#{after,jdbcType=VARCHAR},#{actor,jdbcType=BIGINT})
+  </insert>
+  <select id="exportRows" resultType="map">
+    SELECT p.bsn_part_id::text AS bsn_part_id,p.bsn_part_nm,p.hq_yn,p.use_yn,p.sort_seq,
+      CAST(#{month} AS text) AS "referenceMonth",s.ldr_nm AS "currentStandard.ldr_nm",s.prft_dstrb_rt AS "currentStandard.prft_dstrb_rt",
+      s.bsn_fee_amt AS "currentStandard.bsn_fee_amt",s.aply_bgn_ym AS "currentStandard.aply_bgn_ym",
+      (SELECT string_agg(h.aply_bgn_ym||'부터 '||h.prft_dstrb_rt||'%', ', ' ORDER BY h.aply_bgn_ym) FROM mst.bsn_part_std_hist h WHERE h.bsn_part_id=p.bsn_part_id AND h.aply_bgn_ym&gt;#{month}) AS "scheduledChanges",
+      (SELECT count(*) FROM mst.dev d WHERE d.bsn_part_id=p.bsn_part_id AND d.use_yn='Y' AND (d.rsgn_dt IS NULL OR d.rsgn_dt&gt;#{today})) AS "peopleCount",
+      (SELECT count(*) FROM prj.prj j WHERE j.bsn_part_id=p.bsn_part_id AND j.prj_stts_cd IN ('PLAN','RUN','HOLD')) AS "projectCount"
+    FROM mst.bsn_part p LEFT JOIN LATERAL (SELECT h.ldr_nm,h.prft_dstrb_rt,h.bsn_fee_amt,h.aply_bgn_ym FROM mst.bsn_part_std_hist h
+      WHERE h.bsn_part_id=p.bsn_part_id AND h.aply_bgn_ym&lt;=#{month} AND (h.aply_end_ym IS NULL OR h.aply_end_ym&gt;=#{month}) ORDER BY h.aply_bgn_ym DESC LIMIT 1) s ON true
+    <if test="ids != null">WHERE p.bsn_part_id IN <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach></if>
+    ORDER BY p.sort_seq,p.bsn_part_id
+  </select>
+  <insert id="access">INSERT INTO sys.acs_hist(user_id,acs_ty_cd,scrn_id,obj_desc,dtl_desc)
+    VALUES(#{actor,jdbcType=BIGINT},'DOWNLOAD','UI-15',#{filename},#{detail})
+  </insert>
+</mapper>

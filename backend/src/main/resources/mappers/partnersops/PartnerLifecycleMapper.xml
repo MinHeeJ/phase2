@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sicost.partnersops.PartnerLifecycleMapper">
+  <resultMap id="partnerDetail" type="com.sicost.partnersops.PartnerLifecycleModels$PartnerDetail"><constructor>
+    <arg column="ptnr_id" javaType="java.lang.String"/><arg column="ptnr_no" javaType="java.lang.String"/><arg column="ptnr_se_cd" javaType="java.lang.String"/><arg column="ptnr_nm" javaType="java.lang.String"/>
+    <arg column="biz_reg_no" javaType="java.lang.String"/><arg column="ceo_nm" javaType="java.lang.String"/><arg column="indty_cd" javaType="java.lang.String"/><arg column="chrg_nm" javaType="java.lang.String"/><arg column="chrg_tel_no" javaType="java.lang.String"/>
+    <arg column="rmrk_desc" javaType="java.lang.String"/><arg column="txinv_email_addr" javaType="java.lang.String"/><arg column="bank_cd" javaType="java.lang.String"/><arg column="acnt_no" javaType="java.lang.String"/><arg column="dpstr_nm" javaType="java.lang.String"/><arg column="use_yn" javaType="java.lang.String"/>
+  </constructor></resultMap>
+  <resultMap id="partnerOption" type="com.sicost.partnersops.PartnerLifecycleModels$PartnerOption"><constructor>
+    <arg column="id" javaType="java.lang.String"/><arg column="no" javaType="java.lang.String"/><arg column="name" javaType="java.lang.String"/>
+  </constructor></resultMap>
+  <resultMap id="partnerAssignment" type="com.sicost.partnersops.PartnerLifecycleModels$PartnerAssignment"><constructor>
+    <arg column="projectName" javaType="java.lang.String"/><arg column="developerName" javaType="java.lang.String"/><arg column="affiliation" javaType="java.lang.String"/><arg column="jobCode" javaType="java.lang.String"/><arg column="jobName" javaType="java.lang.String"/><arg column="assignmentRate" javaType="java.math.BigDecimal"/><arg column="endDate" javaType="java.time.LocalDate"/>
+  </constructor></resultMap>
+  <resultMap id="partnerChange" type="com.sicost.partnersops.PartnerLifecycleModels$PartnerChange"><constructor>
+    <arg column="changedAt" javaType="java.time.LocalDateTime"/><arg column="column" javaType="java.lang.String"/><arg column="itemName" javaType="java.lang.String"/><arg column="before" javaType="java.lang.String"/><arg column="after" javaType="java.lang.String"/><arg column="changeType" javaType="java.lang.String"/><arg column="actorName" javaType="java.lang.String"/>
+  </constructor></resultMap>
+  <resultMap id="partnerBlock" type="com.sicost.partnersops.PartnerLifecycleModels$PartnerBlock"><constructor>
+    <arg column="id" javaType="java.lang.String"/><arg column="name" javaType="java.lang.String"/><arg column="projectCount" javaType="_long"/><arg column="peopleCount" javaType="_long"/><arg column="reason" javaType="java.lang.String"/>
+  </constructor></resultMap>
+  <sql id="detailProjection">SELECT ptnr_id::text,ptnr_no,ptnr_se_cd,ptnr_nm,biz_reg_no,ceo_nm,indty_cd,chrg_nm,chrg_tel_no,rmrk_desc,
+    CASE WHEN ptnr_se_cd IN ('CUST','BOTH') THEN txinv_email_addr END AS txinv_email_addr,
+    CASE WHEN ptnr_se_cd IN ('VEND','BOTH') THEN bank_cd END AS bank_cd,
+    CASE WHEN ptnr_se_cd IN ('VEND','BOTH') THEN acnt_no END AS acnt_no,
+    CASE WHEN ptnr_se_cd IN ('VEND','BOTH') THEN dpstr_nm END AS dpstr_nm,use_yn FROM mst.ptnr WHERE ptnr_id=CAST(#{id} AS bigint)</sql>
+  <select id="detail" resultMap="partnerDetail"><include refid="detailProjection"/></select>
+  <select id="lock" resultMap="partnerDetail"><include refid="detailProjection"/> FOR UPDATE</select>
+  <select id="options" resultMap="partnerOption">SELECT ptnr_id::text AS id,ptnr_no AS no,ptnr_nm AS name FROM mst.ptnr WHERE use_yn='Y' AND ptnr_se_cd IN (#{kind},'BOTH') ORDER BY ptnr_nm,ptnr_id</select>
+  <sql id="currentAssignments">a.asgn_stts_cd='ACTIVE' AND a.bgn_dt &lt;= #{today} AND a.end_dt &gt;= #{today} AND j.prj_stts_cd IN ('PLAN','RUN','HOLD')</sql>
+  <sql id="partnerScope">((p.ptnr_se_cd IN ('CUST','BOTH') AND j.cust_ptnr_id=p.ptnr_id) OR (p.ptnr_se_cd IN ('VEND','BOTH') AND d.vndr_ptnr_id=p.ptnr_id))</sql>
+  <select id="assignments" resultMap="partnerAssignment">SELECT j.prj_nm AS "projectName",d.dev_nm AS "developerName",COALESCE(v.ptnr_nm,'자사') AS affiliation,a.job_cd AS "jobCode",COALESCE(c.cd_nm,a.job_cd) AS "jobName",a.asgn_rt AS "assignmentRate",a.end_dt AS "endDate"
+    FROM asgn.asgn a JOIN prj.prj j ON j.prj_id=a.prj_id JOIN mst.dev d ON d.dev_id=a.dev_id
+    JOIN mst.ptnr p ON p.ptnr_id=CAST(#{id} AS bigint) LEFT JOIN mst.ptnr v ON v.ptnr_id=d.vndr_ptnr_id LEFT JOIN cmn.cd_dtl c ON c.cd_grp_id='JOB' AND c.dtl_cd=a.job_cd
+    WHERE <include refid="currentAssignments"/> AND <include refid="partnerScope"/> ORDER BY j.prj_nm,d.dev_nm,a.asgn_id</select>
+  <sql id="historyGroup">CASE h.clmn_nm WHEN 'ptnr_se_cd' THEN 'PARTNER_KIND' WHEN 'indty_cd' THEN 'INDUSTRY' WHEN 'bank_cd' THEN 'BANK' END</sql>
+  <select id="history" resultMap="partnerChange">SELECT h.chg_at AS "changedAt",h.clmn_nm AS "column",
+    CASE h.clmn_nm WHEN 'ptnr_se_cd' THEN '구분' WHEN 'ptnr_nm' THEN '상호' WHEN 'biz_reg_no' THEN '사업자번호' WHEN 'ceo_nm' THEN '대표자' WHEN 'indty_cd' THEN '업종' WHEN 'chrg_nm' THEN '담당자' WHEN 'chrg_tel_no' THEN '연락처' WHEN 'txinv_email_addr' THEN '세금계산서 이메일' WHEN 'bank_cd' THEN '은행' WHEN 'acnt_no' THEN '계좌번호' WHEN 'dpstr_nm' THEN '예금주' WHEN 'rmrk_desc' THEN '비고' WHEN 'use_yn' THEN '사용 여부' ELSE '거래처' END AS "itemName",
+    CASE WHEN h.clmn_nm='acnt_no' THEN right(h.bfr_val,4) WHEN h.clmn_nm='use_yn' THEN CASE h.bfr_val WHEN 'Y' THEN '사용' WHEN 'N' THEN '중지' END ELSE COALESCE(b.cd_nm,h.bfr_val) END AS before,
+    CASE WHEN h.clmn_nm='acnt_no' THEN right(h.aft_val,4) WHEN h.clmn_nm='use_yn' THEN CASE h.aft_val WHEN 'Y' THEN '사용' WHEN 'N' THEN '중지' END ELSE COALESCE(n.cd_nm,h.aft_val) END AS after,
+    h.data_chg_ty_cd AS "changeType",COALESCE(u.user_nm,'기본 사용자') AS "actorName"
+    FROM sys.data_chg_hist h LEFT JOIN sys.user_info u ON u.user_id=h.chg_user_id
+    LEFT JOIN cmn.cd_dtl b ON b.cd_grp_id=(<include refid="historyGroup"/>) AND b.dtl_cd=h.bfr_val
+    LEFT JOIN cmn.cd_dtl n ON n.cd_grp_id=(<include refid="historyGroup"/>) AND n.dtl_cd=h.aft_val
+    WHERE h.tbl_nm='mst.ptnr' AND h.obj_rec_id=#{id} ORDER BY h.chg_at DESC,h.data_chg_hist_id DESC</select>
+  <sql id="customerProjects">(SELECT count(*) FROM prj.prj j WHERE j.cust_ptnr_id=p.ptnr_id AND j.prj_stts_cd IN ('PLAN','RUN','HOLD'))</sql>
+  <sql id="affiliatedPeople">(SELECT count(*) FROM mst.dev d WHERE d.vndr_ptnr_id=p.ptnr_id AND d.use_yn='Y' AND (d.rsgn_dt IS NULL OR d.rsgn_dt &gt; #{today}))</sql>
+  <select id="block" resultMap="partnerBlock">SELECT p.ptnr_id::text AS id,p.ptnr_nm AS name,<include refid="customerProjects"/> AS "projectCount",<include refid="affiliatedPeople"/> AS "peopleCount",'' AS reason FROM mst.ptnr p WHERE p.ptnr_id=CAST(#{id} AS bigint)</select>
+  <update id="changeState">UPDATE mst.ptnr SET use_yn=#{use},updated_by=#{actor} WHERE ptnr_id=CAST(#{id} AS bigint) AND use_yn &lt;&gt; #{use}</update>
+  <insert id="audit">INSERT INTO sys.data_chg_hist(tbl_nm,obj_rec_id,data_chg_ty_cd,clmn_nm,bfr_val,aft_val,chg_user_id) VALUES('mst.ptnr',#{id},#{type},'use_yn',#{before},#{after},#{actor})</insert>
+  <select id="exportRows" resultType="map">SELECT p.ptnr_id::text AS ptnr_id,p.ptnr_no,p.ptnr_se_cd,p.ptnr_nm,p.biz_reg_no,p.ceo_nm,p.indty_cd,p.chrg_nm,p.chrg_tel_no,p.txinv_email_addr,p.use_yn,k.cd_nm AS "kindName",i.cd_nm AS "industryName",COALESCE(b.cd_nm,p.bank_cd) AS bank_cd,p.acnt_no,p.dpstr_nm,
+    CASE WHEN p.ptnr_se_cd='VEND' THEN NULL ELSE (SELECT count(DISTINCT j.prj_id) FROM prj.prj j WHERE j.prj_stts_cd IN ('PLAN','RUN','HOLD') AND (j.cust_ptnr_id=p.ptnr_id OR (p.ptnr_se_cd='BOTH' AND EXISTS(SELECT 1 FROM asgn.asgn a JOIN mst.dev d ON d.dev_id=a.dev_id WHERE a.prj_id=j.prj_id AND d.vndr_ptnr_id=p.ptnr_id AND <include refid="currentAssignments"/>)))) END AS "projectCount",
+    (SELECT count(DISTINCT d.dev_id) FROM asgn.asgn a JOIN prj.prj j ON j.prj_id=a.prj_id JOIN mst.dev d ON d.dev_id=a.dev_id WHERE <include refid="currentAssignments"/> AND <include refid="partnerScope"/>) AS "assignmentPeopleCount"
+    FROM mst.ptnr p LEFT JOIN cmn.cd_dtl k ON k.cd_grp_id='PARTNER_KIND' AND k.dtl_cd=p.ptnr_se_cd LEFT JOIN cmn.cd_dtl i ON i.cd_grp_id='INDUSTRY' AND i.dtl_cd=p.indty_cd LEFT JOIN cmn.cd_dtl b ON b.cd_grp_id='BANK' AND b.dtl_cd=p.bank_cd
+    <where>
+      <if test="kind != null and kind != ''">AND <choose><when test="kind == 'BOTH'">p.ptnr_se_cd='BOTH'</when><otherwise>p.ptnr_se_cd IN (#{kind},'BOTH')</otherwise></choose></if>
+      <if test="useYn != null and useYn != ''">AND p.use_yn=#{useYn}</if>
+      <if test="q != null and q != ''">AND (position(lower(#{q}) in lower(p.ptnr_nm)) &gt; 0 OR replace(p.biz_reg_no,'-','')=replace(#{q},'-',''))</if>
+      <if test="ids != null">AND p.ptnr_id IN <foreach collection="ids" item="id" open="(" close=")" separator=",">CAST(#{id} AS bigint)</foreach></if>
+    </where> ORDER BY p.ptnr_nm,p.ptnr_id
+  </select>
+  <insert id="access">INSERT INTO sys.acs_hist(user_id,acs_ty_cd,scrn_id,obj_desc,dtl_desc) VALUES(#{actor},'DOWNLOAD','UI-15',#{filename},#{detail})</insert>
+</mapper>

@@ -3,11 +3,47 @@ import * as client from "./apiClient";
 import * as transport from "../shared/api";
 import * as shared from "../pages/shared/api";
 import * as admin from "../pages/admin/client";
+import * as partners from "../pages/partners/client";
+import * as partnerLifecycle from "../pages/partnersops/client";
+import * as salesParts from "../pages/salesparts/client";
+import * as salesPartLifecycle from "../pages/salespartsops/client";
+import * as uploads from "../pages/uploadsops/client";
 
 const response = (data: unknown) =>
   new Response(JSON.stringify({ success: true, meta: {}, data }));
 afterEach(() => vi.unstubAllGlobals());
 describe("API client registration", () => {
+  it.each([
+    ["listPartners", partners.listPartners],
+    ["getPartner", partners.getPartner],
+    ["createPartner", partners.createPartner],
+    ["updatePartner", partners.updatePartner],
+    ["listPartnerOptions", partnerLifecycle.listPartnerOptions],
+    ["listPartnerAssignments", partnerLifecycle.listPartnerAssignments],
+    ["listPartnerHistory", partnerLifecycle.listPartnerHistory],
+    ["disablePartners", partnerLifecycle.disablePartners],
+    ["enablePartner", partnerLifecycle.enablePartner],
+    ["downloadList", partnerLifecycle.downloadList],
+    ["listSalesParts", salesParts.listSalesParts],
+    ["getSalesPart", salesParts.getSalesPart],
+    ["createSalesPart", salesParts.createSalesPart],
+    ["listSalesPartOptions", salesPartLifecycle.listSalesPartOptions],
+    ["saveSalesPartStandard", salesPartLifecycle.saveSalesPartStandard],
+    ["updateSalesPartName", salesPartLifecycle.updateSalesPartName],
+    ["saveSalesPartDisable", salesPartLifecycle.saveSalesPartDisable],
+    ["saveSalesPartEnable", salesPartLifecycle.saveSalesPartEnable],
+    ["createUploadValidation", uploads.createUploadValidation],
+    ["saveUploadRecheck", uploads.saveUploadRecheck],
+    ["saveValidatedUploadApply", uploads.saveValidatedUploadApply],
+    ["downloadUploadFile", uploads.downloadUploadFile],
+    ["uploadTemplatePath", uploads.uploadTemplatePath],
+    ["uploadErrorPath", uploads.uploadErrorPath],
+  ] as const)(
+    "registers %s directly from its owning client",
+    (name, implementation) => {
+      expect(client[name]).toBe(implementation);
+    },
+  );
   it("reuses the existing transport and feature clients without wrapping their envelopes", () => {
     expect(client.api).toBe(transport.api);
     expect(client.readData).toBe(transport.readData);

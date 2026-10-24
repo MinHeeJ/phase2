@@ -1,9 +1,15 @@
+sicost:
+  upload-directory: /app/data/uploads
 server:
   port: 8080
   error:
     include-message: never
     include-stacktrace: never
 spring:
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 11MB
   application:
     name: cost-management
   datasource:
