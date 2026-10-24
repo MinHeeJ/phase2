@@ -42,7 +42,15 @@ export function SalesPartCreateDialog({
   } | null>(null);
   const [dirty, setDirty] = useState(false);
   const form = useRef<HTMLFormElement>(null);
-  const write = useAdminWrite(reload);
+  const created = useRef<SalesPartDetail | null>(null);
+  const write = useAdminWrite(async () => {
+    await reload();
+    if (created.current) {
+      const part = created.current;
+      created.current = null;
+      onSaved(part);
+    }
+  });
   useEffect(() => {
     onDirtyChange?.(dirty);
     return () => onDirtyChange?.(false);
@@ -108,9 +116,12 @@ export function SalesPartCreateDialog({
     (form.current?.elements.namedItem(field) as HTMLElement | null)?.focus();
   };
   const submit = () => {
-    if (defaultsLoading || write.pending || write.uncertain) return;
+    if (defaultsLoading || write.pending || write.uncertain || created.current)
+      return;
     if (!draft.bsn_part_nm.trim())
       return focusError("bsn_part_nm", "파트명을 입력해 주세요.");
+    if (draft.bsn_part_nm.length > 30)
+      return focusError("bsn_part_nm", "파트명은 30자까지 입력해 주세요.");
     if (!isMonth(draft.aply_bgn_ym))
       return focusError("aply_bgn_ym", "올바른 연월을 입력하세요.");
     if (firstAllowedMonth && draft.aply_bgn_ym < firstAllowedMonth)
@@ -120,6 +131,8 @@ export function SalesPartCreateDialog({
       );
     if (!draft.ldr_nm.trim())
       return focusError("ldr_nm", "파트장을 입력해 주세요.");
+    if (draft.ldr_nm.length > 50)
+      return focusError("ldr_nm", "파트장은 50자까지 입력해 주세요.");
     if (
       !/^\d+(?:\.\d{1,2})?$/.test(draft.prft_dstrb_rt) ||
       Number(draft.prft_dstrb_rt) > 100
@@ -134,10 +147,9 @@ export function SalesPartCreateDialog({
       Number(draft.bsn_fee_amt) < 1
     )
       return focusError("bsn_fee_amt", "영업비를 입력해 주세요.");
-    let created: SalesPartDetail;
     void write.save(
       async () => {
-        created = await createSalesPart({
+        created.current = await createSalesPart({
           ...draft,
           bsn_part_nm: draft.bsn_part_nm.trim(),
           ldr_nm: draft.ldr_nm.trim(),
@@ -145,7 +157,7 @@ export function SalesPartCreateDialog({
           bsn_fee_amt: Number(draft.bsn_fee_amt),
         });
       },
-      () => onSaved(created),
+      () => {},
     );
   };
   useEffect(() => {
@@ -198,6 +210,7 @@ export function SalesPartCreateDialog({
           }
           disabled={
             write.pending ||
+            created.current !== null ||
             ((key === "prft_dstrb_rt" || key === "bsn_fee_amt") &&
               defaultsLoading)
           }
@@ -287,7 +300,9 @@ export function SalesPartCreateDialog({
             type="submit"
             variant="primary"
             pending={write.pending}
-            disabled={defaultsLoading || write.uncertain}
+            disabled={
+              defaultsLoading || write.uncertain || created.current !== null
+            }
           >
             추가
           </Button>

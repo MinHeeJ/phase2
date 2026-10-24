@@ -95,4 +95,52 @@ class SalesPartPersistenceTest {
         execute("UPDATE fin.mth_cls SET cls_stts_cd='OPEN'");var part=service.create(input("과거 파트","2025-01"));
         assertThat(part.lastClosedMonth()).isNull();assertThat(part.firstAllowedMonth()).isNull();assertThat(part.currentStandard()).isNotNull();
     }
+    @Test void secondAuditFailureRollsBackHeaderStandardAndFirstAudit()throws Exception {
+        long parts=mapper.partCount(),standards=scalar("SELECT count(*) FROM mst.bsn_part_std_hist"),history=scalar("SELECT count(*) FROM sys.data_chg_hist");
+        execute("ALTER TABLE sys.data_chg_hist ADD CONSTRAINT reject_standard_history CHECK (tbl_nm <> 'mst.bsn_part_std_hist') NOT VALID");
+        assertThatThrownBy(()->service.create(input("원자 저장 파트","2026-11"))).isInstanceOf(RuntimeException.class);
+        assertThat(mapper.partCount()).isEqualTo(parts);
+        assertThat(scalar("SELECT count(*) FROM mst.bsn_part_std_hist")).isEqualTo(standards);
+        assertThat(scalar("SELECT count(*) FROM sys.data_chg_hist")).isEqualTo(history);
+    }
+    @Test void sortingUsesMaximumIncludingDisabledPartsButExcludesHeadquarters()throws Exception {
+        var disabled=service.create(input("정렬 기준 파트","2026-11"));
+        execute("UPDATE mst.bsn_part SET sort_seq=7,use_yn='N' WHERE bsn_part_id="+disabled.bsn_part_id());
+        execute("UPDATE mst.bsn_part SET sort_seq=100 WHERE hq_yn='Y'");
+        var created=service.create(input("다음 순서 파트","2026-11"));
+        assertThat(created.sort_seq()).isEqualTo(8);
+        assertThat(created.hq_yn()).isEqualTo("N");
+        assertThat(created.standards()).singleElement().satisfies(s->assertThat(s.aply_end_ym()).isNull());
+    }
+    @Test void readPagesUseStableIdTiesAndKeepDisabledPartsOnLaterPages()throws Exception {
+        var ids=new ArrayList<String>();
+        for(int i=0;i<21;i++) ids.add(service.create(input("목록 파트 "+i,"2026-10")).bsn_part_id());
+        execute("UPDATE mst.bsn_part SET sort_seq=1 WHERE hq_yn='N'");
+        execute("UPDATE mst.bsn_part SET use_yn='N' WHERE bsn_part_id="+ids.get(20));
+        var first=service.list(new PageRequest(1,20,null));
+        var second=service.list(new PageRequest(2,20,null));
+        assertThat(first.total()).isEqualTo(22);
+        assertThat(first.items()).hasSize(20);
+        assertThat(first.items().get(0).hq_yn()).isEqualTo("Y");
+        assertThat(first.items().subList(1,20)).extracting(SalesPartListItem::bsn_part_id).containsExactlyElementsOf(ids.subList(0,19));
+        assertThat(second.items()).extracting(SalesPartListItem::bsn_part_id).containsExactlyElementsOf(ids.subList(19,21));
+        assertThat(second.items().get(1).use_yn()).isEqualTo("N");
+        for(String key:List.of("bsn_part_nm","currentStandard.ldr_nm","currentStandard.prft_dstrb_rt","currentStandard.bsn_fee_amt","currentStandard.aply_bgn_ym","peopleCount","projectCount","use_yn")) {
+            var sorted=service.list(new PageRequest(1,50,key+",asc"));
+            assertThat(sorted.total()).isEqualTo(22);
+            assertThat(sorted.items()).hasSize(22);
+        }
+    }
+    @Test void listAndDetailAgreeOnAllRunningStatesAndResignationBoundaries()throws Exception {
+        var part=service.create(input("집계 경계 파트","2026-10"));String id=part.bsn_part_id();
+        execute("INSERT INTO mst.dev(mng_no,dev_nm,emp_se_cd,bsn_part_id,use_yn,rsgn_dt) VALUES ('READ1','재직','FT',"+id+",'Y',NULL),('READ2','당일퇴사','FT',"+id+",'Y','2026-10-22'),('READ3','전일퇴사','FT',"+id+",'Y','2026-10-21'),('READ4','다음날퇴사','FT',"+id+",'Y','2026-10-23'),('READ5','미사용','FT',"+id+",'N',NULL)");
+        execute("INSERT INTO prj.prj(prj_no,prj_nm,cntrct_ty_cd,prj_stts_cd,bsn_part_id) VALUES ('READ1','계획','TK','PLAN',"+id+"),('READ2','진행','TK','RUN',"+id+"),('READ3','보류','TK','HOLD',"+id+"),('READ4','완료','TK','END',"+id+")");
+        var detail=service.get(id);
+        var row=service.list(new PageRequest(1,50,null)).items().stream().filter(p->p.bsn_part_id().equals(id)).findFirst().orElseThrow();
+        assertThat(detail.peopleCount()).isEqualTo(2);
+        assertThat(detail.projectCount()).isEqualTo(3);
+        assertThat(row.peopleCount()).isEqualTo(detail.peopleCount());
+        assertThat(row.projectCount()).isEqualTo(detail.projectCount());
+        assertThat(row.currentStandard()).isEqualTo(detail.currentStandard());
+    }
 }

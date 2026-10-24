@@ -25,6 +25,9 @@ final class SalesPartLifecycleInput {
     }
     static String name(JsonNode body) {
         object(body,"bsn_part_nm");
+        JsonNode value=body.get("bsn_part_nm");
+        if(value!=null && value.isTextual() && !value.textValue().isBlank() && value.textValue().length()>30)
+            throw ApiException.badRequest("파트명은 30자까지 입력할 수 있습니다.","bsn_part_nm");
         return text(body,"bsn_part_nm",30,"파트명을 입력해 주세요.");
     }
     static StandardSave standard(JsonNode body) {

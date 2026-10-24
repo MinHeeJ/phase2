@@ -38,6 +38,7 @@ export type {
 } from "../pages/admin/client";
 export {
   listPartners,
+  defaultPartnerFilters,
   getPartner,
   createPartner,
   updatePartner,

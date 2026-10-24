@@ -61,7 +61,11 @@ export function PeriodBar({ screenId }: { screenId: string }) {
   };
   const closed = !loading && !error && monthStatus(rows, period) === "CLOSED";
   return (
-    <section className={styles.period} aria-label="조회 기간">
+    <section
+      className={styles.period}
+      aria-label="조회 기간"
+      data-testid={`period-bar-${screenId.toLowerCase()}`}
+    >
       <div className={styles.periodControls}>
         {type === "MONTH" ? (
           <>

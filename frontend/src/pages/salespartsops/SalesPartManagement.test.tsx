@@ -236,6 +236,100 @@ describe("sales part standard and name dialogs", () => {
     );
     expect(screen.getByLabelText("적용 시작월")).toHaveValue("2026-11");
   });
+  it.each(["2026-01", "2026-10"])(
+    "does not replace a started %s standard even without closing history",
+    (begin) => {
+      edit("standards", {
+        ...part,
+        lastClosedMonth: null,
+        firstAllowedMonth: null,
+        standards: [{ ...current, aply_bgn_ym: begin }],
+      });
+      change("적용 시작월", begin);
+      change("이익 배분율 (%)", "45");
+      submit();
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        "적용 중이거나 지난 기준은 대체할 수 없습니다.",
+      );
+      expect(screen.getByLabelText("적용 시작월")).toHaveFocus();
+      expect(fetcher).not.toHaveBeenCalled();
+    },
+  );
+  it("allows an unclosed past month when the previous standard began earlier", async () => {
+    edit("standards", {
+      ...part,
+      lastClosedMonth: null,
+      firstAllowedMonth: null,
+    });
+    change("적용 시작월", "2026-02");
+    change("이익 배분율 (%)", "45");
+    submit();
+    await waitFor(() => expect(fetcher).toHaveBeenCalledOnce());
+    expect(JSON.parse(fetcher.mock.calls[0][1].body).aply_bgn_ym).toBe(
+      "2026-02",
+    );
+  });
+  it("server started-standard rejection keeps the draft and never reports success", async () => {
+    fetcher.mockResolvedValueOnce(
+      failed("적용 중이거나 지난 기준은 대체할 수 없습니다.", "aply_bgn_ym"),
+    );
+    const saved = vi.fn();
+    edit("standards", part, { onSaved: saved });
+    change("적용 시작월", "2026-11");
+    change("파트장", "새 파트장");
+    submit();
+    await waitFor(() =>
+      expect(screen.getByLabelText("적용 시작월")).toHaveFocus(),
+    );
+    expect(screen.getByLabelText("파트장")).toHaveValue("새 파트장");
+    expect(saved).not.toHaveBeenCalled();
+  });
+  it("HQ conflict from a stale detail stays in the dialog without success", async () => {
+    fetcher.mockResolvedValueOnce(
+      failed("본사 파트는 변경할 수 없습니다.", null, "HQ_PART_LOCKED", 409),
+    );
+    const saved = vi.fn();
+    edit("standards", part, { onSaved: saved });
+    change("적용 시작월", "2026-11");
+    submit();
+    expect(
+      await screen.findByText("본사 파트는 변경할 수 없습니다."),
+    ).toBeInTheDocument();
+    expect(saved).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole("dialog", { name: "영업 파트 기준 변경" }),
+    ).toBeInTheDocument();
+  });
+  it("cancel without changes closes without sending standards", () => {
+    const close = vi.fn();
+    edit("standards", part, { onCancel: close });
+    fireEvent.click(screen.getByTestId("sales-part-edit-cancel"));
+    expect(close).toHaveBeenCalledOnce();
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+  it("keeps saving pending and prevents a second standard submission", async () => {
+    let finish!: (value: Response) => void;
+    fetcher.mockReturnValueOnce(
+      new Promise<Response>((resolve) => {
+        finish = resolve;
+      }),
+    );
+    const saved = vi.fn(),
+      reload = vi.fn(async () => {});
+    edit("standards", part, { onSaved: saved, reload });
+    change("적용 시작월", "2026-11");
+    change("이익 배분율 (%)", "45");
+    submit();
+    submit();
+    expect(screen.getByTestId("sales-part-edit-submit")).toBeDisabled();
+    expect(screen.getByLabelText("파트장")).toBeDisabled();
+    expect(fetcher).toHaveBeenCalledOnce();
+    await act(async () => finish(response(part)));
+    expect(reload).toHaveBeenCalledOnce();
+    expect(saved).toHaveBeenCalledWith(
+      "영업 파트 기준을 바꿨습니다. 2026-11부터 적용됩니다.",
+    );
+  });
   it("current null never takes scheduled values and loads selected-month parameters", async () => {
     edit("standards", {
       ...part,
@@ -313,6 +407,101 @@ describe("sales part standard and name dialogs", () => {
     );
     expect(fetcher).not.toHaveBeenCalled();
   });
+  it("overlong rename has a length error and retains focus and draft", () => {
+    edit("name");
+    const value = "가".repeat(31);
+    change("파트명", value);
+    submit();
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "파트명은 30자까지 입력할 수 있습니다.",
+    );
+    expect(screen.getByLabelText("파트명")).toHaveValue(value);
+    expect(screen.getByLabelText("파트명")).toHaveFocus();
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+  it.each([1, 30])(
+    "saves a %s character name using only selected identity and name",
+    async (length) => {
+      const reload = vi.fn(async () => {}),
+        saved = vi.fn();
+      edit("name", part, { reload, onSaved: saved });
+      const value = "가".repeat(length);
+      change("파트명", value);
+      submit();
+      await waitFor(() =>
+        expect(saved).toHaveBeenCalledWith("파트명을 바꿨습니다."),
+      );
+      expect(fetcher).toHaveBeenCalledOnce();
+      expect(fetcher).toHaveBeenCalledWith(
+        `/api/sales-parts/${part.bsn_part_id}/name`,
+        expect.objectContaining({
+          method: "PUT",
+          body: JSON.stringify({ bsn_part_nm: value }),
+        }),
+      );
+      expect(reload).toHaveBeenCalledOnce();
+    },
+  );
+  it("returning to the original name closes without refresh or success", () => {
+    const close = vi.fn(),
+      reload = vi.fn(async () => {}),
+      saved = vi.fn();
+    edit("name", part, { reload, onCancel: close, onSaved: saved });
+    change("파트명", "변경 중");
+    change("파트명", ` ${part.bsn_part_nm} `);
+    submit();
+    expect(close).toHaveBeenCalledOnce();
+    expect(reload).not.toHaveBeenCalled();
+    expect(saved).not.toHaveBeenCalled();
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+  it("pending rename blocks repeat submission and cancel until readback", async () => {
+    let finish!: (value: Response) => void;
+    fetcher.mockReturnValueOnce(
+      new Promise<Response>((resolve) => {
+        finish = resolve;
+      }),
+    );
+    const saved = vi.fn(),
+      close = vi.fn(),
+      reload = vi.fn(async () => {});
+    edit("name", part, { onSaved: saved, onCancel: close, reload });
+    change("파트명", "새 파트명");
+    submit();
+    submit();
+    expect(screen.getByTestId("sales-part-edit-submit")).toBeDisabled();
+    expect(screen.getByTestId("sales-part-edit-cancel")).toBeDisabled();
+    expect(saved).not.toHaveBeenCalled();
+    expect(reload).not.toHaveBeenCalled();
+    expect(fetcher).toHaveBeenCalledOnce();
+    await act(async () =>
+      finish(response({ ...part, bsn_part_nm: "새 파트명" })),
+    );
+    await waitFor(() => expect(saved).toHaveBeenCalledOnce());
+    expect(reload).toHaveBeenCalledOnce();
+    expect(close).not.toHaveBeenCalled();
+  });
+  it.each([
+    [404, "NOT_FOUND", "영업 파트가 없습니다."],
+    [409, "HQ_PART_LOCKED", "본사 파트는 변경할 수 없습니다."],
+  ])(
+    "rename failure %s remains open without success or refresh",
+    async (status, code, message) => {
+      fetcher.mockResolvedValueOnce(failed(message, null, code, status));
+      const saved = vi.fn(),
+        reload = vi.fn(async () => {});
+      edit("name", part, { onSaved: saved, reload });
+      change("파트명", "새 파트명");
+      submit();
+      expect(await screen.findByText(message)).toBeInTheDocument();
+      expect(
+        screen.getByRole("dialog", { name: "파트명 수정" }),
+      ).toBeInTheDocument();
+      expect(screen.getByLabelText("파트명")).toHaveValue("새 파트명");
+      expect(saved).not.toHaveBeenCalled();
+      expect(reload).not.toHaveBeenCalled();
+    },
+  );
   it("duplicate rename stays open with field error and entered value", async () => {
     fetcher.mockResolvedValueOnce(
       failed(

@@ -1,20 +1,29 @@
 package com.sicost.common.excel;
 
+import com.sicost.common.security.Sensitive;
 import java.io.*;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.function.Function;
 import org.apache.poi.ss.usermodel.*;
-import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.apache.poi.xssf.streaming.SXSSFWorkbook;
 import org.springframework.stereotype.Service;
 
 @Service
 public class ExcelExportService {
     public record ExportColumn<T>(String key, String title, boolean sensitive, boolean numeric, Function<T,Object> value) {}
+    public static <T> ExportColumn<T> column(Class<?> source, String key, String title,
+                                              boolean numeric, Function<T,Object> value) {
+        boolean sensitive=source.isRecord() && Arrays.stream(source.getRecordComponents())
+            .anyMatch(component->component.getName().equals(key) && component.isAnnotationPresent(Sensitive.class));
+        return new ExportColumn<>(key,title,sensitive,numeric,value);
+    }
     public <T> byte[] create(String conditions, String actor, LocalDateTime now,
                             List<ExportColumn<T>> columns, List<T> rows) {
-        try (var workbook=new XSSFWorkbook(); var output=new ByteArrayOutputStream()) {
+        var workbook=new SXSSFWorkbook(100);
+        workbook.setCompressTempFiles(true);
+        try (workbook; var output=new ByteArrayOutputStream()) {
             var sheet=workbook.createSheet("목록");
             sheet.createRow(0).createCell(0).setCellValue("조회 조건: "+conditions);
             sheet.createRow(1).createCell(0).setCellValue("내려받은 사람: "+actor+" · "+now.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")));
@@ -38,5 +47,6 @@ public class ExcelExportService {
             }
             workbook.write(output);return output.toByteArray();
         } catch(IOException e) {throw new IllegalStateException("엑셀 파일 생성에 실패했습니다.",e);}
+        finally {workbook.dispose();}
     }
 }

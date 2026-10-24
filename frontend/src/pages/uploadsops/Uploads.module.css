@@ -123,6 +123,11 @@
 .mapping input[readonly] {
   background: var(--readonly-bg);
 }
+.fieldError {
+  margin: 0;
+  color: var(--danger);
+  font-size: var(--caption-size);
+}
 @media (max-width: 767px) {
   .summary {
     grid-template-columns: 1fr;

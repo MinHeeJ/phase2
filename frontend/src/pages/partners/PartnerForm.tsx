@@ -54,7 +54,7 @@ export function validatePartner(
         "txinv_email_addr",
         "고객사는 세금계산서 이메일이 꼭 필요합니다.",
       );
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(d.txinv_email_addr))
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(d.txinv_email_addr.trim()))
       return fail(
         "txinv_email_addr",
         "이메일 형식이 맞지 않습니다. (예: tax@company.co.kr)",
@@ -62,7 +62,7 @@ export function validatePartner(
   }
   if (d.ptnr_se_cd !== "CUST") {
     if (!d.bank_cd) return fail("bank_cd", "은행을 골라 주세요.");
-    if (!/^[0-9-]{8,20}$/.test(d.acnt_no ?? ""))
+    if (!/^[0-9-]{8,20}$/.test(d.acnt_no?.trim() ?? ""))
       return fail("acnt_no", "계좌번호를 숫자와 하이픈(-)으로 입력해 주세요.");
     if (!d.dpstr_nm?.trim()) return fail("dpstr_nm", "예금주를 입력해 주세요.");
   }
@@ -94,6 +94,12 @@ export function PartnerForm({
     industries = useCodes("INDUSTRY"),
     banks = useCodes("BANK");
   const write = useAdminWrite(reload);
+  const codesUnavailable =
+    kinds.loading ||
+    !!kinds.error ||
+    industries.loading ||
+    !!industries.error ||
+    (draft.ptnr_se_cd !== "CUST" && (banks.loading || !!banks.error));
   const dirty =
     JSON.stringify(partnerPayload(draft)) !==
     JSON.stringify(partnerPayload(initial ?? emptyPartner));
@@ -162,6 +168,7 @@ export function PartnerForm({
     );
   };
   const submit = () => {
+    if (write.pending || write.uncertain || codesUnavailable) return;
     const invalid = validatePartner(draft, !!initial);
     setLocalError(invalid);
     if (invalid) return;
@@ -275,13 +282,7 @@ export function PartnerForm({
           type="submit"
           variant="primary"
           pending={write.pending}
-          disabled={
-            write.uncertain ||
-            kinds.loading ||
-            !!kinds.error ||
-            !!industries.error ||
-            (draft.ptnr_se_cd !== "CUST" && !!banks.error)
-          }
+          disabled={write.uncertain || codesUnavailable}
         >
           저장
         </Button>

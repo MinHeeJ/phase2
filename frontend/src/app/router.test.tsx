@@ -135,11 +135,49 @@ describe("application route registration", () => {
       fetcher.mock.calls.some(([url]) => String(url).includes("/auth/")),
     ).toBe(false);
   });
+  it.each(screenIds)(
+    "opens %s from the API-backed menu without duplicating the shell",
+    async (id) => {
+      mount("/UI-16");
+      await screen.findByRole("heading", { name: "UI-16" });
+      const navigation = await screen.findByRole("navigation", {
+        name: "화면 탐색",
+      });
+      const group = within(navigation).getByRole("button", { name: "업무" });
+      fireEvent.click(group);
+      fireEvent.click(
+        within(group.closest("section")!).getByRole("button", {
+          name: id === "UI-27" ? "공통코드" : id,
+        }),
+      );
+      await waitFor(() =>
+        expect(screen.getByLabelText("현재 주소")).toHaveTextContent(`/${id}`),
+      );
+      expect(
+        await screen.findByRole("heading", {
+          name: id === "UI-27" ? /공통코드/ : id,
+        }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getAllByRole("navigation", { name: "열린 화면" }),
+      ).toHaveLength(1);
+      expect(
+        screen.queryByText("화면을 찾을 수 없습니다."),
+      ).not.toBeInTheDocument();
+    },
+  );
   it.each([
     "/UI-06",
     "/UI-99",
     "/UI-27/M3",
+    "/UI-27/M1",
+    "/UI-27/M4",
+    "/UI-27/M5",
+    "/UI-16/M2",
+    "/UI-16/M6",
     "/UI-15/M1",
+    "/UI-15/M5",
+    "/UI-15/M6",
     "/UI-15/M13",
     "/login",
   ])("does not register unsupported route %s", async (path) => {

@@ -8,6 +8,7 @@ import java.util.*;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.stereotype.Component;
+import org.springframework.dao.DataAccessException;
 import static com.sicost.uploadsops.UploadModels.*;
 
 @Component
@@ -50,12 +51,16 @@ public class PartnerUploadForm {
             if(workbook.isMacroEnabled()||!workbook.getExternalLinksTable().isEmpty())throw fileError("UNSUPPORTED_FILE_TYPE","외부 연결 또는 매크로가 있는 파일은 올릴 수 없습니다.");
             if(workbook.getNumberOfSheets()==0)throw fileError("HEADER_NOT_FOUND","첫 시트가 없습니다.");
             Sheet sheet=workbook.getSheetAt(0);FormulaEvaluator evaluator=workbook.getCreationHelper().createFormulaEvaluator();
+            DataFormatter identifiers=new DataFormatter(Locale.ROOT);
             Row title=header(sheet,evaluator);Map<Integer,Integer> columns=columns(title,evaluator);
             List<UploadCode> codes=mapper.codes();List<UploadMapping> mappings=mapper.mappings();
             List<PartnerSave> rows=new ArrayList<>();List<UploadIssue> issues=new ArrayList<>();Map<String,Integer> seen=new HashMap<>();
             for(int n=title.getRowNum()+1;n<=sheet.getLastRowNum();n++) {
                 Row row=sheet.getRow(n);if(row==null)continue;
-                String[] v=new String[12];Arrays.fill(v,"");for(var c:columns.entrySet())v[c.getKey()]=value(row.getCell(c.getValue()),evaluator);
+                String[] v=new String[12];Arrays.fill(v,"");for(var c:columns.entrySet()) {
+                    Cell cell=row.getCell(c.getValue());
+                    v[c.getKey()]=(c.getKey()==6||c.getKey()==9)?identifiers.formatCellValue(cell,evaluator).trim():value(cell,evaluator);
+                }
                 if(Arrays.stream(v).allMatch(String::isBlank)||v[1].startsWith("예시)"))continue;
                 if(rows.size()>=10000)throw fileError("TOO_MANY_ROWS","데이터는 10,000행 이하만 올릴 수 있습니다.");
                 int line=n+1;
@@ -88,6 +93,7 @@ public class PartnerUploadForm {
             if(rows.isEmpty())throw fileError("EMPTY_FILE","검사할 데이터가 없습니다.");
             return new ParsedUpload(List.copyOf(rows),List.copyOf(issues));
         } catch(ApiException ex){throw ex;}
+        catch(DataAccessException ex){throw ex;}
         catch(RuntimeException ex){throw fileError("UNSUPPORTED_FILE_TYPE","올바른 xlsx 파일만 올릴 수 있습니다.");}
     }
     private record CodeInput(int column,String group,int row,String raw) {}

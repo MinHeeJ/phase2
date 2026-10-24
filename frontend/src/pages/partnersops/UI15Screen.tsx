@@ -402,7 +402,10 @@ export default function UI15Screen({
               detail.data && (
                 <dl data-testid="partner-basic-info">
                   {Object.entries(detail.data).map(([key, value]) => (
-                    <div key={key}>
+                    <div
+                      key={key}
+                      data-testid={`partner-basic-field-${key.replaceAll("_", "-")}`}
+                    >
                       <dt>
                         {
                           (

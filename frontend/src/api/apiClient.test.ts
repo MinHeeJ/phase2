@@ -15,6 +15,7 @@ afterEach(() => vi.unstubAllGlobals());
 describe("API client registration", () => {
   it.each([
     ["listPartners", partners.listPartners],
+    ["defaultPartnerFilters", partners.defaultPartnerFilters],
     ["getPartner", partners.getPartner],
     ["createPartner", partners.createPartner],
     ["updatePartner", partners.updatePartner],
@@ -68,6 +69,90 @@ describe("API client registration", () => {
     ] as const)
       expect(client[name]).toBe(admin[name]);
     expect(client.adminPaths).toBe(admin.adminPaths);
+  });
+  it("uses the partner screen's default filters through the registered client", async () => {
+    const page = { items: [], total: 0, page: 1, size: 50 };
+    const fetcher = vi.fn().mockResolvedValue(response(page));
+    vi.stubGlobal("fetch", fetcher);
+    expect(await client.listPartners(client.defaultPartnerFilters)).toEqual(
+      page,
+    );
+    const [path] = fetcher.mock.calls[0];
+    const [resource, query] = path.split("?");
+    expect(resource).toBe("/api/partners");
+    expect(Object.fromEntries(new URLSearchParams(query))).toEqual({
+      kind: "",
+      useYn: "Y",
+      q: "",
+      page: "1",
+      size: "50",
+      sort: "ptnr_nm,asc",
+    });
+  });
+  it("keeps both public selection APIs on their existing read paths", async () => {
+    const fetcher = vi
+      .fn()
+      .mockImplementation(() => Promise.resolve(response([])));
+    vi.stubGlobal("fetch", fetcher);
+    expect(await client.listPartnerOptions("CUST")).toEqual([]);
+    expect(await client.listPartnerOptions("VEND")).toEqual([]);
+    expect(await client.listSalesPartOptions()).toEqual([]);
+    expect(fetcher.mock.calls.map(([url]) => url)).toEqual([
+      "/api/partners/options?kind=CUST",
+      "/api/partners/options?kind=VEND",
+      "/api/sales-parts/options",
+    ]);
+  });
+  it("passes the selected file, returned upload id and returned token across the upload registrations", async () => {
+    const rejected: client.UploadValidationResult = {
+      fileName: "거래처.xlsx",
+      upldId: "9007199254740993",
+      totalRows: 1,
+      okRows: 0,
+      errorRows: 1,
+      warningRows: 0,
+      items: [],
+    };
+    const validated: client.UploadValidationResult = {
+      fileName: rejected.fileName,
+      token: "6f925e37-e30d-4b06-a32b-0e599e0ab899",
+      totalRows: 1,
+      okRows: 1,
+      errorRows: 0,
+      warningRows: 0,
+      items: [],
+    };
+    const applied: client.UploadApplyResult = {
+      upldId: "9007199254740994",
+      appliedRows: 1,
+    };
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce(response(rejected))
+      .mockResolvedValueOnce(response(validated))
+      .mockResolvedValueOnce(response(applied));
+    vi.stubGlobal("fetch", fetcher);
+    const file = new File(["selected workbook"], rejected.fileName);
+    const inspection = await client.createUploadValidation("B.7", file);
+    const recheck = await client.saveUploadRecheck(inspection.upldId!);
+    expect(await client.saveValidatedUploadApply(recheck.token!)).toEqual(
+      applied,
+    );
+    expect(fetcher.mock.calls.map(([url, init]) => [url, init.method])).toEqual(
+      [
+        ["/api/uploads/B.7/validate", "POST"],
+        [`/api/uploads/${rejected.upldId}/recheck`, "POST"],
+        [`/api/uploads/validated/${validated.token}/apply`, "POST"],
+      ],
+    );
+    const validationRequest = fetcher.mock.calls[0][1];
+    expect(validationRequest.body).toBeInstanceOf(FormData);
+    expect(validationRequest.body.get("file")).toBe(file);
+    expect(validationRequest.headers).toBeUndefined();
+    expect(client.uploadErrorPath(inspection.upldId!)).toBe(
+      `/api/uploads/${rejected.upldId}/error-file`,
+    );
+    expect(client.uploadTemplatePath("B.7")).toBe("/api/uploads/templates/B.7");
   });
   it("exposes the existing paged resource paths for mapping, parameter and history reads", async () => {
     const page = { items: [], total: 0, page: 1, size: 50 };

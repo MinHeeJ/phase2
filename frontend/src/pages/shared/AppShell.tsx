@@ -216,6 +216,7 @@ export function AppShell({
           <label>
             목록 건수{" "}
             <select
+              data-testid="app-shell-page-size-select"
               value={preferences.pageSize}
               onChange={(event) =>
                 preferences.configure({
@@ -224,7 +225,11 @@ export function AppShell({
               }
             >
               {[20, 50, 100].map((size) => (
-                <option value={size} key={size}>
+                <option
+                  value={size}
+                  key={size}
+                  data-testid={`app-shell-page-size-option-${size}`}
+                >
                   {size}건
                 </option>
               ))}
@@ -232,6 +237,7 @@ export function AppShell({
           </label>
           <label>
             <input
+              data-testid="app-shell-dense-checkbox"
               type="checkbox"
               checked={preferences.dense}
               onChange={(event) =>
@@ -274,9 +280,11 @@ export function AppShell({
             {tabs.map((tab) => (
               <div
                 key={tab.id}
+                data-testid={`app-shell-tab-${tab.id.toLowerCase()}`}
                 className={tab.id === id ? styles.activeTab : ""}
               >
                 <button
+                  data-testid={`app-shell-tab-open-${tab.id.toLowerCase()}`}
                   type="button"
                   aria-current={tab.id === id ? "page" : undefined}
                   onClick={() => open(tab.id)}
@@ -286,6 +294,7 @@ export function AppShell({
                 </button>
                 {tab.id !== "UI-16" && (
                   <button
+                    data-testid={`app-shell-tab-close-${tab.id.toLowerCase()}`}
                     type="button"
                     aria-label={`${label(tab.id)} 닫기`}
                     onClick={() =>
@@ -310,7 +319,11 @@ export function AppShell({
             {tabs.map((tab) => {
               const location = locateScreen(menus, tab.id);
               return (
-                <div hidden={tab.id !== id} key={tab.id}>
+                <div
+                  hidden={tab.id !== id}
+                  key={tab.id}
+                  data-testid={`app-shell-tab-panel-${tab.id.toLowerCase()}`}
+                >
                   {location ? (
                     tab.id === "UI-27" || tab.id === "UI-15" ? (
                       <SharedMobileGuard
@@ -357,6 +370,7 @@ export function AppShell({
       {search && (
         <Modal title="화면 검색" onCancel={() => setSearch(false)}>
           <input
+            data-testid="app-shell-screen-search-input"
             className={styles.searchInput}
             autoFocus
             aria-label="화면 이름 또는 ID"
@@ -371,7 +385,10 @@ export function AppShell({
                   .includes(query.trim().toLocaleLowerCase()),
               )
               .map((screen) => (
-                <li key={screen.menuId}>
+                <li
+                  key={screen.menuId}
+                  data-testid={`app-shell-search-result-${screen.menuId}`}
+                >
                   <Button onClick={() => open(screen.screenId!)}>
                     {screen.name} {screen.screenId}
                   </Button>

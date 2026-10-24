@@ -84,6 +84,33 @@ class SalesPartLifecycleApiTest {
     @Test void racingUniqueNameIsTranslated()throws Exception {doThrow(new org.springframework.dao.DuplicateKeyException("unique")).when(mapper).rename(any());name("2","새 이름").andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("DUPLICATE_PART_NAME"));verify(mapper,never()).audit(any());}
     @Test void headquartersNameIsLockedEvenIfSame()throws Exception {name("1","본사").andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("HQ_PART_LOCKED"));untouched();}
     @Test void missingRenameIs404()throws Exception {name("999","새 이름").andExpect(status().isNotFound());untouched();}
+    @ParameterizedTest @ValueSource(ints={1,30}) void nameLengthBoundsReturnSameIdentityAndOneAudit(int length)throws Exception {
+        String value="가".repeat(length);
+        when(reads.part(eq(2L),any())).thenReturn(new PartRow("2",value,"N","Y",1,0,0));
+        name("2",value).andExpect(status().isOk()).andExpect(jsonPath("$.success").value(true))
+            .andExpect(jsonPath("$.data.bsn_part_id").value("2")).andExpect(jsonPath("$.data.bsn_part_nm").value(value));
+        verify(mapper).rename(new PartValueWrite(2,value,null));
+        verify(mapper).audit(new SalesPartAudit("mst.bsn_part","2","UPDATE","bsn_part_nm","영업 파트",value,null));
+        verify(mapper,never()).state(any());verify(mapper,never()).deleteScheduled(any());
+        verify(mapper,never()).closePrevious(any());verify(mapper,never()).insertStandard(any());
+    }
+    @Test void overlongNameHasLengthErrorNotMissingNameError()throws Exception {
+        name("2","가".repeat(31)).andExpect(status().isBadRequest()).andExpect(jsonPath("$.field").value("bsn_part_nm"))
+            .andExpect(jsonPath("$.message").value("파트명은 30자까지 입력할 수 있습니다."));untouched();
+    }
+    @ParameterizedTest @ValueSource(strings={"{}","{\"bsn_part_nm\":null}","{\"bsn_part_nm\":12}","{\"bsn_part_nm\":\"   \"}"})
+    void missingOrNonTextNameHasRequiredFieldError(String body)throws Exception {
+        mvc.perform(put("/api/sales-parts/2/name").contentType(MediaType.APPLICATION_JSON).content(body))
+            .andExpect(status().isBadRequest()).andExpect(jsonPath("$.field").value("bsn_part_nm"))
+            .andExpect(jsonPath("$.message").value("파트명을 입력해 주세요."));untouched();
+    }
+    @Test void whitespaceAroundSameNameDoesNotWrite()throws Exception {
+        name("2","  영업 파트  ").andExpect(status().isOk()).andExpect(jsonPath("$.data.bsn_part_nm").value("영업 파트"));untouched();
+    }
+    @Test void headquartersDifferentNameIsLockedWithoutDuplicateLookup()throws Exception {
+        name("1","변경 본사").andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("HQ_PART_LOCKED"));
+        untouched();verify(mapper,never()).nameExists(anyLong(),anyString());
+    }
     @Test void anonymousStandardClosesPreviousThenInsertsAndReturnsDetail()throws Exception {
         mvc.perform(post("/api/sales-parts/2/standards").contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(valid())))
             .andExpect(status().isOk()).andExpect(jsonPath("$.data.bsn_part_id").value("2"));
@@ -97,6 +124,45 @@ class SalesPartLifecycleApiTest {
     @Test void excessiveLeaderIs400()throws Exception {var input=valid();input.put("ldr_nm","가".repeat(51));save("2",input).andExpect(status().isBadRequest()).andExpect(jsonPath("$.field").value("ldr_nm"));untouched();}
     @ParameterizedTest @ValueSource(strings={"2026-13","2026-1","0000-01"}) void invalidMonths(String month)throws Exception {var input=valid();input.put("aply_bgn_ym",month);save("2",input).andExpect(status().isBadRequest()).andExpect(jsonPath("$.field").value("aply_bgn_ym"));untouched();}
     @Test void sameEffectiveStandardIs409WithoutDeletingScheduled()throws Exception {var input=valid();input.put("prft_dstrb_rt",40);save("2",input).andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("SAME_STANDARD"));untouched();}
+    @Test void comparesWithScheduledStandardEffectiveAtStartNotTodaysStandard()throws Exception {
+        when(reads.standards(eq(2L),anyString())).thenReturn(List.of(standard("11","2026-11",null,"45.00"),standard("10","2026-01","2026-10","40")));
+        save("2",valid()).andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("SAME_STANDARD"))
+            .andExpect(jsonPath("$.message").value("지금 기준과 같습니다. 바꿀 값을 입력해 주세요."));
+        untouched();
+    }
+    @Test void canReplaceScheduledStandardWithTodaysValuesWhenStartValuesDiffer()throws Exception {
+        when(reads.standards(eq(2L),anyString())).thenReturn(List.of(standard("11","2026-11",null,"45"),standard("10","2026-01","2026-10","40")));
+        var input=valid();input.put("prft_dstrb_rt",40);
+        save("2",input).andExpect(status().isOk());
+        verify(mapper).audit(argThat(a->a.type().equals("DELETE")&&a.recordId().equals("11")&&a.before().contains("45")));
+        verify(mapper).insertStandard(argThat(w->w.input().prft_dstrb_rt().compareTo(new BigDecimal("40"))==0));
+    }
+    @Test void leaderOnlyChangeCreatesANewStandard()throws Exception {
+        var input=valid();input.put("prft_dstrb_rt",40);input.put("ldr_nm"," 새 파트장 ");
+        save("2",input).andExpect(status().isOk());
+        verify(mapper).insertStandard(argThat(w->w.input().ldr_nm().equals("새 파트장")));
+    }
+    @Test void feeOnlyChangeCreatesANewStandard()throws Exception {
+        var input=valid();input.put("prft_dstrb_rt",40);input.put("bsn_fee_amt",1);
+        save("2",input).andExpect(status().isOk());
+        verify(mapper).insertStandard(argThat(w->w.input().bsn_fee_amt()==1));
+    }
+    @ParameterizedTest @ValueSource(ints={0,100}) void inclusiveRateBoundsCreateStandard(int rate)throws Exception {
+        var input=valid();input.put("prft_dstrb_rt",rate);
+        save("2",input).andExpect(status().isOk());
+        verify(mapper).insertStandard(argThat(w->w.input().prft_dstrb_rt().compareTo(BigDecimal.valueOf(rate))==0));
+    }
+    @ParameterizedTest @ValueSource(strings={"id","bsn_part_nm","hq_yn","use_yn","ldr_user_id","created_by"})
+    void standardCannotMutateServerOwnedOrNameFields(String field)throws Exception {
+        var input=valid();input.put(field,"1");
+        save("2",input).andExpect(status().isBadRequest()).andExpect(jsonPath("$.field").value(field));untouched();
+    }
+    @Test void currentMonthReplacementIsRejectedBeforeAnyHistoryMutation()throws Exception {
+        when(reads.lastClosed()).thenReturn(null);
+        when(reads.standards(eq(2L),anyString())).thenReturn(List.of(standard("11","2026-10",null,"40"),standard("10","2026-01","2026-09","35")));
+        var input=valid();input.put("aply_bgn_ym","2026-10");
+        save("2",input).andExpect(status().isBadRequest()).andExpect(jsonPath("$.field").value("aply_bgn_ym"));untouched();
+    }
     @Test void closedMonthIs409()throws Exception {var input=valid();input.put("aply_bgn_ym","2026-09");save("2",input).andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("CLOSED_MONTH"));untouched();}
     @Test void headquartersStandardIs409()throws Exception {save("1",valid()).andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("HQ_PART_LOCKED"));untouched();}
     @Test void missingStandardTargetIs404()throws Exception {save("999",valid()).andExpect(status().isNotFound());untouched();}

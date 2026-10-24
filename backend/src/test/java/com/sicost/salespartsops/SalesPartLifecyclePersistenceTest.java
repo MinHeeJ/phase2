@@ -70,6 +70,95 @@ class SalesPartLifecyclePersistenceTest {
         assertThat(scalar("SELECT count(*) FROM sys.data_chg_hist WHERE obj_rec_id='"+id+"' AND tbl_nm='mst.bsn_part' AND data_chg_ty_cd='DISABLE'")).isEqualTo(1);
         assertThat(scalar("SELECT count(*) FROM sys.data_chg_hist WHERE obj_rec_id='"+id+"' AND tbl_nm='mst.bsn_part' AND data_chg_ty_cd='UPDATE' AND clmn_nm='use_yn' AND bfr_val='N' AND aft_val='Y'")).isEqualTo(1);
     }
+    @Test void disableAuditFailureRollsBackStateAndPreservesOptionsAndStandards()throws Exception {
+        String id=create("중지 원자성 파트");
+        var before=parts.get(id);
+        String parent=text("SELECT row_to_json(p)::text FROM mst.bsn_part p WHERE bsn_part_id="+id);
+        long audits=scalar("SELECT count(*) FROM sys.data_chg_hist");
+        execute("ALTER TABLE sys.data_chg_hist ADD CONSTRAINT reject_part_disable CHECK (NOT (tbl_nm='mst.bsn_part' AND data_chg_ty_cd='DISABLE')) NOT VALID");
+        assertThatThrownBy(()->service.disable(id)).isInstanceOf(RuntimeException.class);
+        assertThat(parts.get(id)).isEqualTo(before);
+        assertThat(text("SELECT row_to_json(p)::text FROM mst.bsn_part p WHERE bsn_part_id="+id)).isEqualTo(parent);
+        assertThat(service.options()).extracting(SalesPartOption::id).contains(id);
+        assertThat(scalar("SELECT count(*) FROM sys.data_chg_hist")).isEqualTo(audits);
+    }
+    @Test void repeatedDisablePreservesUpdatedTimestampAndExactlyOnePartPkAudit()throws Exception {
+        String id=create("중지 반복 파트");
+        var standards=parts.get(id).standards();
+        service.disable(id);
+        String parent=text("SELECT row_to_json(p)::text FROM mst.bsn_part p WHERE bsn_part_id="+id);
+        long audits=scalar("SELECT count(*) FROM sys.data_chg_hist");
+        service.disable(id);
+        assertThat(text("SELECT row_to_json(p)::text FROM mst.bsn_part p WHERE bsn_part_id="+id)).isEqualTo(parent);
+        assertThat(parts.get(id).standards()).isEqualTo(standards);
+        assertThat(parts.get(id).use_yn()).isEqualTo("N");
+        assertThat(service.options()).extracting(SalesPartOption::id).doesNotContain(id);
+        assertThat(scalar("SELECT count(*) FROM sys.data_chg_hist")).isEqualTo(audits);
+        assertThat(scalar("SELECT count(*) FROM sys.data_chg_hist WHERE tbl_nm='mst.bsn_part' AND obj_rec_id='"+id+"' AND data_chg_ty_cd='DISABLE' AND clmn_nm='use_yn' AND bfr_val='Y' AND aft_val='N' AND chg_user_id IS NULL")).isEqualTo(1);
+    }
+    @Test void enablePreservesLinkedRowsAndStandardsAndRecordsOneUpdate()throws Exception {
+        String id=create("영업 파트");service.disable(id);
+        execute("INSERT INTO mst.dev(mng_no,dev_nm,emp_se_cd,bsn_part_id) VALUES('ENABLE1','소속 인력','FT',"+id+")");
+        execute("INSERT INTO prj.prj(prj_no,prj_nm,cntrct_ty_cd,prj_stts_cd,bsn_part_id) VALUES('ENABLE1','진행 프로젝트','TK','RUN',"+id+")");
+        var before=parts.get(id);
+        String developer=text("SELECT row_to_json(d)::text FROM mst.dev d WHERE mng_no='ENABLE1'");
+        String project=text("SELECT row_to_json(p)::text FROM prj.prj p WHERE prj_no='ENABLE1'");
+        long count=scalar("SELECT count(*) FROM mst.bsn_part"),audits=scalar("SELECT count(*) FROM sys.data_chg_hist");
+        assertThat(service.options()).extracting(SalesPartOption::id).doesNotContain(id);
+        var enabled=service.enable(id);
+        assertThat(enabled.bsn_part_id()).isEqualTo(id);
+        assertThat(enabled.bsn_part_nm()).isEqualTo(before.bsn_part_nm());
+        assertThat(enabled.use_yn()).isEqualTo("Y");
+        assertThat(enabled.standards()).isEqualTo(before.standards());
+        assertThat(enabled.peopleCount()).isEqualTo(1);assertThat(enabled.projectCount()).isEqualTo(1);
+        assertThat(service.options()).contains(new SalesPartOption(id,before.bsn_part_nm(),false));
+        assertThat(text("SELECT row_to_json(d)::text FROM mst.dev d WHERE mng_no='ENABLE1'")).isEqualTo(developer);
+        assertThat(text("SELECT row_to_json(p)::text FROM prj.prj p WHERE prj_no='ENABLE1'")).isEqualTo(project);
+        assertThat(scalar("SELECT count(*) FROM mst.bsn_part")).isEqualTo(count);
+        assertThat(scalar("SELECT count(*) FROM sys.data_chg_hist")).isEqualTo(audits+1);
+        assertThat(scalar("SELECT count(*) FROM sys.data_chg_hist WHERE tbl_nm='mst.bsn_part' AND obj_rec_id='"+id+"' AND data_chg_ty_cd='UPDATE' AND clmn_nm='use_yn' AND bfr_val='N' AND aft_val='Y' AND chg_user_id IS NULL")).isEqualTo(1);
+    }
+    @Test void repeatedEnablePreservesParentTimestampAndAuditCount()throws Exception {
+        String id=create("재사용 파트");service.disable(id);service.enable(id);
+        String parent=text("SELECT row_to_json(p)::text FROM mst.bsn_part p WHERE bsn_part_id="+id);
+        long audits=scalar("SELECT count(*) FROM sys.data_chg_hist");
+        var before=parts.get(id);
+        assertThat(service.enable(id)).isEqualTo(before);
+        assertThat(text("SELECT row_to_json(p)::text FROM mst.bsn_part p WHERE bsn_part_id="+id)).isEqualTo(parent);
+        assertThat(scalar("SELECT count(*) FROM sys.data_chg_hist")).isEqualTo(audits);
+    }
+    @Test void enableAuditFailureRollsBackStateAndOptionsThenAllowsRetry()throws Exception {
+        String id=create("재사용 원자성 파트");service.disable(id);
+        String parent=text("SELECT row_to_json(p)::text FROM mst.bsn_part p WHERE bsn_part_id="+id);
+        var before=parts.get(id);long audits=scalar("SELECT count(*) FROM sys.data_chg_hist");
+        execute("ALTER TABLE sys.data_chg_hist ADD CONSTRAINT reject_part_enable CHECK (NOT (tbl_nm='mst.bsn_part' AND data_chg_ty_cd='UPDATE' AND clmn_nm='use_yn' AND aft_val='Y')) NOT VALID");
+        assertThatThrownBy(()->service.enable(id)).isInstanceOf(RuntimeException.class);
+        assertThat(parts.get(id)).isEqualTo(before);
+        assertThat(text("SELECT row_to_json(p)::text FROM mst.bsn_part p WHERE bsn_part_id="+id)).isEqualTo(parent);
+        assertThat(service.options()).extracting(SalesPartOption::id).doesNotContain(id);
+        assertThat(scalar("SELECT count(*) FROM sys.data_chg_hist")).isEqualTo(audits);
+        execute("ALTER TABLE sys.data_chg_hist DROP CONSTRAINT reject_part_enable");
+        assertThat(service.enable(id).use_yn()).isEqualTo("Y");
+        assertThat(scalar("SELECT count(*) FROM sys.data_chg_hist")).isEqualTo(audits+1);
+    }
+    @Test void concurrentEnableSerializesAndAuditsOnlyOneTransition()throws Exception {
+        String id=create("동시 재사용 파트");service.disable(id);
+        long audits=scalar("SELECT count(*) FROM sys.data_chg_hist");
+        var pool=Executors.newFixedThreadPool(2);var start=new CountDownLatch(1);
+        try {
+            var first=pool.submit(()->{start.await();return service.enable(id);});
+            var second=pool.submit(()->{start.await();return service.enable(id);});start.countDown();
+            assertThat(first.get(15,TimeUnit.SECONDS).use_yn()).isEqualTo("Y");
+            assertThat(second.get(15,TimeUnit.SECONDS).use_yn()).isEqualTo("Y");
+            assertThat(scalar("SELECT count(*) FROM sys.data_chg_hist")).isEqualTo(audits+1);
+        } finally {pool.shutdownNow();}
+    }
+    @Test void missingEnableNeverCreatesPartOrHistory()throws Exception {
+        long count=scalar("SELECT count(*) FROM mst.bsn_part"),audits=scalar("SELECT count(*) FROM sys.data_chg_hist");
+        assertThatThrownBy(()->service.enable("9223372036854775807")).isInstanceOfSatisfying(ApiException.class,e->assertThat(e.code()).isEqualTo("NOT_FOUND"));
+        assertThat(scalar("SELECT count(*) FROM mst.bsn_part")).isEqualTo(count);
+        assertThat(scalar("SELECT count(*) FROM sys.data_chg_hist")).isEqualTo(audits);
+    }
     @Test void renameOnlyParentAndLinkedQueriesReadNewName()throws Exception {
         String id=create("영업 파트");execute("INSERT INTO mst.dev(mng_no,dev_nm,emp_se_cd,bsn_part_id) VALUES('NAME1','소속 인력','FT',"+id+")");
         execute("INSERT INTO prj.prj(prj_no,prj_nm,cntrct_ty_cd,prj_stts_cd,bsn_part_id) VALUES('NAME1','지난 프로젝트','TK','END',"+id+")");
@@ -79,6 +168,49 @@ class SalesPartLifecyclePersistenceTest {
         assertThat(scalar("SELECT count(*) FROM sys.data_chg_hist WHERE obj_rec_id='"+id+"' AND tbl_nm='mst.bsn_part' AND clmn_nm='bsn_part_nm' AND bfr_val='영업 파트' AND aft_val='새 이름'")).isEqualTo(1);
         String parent=text("SELECT row_to_json(p)::text FROM mst.bsn_part p WHERE bsn_part_id="+id);long audits=scalar("SELECT count(*) FROM sys.data_chg_hist");
         service.rename(id,"새 이름");service.enable(id);assertThat(text("SELECT row_to_json(p)::text FROM mst.bsn_part p WHERE bsn_part_id="+id)).isEqualTo(parent);assertThat(scalar("SELECT count(*) FROM sys.data_chg_hist")).isEqualTo(audits);
+    }
+    @Test void renamePreservesBusinessPlanAndItsReferenceWhileJoinReadsNewName()throws Exception {
+        String id=create("영업 파트");
+        execute("INSERT INTO fin.biz_plan(plan_yr,plan_ym,bsn_part_id) VALUES('2026','2026-11',"+id+")");
+        String before=text("SELECT row_to_json(p)::text FROM fin.biz_plan p WHERE bsn_part_id="+id);
+        var standards=parts.get(id).standards();
+        service.rename(id,"새 이름");
+        assertThat(text("SELECT p.bsn_part_nm FROM fin.biz_plan b JOIN mst.bsn_part p USING(bsn_part_id) WHERE b.bsn_part_id="+id)).isEqualTo("새 이름");
+        assertThat(text("SELECT row_to_json(p)::text FROM fin.biz_plan p WHERE bsn_part_id="+id)).isEqualTo(before);
+        assertThat(parts.get(id).standards()).isEqualTo(standards);
+    }
+    @Test void renameAuditFailureRollsBackParentNameAndTimestamp()throws Exception {
+        String id=create("영업 파트");
+        String before=text("SELECT row_to_json(p)::text FROM mst.bsn_part p WHERE bsn_part_id="+id);
+        long audits=scalar("SELECT count(*) FROM sys.data_chg_hist");
+        execute("ALTER TABLE sys.data_chg_hist ADD CONSTRAINT reject_name_change CHECK (clmn_nm IS DISTINCT FROM 'bsn_part_nm') NOT VALID");
+        assertThatThrownBy(()->service.rename(id,"새 이름")).isInstanceOf(RuntimeException.class);
+        assertThat(text("SELECT row_to_json(p)::text FROM mst.bsn_part p WHERE bsn_part_id="+id)).isEqualTo(before);
+        assertThat(scalar("SELECT count(*) FROM sys.data_chg_hist")).isEqualTo(audits);
+    }
+    @Test void duplicateStoppedNameDoesNotChangeParentOrHistory()throws Exception {
+        String id=create("영업 파트"),stopped=create("중지 파트");service.disable(stopped);
+        String before=text("SELECT row_to_json(p)::text FROM mst.bsn_part p WHERE bsn_part_id="+id);
+        long audits=scalar("SELECT count(*) FROM sys.data_chg_hist");
+        assertThatThrownBy(()->service.rename(id,"중지 파트")).isInstanceOfSatisfying(ApiException.class,e->assertThat(e.code()).isEqualTo("DUPLICATE_PART_NAME"));
+        assertThat(text("SELECT row_to_json(p)::text FROM mst.bsn_part p WHERE bsn_part_id="+id)).isEqualTo(before);
+        assertThat(scalar("SELECT count(*) FROM sys.data_chg_hist")).isEqualTo(audits);
+    }
+    @Test void headquartersRenameKeepsEntireRowAndHistory()throws Exception {
+        String id=service.options().stream().filter(SalesPartOption::hq).findFirst().orElseThrow().id();
+        String before=text("SELECT row_to_json(p)::text FROM mst.bsn_part p WHERE bsn_part_id="+id);
+        long audits=scalar("SELECT count(*) FROM sys.data_chg_hist");
+        assertThatThrownBy(()->service.rename(id,"새 이름")).isInstanceOfSatisfying(ApiException.class,e->assertThat(e.code()).isEqualTo("HQ_PART_LOCKED"));
+        assertThat(text("SELECT row_to_json(p)::text FROM mst.bsn_part p WHERE bsn_part_id="+id)).isEqualTo(before);
+        assertThat(scalar("SELECT count(*) FROM sys.data_chg_hist")).isEqualTo(audits);
+    }
+    @Test void headquartersDisableKeepsEntireRowAndHistory()throws Exception {
+        String id=service.options().stream().filter(SalesPartOption::hq).findFirst().orElseThrow().id();
+        String before=text("SELECT row_to_json(p)::text FROM mst.bsn_part p WHERE bsn_part_id="+id);
+        long audits=scalar("SELECT count(*) FROM sys.data_chg_hist");
+        assertThatThrownBy(()->service.disable(id)).isInstanceOfSatisfying(ApiException.class,e->assertThat(e.code()).isEqualTo("HQ_PART_LOCKED"));
+        assertThat(text("SELECT row_to_json(p)::text FROM mst.bsn_part p WHERE bsn_part_id="+id)).isEqualTo(before);
+        assertThat(scalar("SELECT count(*) FROM sys.data_chg_hist")).isEqualTo(audits);
     }
     @Test void disableBlockPeopleThreeDoesNotChangeAnyRows()throws Exception {
         String id=create("인력 파트");execute("INSERT INTO mst.dev(mng_no,dev_nm,emp_se_cd,bsn_part_id) SELECT 'PERSON'||g,'인력'||g,'FT',"+id+" FROM generate_series(1,3) g");
@@ -107,13 +239,43 @@ class SalesPartLifecyclePersistenceTest {
         assertThat(result.standards().get(0).aply_bgn_ym()).isEqualTo("2026-11");assertThat(result.standards().get(0).aply_end_ym()).isNull();
     }
     @Test void decemberChangeClosesNovemberNotDeletesIt()throws Exception {String id=create("연속 파트");service.standard(id,standard("2026-11","45"));String november=parts.get(id).standards().get(0).part_std_hist_id();var result=service.standard(id,standard("2026-12","50"));assertThat(result.standards().get(1).part_std_hist_id()).isEqualTo(november);assertThat(result.standards().get(1).aply_end_ym()).isEqualTo("2026-11");assertThat(scalar("SELECT count(*) FROM sys.data_chg_hist WHERE data_chg_ty_cd='DELETE'")).isZero();}
-    @Test void sameStandardClosedHeadquartersAndStartedReplacementAreUnchanged()throws Exception {
+    @Test void sameStandardDoesNotChangeStandardsOrAuditHistory()throws Exception {
         String id=create("영업 파트");january(id);var before=parts.get(id);long audits=scalar("SELECT count(*) FROM sys.data_chg_hist");
         assertThatThrownBy(()->service.standard(id,standard("2026-11","40"))).isInstanceOfSatisfying(ApiException.class,e->assertThat(e.code()).isEqualTo("SAME_STANDARD"));
+        assertThat(parts.get(id).standards()).isEqualTo(before.standards());assertThat(scalar("SELECT count(*) FROM sys.data_chg_hist")).isEqualTo(audits);
+    }
+    @Test void closedMonthDoesNotChangeStandardsOrAuditHistory()throws Exception {
+        String id=create("영업 파트");january(id);var before=parts.get(id);long audits=scalar("SELECT count(*) FROM sys.data_chg_hist");
         assertThatThrownBy(()->service.standard(id,standard("2026-09","45"))).isInstanceOfSatisfying(ApiException.class,e->assertThat(e.code()).isEqualTo("CLOSED_MONTH"));
+        assertThat(parts.get(id).standards()).isEqualTo(before.standards());assertThat(scalar("SELECT count(*) FROM sys.data_chg_hist")).isEqualTo(audits);
+    }
+    @Test void headquartersStandardDoesNotChangeStandardsOrAuditHistory()throws Exception {
         String hq=service.options().stream().filter(SalesPartOption::hq).findFirst().orElseThrow().id();
-        assertThatThrownBy(()->service.standard(hq,standard("2026-11","45"))).isInstanceOfSatisfying(ApiException.class,e->assertThat(e.code()).isEqualTo("HQ_PART_LOCKED"));assertThatThrownBy(()->service.rename(hq,"다른 본사")).isInstanceOf(ApiException.class);assertThatThrownBy(()->service.disable(hq)).isInstanceOf(ApiException.class);
+        var before=parts.get(hq);long audits=scalar("SELECT count(*) FROM sys.data_chg_hist");
+        assertThatThrownBy(()->service.standard(hq,standard("2026-11","45"))).isInstanceOfSatisfying(ApiException.class,e->assertThat(e.code()).isEqualTo("HQ_PART_LOCKED"));
+        assertThat(parts.get(hq)).isEqualTo(before);assertThat(scalar("SELECT count(*) FROM sys.data_chg_hist")).isEqualTo(audits);
+    }
+    @Test void headquartersRenameDoesNotChangeStandardsOrAuditHistory()throws Exception {
+        String hq=service.options().stream().filter(SalesPartOption::hq).findFirst().orElseThrow().id();
+        var before=parts.get(hq);long audits=scalar("SELECT count(*) FROM sys.data_chg_hist");
+        assertThatThrownBy(()->service.rename(hq,"다른 본사")).isInstanceOf(ApiException.class);
+        assertThat(parts.get(hq)).isEqualTo(before);assertThat(scalar("SELECT count(*) FROM sys.data_chg_hist")).isEqualTo(audits);
+    }
+    @Test void headquartersDisableDoesNotChangeStandardsOrAuditHistory()throws Exception {
+        String hq=service.options().stream().filter(SalesPartOption::hq).findFirst().orElseThrow().id();
+        var before=parts.get(hq);long audits=scalar("SELECT count(*) FROM sys.data_chg_hist");
+        assertThatThrownBy(()->service.disable(hq)).isInstanceOf(ApiException.class);
+        assertThat(parts.get(hq)).isEqualTo(before);assertThat(scalar("SELECT count(*) FROM sys.data_chg_hist")).isEqualTo(audits);
+    }
+    @Test void startedReplacementDoesNotChangeStandardsOrAuditHistory()throws Exception {
+        String id=create("영업 파트");january(id);var before=parts.get(id);long audits=scalar("SELECT count(*) FROM sys.data_chg_hist");
         execute("DELETE FROM fin.mth_cls");assertThatThrownBy(()->service.standard(id,standard("2026-01","45"))).isInstanceOfSatisfying(ApiException.class,e->assertThat(e.field()).isEqualTo("aply_bgn_ym"));assertThat(parts.get(id).standards()).isEqualTo(before.standards());assertThat(scalar("SELECT count(*) FROM sys.data_chg_hist")).isEqualTo(audits);
+    }
+    @Test void sameScheduledStandardKeepsAllFutureRowsAndAudits()throws Exception {
+        String id=create("예정 파트");service.standard(id,standard("2026-11","45"));service.standard(id,standard("2026-12","50"));
+        var before=parts.get(id);long audits=scalar("SELECT count(*) FROM sys.data_chg_hist");
+        assertThatThrownBy(()->service.standard(id,standard("2026-11","45.00"))).isInstanceOfSatisfying(ApiException.class,e->assertThat(e.code()).isEqualTo("SAME_STANDARD"));
+        assertThat(parts.get(id)).isEqualTo(before);assertThat(scalar("SELECT count(*) FROM sys.data_chg_hist")).isEqualTo(audits);
     }
     @Test void auditFailureRollsBackDeleteCloseAndInsertTogether()throws Exception {
         String id=create("원자 파트");service.standard(id,standard("2026-11","42"));var before=parts.get(id).standards();long audits=scalar("SELECT count(*) FROM sys.data_chg_hist");

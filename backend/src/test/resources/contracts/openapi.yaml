@@ -12,7 +12,6 @@ paths:
       operationId: getMenus
       summary: 활성 메뉴 트리
       description: 인증 없이 호출한다. /api/admin 이름은 관리자 역할 검사를 뜻하지 않는다.
-      security: []
       x-related-requirements:
       - REQ-001
       - REQ-034
@@ -79,7 +78,6 @@ paths:
       operationId: getMonthClose
       summary: 기간별 월마감
       description: 인증 없이 호출한다. /api/admin 이름은 관리자 역할 검사를 뜻하지 않는다.
-      security: []
       x-related-requirements:
       - REQ-021
       - REQ-058
@@ -162,7 +160,6 @@ paths:
       operationId: getHealth
       summary: 서비스 건강 확인
       description: 인증 없이 호출한다. /api/admin 이름은 관리자 역할 검사를 뜻하지 않는다.
-      security: []
       x-related-requirements:
       - REQ-058
       - REQ-089
@@ -205,7 +202,6 @@ paths:
       operationId: getCodeOptions
       summary: 사용 중 코드 선택 목록
       description: 인증 없이 호출한다. /api/admin 이름은 관리자 역할 검사를 뜻하지 않는다.
-      security: []
       x-related-requirements:
       - REQ-036
       - REQ-037
@@ -287,7 +283,6 @@ paths:
       operationId: listCodeGroups
       summary: 코드 그룹 목록
       description: 인증 없이 호출한다. /api/admin 이름은 관리자 역할 검사를 뜻하지 않는다.
-      security: []
       x-related-requirements:
       - REQ-034
       - REQ-058
@@ -382,7 +377,6 @@ paths:
       operationId: createCodeGroup
       summary: BIZ 코드 그룹 추가
       description: 인증 없이 호출한다. /api/admin 이름은 관리자 역할 검사를 뜻하지 않는다.
-      security: []
       x-related-requirements:
       - REQ-031
       - REQ-033
@@ -453,7 +447,6 @@ paths:
       operationId: listManagedCodes
       summary: 그룹 전체 관리 코드
       description: 인증 없이 호출한다. /api/admin 이름은 관리자 역할 검사를 뜻하지 않는다.
-      security: []
       x-related-requirements:
       - REQ-034
       - REQ-038
@@ -567,7 +560,6 @@ paths:
       operationId: saveGroupCodes
       summary: 그룹 코드 일괄 저장
       description: 인증 없이 호출한다. /api/admin 이름은 관리자 역할 검사를 뜻하지 않는다.
-      security: []
       x-related-requirements:
       - REQ-020
       - REQ-031
@@ -699,7 +691,6 @@ paths:
       operationId: listExcelMaps
       summary: 엑셀 표기 대응 목록
       description: 인증 없이 호출한다. /api/admin 이름은 관리자 역할 검사를 뜻하지 않는다.
-      security: []
       x-related-requirements:
       - REQ-034
       - REQ-038
@@ -795,7 +786,6 @@ paths:
       operationId: createExcelMap
       summary: 엑셀 표기 대응 추가
       description: 인증 없이 호출한다. /api/admin 이름은 관리자 역할 검사를 뜻하지 않는다.
-      security: []
       x-related-requirements:
       - REQ-031
       - REQ-033
@@ -897,7 +887,6 @@ paths:
       operationId: updateExcelMap
       summary: 엑셀 표기 대응 변경
       description: 인증 없이 호출한다. /api/admin 이름은 관리자 역할 검사를 뜻하지 않는다.
-      security: []
       x-related-requirements:
       - REQ-020
       - REQ-031
@@ -998,7 +987,6 @@ paths:
       operationId: listCodeHistory
       summary: 항목별 코드 변경 이력
       description: 인증 없이 호출한다. /api/admin 이름은 관리자 역할 검사를 뜻하지 않는다.
-      security: []
       x-related-requirements:
       - REQ-031
       - REQ-040
@@ -1104,7 +1092,6 @@ paths:
       operationId: listCurrentParams
       summary: 현재 운영 기준값
       description: 인증 없이 호출한다. /api/admin 이름은 관리자 역할 검사를 뜻하지 않는다.
-      security: []
       x-related-requirements:
       - REQ-034
       - REQ-058
@@ -1200,7 +1187,6 @@ paths:
       operationId: getEffectiveParam
       summary: 지정월 유효 기준값
       description: 인증 없이 호출한다. /api/admin 이름은 관리자 역할 검사를 뜻하지 않는다.
-      security: []
       x-related-requirements:
       - REQ-058
       - REQ-063
@@ -1292,7 +1278,6 @@ paths:
       operationId: listParamVersions
       summary: 운영 기준값 적용 이력
       description: 인증 없이 호출한다. /api/admin 이름은 관리자 역할 검사를 뜻하지 않는다.
-      security: []
       x-related-requirements:
       - REQ-058
       - REQ-059
@@ -1405,7 +1390,6 @@ paths:
       operationId: saveParamVersion
       summary: 적용월별 운영 기준값 저장
       description: 인증 없이 호출한다. /api/admin 이름은 관리자 역할 검사를 뜻하지 않는다.
-      security: []
       x-related-requirements:
       - REQ-021
       - REQ-031
@@ -1530,7 +1514,6 @@ paths:
       operationId: listPartners
       summary: 거래처 목록 조회
       description: SPEC-REQUEST.md:19·REQ-131에 로그인·권한 판정 없음이 명시되어 인증 없이 성공을 시험한다. UI-15 권한 키는 연결 자리이며 인증 실패 401/403을 만들지 않는다.
-      security: []
       x-related-requirements:
       - REQ-130
       - REQ-131
@@ -1638,7 +1621,6 @@ paths:
       operationId: createPartner
       summary: 거래처 등록
       description: SPEC-REQUEST.md:19·REQ-131에 로그인·권한 판정 없음이 명시되어 인증 없이 성공을 시험한다. UI-15 권한 키는 연결 자리이며 인증 실패 401/403을 만들지 않는다.
-      security: []
       x-related-requirements:
       - REQ-131
       - REQ-139
@@ -1717,7 +1699,6 @@ paths:
       operationId: getPartner
       summary: 거래처 상세 조회
       description: SPEC-REQUEST.md:19·REQ-131에 로그인·권한 판정 없음이 명시되어 인증 없이 성공을 시험한다. UI-15 권한 키는 연결 자리이며 인증 실패 401/403을 만들지 않는다.
-      security: []
       x-related-requirements:
       - REQ-131
       - REQ-175
@@ -1775,7 +1756,6 @@ paths:
       operationId: updatePartner
       summary: 거래처 수정
       description: SPEC-REQUEST.md:19·REQ-131에 로그인·권한 판정 없음이 명시되어 인증 없이 성공을 시험한다. UI-15 권한 키는 연결 자리이며 인증 실패 401/403을 만들지 않는다.
-      security: []
       x-related-requirements:
       - REQ-131
       - REQ-140
@@ -1855,7 +1835,6 @@ paths:
       operationId: savePartnerDisable
       summary: 거래처 일괄 사용 중지
       description: SPEC-REQUEST.md:19·REQ-131에 로그인·권한 판정 없음이 명시되어 인증 없이 성공을 시험한다. UI-15 권한 키는 연결 자리이며 인증 실패 401/403을 만들지 않는다.
-      security: []
       x-related-requirements:
       - REQ-131
       - REQ-149
@@ -1934,7 +1913,6 @@ paths:
       operationId: savePartnerEnable
       summary: 거래처 다시 사용
       description: SPEC-REQUEST.md:19·REQ-131에 로그인·권한 판정 없음이 명시되어 인증 없이 성공을 시험한다. UI-15 권한 키는 연결 자리이며 인증 실패 401/403을 만들지 않는다.
-      security: []
       x-related-requirements:
       - REQ-131
       - REQ-173
@@ -1993,7 +1971,6 @@ paths:
       operationId: listPartnerHistory
       summary: 거래처 변경 이력 조회
       description: SPEC-REQUEST.md:19·REQ-131에 로그인·권한 판정 없음이 명시되어 인증 없이 성공을 시험한다. UI-15 권한 키는 연결 자리이며 인증 실패 401/403을 만들지 않는다.
-      security: []
       x-related-requirements:
       - REQ-131
       - REQ-146
@@ -2050,7 +2027,6 @@ paths:
       operationId: listPartnerAssignments
       summary: 거래처 현재 투입 내역 조회
       description: SPEC-REQUEST.md:19·REQ-131에 로그인·권한 판정 없음이 명시되어 인증 없이 성공을 시험한다. UI-15 권한 키는 연결 자리이며 인증 실패 401/403을 만들지 않는다.
-      security: []
       x-related-requirements:
       - REQ-131
       - REQ-147
@@ -2107,7 +2083,6 @@ paths:
       operationId: listPartnerOptions
       summary: 거래처 선택 목록 조회
       description: SPEC-REQUEST.md:19·REQ-131에 로그인·권한 판정 없음이 명시되어 인증 없이 성공을 시험한다. UI-15 권한 키는 연결 자리이며 인증 실패 401/403을 만들지 않는다.
-      security: []
       x-related-requirements:
       - REQ-130
       - REQ-131
@@ -2173,7 +2148,6 @@ paths:
       operationId: listSalesParts
       summary: 영업 파트 목록 조회
       description: SPEC-REQUEST.md:19·REQ-131에 로그인·권한 판정 없음이 명시되어 인증 없이 성공을 시험한다. UI-15 권한 키는 연결 자리이며 인증 실패 401/403을 만들지 않는다.
-      security: []
       x-related-requirements:
       - REQ-131
       - REQ-152
@@ -2253,7 +2227,6 @@ paths:
       operationId: createSalesPart
       summary: 영업 파트 추가
       description: SPEC-REQUEST.md:19·REQ-131에 로그인·권한 판정 없음이 명시되어 인증 없이 성공을 시험한다. UI-15 권한 키는 연결 자리이며 인증 실패 401/403을 만들지 않는다.
-      security: []
       x-related-requirements:
       - REQ-131
       - REQ-151
@@ -2328,7 +2301,6 @@ paths:
       operationId: getSalesPart
       summary: 영업 파트 상세 조회
       description: SPEC-REQUEST.md:19·REQ-131에 로그인·권한 판정 없음이 명시되어 인증 없이 성공을 시험한다. UI-15 권한 키는 연결 자리이며 인증 실패 401/403을 만들지 않는다.
-      security: []
       x-related-requirements:
       - REQ-131
       - REQ-152
@@ -2388,7 +2360,6 @@ paths:
       operationId: saveSalesPartStandard
       summary: 영업 파트 기준 변경
       description: SPEC-REQUEST.md:19·REQ-131에 로그인·권한 판정 없음이 명시되어 인증 없이 성공을 시험한다. UI-15 권한 키는 연결 자리이며 인증 실패 401/403을 만들지 않는다.
-      security: []
       x-related-requirements:
       - REQ-131
       - REQ-150
@@ -2475,7 +2446,6 @@ paths:
       operationId: updateSalesPartName
       summary: 영업 파트명 수정
       description: SPEC-REQUEST.md:19·REQ-131에 로그인·권한 판정 없음이 명시되어 인증 없이 성공을 시험한다. UI-15 권한 키는 연결 자리이며 인증 실패 401/403을 만들지 않는다.
-      security: []
       x-related-requirements:
       - REQ-131
       - REQ-157
@@ -2551,7 +2521,6 @@ paths:
       operationId: saveSalesPartDisable
       summary: 영업 파트 사용 중지
       description: SPEC-REQUEST.md:19·REQ-131에 로그인·권한 판정 없음이 명시되어 인증 없이 성공을 시험한다. UI-15 권한 키는 연결 자리이며 인증 실패 401/403을 만들지 않는다.
-      security: []
       x-related-requirements:
       - REQ-131
       - REQ-155
@@ -2620,7 +2589,6 @@ paths:
       operationId: saveSalesPartEnable
       summary: 영업 파트 다시 사용
       description: SPEC-REQUEST.md:19·REQ-131에 로그인·권한 판정 없음이 명시되어 인증 없이 성공을 시험한다. UI-15 권한 키는 연결 자리이며 인증 실패 401/403을 만들지 않는다.
-      security: []
       x-related-requirements:
       - REQ-131
       - REQ-173
@@ -2679,7 +2647,6 @@ paths:
       operationId: listSalesPartOptions
       summary: 영업 파트 선택 목록 조회
       description: SPEC-REQUEST.md:19·REQ-131에 로그인·권한 판정 없음이 명시되어 인증 없이 성공을 시험한다. UI-15 권한 키는 연결 자리이며 인증 실패 401/403을 만들지 않는다.
-      security: []
       x-related-requirements:
       - REQ-130
       - REQ-131
@@ -2732,7 +2699,6 @@ paths:
       operationId: getPartnerExport
       summary: 거래처 목록 엑셀 다운로드
       description: SPEC-REQUEST.md:19·REQ-131에 로그인·권한 판정 없음이 명시되어 인증 없이 성공을 시험한다. UI-15 권한 키는 연결 자리이며 인증 실패 401/403을 만들지 않는다.
-      security: []
       x-related-requirements:
       - REQ-131
       - REQ-169
@@ -2836,7 +2802,6 @@ paths:
       operationId: getSalesPartExport
       summary: 영업파트 목록 엑셀 다운로드
       description: SPEC-REQUEST.md:19·REQ-131에 로그인·권한 판정 없음이 명시되어 인증 없이 성공을 시험한다. UI-15 권한 키는 연결 자리이며 인증 실패 401/403을 만들지 않는다.
-      security: []
       x-related-requirements:
       - REQ-131
       - REQ-169
@@ -2917,7 +2882,6 @@ paths:
       operationId: getUploadTemplate
       summary: 엑셀 업로드 양식 다운로드
       description: SPEC-REQUEST.md:19·REQ-131에 로그인·권한 판정 없음이 명시되어 인증 없이 성공을 시험한다. UI-15 권한 키는 연결 자리이며 인증 실패 401/403을 만들지 않는다.
-      security: []
       x-related-requirements:
       - REQ-131
       - REQ-172
@@ -2979,7 +2943,6 @@ paths:
       operationId: createUploadValidation
       summary: 엑셀 파일 검사
       description: SPEC-REQUEST.md:19·REQ-131에 로그인·권한 판정 없음이 명시되어 인증 없이 성공을 시험한다. UI-15 권한 키는 연결 자리이며 인증 실패 401/403을 만들지 않는다.
-      security: []
       x-related-requirements:
       - REQ-131
       - REQ-158
@@ -3102,7 +3065,6 @@ paths:
       operationId: saveUploadRecheck
       summary: 엑셀 저장 원본 다시 검사
       description: SPEC-REQUEST.md:19·REQ-131에 로그인·권한 판정 없음이 명시되어 인증 없이 성공을 시험한다. UI-15 권한 키는 연결 자리이며 인증 실패 401/403을 만들지 않는다.
-      security: []
       x-related-requirements:
       - REQ-131
       - REQ-158
@@ -3211,7 +3173,6 @@ paths:
       operationId: saveValidatedUploadApply
       summary: 검사한 엑셀 원자 반영
       description: SPEC-REQUEST.md:19·REQ-131에 로그인·권한 판정 없음이 명시되어 인증 없이 성공을 시험한다. UI-15 권한 키는 연결 자리이며 인증 실패 401/403을 만들지 않는다.
-      security: []
       x-related-requirements:
       - REQ-131
       - REQ-160
@@ -3307,7 +3268,6 @@ paths:
       operationId: getUploadErrorFile
       summary: 엑셀 오류 파일 다운로드
       description: SPEC-REQUEST.md:19·REQ-131에 로그인·권한 판정 없음이 명시되어 인증 없이 성공을 시험한다. UI-15 권한 키는 연결 자리이며 인증 실패 401/403을 만들지 않는다.
-      security: []
       x-related-requirements:
       - REQ-131
       - REQ-168
@@ -3360,7 +3320,6 @@ paths:
         reason: 기존 camelCase·/api kebab-case 규칙과 공개 업무 결과에서 연산명/DTO를 구체화했다. 이름 미명시만으로 구현을 보류하지 않는다. 성공 2XX 표기는 기존 응답 상태 범위를
           유지한다.
 components:
-  securitySchemes: {}
   schemas:
     ApiResponse:
       type: object
