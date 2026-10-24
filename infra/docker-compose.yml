@@ -25,6 +25,8 @@ services:
       TZ: Asia/Seoul
     ports:
       - "${BACKEND_PORT:-8081}:8080"
+    volumes:
+      - uploads:/app/data/uploads
     depends_on:
       db:
         condition: service_healthy
@@ -51,3 +53,4 @@ services:
       retries: 20
 volumes:
   postgres-data:
+  uploads:

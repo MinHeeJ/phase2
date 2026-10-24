@@ -73,6 +73,7 @@ export default function PlaceholderScreen({
         <label>
           {periodType === "YEAR" ? "선택 연도" : "선택 연월"}{" "}
           <input
+            data-testid="placeholder-period-input"
             aria-label="선택 기간"
             type={periodType === "YEAR" ? "number" : "month"}
             min={periodType === "YEAR" ? "1" : undefined}
@@ -97,7 +98,9 @@ export default function PlaceholderScreen({
     <>
       <div className={styles.mobileOnly}>
         <p>PC에서 이용해 주세요</p>
-        <a href="/UI-16">대시보드로</a>
+        <a data-testid="placeholder-dashboard-link" href="/UI-16">
+          대시보드로
+        </a>
       </div>
       <section className={styles.desktopOnly}>{content}</section>
     </>

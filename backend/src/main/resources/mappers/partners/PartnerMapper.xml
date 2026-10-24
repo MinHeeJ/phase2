@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sicost.partners.PartnerMapper">
+  <resultMap id="detailRow" type="com.sicost.partners.PartnerModels$PartnerDetail"><constructor>
+    <arg column="ptnr_id" javaType="java.lang.String"/><arg column="ptnr_no" javaType="java.lang.String"/><arg column="ptnr_se_cd" javaType="java.lang.String"/><arg column="ptnr_nm" javaType="java.lang.String"/>
+    <arg column="biz_reg_no" javaType="java.lang.String"/><arg column="ceo_nm" javaType="java.lang.String"/><arg column="indty_cd" javaType="java.lang.String"/><arg column="chrg_nm" javaType="java.lang.String"/><arg column="chrg_tel_no" javaType="java.lang.String"/><arg column="rmrk_desc" javaType="java.lang.String"/>
+    <arg column="txinv_email_addr" javaType="java.lang.String"/><arg column="bank_cd" javaType="java.lang.String"/><arg column="acnt_no" javaType="java.lang.String"/><arg column="dpstr_nm" javaType="java.lang.String"/><arg column="use_yn" javaType="java.lang.String"/>
+  </constructor></resultMap>
+  <resultMap id="listRow" type="com.sicost.partners.PartnerModels$PartnerListItem"><constructor>
+    <arg column="ptnr_id" javaType="java.lang.String"/><arg column="ptnr_no" javaType="java.lang.String"/><arg column="ptnr_se_cd" javaType="java.lang.String"/><arg column="ptnr_nm" javaType="java.lang.String"/>
+    <arg column="biz_reg_no" javaType="java.lang.String"/><arg column="ceo_nm" javaType="java.lang.String"/><arg column="indty_cd" javaType="java.lang.String"/><arg column="chrg_nm" javaType="java.lang.String"/><arg column="chrg_tel_no" javaType="java.lang.String"/>
+    <arg column="txinv_email_addr" javaType="java.lang.String"/><arg column="use_yn" javaType="java.lang.String"/><arg column="kindName" javaType="java.lang.String"/><arg column="industryName" javaType="java.lang.String"/><arg column="paymentAccount" javaType="java.lang.String"/><arg column="projectCount" javaType="java.lang.Long"/><arg column="assignmentPeopleCount" javaType="_long"/>
+  </constructor></resultMap>
+  <sql id="filter"><where>
+    <if test="useYn != null and useYn != ''">p.use_yn=#{useYn}</if>
+    <if test="kind != null and kind != ''">AND (p.ptnr_se_cd=#{kind}<if test="kind != 'BOTH'"> OR p.ptnr_se_cd='BOTH'</if>)</if>
+    <if test="q != null and q != ''">AND (position(lower(#{q}) in lower(p.ptnr_nm)) &gt; 0 OR replace(p.biz_reg_no,'-','')=replace(#{q},'-',''))</if>
+  </where></sql>
+  <sql id="projection">
+    SELECT p.ptnr_id,p.ptnr_no,p.ptnr_se_cd,p.ptnr_nm,p.biz_reg_no,p.ceo_nm,p.indty_cd,p.chrg_nm,p.chrg_tel_no,
+      CASE WHEN p.ptnr_se_cd!='VEND' THEN p.txinv_email_addr END AS txinv_email_addr,p.use_yn,k.cd_nm AS "kindName",i.cd_nm AS "industryName",
+      CASE WHEN p.ptnr_se_cd!='CUST' AND p.acnt_no IS NOT NULL THEN b.cd_nm || ' …' || right(p.acnt_no,4) END AS "paymentAccount",
+      CASE WHEN p.ptnr_se_cd='VEND' THEN NULL ELSE (
+        SELECT count(DISTINCT r.prj_id) FROM prj.prj r WHERE r.prj_stts_cd IN ('PLAN','RUN','HOLD') AND
+        (r.cust_ptnr_id=p.ptnr_id OR (p.ptnr_se_cd='BOTH' AND EXISTS (
+          SELECT 1 FROM asgn.asgn a JOIN mst.dev d ON d.dev_id=a.dev_id WHERE a.prj_id=r.prj_id AND d.vndr_ptnr_id=p.ptnr_id
+          AND a.asgn_stts_cd='ACTIVE' AND a.bgn_dt &lt;= #{today} AND a.end_dt &gt;= #{today})))
+      ) END AS "projectCount",
+      (SELECT count(DISTINCT a.dev_id) FROM asgn.asgn a JOIN prj.prj r ON r.prj_id=a.prj_id JOIN mst.dev d ON d.dev_id=a.dev_id
+        WHERE r.prj_stts_cd IN ('PLAN','RUN','HOLD') AND a.asgn_stts_cd='ACTIVE' AND a.bgn_dt &lt;= #{today} AND a.end_dt &gt;= #{today}
+        AND ((p.ptnr_se_cd IN ('CUST','BOTH') AND r.cust_ptnr_id=p.ptnr_id) OR (p.ptnr_se_cd IN ('VEND','BOTH') AND d.vndr_ptnr_id=p.ptnr_id))) AS "assignmentPeopleCount"
+    FROM mst.ptnr p
+    LEFT JOIN cmn.cd_dtl k ON k.cd_grp_id='PARTNER_KIND' AND k.dtl_cd=p.ptnr_se_cd
+    LEFT JOIN cmn.cd_dtl i ON i.cd_grp_id='INDUSTRY' AND i.dtl_cd=p.indty_cd
+    LEFT JOIN cmn.cd_dtl b ON b.cd_grp_id='BANK' AND b.dtl_cd=p.bank_cd
+  </sql>
+  <select id="list" resultMap="listRow">SELECT * FROM (<include refid="projection"/><include refid="filter"/>) rows ORDER BY ${order} LIMIT #{size} OFFSET #{offset}</select>
+  <select id="count" resultType="long">SELECT count(*) FROM mst.ptnr p <include refid="filter"/></select>
+  <sql id="detailProjection">SELECT ptnr_id,ptnr_no,ptnr_se_cd,ptnr_nm,biz_reg_no,ceo_nm,indty_cd,chrg_nm,chrg_tel_no,rmrk_desc,
+    CASE WHEN ptnr_se_cd!='VEND' THEN txinv_email_addr END AS txinv_email_addr,
+    CASE WHEN ptnr_se_cd!='CUST' THEN bank_cd END AS bank_cd,CASE WHEN ptnr_se_cd!='CUST' THEN acnt_no END AS acnt_no,
+    CASE WHEN ptnr_se_cd!='CUST' THEN dpstr_nm END AS dpstr_nm,use_yn FROM mst.ptnr WHERE ptnr_id=#{id}</sql>
+  <select id="detail" resultMap="detailRow"><include refid="detailProjection"/></select>
+  <select id="lock" resultMap="detailRow"><include refid="detailProjection"/> FOR UPDATE</select>
+  <select id="nextId" resultType="long">SELECT nextval('mst.seq_ptnr_id')</select>
+  <select id="duplicateName" resultType="string">SELECT ptnr_nm FROM mst.ptnr WHERE biz_reg_no=#{biz}</select>
+  <select id="activeCode" resultType="boolean">SELECT EXISTS(SELECT 1 FROM cmn.cd_dtl d JOIN cmn.cd_grp g ON g.cd_grp_id=d.cd_grp_id WHERE d.cd_grp_id=#{group} AND d.dtl_cd=#{code} AND d.use_yn='Y' AND g.use_yn='Y')</select>
+  <select id="insert" resultType="long" affectData="true" flushCache="true">INSERT INTO mst.ptnr(ptnr_id,ptnr_no,ptnr_se_cd,ptnr_nm,biz_reg_no,ceo_nm,indty_cd,chrg_nm,chrg_tel_no,rmrk_desc,txinv_email_addr,bank_cd,acnt_no,dpstr_nm,use_yn,created_by)
+    VALUES(#{id},#{no},#{input.ptnr_se_cd},#{input.ptnr_nm},#{input.biz_reg_no},#{input.ceo_nm},#{input.indty_cd},#{input.chrg_nm},#{input.chrg_tel_no},#{input.rmrk_desc},#{input.txinv_email_addr},#{input.bank_cd},#{input.acnt_no},#{input.dpstr_nm},'Y',#{actor}) RETURNING ptnr_id</select>
+  <update id="update">UPDATE mst.ptnr <set>
+    <if test="changed.contains('ptnr_se_cd')">ptnr_se_cd=#{input.ptnr_se_cd},</if><if test="changed.contains('ptnr_nm')">ptnr_nm=#{input.ptnr_nm},</if>
+    <if test="changed.contains('ceo_nm')">ceo_nm=#{input.ceo_nm},</if><if test="changed.contains('indty_cd')">indty_cd=#{input.indty_cd},</if>
+    <if test="changed.contains('chrg_nm')">chrg_nm=#{input.chrg_nm},</if><if test="changed.contains('chrg_tel_no')">chrg_tel_no=#{input.chrg_tel_no},</if>
+    <if test="changed.contains('rmrk_desc')">rmrk_desc=#{input.rmrk_desc},</if><if test="changed.contains('txinv_email_addr')">txinv_email_addr=#{input.txinv_email_addr},</if>
+    <if test="changed.contains('bank_cd')">bank_cd=#{input.bank_cd},</if><if test="changed.contains('acnt_no')">acnt_no=#{input.acnt_no},</if><if test="changed.contains('dpstr_nm')">dpstr_nm=#{input.dpstr_nm},</if>
+    updated_by=#{actor}</set> WHERE ptnr_id=#{id}</update>
+  <insert id="appendHistory">INSERT INTO sys.data_chg_hist(tbl_nm,obj_rec_id,data_chg_ty_cd,clmn_nm,bfr_val,aft_val,chg_user_id)
+    VALUES('mst.ptnr',#{id},#{type},#{column},#{before},#{after},#{actor})</insert>
+</mapper>

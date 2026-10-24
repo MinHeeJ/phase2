@@ -1,6 +1,8 @@
 import { useCallback, useRef } from "react";
 import { Route, Routes } from "react-router-dom";
 import UI27Screen from "../pages/admin/UI27Screen";
+import UI15Screen from "../pages/partners/UI15Screen";
+import SalesPartManagement from "../pages/salespartsops/SalesPartManagement";
 import {
   AppShell,
   type BusinessScreenBindings,
@@ -22,6 +24,25 @@ function CommonCodesScreen({
   );
 }
 
+function PartnersScreen({
+  onDirtyChange,
+  ...bindings
+}: BusinessScreenBindings) {
+  const notify = useRef(onDirtyChange);
+  notify.current = onDirtyChange;
+  const reportDirty = useCallback(
+    (dirty: boolean) => notify.current(dirty),
+    [],
+  );
+  return (
+    <UI15Screen
+      {...bindings}
+      onDirtyChange={reportDirty}
+      salesParts={<SalesPartManagement onDirtyChange={reportDirty} />}
+    />
+  );
+}
+
 export function AppRouter() {
   return (
     <Routes>
@@ -30,7 +51,11 @@ export function AppRouter() {
         element={
           <AppShell
             renderBusiness={(id, bindings) =>
-              id === "UI-27" ? <CommonCodesScreen {...bindings} /> : null
+              id === "UI-15" ? (
+                <PartnersScreen {...bindings} />
+              ) : id === "UI-27" ? (
+                <CommonCodesScreen {...bindings} />
+              ) : null
             }
           />
         }

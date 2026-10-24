@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sicost.uploadsops.UploadMapper">
+  <resultMap id="uploadCode" type="com.sicost.uploadsops.UploadModels$UploadCode"><constructor>
+    <arg column="grp" javaType="java.lang.String"/><arg column="code" javaType="java.lang.String"/><arg column="name" javaType="java.lang.String"/>
+  </constructor></resultMap>
+  <resultMap id="uploadMapping" type="com.sicost.uploadsops.UploadModels$UploadMapping"><constructor>
+    <arg column="grp" javaType="java.lang.String"/><arg column="label" javaType="java.lang.String"/><arg column="code" javaType="java.lang.String"/>
+  </constructor></resultMap>
+  <resultMap id="uploadSource" type="com.sicost.uploadsops.UploadModels$UploadSource"><constructor>
+    <arg column="file_nm" javaType="java.lang.String"/><arg column="file_path_addr" javaType="java.lang.String"/>
+  </constructor></resultMap>
+  <resultMap id="uploadIssue" type="com.sicost.uploadsops.UploadModels$UploadIssue"><constructor>
+    <arg column="err_svrt_cd" javaType="java.lang.String"/><arg column="row_no" javaType="_int"/><arg column="clmn_nm" javaType="java.lang.String"/><arg column="input_val" javaType="java.lang.String"/><arg column="msg_desc" javaType="java.lang.String"/><arg column="fix" javaType="com.sicost.uploadsops.UploadModels$MappingAction" typeHandler="org.apache.ibatis.type.UnknownTypeHandler"/>
+  </constructor></resultMap>
+  <select id="codes" resultMap="uploadCode">SELECT d.cd_grp_id AS grp,d.dtl_cd AS code,d.cd_nm AS name FROM cmn.cd_dtl d JOIN cmn.cd_grp g USING(cd_grp_id) WHERE d.use_yn='Y' AND g.use_yn='Y' AND d.cd_grp_id IN ('PARTNER_KIND','INDUSTRY','BANK') ORDER BY d.cd_grp_id,d.sort_seq,d.dtl_cd</select>
+  <select id="mappings" resultMap="uploadMapping">SELECT m.trns_cd_grp_id AS grp,m.excel_lbl_nm AS label,m.trns_cd AS code FROM cmn.excel_map m JOIN cmn.cd_dtl d ON d.cd_grp_id=m.trns_cd_grp_id AND d.dtl_cd=m.trns_cd JOIN cmn.cd_grp g ON g.cd_grp_id=d.cd_grp_id WHERE m.use_yn='Y' AND d.use_yn='Y' AND g.use_yn='Y' AND m.trns_cd_grp_id IN ('PARTNER_KIND','INDUSTRY','BANK')</select>
+  <select id="duplicateName" resultType="string">SELECT ptnr_nm FROM mst.ptnr WHERE biz_reg_no=#{biz}</select>
+  <select id="source" resultMap="uploadSource">SELECT file_nm,file_path_addr FROM sys.upld WHERE upld_id=#{id}</select>
+  <select id="issues" resultMap="uploadIssue">SELECT err_svrt_cd,row_no,clmn_nm,input_val,msg_desc,NULL AS fix FROM sys.upld_err WHERE upld_id=#{id} ORDER BY row_no,upld_err_id</select>
+  <select id="insertUpload" resultType="long" affectData="true" flushCache="true">INSERT INTO sys.upld(form_cd,scrn_id,file_nm,file_path_addr,tot_row_cnt,nrml_row_cnt,err_row_cnt,wrn_row_cnt,upld_stts_cd,upld_user_id)
+    VALUES('B.7','UI-15',#{context.fileName},#{context.path},#{result.totalRows},#{result.okRows},#{result.errorRows},#{result.warningRows},#{status},#{actor}) RETURNING upld_id</select>
+  <insert id="insertIssue">INSERT INTO sys.upld_err(upld_id,row_no,clmn_nm,err_svrt_cd,input_val,msg_desc) VALUES(#{id},#{issue.rowNo},#{issue.column},#{issue.severity},#{input},#{issue.message})</insert>
+  <select id="nextPartnerId" resultType="long">SELECT nextval('mst.seq_ptnr_id')</select>
+  <select id="insertPartner" resultType="long" affectData="true" flushCache="true">INSERT INTO mst.ptnr(ptnr_id,ptnr_no,ptnr_se_cd,ptnr_nm,biz_reg_no,ceo_nm,indty_cd,chrg_nm,chrg_tel_no,txinv_email_addr,bank_cd,acnt_no,dpstr_nm,rmrk_desc,use_yn,upld_id,created_by)
+    VALUES(#{id},#{no},#{input.ptnr_se_cd},#{input.ptnr_nm},#{input.biz_reg_no},#{input.ceo_nm},#{input.indty_cd},#{input.chrg_nm},#{input.chrg_tel_no},#{input.txinv_email_addr},#{input.bank_cd},#{input.acnt_no},#{input.dpstr_nm},#{input.rmrk_desc},'Y',#{uploadId},#{actor}) RETURNING ptnr_id</select>
+  <insert id="appendHistory">INSERT INTO sys.data_chg_hist(tbl_nm,obj_rec_id,data_chg_ty_cd,rsn_desc,chg_user_id) VALUES('mst.ptnr',CAST(#{id} AS text),'INSERT','엑셀 업로드 #' || CAST(#{uploadId} AS text),#{actor})</insert>
+  <insert id="access">INSERT INTO sys.acs_hist(user_id,acs_ty_cd,scrn_id,obj_desc,dtl_desc) VALUES(#{actor},#{type},'UI-15',#{display},#{detail})</insert>
+</mapper>

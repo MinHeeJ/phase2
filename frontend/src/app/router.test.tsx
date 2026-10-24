@@ -59,6 +59,9 @@ beforeEach(() => {
   fetcher = vi.fn(async (url: string) => {
     if (url === "/api/menus") return response(menus);
     if (url.startsWith("/api/month-close?")) return response([]);
+    if (url.startsWith("/api/codes/")) return response([]);
+    if (url.startsWith("/api/partners?") || url.startsWith("/api/sales-parts?"))
+      return response({ items: [], total: 0, page: 1, size: 50 });
     if (url.startsWith("/api/admin/code-groups?"))
       return response({
         items: [
@@ -132,18 +135,62 @@ describe("application route registration", () => {
       fetcher.mock.calls.some(([url]) => String(url).includes("/auth/")),
     ).toBe(false);
   });
-  it.each(["/UI-06", "/UI-99", "/UI-27/M3", "/login"])(
-    "does not register unsupported route %s",
-    async (path) => {
-      mount(path);
-      expect(
-        await screen.findByText("화면을 찾을 수 없습니다."),
-      ).toBeInTheDocument();
-      expect(
-        screen.queryByRole("heading", { name: /공통코드 관리/ }),
-      ).not.toBeInTheDocument();
-    },
-  );
+  it.each([
+    "/UI-06",
+    "/UI-99",
+    "/UI-27/M3",
+    "/UI-15/M1",
+    "/UI-15/M13",
+    "/login",
+  ])("does not register unsupported route %s", async (path) => {
+    mount(path);
+    expect(
+      await screen.findByText("화면을 찾을 수 없습니다."),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: /공통코드 관리/ }),
+    ).not.toBeInTheDocument();
+  });
+  it("composes both partner tabs and the existing upload flow on the same route", async () => {
+    mount("/UI-15");
+    expect(await screen.findByTestId("partners-screen")).toBeInTheDocument();
+    expect(
+      await screen.findByText("조건에 맞는 결과가 없습니다."),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("tab", { name: "영업 파트" }));
+    expect(
+      await screen.findByText("조건에 맞는 결과가 없습니다"),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("sales-part-add")).toBeInTheDocument();
+    expect(screen.getByTestId("sales-parts-panel")).toBeInTheDocument();
+    expect(
+      screen.queryByText("영업 파트 화면을 연결할 수 없습니다."),
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("tab", { name: "거래처" }));
+    fireEvent.click(screen.getByTestId("partner-upload"));
+    expect(screen.getByTestId("upload-selection")).toBeInTheDocument();
+    expect(screen.getByLabelText("현재 주소")).toHaveTextContent("/UI-15");
+    fireEvent.click(screen.getByTestId("upload-cancel"));
+    expect(screen.queryByTestId("upload-selection")).not.toBeInTheDocument();
+  });
+  it("keeps partner drafts mounted and propagates dirty close protection", async () => {
+    mount("/UI-15");
+    fireEvent.click(await screen.findByTestId("partner-create"));
+    fireEvent.change(screen.getByLabelText(/상호/), {
+      target: { value: "작성 중" },
+    });
+    const tabs = screen.getByLabelText("열린 화면");
+    await waitFor(() => expect(tabs).toHaveTextContent("● UI-15"));
+    fireEvent.click(within(tabs).getByRole("button", { name: "UI-16" }));
+    fireEvent.click(within(tabs).getByRole("button", { name: "● UI-15" }));
+    expect(screen.getByLabelText(/상호/)).toHaveValue("작성 중");
+    fireEvent.click(screen.getByLabelText("UI-15 닫기"));
+    expect(screen.getByRole("dialog")).toHaveTextContent(
+      "저장하지 않은 내용이 있습니다.",
+    );
+    fireEvent.click(screen.getByText("계속 작성"));
+    expect(screen.getByLabelText(/상호/)).toHaveValue("작성 중");
+  });
   it("keeps the real code editor mounted, propagates dirty state and guards close", async () => {
     mount("/UI-27");
     fireEvent.change(await screen.findByLabelText("이름 1"), {

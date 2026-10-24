@@ -58,7 +58,7 @@ class SchemaMigrationTest {
         new SchemaValidator(source, new ObjectMapper()).validate();
         assertThat(scalar("SELECT count(*) FROM information_schema.schemata WHERE schema_name IN ('cmn','sys','mst','bsn','prj','asgn','hr','cst','bill','fin','ai')")).isEqualTo(11);
         assertThat(scalar("SELECT count(*) FROM information_schema.tables WHERE table_type='BASE TABLE' AND table_schema IN ('cmn','sys','mst','bsn','prj','asgn','hr','cst','bill','fin','ai')")).isEqualTo(80);
-        Map<String, Integer> counts = Map.of("cmn.cd_grp", 36, "cmn.cd_dtl", 189, "sys.role", 5, "sys.menu", 41, "sys.role_menu_auth", 155, "fin.mth_cls", 10);
+        Map<String, Integer> counts = Map.of("cmn.cd_grp", 36, "cmn.cd_dtl", 199, "sys.role", 5, "sys.menu", 41, "sys.role_menu_auth", 155, "fin.mth_cls", 10);
         for (var entry : counts.entrySet()) assertThat(scalar("SELECT count(*) FROM " + entry.getKey())).as(entry.getKey()).isEqualTo(entry.getValue());
         assertThat(scalar("SELECT count(*) FROM cmn.cd_dtl WHERE cd_grp_id='JOB'")).isEqualTo(12);
         assertThat(scalar("SELECT count(*) FROM cmn.cd_dtl WHERE cd_grp_id='JOB' AND dtl_cd IN ('BE','OPS')")).isEqualTo(2);
@@ -83,6 +83,26 @@ class SchemaMigrationTest {
             assertThat(month).isEqualTo(11);
         }
     }
+    @Test void bankCodesHaveApprovedNamesOrderAndNullActor() throws Exception {
+        String[] codes = {"KB", "SHINHAN", "WOORI", "HANA", "NH", "IBK", "SC", "KAKAO", "TOSS", "KBANK"};
+        String[] names = {"국민은행", "신한은행", "우리은행", "하나은행", "NH농협은행", "IBK기업은행", "SC제일은행", "카카오뱅크", "토스뱅크", "케이뱅크"};
+        try (var connection = source.getConnection(); var statement = connection.createStatement();
+             var rows = statement.executeQuery("SELECT dtl_cd,cd_nm,sort_seq,use_yn,created_by FROM cmn.cd_dtl WHERE cd_grp_id='BANK' ORDER BY sort_seq,dtl_cd")) {
+            for (int i = 0; i < codes.length; i++) {
+                assertThat(rows.next()).isTrue();
+                assertThat(rows.getString("dtl_cd")).isEqualTo(codes[i]);
+                assertThat(rows.getString("cd_nm")).isEqualTo(names[i]);
+                assertThat(rows.getInt("sort_seq")).isEqualTo(i + 1);
+                assertThat(rows.getString("use_yn")).isEqualTo("Y");
+                assertThat(rows.getObject("created_by")).isNull();
+            }
+            assertThat(rows.next()).isFalse();
+        }
+        assertThat(scalar("SELECT count(*) FROM cmn.cd_dtl WHERE cd_grp_id<>'BANK'")).isEqualTo(189);
+        assertThat(scalar("SELECT count(*) FROM mst.ptnr")).isZero();
+        assertThat(scalar("SELECT count(*) FROM mst.bsn_part")).isEqualTo(1);
+        assertThat(scalar("SELECT count(*) FROM mst.bsn_part WHERE hq_yn='Y' AND use_yn='Y'")).isEqualTo(1);
+    }
     @Test void restartDoesNotDuplicateSeedsOrChangeChecksums() throws Exception {
         Map<String, Integer> checksums = new LinkedHashMap<>();
         for (var migration : flyway.info().applied()) checksums.put(migration.getVersion().toString(), migration.getChecksum());
@@ -90,6 +110,7 @@ class SchemaMigrationTest {
         flyway.validate();
         for (var migration : flyway.info().applied()) assertThat(migration.getChecksum()).isEqualTo(checksums.get(migration.getVersion().toString()));
         assertThat(scalar("SELECT count(*) FROM sys.menu")).isEqualTo(41);
+        assertThat(scalar("SELECT count(*) FROM cmn.cd_dtl WHERE cd_grp_id='BANK'")).isEqualTo(10);
     }
     @Test void wrongTypeIsRejectedBeyondSuccessfulFlyway() throws Exception {
         try (var connection = source.getConnection(); var statement = connection.createStatement()) {

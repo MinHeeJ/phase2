@@ -1,0 +1,102 @@
+.toolbar,
+.filters,
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.toolbar {
+  margin: 16px 0;
+}
+.toolbar > :last-child {
+  margin-left: auto;
+}
+.filters {
+  padding: 16px;
+  border: 1px solid var(--divider);
+  background: var(--surface);
+  border-radius: var(--radius-panel);
+  margin-top: 16px;
+}
+.filters label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.filters input,
+.filters select {
+  height: var(--control-height);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  padding: 0 10px;
+  color: var(--text);
+}
+.actions {
+  justify-content: flex-end;
+  margin-top: 24px;
+}
+.warning {
+  color: var(--warning);
+  background: var(--warning-bg);
+  padding: 10px 16px;
+  border-radius: var(--radius-panel);
+  margin: 12px 0;
+}
+.danger {
+  color: white !important;
+  background: var(--danger) !important;
+  border-color: var(--danger) !important;
+}
+.scrim {
+  position: fixed;
+  inset: 56px 0 0;
+  background: var(--overlay-bg);
+  z-index: 30;
+}
+.drawer {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: min(600px, 100vw);
+  overflow: auto;
+  padding: 24px;
+  background: var(--surface);
+  box-shadow: var(--shadow-overlay);
+}
+.drawer header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.drawer h2 {
+  font-size: 20px;
+  line-height: 28px;
+  margin: 0;
+}
+.drawer dl > div {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--divider);
+}
+.drawer dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 767px) {
+  .mutate {
+    display: none !important;
+  }
+  .drawer {
+    padding: 16px;
+  }
+  .filters {
+    align-items: stretch;
+  }
+  .filters label {
+    flex-wrap: wrap;
+  }
+}

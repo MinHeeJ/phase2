@@ -27,6 +27,13 @@ class CommonValuesTest {
         var permissions = new PermissionService();
         for (String action : PermissionService.AUTH_COLUMNS.keySet()) assertThat(permissions.can("UI-27." + action)).isTrue();
     }
+    @Test void partnerActionsReuseAllExistingPermissionKeysWithoutRoleDenial() {
+        var permissions = new PermissionService();
+        assertThat(PermissionService.AUTH_COLUMNS).containsAllEntriesOf(java.util.Map.of(
+            "read", "inq_auth_yn", "create", "reg_auth_yn", "update", "mdfcn_auth_yn",
+            "delete", "del_auth_yn", "upload", "upld_auth_yn", "download", "dwnld_auth_yn"));
+        for (String action : PermissionService.AUTH_COLUMNS.keySet()) assertThat(permissions.can("UI-15." + action)).isTrue();
+    }
     @Test void sensitiveAnnotationDoesNotMask() throws Exception {
         assertThat(JsonMapper.builder().build().writeValueAsString(new Visible("200000"))).contains("200000");
     }
