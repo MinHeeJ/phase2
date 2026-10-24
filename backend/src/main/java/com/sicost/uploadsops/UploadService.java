@@ -26,6 +26,7 @@ public class UploadService {
     private final PartnerUploadForm form;
     private final TransactionTemplate transaction;
     private final Map<String,Validation> validations=new HashMap<>();
+    @org.springframework.beans.factory.annotation.Autowired(required=false) private PersonnelUploadService personnel;
     @Value("${sicost.upload-directory:${java.io.tmpdir}/sicost/uploads}") private String directory;
     public UploadService(UploadMapper mapper,CurrentUser user,Clock clock,UploadWorkbookWriter writer,PartnerUploadForm form,PlatformTransactionManager manager) {
         this.mapper=mapper;this.user=user;this.clock=clock;this.writer=writer;this.form=form;this.transaction=new TransactionTemplate(manager);
@@ -44,12 +45,22 @@ public class UploadService {
     }
     public UploadValidationResult validate(String requestedForm,MultipartFile file) {
         requireForm(requestedForm);String name=filename(file.getOriginalFilename());
+        return inspect(name,store(file,name));
+    }
+    public PersonnelUploadService personnel(){return Objects.requireNonNull(personnel);}
+    public PersonnelUploadModels.Result validatePersonnel(String requestedForm,String month,MultipartFile file){
+        PersonnelUploadService.formType(requestedForm);
+        if("B.1".equals(requestedForm))com.sicost.common.validation.CalendarValues.month(month,"month");
+        else if(month!=null)throw ApiException.badRequest("개발자 업로드에는 연월을 입력하지 않습니다.","month");
+        String name=filename(file.getOriginalFilename());return personnel().validate(requestedForm,month,name,store(file,name));
+    }
+    private Path store(MultipartFile file,String name) {
         if(file.getSize()>10L*1024*1024)throw new ApiException(413,"INVALID_INPUT","파일은 10MB 이하만 올릴 수 있습니다.","file");
         if(!name.toLowerCase(Locale.ROOT).endsWith(".xlsx"))throw PartnerUploadForm.fileError("UNSUPPORTED_FILE_TYPE","xlsx 파일만 올릴 수 있습니다.");
         if(file.isEmpty())throw PartnerUploadForm.fileError("EMPTY_FILE","검사할 데이터가 없습니다.");
         Path root=Path.of(directory).toAbsolutePath().normalize();
         Path target=root.resolve(LocalDate.now(clock.withZone(ZoneId.of("Asia/Seoul"))).format(DateTimeFormatter.ofPattern("yyyy/MM"))).resolve(UUID.randomUUID()+".xlsx");
-        try {Files.createDirectories(target.getParent());try(InputStream in=file.getInputStream()){Files.copy(in,target);}return inspect(name,target);}
+        try {Files.createDirectories(target.getParent());try(InputStream in=file.getInputStream()){Files.copy(in,target);}return target;}
         catch(ApiException ex){throw ex;}
         catch(IOException ex){throw new ApiException(500,"SERVER_ERROR","파일을 처리할 수 없습니다. 다시 올려 주세요.","file");}
     }
@@ -110,6 +121,7 @@ public class UploadService {
         catch(JsonProcessingException ex){throw new IllegalStateException("접근 기록 생성 실패",ex);}
     }
     public UploadFile template(String requestedForm) {
+        if("B.8".equals(requestedForm)||"B.1".equals(requestedForm))return personnel().template(requestedForm);
         requireForm(requestedForm);
         try {byte[] bytes=writer.template(mapper.codes());String name="거래처_업로드양식.xlsx";access("DOWNLOAD",name,Map.of("form","B.7"));return new UploadFile(name,bytes);}
         catch(IOException ex){throw new IllegalStateException("양식 생성 실패",ex);}

@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sicost.workstatus.WorkStatusMapper">
+  <resultMap id="workStatusRow" type="com.sicost.workstatus.WorkStatusModels$WorkStatusRow"><constructor>
+    <arg column="work_stts_hist_id" javaType="_long"/><arg column="dev_id" javaType="_long"/>
+    <arg column="work_stts_cd" javaType="java.lang.String"/><arg column="bgn_dt" javaType="java.time.LocalDate"/>
+    <arg column="end_dt" javaType="java.time.LocalDate"/><arg column="paid_yn" javaType="java.lang.String"/>
+    <arg column="rmrk_desc" javaType="java.lang.String"/>
+  </constructor></resultMap>
+  <sql id="columns">work_stts_hist_id,dev_id,work_stts_cd,bgn_dt,end_dt,paid_yn,rmrk_desc</sql>
+  <sql id="filter">WHERE dev_id=#{devId}<if test="status != null"> AND work_stts_cd=#{status}</if></sql>
+  <select id="developerExists" resultType="boolean">SELECT EXISTS(SELECT 1 FROM mst.dev WHERE dev_id=#{devId})</select>
+  <select id="list" resultMap="workStatusRow">SELECT <include refid="columns"/> FROM mst.dev_work_stts_hist <include refid="filter"/> ORDER BY ${order} LIMIT #{size} OFFSET #{offset}</select>
+  <select id="count" resultType="long">SELECT count(*) FROM mst.dev_work_stts_hist <include refid="filter"/></select>
+  <select id="detail" resultMap="workStatusRow">SELECT <include refid="columns"/> FROM mst.dev_work_stts_hist WHERE dev_id=#{devId} AND work_stts_hist_id=#{histId}</select>
+  <select id="snapshot" resultType="string">SELECT row_to_json(h)::text FROM mst.dev_work_stts_hist h WHERE h.dev_id=#{devId} AND h.work_stts_hist_id=#{histId}</select>
+  <select id="nextId" resultType="long">SELECT nextval('mst.seq_dev_work_stts_hist_id')</select>
+  <select id="insert" resultMap="workStatusRow" affectData="true" flushCache="true">
+    INSERT INTO mst.dev_work_stts_hist(work_stts_hist_id,dev_id,work_stts_cd,bgn_dt,end_dt,paid_yn,rmrk_desc,created_by)
+    VALUES(#{histId},#{devId},#{input.work_stts_cd},#{input.bgn_dt},#{input.end_dt,jdbcType=DATE},#{input.paid_yn},#{input.rmrk_desc,jdbcType=VARCHAR},#{actor,jdbcType=BIGINT})
+    RETURNING <include refid="columns"/>
+  </select>
+  <select id="update" resultMap="workStatusRow" affectData="true" flushCache="true">
+    UPDATE mst.dev_work_stts_hist SET work_stts_cd=#{input.work_stts_cd},bgn_dt=#{input.bgn_dt},end_dt=#{input.end_dt,jdbcType=DATE},paid_yn=#{input.paid_yn},rmrk_desc=#{input.rmrk_desc,jdbcType=VARCHAR}
+    WHERE dev_id=#{devId} AND work_stts_hist_id=#{histId} RETURNING <include refid="columns"/>
+  </select>
+  <delete id="delete">DELETE FROM mst.dev_work_stts_hist WHERE dev_id=#{devId} AND work_stts_hist_id=#{histId}</delete>
+  <select id="overlap" resultMap="workStatusRow">
+    SELECT <include refid="columns"/> FROM mst.dev_work_stts_hist
+    WHERE dev_id=#{devId} AND work_stts_hist_id != #{histId} AND work_stts_cd != 'RESIGN'
+    AND (end_dt IS NULL OR end_dt &gt;= #{input.bgn_dt})
+    <if test="input.end_dt != null">AND bgn_dt &lt;= #{input.end_dt}</if>
+    ORDER BY bgn_dt DESC,work_stts_hist_id DESC LIMIT 1
+  </select>
+  <select id="resignationExists" resultType="boolean">SELECT EXISTS(SELECT 1 FROM mst.dev_work_stts_hist WHERE dev_id=#{devId} AND work_stts_hist_id != #{histId} AND work_stts_cd='RESIGN')</select>
+  <select id="closed" resultType="boolean">
+    SELECT EXISTS(SELECT 1 FROM fin.mth_cls WHERE cls_stts_cd='CLOSED' AND cls_ym &gt;= to_char(#{bgn_dt,jdbcType=DATE},'YYYY-MM')
+    <choose>
+      <when test="work_stts_cd == 'RESIGN'">AND cls_ym &lt;= to_char(#{bgn_dt,jdbcType=DATE},'YYYY-MM')</when>
+      <when test="end_dt != null">AND cls_ym &lt;= to_char(#{end_dt,jdbcType=DATE},'YYYY-MM')</when>
+    </choose>)
+  </select>
+  <select id="codeName" resultType="string">SELECT cd_nm FROM cmn.cd_dtl WHERE cd_grp_id='WORK_STATUS' AND dtl_cd=#{code}</select>
+  <update id="resignation">UPDATE mst.dev SET rsgn_dt=#{date,jdbcType=DATE},updated_by=#{actor,jdbcType=BIGINT} WHERE dev_id=#{devId}</update>
+  <select id="resignationDate" resultType="java.time.LocalDate">SELECT rsgn_dt FROM mst.dev WHERE dev_id=#{devId}</select>
+  <insert id="audit">INSERT INTO sys.data_chg_hist(tbl_nm,obj_rec_id,data_chg_ty_cd,bfr_val,aft_val,chg_user_id)
+    VALUES('mst.dev_work_stts_hist',CAST(#{histId} AS varchar),#{type},#{before,jdbcType=VARCHAR},#{after,jdbcType=VARCHAR},#{actor,jdbcType=BIGINT})</insert>
+</mapper>

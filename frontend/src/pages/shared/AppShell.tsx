@@ -52,7 +52,7 @@ export function AppShell({
 }) {
   const { pathname } = useLocation();
   const navigate = useNavigate();
-  const id = pathname.slice(1);
+  const id = pathname === "/UI-32" ? "UI-02" : pathname.slice(1);
   const { menus, loading, error, retry } = useMenus();
   const preferences = useSharedPreferences();
   const mobile = useSharedMobile();
@@ -74,9 +74,17 @@ export function AppShell({
   const [notifications, setNotifications] = useState(false);
   const [settings, setSettings] = useState(false);
 
+  const developerRoute = useRef(pathname === "/UI-32" ? "/UI-32" : "/UI-02");
+  if (id === "UI-02") developerRoute.current = pathname;
+  const navigationMenus = menus
+    .map((group) => ({
+      ...group,
+      children: group.children.filter((child) => child.screenId !== "UI-32"),
+    }))
+    .filter((group) => group.screenId !== "UI-32");
   const navigateTo = useCallback(
     (next: string) => {
-      navigate(`/${next}`);
+      navigate(next === "UI-02" ? developerRoute.current : `/${next}`);
     },
     [navigate],
   );
@@ -155,7 +163,7 @@ export function AppShell({
         : old,
     );
   }, []);
-  const allScreens = menuScreens(menus).filter(
+  const allScreens = menuScreens(navigationMenus).filter(
     (screen) => !mobile || screen.mobile,
   );
   const label = (screenId: string) =>
@@ -266,7 +274,11 @@ export function AppShell({
               )}
               <span>{preferences.collapsed ? "메뉴 펼치기" : "메뉴 접기"}</span>
             </Button>
-            <MenuNavigation menus={menus} active={id} onNavigate={open} />
+            <MenuNavigation
+              menus={navigationMenus}
+              active={id}
+              onNavigate={open}
+            />
           </>
         }
         tabs={
@@ -312,7 +324,9 @@ export function AppShell({
               return (
                 <div hidden={tab.id !== id} key={tab.id}>
                   {location ? (
-                    tab.id === "UI-27" || tab.id === "UI-15" ? (
+                    tab.id === "UI-27" ||
+                    tab.id === "UI-15" ||
+                    tab.id === "UI-02" ? (
                       <SharedMobileGuard
                         mobileAllowed={location.screen.mobile}
                         onDashboard={() => open("UI-16")}

@@ -11,6 +11,10 @@ import { AppRouter } from "./router";
 import { screenIds } from "../pages/shared/registry";
 import { useSharedPreferences } from "../pages/shared/preferences";
 import type { MenuNode } from "../pages/shared/api";
+import {
+  developerFixture,
+  codeFixtures,
+} from "../pages/developers/DeveloperTestSupport";
 
 const menus: MenuNode[] = [
   {
@@ -59,7 +63,27 @@ beforeEach(() => {
   fetcher = vi.fn(async (url: string) => {
     if (url === "/api/menus") return response(menus);
     if (url.startsWith("/api/month-close?")) return response([]);
-    if (url.startsWith("/api/codes/")) return response([]);
+    if (url.startsWith("/api/codes/"))
+      return response(codeFixtures[url.split("/").at(-1)!] ?? []);
+    if (url.startsWith("/api/developers?"))
+      return response({
+        items: [developerFixture],
+        total: 1,
+        page: 0,
+        size: 50,
+      });
+    if (url === "/api/developers/1") return response(developerFixture);
+    if (
+      /^\/api\/developers\/1\/(assignments|monthly-costs|history|work-status)\?/.test(
+        url,
+      )
+    )
+      return response({ items: [], total: 0, page: 0, size: 50 });
+    if (
+      url === "/api/partners/options?kind=VEND" ||
+      url === "/api/sales-parts/options"
+    )
+      return response([]);
     if (url.startsWith("/api/partners?") || url.startsWith("/api/sales-parts?"))
       return response({ items: [], total: 0, page: 1, size: 50 });
     if (url.startsWith("/api/admin/code-groups?"))
@@ -112,7 +136,8 @@ describe("application route registration", () => {
       mount(`/${id}`);
       expect(
         await screen.findByRole("heading", {
-          name: id === "UI-27" ? /공통코드/ : id,
+          name:
+            id === "UI-27" ? /공통코드/ : id === "UI-32" ? /개발자 등록/ : id,
         }),
       ).toBeInTheDocument();
       expect(screen.getAllByLabelText("열린 화면")).toHaveLength(1);

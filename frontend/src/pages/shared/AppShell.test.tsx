@@ -44,12 +44,12 @@ const menus: MenuNode[] = [
     children,
   },
 ];
-function Editor({ onDirtyChange }: BusinessScreenBindings) {
+function Editor({ onDirtyChange, name }: BusinessScreenBindings) {
   const [value, setValue] = useState("");
   useEffect(() => onDirtyChange(value !== ""), [value, onDirtyChange]);
   return (
     <input
-      aria-label="업무 초안"
+      aria-label={name === "공통코드" ? "업무 초안" : `${name} 초안`}
       value={value}
       onChange={(event) => setValue(event.target.value)}
     />
