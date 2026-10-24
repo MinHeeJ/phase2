@@ -1,4 +1,4 @@
-import { useCallback, useState, type ReactNode } from "react";
+import { useCallback, useRef, useState, type ReactNode } from "react";
 import {
   Button,
   Badge,
@@ -13,7 +13,7 @@ import { ErrorBanner } from "../../shared/ErrorBanner";
 import { ApiFailure } from "../../shared/api";
 import { Can } from "../../shared/Can";
 import { useCodes } from "../shared/useCodes";
-import { useAdminRead } from "../admin/useAdminResource";
+import { useAdminRead, useAdminWrite } from "../admin/useAdminResource";
 import { useAdminGuard } from "../admin/AdminDialogs";
 import {
   listPartners,
@@ -31,6 +31,7 @@ import {
 import { PartnerForm } from "./PartnerForm";
 import { PartnerDrawer } from "./PartnerDrawer";
 import { UploadDialogs } from "../uploadsops/UploadDialogs";
+import { PartnerTemplateDownloadButton } from "../uploadsops/PartnerTemplateDownloadButton";
 import styles from "./Partners.module.css";
 
 const columns: readonly [keyof PartnerListItem, string][] = [
@@ -77,6 +78,17 @@ export default function UI15Screen({
   const kinds = useCodes("PARTNER_KIND");
   const read = useCallback(() => listPartners(filters), [filters]);
   const list = useAdminRead(read);
+  const enableWrite = useAdminWrite(async () => {
+    await list.reload();
+    setSelected([]);
+    clearHighlight();
+    setDetail(null);
+  });
+  const highlightRequest = useRef(0);
+  const clearHighlight = () => {
+    highlightRequest.current++;
+    setHighlight(null);
+  };
   const dirtyChange = useCallback(
     (value: boolean) => {
       setDirty(value);
@@ -88,7 +100,7 @@ export default function UI15Screen({
     setDraft(defaultPartnerFilters);
     setFilters({ ...defaultPartnerFilters });
     setSelected([]);
-    setHighlight(null);
+    clearHighlight();
   };
   const rows = highlight
     ? [
@@ -102,18 +114,16 @@ export default function UI15Screen({
     setDetail({ id: row.ptnr_id, tab });
   const refresh = async (text: string) => {
     setMessage(text);
-    setHighlight(null);
+    clearHighlight();
     return list.reload();
   };
   const stateAction = (row: PartnerDetail) => {
     if (row.use_yn === "Y") setDisableRows([row]);
     else {
-      void enablePartner(row.ptnr_id)
-        .then(() => {
-          setDetail(null);
-          return refresh("다시 사용합니다.");
-        })
-        .catch((e) => setError(e));
+      void enableWrite.save(
+        () => enablePartner(row.ptnr_id),
+        () => setMessage("다시 사용합니다."),
+      );
     }
   };
   return (
@@ -126,13 +136,7 @@ export default function UI15Screen({
           !creating && tab === "partners" ? (
             <div className={styles.writeActions}>
               <Can perm="UI-15.download">
-                <a
-                  className={styles.linkButton}
-                  data-testid="partner-template-download"
-                  href="/api/uploads/templates/B.7"
-                >
-                  양식 내려받기
-                </a>
+                <PartnerTemplateDownloadButton className={styles.linkButton} />
               </Can>
               <Can perm="UI-15.upload">
                 <Button
@@ -173,20 +177,27 @@ export default function UI15Screen({
               setCreating(false);
               dirtyChange(false);
               setFilters({ ...defaultPartnerFilters });
+              setDraft(defaultPartnerFilters);
+              setSelected([]);
+              clearHighlight();
+              const request = highlightRequest.current;
               setMessage("저장했습니다.");
               if (row)
                 void listPartners({
                   ...defaultPartnerFilters,
                   q: row.biz_reg_no,
                 })
-                  .then((result) =>
-                    setHighlight(
-                      result.items.find(
-                        (item) => item.ptnr_id === row.ptnr_id,
-                      ) ?? null,
-                    ),
-                  )
-                  .catch((e) => setError(e));
+                  .then((result) => {
+                    if (request === highlightRequest.current)
+                      setHighlight(
+                        result.items.find(
+                          (item) => item.ptnr_id === row.ptnr_id,
+                        ) ?? null,
+                      );
+                  })
+                  .catch((e) => {
+                    if (request === highlightRequest.current) setError(e);
+                  });
             }}
           />
           {guard.confirmation}
@@ -197,7 +208,8 @@ export default function UI15Screen({
             selected={tab}
             onChange={(t) => {
               setTab(t);
-              setHighlight(null);
+              setSelected([]);
+              clearHighlight();
             }}
             items={[
               { key: "partners", label: "거래처" },
@@ -211,9 +223,15 @@ export default function UI15Screen({
                 className={styles.search}
                 onSubmit={(e) => {
                   e.preventDefault();
-                  setFilters({ ...draft, page: 1 });
+                  setFilters({
+                    ...filters,
+                    kind: draft.kind,
+                    useYn: draft.useYn,
+                    q: draft.q,
+                    page: 1,
+                  });
                   setSelected([]);
-                  setHighlight(null);
+                  clearHighlight();
                 }}
               >
                 <label>
@@ -362,7 +380,8 @@ export default function UI15Screen({
                             <button
                               data-testid={`partner-sort-${key.replace(/_/g, "-").replace(/[A-Z]/g, (m) => `-${m.toLowerCase()}`)}`}
                               onClick={() => {
-                                setHighlight(null);
+                                setSelected([]);
+                                clearHighlight();
                                 setFilters({
                                   ...filters,
                                   page: 1,
@@ -485,12 +504,12 @@ export default function UI15Screen({
                 total={list.data?.total ?? 0}
                 onPage={(page) => {
                   setSelected([]);
-                  setHighlight(null);
+                  clearHighlight();
                   setFilters({ ...filters, page });
                 }}
                 onSize={(size) => {
                   setSelected([]);
-                  setHighlight(null);
+                  clearHighlight();
                   setFilters({ ...filters, size, page: 1 });
                 }}
               />
@@ -511,6 +530,9 @@ export default function UI15Screen({
           onDirtyChange={dirtyChange}
           onSaved={refresh}
           onStateAction={stateAction}
+          statePending={enableWrite.pending}
+          stateError={enableWrite.error}
+          onStateRetry={() => void enableWrite.recover()}
         />
       )}
       {disableRows && (
@@ -521,7 +543,7 @@ export default function UI15Screen({
             await list.reload();
             setSelected([]);
             setDetail(null);
-            setHighlight(null);
+            clearHighlight();
           }}
           onComplete={setMessage}
         />
@@ -531,7 +553,7 @@ export default function UI15Screen({
           onClose={() => setUploadOpen(false)}
           onApplied={async (result) => {
             setMessage(`거래처 ${result.appliedRows}건을 반영했습니다.`);
-            setHighlight(null);
+            clearHighlight();
             setSelected([]);
             await list.reload();
           }}

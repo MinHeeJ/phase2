@@ -9,6 +9,7 @@ import {
   DataTable,
 } from "../../shared/Controls";
 import { ErrorBanner } from "../../shared/ErrorBanner";
+import type { ApiFailure } from "../../shared/api";
 import { Can } from "../../shared/Can";
 import { useAdminRead } from "../admin/useAdminResource";
 import { useCodes } from "../shared/useCodes";
@@ -27,6 +28,9 @@ export function PartnerDrawer({
   onClose,
   onSaved,
   onStateAction,
+  statePending = false,
+  stateError = null,
+  onStateRetry,
   onDirtyChange,
 }: {
   id: string;
@@ -34,6 +38,9 @@ export function PartnerDrawer({
   onClose: () => void;
   onSaved: (message: string) => Promise<unknown>;
   onStateAction: (row: PartnerDetail) => void;
+  statePending?: boolean;
+  stateError?: ApiFailure | null;
+  onStateRetry?: () => void;
   onDirtyChange?: (dirty: boolean) => void;
 }) {
   const read = useCallback(() => getPartner(id), [id]);
@@ -49,9 +56,10 @@ export function PartnerDrawer({
   const historyRead = useCallback(() => listPartnerHistory(id), [id]);
   const history = useAdminRead(historyRead);
   const close = useCallback(() => {
+    if (statePending) return;
     if (dirty) setCloseConfirm(true);
     else onClose();
-  }, [dirty, onClose]);
+  }, [dirty, onClose, statePending]);
   useEffect(() => {
     onDirtyChange?.(dirty);
     return () => onDirtyChange?.(false);
@@ -60,13 +68,15 @@ export function PartnerDrawer({
     const key = (e: KeyboardEvent) => {
       if (
         e.key === "Escape" &&
+        !e.defaultPrevented &&
+        !closeConfirm &&
         !document.querySelector('[aria-modal="true"] [aria-modal="true"]')
       )
         close();
     };
     window.addEventListener("keydown", key);
     return () => window.removeEventListener("keydown", key);
-  }, [close]);
+  }, [close, closeConfirm]);
   useEffect(() => {
     const unload = (e: BeforeUnloadEvent) => {
       if (dirty) {
@@ -95,30 +105,45 @@ export function PartnerDrawer({
         aria-modal="true"
         aria-label="거래처 상세"
         className={styles.drawer}
+        data-screen-id="SCR-UI-15"
         data-testid="partner-drawer"
       >
+        {row?.use_yn === "N" && (
+          <LockedBanner>
+            사용을 중지한 거래처입니다. 새 프로젝트·지급에 고를 수 없습니다.
+          </LockedBanner>
+        )}
         <div className={styles.drawerHeader}>
           <h2>{row?.ptnr_nm ?? "거래처 상세"}</h2>
-          <Button aria-label="상세 닫기" onClick={close}>
-            ×
-          </Button>
-        </div>
-        {row && (
-          <>
-            <p>
-              {editing ? "수정 중" : name(kinds, row.ptnr_se_cd)} ·{" "}
-              {row.biz_reg_no}
-            </p>
-            {!editing && (
-              <div className={`${styles.actions} ${styles.writeActions}`}>
+          <div className={styles.drawerTools}>
+            {row && !editing && (
+              <div className={styles.writeActions}>
                 <Can perm="UI-15.update">
-                  <Button onClick={() => setEditing(true)}>수정</Button>
+                  <Button
+                    disabled={statePending}
+                    onClick={() => setEditing(true)}
+                  >
+                    수정
+                  </Button>
                 </Can>
-                <Button aria-label="더보기" onClick={() => setMore(!more)}>
+              </div>
+            )}
+            {row && !editing && (
+              <div className={styles.moreActions}>
+                <Button
+                  aria-label="더보기"
+                  aria-haspopup="menu"
+                  aria-expanded={more}
+                  onClick={() => setMore(!more)}
+                >
                   ⋯
                 </Button>
                 {more && (
-                  <div role="menu">
+                  <div
+                    role="menu"
+                    aria-label="거래처 더보기"
+                    className={styles.moreMenu}
+                  >
                     <Button
                       role="menuitem"
                       onClick={() => {
@@ -131,7 +156,14 @@ export function PartnerDrawer({
                     <Can perm="UI-15.delete">
                       <Button
                         role="menuitem"
-                        onClick={() => onStateAction(row)}
+                        data-testid="partner-state-action"
+                        pending={statePending}
+                        disabled={!!stateError}
+                        onClick={() => {
+                          setMore(false);
+                          onStateAction(row);
+                        }}
+                        className={styles.writeActions}
                       >
                         {row.use_yn === "Y" ? "사용 중지" : "다시 사용"}
                       </Button>
@@ -140,13 +172,31 @@ export function PartnerDrawer({
                 )}
               </div>
             )}
-            {row.use_yn === "N" && (
-              <LockedBanner>
-                사용을 중지한 거래처입니다. 새 프로젝트·지급에 고를 수 없습니다.
-              </LockedBanner>
-            )}
-          </>
+            <Button
+              aria-label="상세 닫기"
+              disabled={statePending}
+              onClick={close}
+            >
+              ×
+            </Button>
+          </div>
+        </div>
+        {row && (
+          <p>
+            {editing ? "수정 중" : name(kinds, row.ptnr_se_cd)} ·{" "}
+            {row.biz_reg_no}
+          </p>
         )}
+        <ErrorBanner error={kinds.error} onRetry={kinds.retry} />
+        <ErrorBanner error={industries.error} onRetry={industries.retry} />
+        {row?.ptnr_se_cd !== "CUST" && (
+          <ErrorBanner error={banks.error} onRetry={banks.retry} />
+        )}
+        <ErrorBanner
+          error={stateError}
+          pending={statePending}
+          onRetry={() => onStateRetry?.()}
+        />
         <ErrorBanner
           error={detail.error}
           onRetry={() => void detail.reload().catch(() => {})}
@@ -179,7 +229,9 @@ export function PartnerDrawer({
                   { key: "assignments", label: "투입 내역" },
                   {
                     key: "history",
-                    label: `변경 이력 (${history.data?.length ?? 0})`,
+                    label: history.data
+                      ? `변경 이력 (${history.data.length})`
+                      : "변경 이력",
                   },
                 ]}
               />
@@ -242,11 +294,13 @@ export function PartnerDrawer({
                     />
                     {history.loading ? (
                       <Skeleton />
-                    ) : history.data?.length ? (
+                    ) : !history.error && history.data?.length ? (
                       <DataTable
                         rows={history.data}
                         total={history.data.length}
-                        rowKey={(r) => `${r.changedAt}-${r.column}`}
+                        rowKey={(r) =>
+                          `${r.changedAt}-${r.column}-${r.changeType}-${r.before}-${r.after}`
+                        }
                         columns={[
                           {
                             key: "changedAt",
@@ -317,7 +371,7 @@ function PartnerAssignments({ id }: { id: string }) {
       />
       {state.loading ? (
         <Skeleton />
-      ) : state.data?.length ? (
+      ) : !state.error && state.data?.length ? (
         <DataTable
           rows={state.data}
           total={state.data.length}

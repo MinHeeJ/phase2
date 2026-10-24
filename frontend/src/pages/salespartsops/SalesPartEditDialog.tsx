@@ -117,8 +117,10 @@ export function SalesPartEditDialog({
   const submit = () => {
     if (write.pending || write.uncertain || loading) return;
     if (mode === "name") {
-      if (!draft.bsn_part_nm.trim() || draft.bsn_part_nm.length > 30)
+      if (!draft.bsn_part_nm.trim())
         return invalid("bsn_part_nm", "파트명을 입력해 주세요.");
+      if (draft.bsn_part_nm.length > 30)
+        return invalid("bsn_part_nm", "파트명은 30자까지 입력할 수 있습니다.");
       if (draft.bsn_part_nm.trim() === part.bsn_part_nm) {
         onCancel();
         return;
@@ -152,6 +154,17 @@ export function SalesPartEditDialog({
       Number(draft.bsn_fee_amt) < 1
     )
       return invalid("bsn_fee_amt", "영업비를 입력해 주세요.");
+    if (
+      part.standards.some(
+        (standard) =>
+          standard.aply_bgn_ym >= draft.aply_bgn_ym &&
+          standard.aply_bgn_ym <= part.referenceMonth,
+      )
+    )
+      return invalid(
+        "aply_bgn_ym",
+        "적용 중이거나 지난 기준은 대체할 수 없습니다.",
+      );
     void write.save(
       () =>
         saveSalesPartStandard(part.bsn_part_id, {
@@ -172,7 +185,10 @@ export function SalesPartEditDialog({
     type = "text",
     maxLength?: number,
   ) => (
-    <div className={fields.field}>
+    <div
+      className={fields.field}
+      data-testid={`sales-part-edit-field-${key.replaceAll("_", "-")}`}
+    >
       <label htmlFor={`sales-part-edit-${key}`}>{label} *</label>
       <div className={fields.control}>
         <input

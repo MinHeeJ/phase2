@@ -167,6 +167,31 @@
 .drawerHeader h2 {
   font-size: var(--title-size);
   margin: 0;
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.drawerTools {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-shrink: 0;
+}
+.moreActions {
+  position: relative;
+}
+.moreMenu {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  z-index: 2;
+  display: grid;
+  gap: var(--space-2);
+  min-width: 160px;
+  padding: var(--space-2);
+  background: var(--surface);
+  border: 1px solid var(--divider);
+  border-radius: var(--radius-control);
+  box-shadow: var(--shadow-overlay);
 }
 .drawer .fields {
   grid-template-columns: 1fr;

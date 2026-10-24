@@ -76,6 +76,33 @@ class PartnerApiTest {
         verify(mapper).insert(argThat(w->w.id()==1&&w.no().equals("C-001")&&w.input().bank_cd()==null));
         verify(mapper).appendHistory(argThat(h->h.type().equals("INSERT")&&h.column()==null&&h.id().equals("1")&&h.actor()==null));
     }
+    @ParameterizedTest @CsvSource({
+        "CUST,ptnr_se_cd,'',구분을 골라 주세요.",
+        "CUST,ptnr_nm,'',상호를 입력해 주세요.",
+        "CUST,txinv_email_addr,'',고객사는 세금계산서 이메일이 꼭 필요합니다.",
+        "BOTH,txinv_email_addr,'',고객사는 세금계산서 이메일이 꼭 필요합니다.",
+        "VEND,bank_cd,'',은행을 골라 주세요.",
+        "BOTH,bank_cd,'',은행을 골라 주세요.",
+        "VEND,dpstr_nm,'',예금주를 입력해 주세요.",
+        "BOTH,dpstr_nm,'',예금주를 입력해 주세요."
+    })
+    void createRequiredMessagesMatchContract(String kind,String field,String value,String message)throws Exception {
+        var b=body(kind);b.put(field,value);
+        write("POST",b).andExpect(status().isBadRequest()).andExpect(jsonPath("$.field").value(field)).andExpect(jsonPath("$.message").value(message));untouched();
+    }
+    @ParameterizedTest @ValueSource(strings={"ptnr_id","ptnr_no","use_yn","created_by","upld_id"})
+    void createRejectsServerOwnedValues(String field)throws Exception {
+        var b=body("CUST");b.put(field,"1");write("POST",b).andExpect(status().isBadRequest()).andExpect(jsonPath("$.field").value(field));untouched();
+    }
+    @Test void createRejectsInactiveIndustryWithoutAllocatingIdentity()throws Exception {
+        var b=body("CUST");b.put("indty_cd","SI");when(mapper.activeCode(new PartnerCode("INDUSTRY","SI"))).thenReturn(false);
+        write("POST",b).andExpect(status().isBadRequest()).andExpect(jsonPath("$.field").value("indty_cd"));verify(mapper,never()).nextId();untouched();
+    }
+    @Test void createTrimsEmailAndAccountAndAcceptsMaximumRemark()throws Exception {
+        var b=body("BOTH");b.put("txinv_email_addr"," tax@company.co.kr ");b.put("acnt_no"," 123-456-7890 ");b.put("rmrk_desc","가".repeat(500));
+        write("POST",b).andExpect(status().isOk());
+        verify(mapper).insert(argThat(w->w.input().txinv_email_addr().equals("tax@company.co.kr")&&w.input().acnt_no().equals("123-456-7890")&&w.input().rmrk_desc().length()==500));
+    }
     @Test void publicVendorCreateClearsUnrelatedEmail()throws Exception {write("POST",body("VEND")).andExpect(status().isOk());verify(mapper).insert(argThat(w->w.input().txinv_email_addr()==null&&w.input().bank_cd().equals("KB")));}
     @Test void thousandCodeIsNotTruncated()throws Exception {when(mapper.nextId()).thenReturn(1000L);when(mapper.detail(1000)).thenReturn(both);write("POST",body("CUST")).andExpect(status().isOk());verify(mapper).insert(argThat(w->w.no().equals("C-1000")));}
     @ParameterizedTest @CsvSource({"ptnr_se_cd,''","ptnr_nm,''","biz_reg_no,123456789","txinv_email_addr,''","txinv_email_addr,invalid","bank_cd,''","acnt_no,''","acnt_no,1234567","acnt_no,1234567A","dpstr_nm,''"})

@@ -60,6 +60,7 @@ export function MenuNavigation({
     if (!location || !visible(location.screen)) return null;
     return (
       <button
+        data-testid={`menu-navigation-${draggable ? "favorite" : "recent"}-${id.toLowerCase()}`}
         type="button"
         key={id}
         draggable={draggable}
@@ -86,7 +87,11 @@ export function MenuNavigation({
     );
   };
   return (
-    <nav className={styles.navigation} aria-label="화면 탐색">
+    <nav
+      className={styles.navigation}
+      aria-label="화면 탐색"
+      data-testid="menu-navigation"
+    >
       {favorites.length > 0 && (
         <section aria-label="즐겨찾기 목록">
           <h2>즐겨찾기</h2>
@@ -119,6 +124,7 @@ export function MenuNavigation({
           return (
             <section
               key={group.menuId}
+              data-testid={`menu-navigation-group-${group.menuId}`}
               className={styles.menuGroup}
               onMouseEnter={(event) =>
                 event.currentTarget.style.setProperty(
@@ -134,6 +140,7 @@ export function MenuNavigation({
               }
             >
               <button
+                data-testid={`menu-navigation-group-button-${group.menuId}`}
                 type="button"
                 aria-expanded={target ? undefined : open}
                 className={styles.groupButton}
@@ -164,6 +171,7 @@ export function MenuNavigation({
                     const ChildIcon = icons[child.icon ?? group.icon ?? ""];
                     return (
                       <button
+                        data-testid={`menu-navigation-child-${group.menuId}-${child.menuId}`}
                         type="button"
                         key={child.menuId}
                         onClick={() => {

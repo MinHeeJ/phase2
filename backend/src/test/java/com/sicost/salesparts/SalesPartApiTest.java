@@ -81,10 +81,64 @@ class SalesPartApiTest {
     @Test void closedMonthRefusesBeforeAnyInsert()throws Exception {var body=valid();body.put("aply_bgn_ym","2026-09");create(body).andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("CLOSED_MONTH")).andExpect(jsonPath("$.field").value("aply_bgn_ym"));untouched();}
     @Test void noClosingAllowsExplicitPastMonth()throws Exception {when(mapper.lastClosed()).thenReturn(null);var body=valid();body.put("aply_bgn_ym","2025-01");create(body).andExpect(status().isOk());}
     @Test void rejectsUnapprovedLeaderAccountField()throws Exception {var body=valid();body.put("ldr_user_id",1);create(body).andExpect(status().isBadRequest()).andExpect(jsonPath("$.field").value("ldr_user_id"));untouched();}
+    @ParameterizedTest @ValueSource(strings={"bsn_part_nm","ldr_nm","aply_bgn_ym","prft_dstrb_rt","bsn_fee_amt"})
+    void nullRequiredValueNeverWrites(String field)throws Exception {
+        var body=valid();body.put(field,null);
+        create(body).andExpect(status().isBadRequest()).andExpect(jsonPath("$.field").value(field));untouched();
+    }
+    @Test void feeOutsideBigintNeverWrites()throws Exception {
+        var body=valid();body.put("bsn_fee_amt",new java.math.BigInteger("9223372036854775808"));
+        create(body).andExpect(status().isBadRequest()).andExpect(jsonPath("$.field").value("bsn_fee_amt"));untouched();
+    }
     @Test void validationCreateZeroFeeHasLiteralPathAndNoPartStandardOrAudit()throws Exception {
         var input=valid();input.put("bsn_fee_amt",0);
         mvc.perform(post("/api/sales-parts").contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(input)))
             .andExpect(status().isBadRequest()).andExpect(jsonPath("$.field").value("bsn_fee_amt"))
             .andExpect(jsonPath("$.message").isNotEmpty());untouched();
+    }
+    @Test void defaultListOrderingIsStableAndIncludesEmptyCounts()throws Exception {
+        mvc.perform(get("/api/sales-parts")).andExpect(status().isOk())
+            .andExpect(jsonPath("$.success").value(true))
+            .andExpect(jsonPath("$.data.items[1].referenceMonth").value("2026-10"))
+            .andExpect(jsonPath("$.data.items[1].peopleCount").value(0))
+            .andExpect(jsonPath("$.data.items[1].projectCount").value(0));
+        verify(mapper).parts(argThat(q->q.order().equals("sort_seq ASC, bsn_part_id ASC")&&q.offset()==0&&q.size()==50));
+        untouched();
+    }
+    @ParameterizedTest @ValueSource(strings={"bsn_part_nm","currentStandard.ldr_nm","currentStandard.prft_dstrb_rt","currentStandard.bsn_fee_amt","currentStandard.aply_bgn_ym","peopleCount","projectCount","use_yn"})
+    void everySortableVisibleColumnUsesAnIdTieBreaker(String column)throws Exception {
+        mvc.perform(get("/api/sales-parts").param("sort",column+",desc")).andExpect(status().isOk());
+        verify(mapper).parts(argThat(q->q.order().endsWith(" desc, bsn_part_id ASC")));
+        untouched();
+    }
+    @Test void emptyListReturnsAnEmptyPageWithoutSyntheticRows()throws Exception {
+        when(mapper.parts(any())).thenReturn(Collections.emptyList());when(mapper.partCount()).thenReturn(0L);
+        mvc.perform(get("/api/sales-parts")).andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.items").isEmpty()).andExpect(jsonPath("$.data.total").value(0))
+            .andExpect(jsonPath("$.data.page").value(1)).andExpect(jsonPath("$.data.size").value(50));
+        verify(mapper,never()).standards(anyLong(),anyString());untouched();
+    }
+    @ParameterizedTest @ValueSource(strings={"0","-1","not-a-part","9223372036854775808"})
+    void malformedDetailIdentityIsNotFoundWithoutQueryingStorage(String id)throws Exception {
+        mvc.perform(get("/api/sales-parts/{id}",id)).andExpect(status().isNotFound())
+            .andExpect(jsonPath("$.success").value(false));
+        verify(mapper,never()).part(anyLong(),any());untouched();
+    }
+    @Test void lastClosedDecemberRollsIntoTheNextYear()throws Exception {
+        when(mapper.lastClosed()).thenReturn("2026-12");
+        mvc.perform(get("/api/sales-parts/2")).andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.lastClosedMonth").value("2026-12"))
+            .andExpect(jsonPath("$.data.firstAllowedMonth").value("2027-01"));
+        untouched();
+    }
+    @ParameterizedTest @ValueSource(strings={"/api/sales-parts","/api/sales-parts/2"})
+    void databaseFailureUsesSafeErrorEnvelope(String path)throws Exception {
+        if(path.equals("/api/sales-parts")) when(mapper.parts(any())).thenThrow(new org.springframework.dao.DataAccessResourceFailureException("private SQL storage detail"));
+        else when(mapper.part(eq(2L),any())).thenThrow(new org.springframework.dao.DataAccessResourceFailureException("private SQL storage detail"));
+        var result=mvc.perform(get(path)).andExpect(status().isInternalServerError())
+            .andExpect(jsonPath("$.code").value("SERVER_ERROR"))
+            .andExpect(jsonPath("$.success").value(false)).andExpect(jsonPath("$.requestId").isNotEmpty()).andReturn();
+        assertThat(result.getResponse().getContentAsString()).doesNotContain("private SQL storage detail");
+        untouched();
     }
 }

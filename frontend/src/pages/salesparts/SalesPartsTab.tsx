@@ -34,7 +34,7 @@ export type SalesPartActionHandler = (
   refresh: () => Promise<unknown>,
 ) => void;
 const standardTone = (status: SalesPartStandard["status"]) =>
-  status === "예정" ? "warning" : status === "적용 중" ? "success" : "neutral";
+  status === "예정" ? "warning" : status === "적용 중" ? "success" : "locked";
 const period = (standard: SalesPartStandard | null) =>
   standard
     ? `${standard.aply_bgn_ym} ~ ${standard.aply_end_ym ?? "현재"}`
@@ -262,7 +262,10 @@ export function SalesPartsTab({
                   onClick={() => setSelected(row.bsn_part_id)}
                 >
                   {renderExport && (
-                    <td onClick={(e) => e.stopPropagation()}>
+                    <td
+                      data-testid={`sales-part-select-cell-${row.bsn_part_id}`}
+                      onClick={(e) => e.stopPropagation()}
+                    >
                       <input
                         data-testid={`sales-part-select-${row.bsn_part_id}`}
                         type="checkbox"
@@ -301,7 +304,10 @@ export function SalesPartsTab({
                   <td>
                     {row.scheduledChanges.length
                       ? row.scheduledChanges.map((s) => (
-                          <div key={s.part_std_hist_id}>
+                          <div
+                            key={s.part_std_hist_id}
+                            data-testid={`sales-part-scheduled-change-${row.bsn_part_id}-${s.part_std_hist_id}`}
+                          >
                             <Badge tone="warning">
                               {s.aply_bgn_ym}부터 {s.prft_dstrb_rt}%
                             </Badge>
@@ -384,16 +390,21 @@ export function SalesPartDetailPanel({
   const [menu, setMenu] = useState(false);
   const panel = useRef<HTMLElement>(null);
   useEffect(() => {
+    setMenu(false);
+  }, [part?.bsn_part_id, loading, error]);
+  useEffect(() => {
     const previous = document.activeElement as HTMLElement | null;
     panel.current?.focus();
     return () => previous?.focus();
   }, []);
   const action = (key: SalesPartAction) => {
     setMenu(false);
-    if (part) onAction?.(key, part, refresh);
+    if (part && !loading && !error && part.hq_yn !== "Y")
+      onAction?.(key, part, refresh);
   };
   return (
     <div
+      data-testid="sales-part-detail-backdrop"
       className={styles.detailBackdrop}
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
@@ -444,7 +455,7 @@ export function SalesPartDetailPanel({
               </p>
             )}
           </div>
-          {part && part.hq_yn !== "Y" && (
+          {part && !loading && !error && part.hq_yn !== "Y" && (
             <div className={styles.writeAction}>
               <Can perm="UI-15.update">
                 <Button

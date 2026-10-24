@@ -216,9 +216,7 @@ describe("영업 파트 목록·상세", () => {
     ]);
     expect(within(drawer).getByText("예정").className).toContain("warning");
     expect(within(drawer).getByText("적용 중").className).toContain("success");
-    expect(within(drawer).getByText("지난 기준").className).toContain(
-      "neutral",
-    );
+    expect(within(drawer).getByText("지난 기준").className).toContain("locked");
   });
   it("HQ hides all mutation actions", async () => {
     render(<SalesPartsTab onAction={vi.fn()} />);
@@ -346,6 +344,107 @@ describe("영업 파트 목록·상세", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: "다시 시도" }));
     expect(retry).toHaveBeenCalledOnce();
+  });
+  it("shows the last closed month and next month without inventing bounds", () => {
+    const props = {
+      loading: false,
+      error: null,
+      onRetry: vi.fn(),
+      onClose: vi.fn(),
+      refresh: async () => {},
+    };
+    const view = render(
+      <SalesPartDetailPanel
+        {...props}
+        part={{
+          ...part,
+          lastClosedMonth: "2026-12",
+          firstAllowedMonth: "2027-01",
+        }}
+      />,
+    );
+    expect(screen.getByText(/마감된 달\(2026-12\)/)).toHaveTextContent(
+      /새 기준은 2027-01부터 넣을 수 있습니다/,
+    );
+    view.rerender(
+      <SalesPartDetailPanel
+        {...props}
+        part={{
+          ...part,
+          lastClosedMonth: null,
+          firstAllowedMonth: null,
+        }}
+      />,
+    );
+    expect(
+      screen.getByText(
+        "마감 이력이 없습니다. 적용 시작월을 직접 선택할 수 있습니다.",
+      ),
+    ).toBeVisible();
+    expect(screen.queryByText(/마감된 달/)).toBeNull();
+  });
+  it("does not offer stale mutation actions while detail reloads or fails", () => {
+    const onAction = vi.fn();
+    const props = {
+      part,
+      loading: false,
+      error: null,
+      onAction,
+      onRetry: vi.fn(),
+      onClose: vi.fn(),
+      refresh: async () => {},
+    };
+    const view = render(<SalesPartDetailPanel {...props} />);
+    fireEvent.click(screen.getByRole("button", { name: "파트 더보기" }));
+    expect(screen.getByRole("menuitem", { name: "사용 중지" })).toBeVisible();
+    view.rerender(<SalesPartDetailPanel {...props} loading />);
+    expect(screen.queryByRole("button", { name: "기준 변경" })).toBeNull();
+    expect(screen.queryByRole("menu")).toBeNull();
+    view.rerender(
+      <SalesPartDetailPanel
+        {...props}
+        error={new ApiFailure("조회 실패", 500, null)}
+      />,
+    );
+    expect(screen.getByRole("alert")).toHaveTextContent("조회 실패");
+    expect(screen.queryByRole("button", { name: "파트 더보기" })).toBeNull();
+    expect(screen.queryByText("기준 이력")).toBeNull();
+    view.rerender(<SalesPartDetailPanel {...props} />);
+    fireEvent.click(screen.getByRole("button", { name: "파트 더보기" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "파트명 수정" }));
+    expect(onAction).toHaveBeenCalledWith("name", part, props.refresh);
+  });
+  it("shows a detail request failure and retries the selected part", async () => {
+    render(<SalesPartsTab onAction={vi.fn()} />);
+    await screen.findByText("총 3건");
+    fetcher.mockResolvedValueOnce(failed(null, "NOT_FOUND", 404));
+    fireEvent.click(screen.getByRole("button", { name: "영업 파트" }));
+    const drawer = await screen.findByRole("dialog", {
+      name: "영업 파트 상세",
+    });
+    expect(await within(drawer).findByRole("alert")).toHaveTextContent(
+      "입력 오류",
+    );
+    expect(within(drawer).queryByText("기준 이력")).toBeNull();
+    fireEvent.click(within(drawer).getByRole("button", { name: "다시 시도" }));
+    await within(drawer).findByText("2026-10 기준");
+    expect(
+      within(drawer).getByRole("button", { name: "기준 변경" }),
+    ).toBeEnabled();
+    expect(
+      fetcher.mock.calls.filter(([url]) => url === "/api/sales-parts/2"),
+    ).toHaveLength(2);
+  });
+  it("keeps future-only list values separate and renders no invented current values", async () => {
+    rows = [{ ...part, currentStandard: null, standards: [future] }];
+    render(<SalesPartsTab />);
+    const row = await screen.findByTestId("sales-part-row-2");
+    expect(within(row).getByText("2026-11부터 45%")).toBeVisible();
+    expect(within(row).queryByText("파트장")).toBeNull();
+    expect(within(row).queryByText("40%")).toBeNull();
+    expect(within(row).getAllByText("–")).toHaveLength(4);
+    expect(within(row).getByText("0명")).toBeVisible();
+    expect(within(row).getByText("0건")).toBeVisible();
   });
 });
 

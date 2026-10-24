@@ -299,6 +299,238 @@ describe("UI-15 uploads", () => {
       ),
     ).toBe(true);
   });
+  it("mapping requires a code and marks its field without writing", async () => {
+    mount();
+    await inspect();
+    fireEvent.click(screen.getByTestId("upload-mapping-1"));
+    await screen.findByRole("option", { name: "SI" });
+    fireEvent.change(screen.getByLabelText("주/보조"), {
+      target: { value: "SUB" },
+    });
+    fireEvent.click(screen.getByTestId("upload-map-save"));
+    expect(await screen.findByText("대응할 코드를 고르세요.")).toBeVisible();
+    expect(screen.getByLabelText("코드")).toHaveAttribute(
+      "aria-invalid",
+      "true",
+    );
+    expect(
+      fetcher.mock.calls.some((c) => c[0] === "/api/admin/excel-maps"),
+    ).toBe(false);
+    fireEvent.change(screen.getByLabelText("코드"), {
+      target: { value: "SI" },
+    });
+    expect(
+      screen.queryByText("대응할 코드를 고르세요."),
+    ).not.toBeInTheDocument();
+  });
+  it.each(["PARTNER_KIND", "INDUSTRY", "BANK"] as const)(
+    "mapping loads only the issue's %s group and sends explicit SUB",
+    async (group) => {
+      validation = {
+        ...result,
+        items: [{ ...result.items[0], fix: { type: "MAPPING", group } }],
+      };
+      mount();
+      await inspect();
+      fireEvent.click(screen.getByTestId("upload-mapping-0"));
+      await screen.findByRole("option", { name: "SI" });
+      expect(screen.getByLabelText("엑셀 표기")).toHaveValue("핀테크");
+      expect(screen.getByLabelText("엑셀 표기")).toHaveAttribute("readonly");
+      expect(screen.getByLabelText("그룹")).toHaveValue(group);
+      expect(screen.getByLabelText("그룹")).toHaveAttribute("readonly");
+      expect(screen.getByLabelText("코드")).toHaveValue("");
+      expect(screen.getByLabelText("주/보조")).toHaveValue("");
+      expect(
+        fetcher.mock.calls
+          .filter((c) => c[0].startsWith("/api/codes/"))
+          .map((c) => c[0]),
+      ).toEqual([`/api/codes/${group}`]);
+      fireEvent.change(screen.getByLabelText("코드"), {
+        target: { value: "SI" },
+      });
+      fireEvent.change(screen.getByLabelText("주/보조"), {
+        target: { value: "SUB" },
+      });
+      fireEvent.click(screen.getByTestId("upload-map-save"));
+      expect(
+        await screen.findByText(
+          "표기 대응을 저장했습니다. 다시 검사를 실행해 주세요.",
+        ),
+      ).toBeVisible();
+      const call = fetcher.mock.calls.find(
+        (c) => c[0] === "/api/admin/excel-maps",
+      )!;
+      expect(call[1].method).toBe("POST");
+      expect(JSON.parse(call[1].body)).toEqual({
+        excel_lbl_nm: "핀테크",
+        trns_cd_grp_id: group,
+        trns_cd: "SI",
+        map_role_cd: "SUB",
+        rmrk_desc: "",
+      });
+      expect(
+        fetcher.mock.calls.some(
+          (c) => c[0].endsWith("/recheck") || c[0].endsWith("/apply"),
+        ),
+      ).toBe(false);
+      expect(screen.getByTestId("upload-recheck").className).toContain(
+        "primary",
+      );
+      expect(screen.getByTestId("upload-apply")).toBeDisabled();
+    },
+  );
+  it("mapping with an empty option list cannot save a fabricated code", async () => {
+    const original = fetcher.getMockImplementation()!;
+    fetcher.mockImplementation(async (url: string, init?: RequestInit) =>
+      url === "/api/codes/INDUSTRY" ? ok([]) : original(url, init),
+    );
+    mount();
+    await inspect();
+    fireEvent.click(screen.getByTestId("upload-mapping-1"));
+    expect(
+      await screen.findByText("이 그룹에 선택할 수 있는 코드가 없습니다."),
+    ).toBeVisible();
+    expect(screen.getByLabelText("코드")).toBeDisabled();
+    expect(screen.getByTestId("upload-map-save")).toBeDisabled();
+    expect(
+      screen.getAllByRole("option").map((node) => node.textContent),
+    ).not.toContain("SI");
+  });
+  it.each([
+    [400, "INVALID_INPUT", "trns_cd", "대응할 코드를 고르세요."],
+    [400, "INVALID_INPUT", "map_role_cd", "주/보조를 고르세요."],
+    [404, "NOT_FOUND", null, "선택한 코드가 없습니다."],
+    [409, "DUPLICATE_CODE", null, "이미 있는 대응입니다."],
+    [500, "SERVER_ERROR", null, "저장할 수 없습니다."],
+  ])(
+    "mapping failure %s %s %s preserves selections and the rejected result",
+    async (status, code, field, message) => {
+      const original = fetcher.getMockImplementation()!;
+      fetcher.mockImplementation(async (url: string, init?: RequestInit) =>
+        url === "/api/admin/excel-maps"
+          ? new Response(
+              JSON.stringify({ success: false, code, field, message }),
+              { status: Number(status) },
+            )
+          : original(url, init),
+      );
+      mount();
+      await inspect();
+      fireEvent.click(screen.getByTestId("upload-mapping-1"));
+      await screen.findByRole("option", { name: "SI" });
+      fireEvent.change(screen.getByLabelText("코드"), {
+        target: { value: "SI" },
+      });
+      fireEvent.change(screen.getByLabelText("주/보조"), {
+        target: { value: "SUB" },
+      });
+      fireEvent.click(screen.getByTestId("upload-map-save"));
+      expect(await screen.findByText(String(message))).toBeVisible();
+      expect(screen.getByLabelText("코드")).toHaveValue("SI");
+      expect(screen.getByLabelText("주/보조")).toHaveValue("SUB");
+      if (field)
+        expect(
+          screen.getByTestId(
+            field === "trns_cd" ? "upload-map-code" : "upload-map-role",
+          ),
+        ).toHaveAttribute("aria-invalid", "true");
+      expect(screen.getByTestId("upload-apply")).toBeDisabled();
+      expect(screen.getByTestId("upload-recheck").className).not.toContain(
+        "primary",
+      );
+      expect(
+        screen.queryByText(
+          "표기 대응을 저장했습니다. 다시 검사를 실행해 주세요.",
+        ),
+      ).not.toBeInTheDocument();
+      expect(closed).not.toHaveBeenCalled();
+      fireEvent.click(screen.getByTestId("upload-map-cancel"));
+      expect(screen.getByTestId("upload-issue-1")).toHaveTextContent("핀테크");
+    },
+  );
+  it("mapping pending blocks duplicate save, edits and Escape", async () => {
+    const original = fetcher.getMockImplementation()!;
+    let finish!: (response: Response) => void;
+    fetcher.mockImplementation(async (url: string, init?: RequestInit) =>
+      url === "/api/admin/excel-maps"
+        ? new Promise<Response>((resolve) => {
+            finish = resolve;
+          })
+        : original(url, init),
+    );
+    mount();
+    await inspect();
+    fireEvent.click(screen.getByTestId("upload-mapping-1"));
+    await screen.findByRole("option", { name: "SI" });
+    fireEvent.change(screen.getByLabelText("코드"), {
+      target: { value: "SI" },
+    });
+    fireEvent.change(screen.getByLabelText("주/보조"), {
+      target: { value: "MAIN" },
+    });
+    fireEvent.click(screen.getByTestId("upload-map-save"));
+    expect(screen.getByTestId("upload-map-save")).toBeDisabled();
+    expect(screen.getByLabelText("코드")).toBeDisabled();
+    expect(screen.getByLabelText("주/보조")).toBeDisabled();
+    expect(screen.getByTestId("upload-map-cancel")).toBeDisabled();
+    fireEvent.keyDown(screen.getByTestId("upload-mapping-dialog"), {
+      key: "Escape",
+    });
+    fireEvent.click(screen.getByTestId("upload-map-save"));
+    expect(screen.getByTestId("upload-mapping-dialog")).toBeVisible();
+    expect(
+      fetcher.mock.calls.filter((c) => c[0] === "/api/admin/excel-maps"),
+    ).toHaveLength(1);
+    finish(ok(undefined));
+    await waitFor(() =>
+      expect(
+        screen.queryByTestId("upload-mapping-dialog"),
+      ).not.toBeInTheDocument(),
+    );
+  });
+  it("recheck retains remaining errors and follows the newly returned upload id", async () => {
+    const original = fetcher.getMockImplementation()!;
+    fetcher.mockImplementation(async (url: string, init?: RequestInit) =>
+      url === "/api/uploads/7/recheck"
+        ? ok({ ...result, upldId: "8" })
+        : original(url, init),
+    );
+    mount();
+    await inspect();
+    fireEvent.click(screen.getByTestId("upload-mapping-1"));
+    await screen.findByRole("option", { name: "SI" });
+    fireEvent.change(screen.getByLabelText("코드"), {
+      target: { value: "SI" },
+    });
+    fireEvent.change(screen.getByLabelText("주/보조"), {
+      target: { value: "MAIN" },
+    });
+    fireEvent.click(screen.getByTestId("upload-map-save"));
+    await screen.findByText(
+      "표기 대응을 저장했습니다. 다시 검사를 실행해 주세요.",
+    );
+    fireEvent.click(screen.getByTestId("upload-recheck"));
+    await waitFor(() =>
+      expect(screen.getByTestId("upload-recheck")).toBeEnabled(),
+    );
+    expect(
+      screen.queryByText(
+        "표기 대응을 저장했습니다. 다시 검사를 실행해 주세요.",
+      ),
+    ).not.toBeInTheDocument();
+    expect(screen.getByTestId("upload-recheck").className).not.toContain(
+      "primary",
+    );
+    expect(screen.getByTestId("upload-apply")).toBeDisabled();
+    expect(screen.getByTestId("upload-issue-1")).toHaveTextContent("핀테크");
+    fireEvent.click(screen.getByTestId("upload-recheck"));
+    await waitFor(() =>
+      expect(screen.getByTestId("upload-apply")).toBeEnabled(),
+    );
+    expect(
+      fetcher.mock.calls.some((c) => c[0] === "/api/uploads/8/recheck"),
+    ).toBe(true);
+  });
   it("mapping option failure is recoverable and does not invent options", async () => {
     const original = fetcher.getMockImplementation()!;
     let failed = true;
@@ -372,6 +604,91 @@ describe("UI-15 uploads", () => {
       expect(screen.getByTestId("upload-selection")).toBeVisible();
     },
   );
+  it("downloads the rejected upload by id with original-name suffix without applying", async () => {
+    const click = vi
+      .spyOn(HTMLAnchorElement.prototype, "click")
+      .mockImplementation(function (this: HTMLAnchorElement) {
+        expect(this.download).toBe("거래처_오류.xlsx");
+        expect(this.href).toContain("blob:test");
+      });
+    mount();
+    await inspect();
+    fireEvent.click(screen.getByRole("button", { name: "오류 목록 내려받기" }));
+    await waitFor(() => expect(click).toHaveBeenCalledOnce());
+    expect(
+      fetcher.mock.calls
+        .filter((c) => c[0].endsWith("/error-file"))
+        .map((c) => c[0]),
+    ).toEqual(["/api/uploads/7/error-file"]);
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:test");
+    expect(screen.getByTestId("upload-result")).toBeVisible();
+    expect(screen.getByTestId("upload-apply")).toBeDisabled();
+    expect(applied).not.toHaveBeenCalled();
+    expect(closed).not.toHaveBeenCalled();
+  });
+  it("download pending blocks repeated download and close", async () => {
+    const original = fetcher.getMockImplementation()!;
+    let finish!: (response: Response) => void;
+    fetcher.mockImplementation(async (url: string, init?: RequestInit) =>
+      url.endsWith("/error-file")
+        ? new Promise<Response>((resolve) => {
+            finish = resolve;
+          })
+        : original(url, init),
+    );
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+    mount();
+    await inspect();
+    fireEvent.click(screen.getByTestId("upload-error-download"));
+    expect(await screen.findByText("파일 준비 중")).toBeVisible();
+    expect(screen.getByTestId("upload-close")).toBeDisabled();
+    expect(screen.getByTestId("upload-error-download")).toBeDisabled();
+    fireEvent.click(screen.getByTestId("upload-error-download"));
+    expect(
+      fetcher.mock.calls.filter((c) => c[0].endsWith("/error-file")),
+    ).toHaveLength(1);
+    finish(new Response("xlsx"));
+    await waitFor(() =>
+      expect(screen.getByTestId("upload-close")).toBeEnabled(),
+    );
+  });
+  it("download failure retry repeats the download, not recheck or apply", async () => {
+    const original = fetcher.getMockImplementation()!;
+    let failed = false;
+    fetcher.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url.endsWith("/error-file") && !failed) {
+        failed = true;
+        return new Response(
+          JSON.stringify({
+            message: "원본 파일이 없습니다. 다시 올려 주세요.",
+          }),
+          { status: 404 },
+        );
+      }
+      return original(url, init);
+    });
+    const click = vi
+      .spyOn(HTMLAnchorElement.prototype, "click")
+      .mockImplementation(() => {});
+    mount();
+    await inspect();
+    fireEvent.click(screen.getByTestId("upload-error-download"));
+    expect(
+      await screen.findByText("원본 파일이 없습니다. 다시 올려 주세요."),
+    ).toBeVisible();
+    expect(screen.getByTestId("upload-issue-0")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "다시 시도" }));
+    await waitFor(() => expect(click).toHaveBeenCalledOnce());
+    expect(
+      fetcher.mock.calls.filter((c) => c[0].endsWith("/error-file")),
+    ).toHaveLength(2);
+    expect(
+      fetcher.mock.calls.some(
+        (c) => c[0].endsWith("/recheck") || c[0].endsWith("/apply"),
+      ),
+    ).toBe(false);
+    expect(closed).not.toHaveBeenCalled();
+  });
   it("download failures appear in current dialog", async () => {
     mount();
     fetcher.mockResolvedValueOnce(
@@ -401,5 +718,51 @@ describe("UI-15 uploads", () => {
       fetcher.mock.calls.filter((c) => c[0].startsWith("/api/partners?"))
         .length,
     ).toBe(before + 1);
+  });
+  it("missing original offers a fresh file without losing the rejected result first", async () => {
+    const original = fetcher.getMockImplementation()!;
+    fetcher.mockImplementation(async (url: string, init?: RequestInit) =>
+      url.endsWith("/recheck")
+        ? new Response(
+            JSON.stringify({
+              success: false,
+              code: "NOT_FOUND",
+              message: "원본 파일이 없습니다. 다시 올려 주세요.",
+            }),
+            { status: 404 },
+          )
+        : original(url, init),
+    );
+    mount();
+    await inspect();
+    fireEvent.click(screen.getByTestId("upload-recheck"));
+    await screen.findByText("원본 파일이 없습니다. 다시 올려 주세요.");
+    expect(screen.getByTestId("upload-issue-0")).toBeVisible();
+    expect(screen.getByTestId("upload-apply")).toBeDisabled();
+    fireEvent.click(screen.getByTestId("upload-again"));
+    expect(screen.getByTestId("upload-selection")).toBeVisible();
+    expect(screen.getByTestId("upload-submit")).toBeDisabled();
+    expect(
+      fetcher.mock.calls.filter((c) => c[0].endsWith("/apply")),
+    ).toHaveLength(0);
+  });
+  it("confirmed apply closes even when subsequent list refresh fails", async () => {
+    validation = clean;
+    applied.mockRejectedValueOnce(new Error("list refresh failed"));
+    mount();
+    await inspect();
+    fireEvent.click(screen.getByTestId("upload-apply"));
+    await waitFor(() => expect(closed).toHaveBeenCalledOnce());
+    expect(applied).toHaveBeenCalledWith({ upldId: "9", appliedRows: 5 });
+    expect(
+      fetcher.mock.calls.filter((c) => c[0].endsWith("/apply")),
+    ).toHaveLength(1);
+  });
+  it("accepts the inclusive ten binary megabyte client boundary", () => {
+    mount();
+    choose(new File([new Uint8Array(10 * 1024 * 1024)], "boundary.xlsx"));
+    expect(screen.getByText("boundary.xlsx")).toBeVisible();
+    expect(screen.getByTestId("upload-submit")).toBeEnabled();
+    expect(fetcher).not.toHaveBeenCalled();
   });
 });

@@ -36,13 +36,15 @@ function MappingDialog({
   const busy = useRef(false);
   const save = async () => {
     if (busy.current) return;
-    if (!code || !role) {
+    const validCode = codes.codes.some((item) => item.code === code);
+    const validRole = role === "MAIN" || role === "SUB";
+    if (!validCode || !validRole) {
       setError(
         new ApiFailure(
-          !code ? "대응할 코드를 고르세요." : "주/보조를 고르세요.",
+          !validCode ? "대응할 코드를 고르세요." : "주/보조를 고르세요.",
           400,
           null,
-          !code ? "trns_cd" : "map_role_cd",
+          !validCode ? "trns_cd" : "map_role_cd",
         ),
       );
       return;
@@ -95,15 +97,41 @@ function MappingDialog({
           />
         </label>
         <ErrorBanner error={codes.error} onRetry={codes.retry} />
-        <ErrorBanner error={error} onRetry={() => setError(null)} />
+        <ErrorBanner
+          error={
+            error?.field === "trns_cd" || error?.field === "map_role_cd"
+              ? null
+              : error
+          }
+          pending={pending}
+          onRetry={() => setError(null)}
+        />
+        {codes.loading && <p role="status">코드 불러오는 중</p>}
+        {!codes.loading && !codes.error && codes.codes.length === 0 && (
+          <p className={styles.info}>
+            이 그룹에 선택할 수 있는 코드가 없습니다.
+          </p>
+        )}
         <label>
           코드
           <select
             data-testid="upload-map-code"
             aria-label="코드"
             value={code}
-            disabled={pending || codes.loading}
-            onChange={(e) => setCode(e.target.value)}
+            disabled={
+              pending ||
+              codes.loading ||
+              !!codes.error ||
+              codes.codes.length === 0
+            }
+            aria-invalid={error?.field === "trns_cd"}
+            aria-describedby={
+              error?.field === "trns_cd" ? "upload-map-code-error" : undefined
+            }
+            onChange={(e) => {
+              setCode(e.target.value);
+              setError(null);
+            }}
           >
             <option value="">선택해 주세요</option>
             {codes.codes.map((c) => (
@@ -113,6 +141,15 @@ function MappingDialog({
             ))}
           </select>
         </label>
+        {error?.field === "trns_cd" && (
+          <p
+            id="upload-map-code-error"
+            role="alert"
+            className={styles.fieldError}
+          >
+            {error.message}
+          </p>
+        )}
         <label>
           주/보조
           <select
@@ -120,20 +157,41 @@ function MappingDialog({
             aria-label="주/보조"
             value={role}
             disabled={pending}
-            onChange={(e) => setRole(e.target.value)}
+            aria-invalid={error?.field === "map_role_cd"}
+            aria-describedby={
+              error?.field === "map_role_cd"
+                ? "upload-map-role-error"
+                : undefined
+            }
+            onChange={(e) => {
+              setRole(e.target.value);
+              setError(null);
+            }}
           >
             <option value="">선택해 주세요</option>
             <option value="MAIN">주</option>
             <option value="SUB">보조</option>
           </select>
         </label>
+        {error?.field === "map_role_cd" && (
+          <p
+            id="upload-map-role-error"
+            role="alert"
+            className={styles.fieldError}
+          >
+            {error.message}
+          </p>
+        )}
+        <p className={styles.info}>저장한 뒤 다시 검사를 실행해 주세요.</p>
         <ActionBar
           primary={
             <Button
               data-testid="upload-map-save"
               variant="primary"
               pending={pending}
-              disabled={!!codes.error || codes.loading}
+              disabled={
+                !!codes.error || codes.loading || codes.codes.length === 0
+              }
               onClick={() => void save()}
             >
               저장
@@ -171,6 +229,7 @@ export function UploadDialogs({
     [mapped, setMapped] = useState(false);
   const busy = useRef(false);
   const pending = !!phase;
+  const lastDownload = useRef<{ path: string; name: string } | null>(null);
   const choose = (chosen?: File) => {
     if (!chosen || pending) return;
     setError(null);
@@ -201,6 +260,7 @@ export function UploadDialogs({
   };
   const run = async (kind: "validate" | "recheck" | "apply") => {
     if (busy.current) return;
+    lastDownload.current = null;
     busy.current = true;
     setError(null);
     setPhase(
@@ -219,8 +279,11 @@ export function UploadDialogs({
         show(await saveUploadRecheck(result.upldId));
       else if (kind === "apply" && result?.token && result.errorRows === 0) {
         const applied = await saveValidatedUploadApply(result.token);
-        await onApplied(applied);
-        onClose();
+        try {
+          await onApplied(applied);
+        } finally {
+          onClose();
+        }
       }
     } catch (e) {
       const failure = uploadFailure(e);
@@ -237,6 +300,7 @@ export function UploadDialogs({
   };
   const download = async (path: string, name: string) => {
     if (busy.current) return;
+    lastDownload.current = { path, name };
     busy.current = true;
     setPhase("파일 준비 중");
     setError(null);
@@ -361,11 +425,21 @@ export function UploadDialogs({
             error={error}
             pending={pending}
             onRetry={() => {
-              if (result.upldId) void run("recheck");
+              if (lastDownload.current)
+                void download(
+                  lastDownload.current.path,
+                  lastDownload.current.name,
+                );
+              else if (result.upldId) void run("recheck");
               else setError(null);
             }}
           />
           {phase && <p role="status">{phase}</p>}
+          {mapped && (
+            <p role="status" className={styles.info}>
+              표기 대응을 저장했습니다. 다시 검사를 실행해 주세요.
+            </p>
+          )}
           <div className={styles.tools}>
             {result.upldId && (
               <Button
@@ -377,7 +451,8 @@ export function UploadDialogs({
                 다시 검사
               </Button>
             )}
-            {!result.token && result.errorRows === 0 && (
+            {((!result.token && result.errorRows === 0) ||
+              error?.status === 404) && (
               <Button
                 data-testid="upload-again"
                 disabled={pending}
@@ -436,15 +511,17 @@ export function UploadDialogs({
                     <td>{item.rawValue ?? "–"}</td>
                     <td>
                       {item.message}
-                      {item.fix && (
-                        <Button
-                          data-testid={`upload-mapping-${index}`}
-                          small
-                          disabled={pending}
-                          onClick={() => setMapping(item)}
-                        >
-                          대응 등록
-                        </Button>
+                      {item.fix?.type === "MAPPING" && (
+                        <Can perm="UI-27.create">
+                          <Button
+                            data-testid={`upload-mapping-${index}`}
+                            small
+                            disabled={pending}
+                            onClick={() => setMapping(item)}
+                          >
+                            대응 등록
+                          </Button>
+                        </Can>
                       )}
                     </td>
                   </tr>

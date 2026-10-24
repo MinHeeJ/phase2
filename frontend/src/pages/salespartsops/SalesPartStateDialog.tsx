@@ -19,8 +19,18 @@ export function SalesPartStateDialog({
   onClose: () => void;
   onSaved: (message: string) => void;
 }) {
-  const write = useAdminWrite(reload),
-    started = useRef(false);
+  const started = useRef(false),
+    enabled = useRef(false),
+    recovering = useRef(false);
+  const successMessage =
+    action === "disable"
+      ? "사용을 중지했습니다."
+      : `${part.bsn_part_nm}을 다시 사용합니다.`;
+  const write = useAdminWrite(async () => {
+    await reload();
+    if (action === "enable" && enabled.current && recovering.current)
+      onSaved(successMessage);
+  });
   const blocked =
     action === "disable" &&
     (part.peopleCount > 0 ||
@@ -28,16 +38,13 @@ export function SalesPartStateDialog({
       write.error?.code === "PART_IN_USE");
   const run = () =>
     write.save(
-      () =>
-        action === "disable"
-          ? saveSalesPartDisable(part.bsn_part_id)
-          : saveSalesPartEnable(part.bsn_part_id),
-      () =>
-        onSaved(
-          action === "disable"
-            ? "사용을 중지했습니다."
-            : `${part.bsn_part_nm}을 다시 사용합니다.`,
-        ),
+      async () => {
+        if (action === "disable") return saveSalesPartDisable(part.bsn_part_id);
+        const result = await saveSalesPartEnable(part.bsn_part_id);
+        enabled.current = true;
+        return result;
+      },
+      () => onSaved(successMessage),
     );
   useEffect(() => {
     if (action === "enable" && !started.current) {
@@ -78,8 +85,13 @@ export function SalesPartStateDialog({
         )}
         <ErrorBanner
           error={write.error?.code === "PART_IN_USE" ? null : write.error}
-          onRetry={() => {
-            void write.recover();
+          onRetry={async () => {
+            recovering.current = true;
+            try {
+              await write.recover();
+            } finally {
+              recovering.current = false;
+            }
           }}
           pending={write.pending}
         />

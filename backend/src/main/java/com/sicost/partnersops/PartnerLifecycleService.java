@@ -83,7 +83,7 @@ public class PartnerLifecycleService {
             else throw ApiException.badRequest("내려받을 열을 확인하세요.","columns");
         }
         var result=new ArrayList<ExportColumn<Map<String,Object>>>();
-        for(String key:keys)result.add(new ExportColumn<>(key,labels.get(key),Set.of("bank_cd","acnt_no","dpstr_nm").contains(key),Set.of("projectCount","assignmentPeopleCount").contains(key),row->row.get(key)));
+        for(String key:keys)result.add(ExcelExportService.column(PartnerDetail.class,key,labels.get(key),Set.of("projectCount","assignmentPeopleCount").contains(key),row->row.get(key)));
         return List.copyOf(result);
     }
     @Transactional
@@ -100,7 +100,9 @@ public class PartnerLifecycleService {
         String filename="거래처_"+today().format(DateTimeFormatter.BASIC_ISO_DATE)+".xlsx";
         String conditions="구분="+(kind==null?"전체":kind)+", 사용 여부="+(useYn==null||useYn.isEmpty()?"전체":useYn)+", 검색="+(q==null?"":q);
         byte[] bytes=excel.create(conditions,user.name(),LocalDateTime.now(clock.withZone(ZoneId.of("Asia/Seoul"))),columns,rows);
-        var detail=new LinkedHashMap<String,Object>();detail.put("kind",kind);detail.put("useYn",useYn);detail.put("q",q);detail.put("columns",requested);detail.put("ids",ids);
+        var conditionsDetail=new LinkedHashMap<String,Object>();conditionsDetail.put("kind",kind);conditionsDetail.put("useYn",useYn);conditionsDetail.put("q",q);
+        var detail=new LinkedHashMap<String,Object>(conditionsDetail);detail.put("filename",filename);detail.put("conditions",conditionsDetail);
+        detail.put("columns",columns.stream().map(ExportColumn::key).toList());detail.put("ids",ids);
         try {mapper.access(new PartnerAccess(filename,json.writeValueAsString(detail),user.userId()));}
         catch(JsonProcessingException e){throw new IllegalStateException(e);}
         return new PartnerFile(filename,bytes);

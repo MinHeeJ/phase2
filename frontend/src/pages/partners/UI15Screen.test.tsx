@@ -410,6 +410,122 @@ describe("partners list", () => {
 });
 
 describe("partner create and edit", () => {
+  it.each(["INDUSTRY", "BANK"])(
+    "blocks submit while %s options are still loading",
+    async (group) => {
+      const original = fetcher.getMockImplementation()!;
+      let release!: (value: Response) => void;
+      const pending = new Promise<Response>((resolve) => {
+        release = resolve;
+      });
+      fetcher.mockImplementation((url: string, init?: RequestInit) =>
+        url === `/api/codes/${group}` ? pending : original(url, init),
+      );
+      form();
+      await screen.findByRole("option", { name: "둘 다" });
+      change("구분", "BOTH");
+      expect(screen.getByRole("button", { name: "저장" })).toBeDisabled();
+      fireEvent.submit(screen.getByTestId("partner-form"));
+      expect(writes()).toHaveLength(0);
+      release(
+        response(group === "BANK" ? [{ code: "KB", name: "국민은행" }] : []),
+      );
+      await waitFor(() =>
+        expect(screen.getByRole("button", { name: "저장" })).toBeEnabled(),
+      );
+    },
+  );
+  it("uses INDUSTRY options and submits the selected code and 500-character remark", async () => {
+    form();
+    await screen.findByRole("option", { name: "SI" });
+    await validCustomer();
+    change("업종", "SI");
+    change("비고", "가".repeat(500));
+    fireEvent.click(screen.getByRole("button", { name: "저장" }));
+    await waitFor(() => expect(writes()).toHaveLength(1));
+    expect(JSON.parse(writes()[0][1].body as string)).toMatchObject({
+      indty_cd: "SI",
+      rmrk_desc: "가".repeat(500),
+    });
+  });
+  it.each([
+    ["CUST", "", "고객사는 세금계산서 이메일이 꼭 필요합니다."],
+    ["BOTH", "", "고객사는 세금계산서 이메일이 꼭 필요합니다."],
+    ["BOTH", "invalid", "이메일 형식이 맞지 않습니다. (예: tax@company.co.kr)"],
+  ])(
+    "validates %s email %s without losing the draft",
+    async (kind, email, message) => {
+      form();
+      await screen.findByRole("option", { name: "둘 다" });
+      await validCustomer();
+      change("구분", kind);
+      change("세금계산서 이메일", email);
+      fireEvent.click(screen.getByRole("button", { name: "저장" }));
+      expect(await screen.findByText(message)).toBeVisible();
+      expect(screen.getByLabelText("세금계산서 이메일")).toHaveFocus();
+      expect(screen.getByLabelText("상호")).toHaveValue("신규 거래처");
+      expect(writes()).toHaveLength(0);
+    },
+  );
+  it.each([
+    ["VEND", "계좌번호", "", "계좌번호를 숫자와 하이픈(-)으로 입력해 주세요."],
+    [
+      "BOTH",
+      "계좌번호",
+      "1234567",
+      "계좌번호를 숫자와 하이픈(-)으로 입력해 주세요.",
+    ],
+    [
+      "VEND",
+      "계좌번호",
+      "1234567A",
+      "계좌번호를 숫자와 하이픈(-)으로 입력해 주세요.",
+    ],
+    ["BOTH", "예금주", "", "예금주를 입력해 주세요."],
+  ])(
+    "validates %s payment field %s=%s",
+    async (kind, label, value, message) => {
+      form();
+      await screen.findByRole("option", { name: "둘 다" });
+      await validCustomer();
+      change("구분", kind);
+      await screen.findByRole("option", { name: "국민은행" });
+      change("은행", "KB");
+      change("계좌번호", "12345678");
+      change("예금주", "예금주");
+      change(label, value);
+      fireEvent.click(screen.getByRole("button", { name: "저장" }));
+      expect(await screen.findByText(message)).toBeVisible();
+      expect(screen.getByLabelText(label)).toHaveFocus();
+      expect(writes()).toHaveLength(0);
+    },
+  );
+  it("accepts surrounding email whitespace just as server validation does", async () => {
+    form();
+    await screen.findByRole("option", { name: "고객사" });
+    await validCustomer();
+    change("세금계산서 이메일", " tax@company.co.kr ");
+    fireEvent.click(screen.getByRole("button", { name: "저장" }));
+    await waitFor(() => expect(writes()).toHaveLength(1));
+  });
+  it("clears all payment values when switching to customer and does not restore them", async () => {
+    form();
+    await screen.findByRole("option", { name: "둘 다" });
+    await validCustomer();
+    change("구분", "BOTH");
+    await screen.findByRole("option", { name: "국민은행" });
+    change("은행", "KB");
+    change("계좌번호", "12345678");
+    change("예금주", "예금주");
+    change("구분", "CUST");
+    expect(
+      screen.queryByRole("heading", { name: "지급 계좌" }),
+    ).not.toBeInTheDocument();
+    change("구분", "BOTH");
+    expect(screen.getByLabelText("은행")).toHaveValue("");
+    expect(screen.getByLabelText("계좌번호")).toHaveValue("");
+    expect(screen.getByLabelText("예금주")).toHaveValue("");
+  });
   it("create shows sections by kind and prevents the fifty-first name character", async () => {
     render(<UI15Screen />);
     await createForm();

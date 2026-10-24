@@ -122,7 +122,7 @@ describe("UI-15 partner lifecycle", () => {
     fireEvent.click(screen.getByTestId("partner-detail-disable"));
     expect(screen.getByTestId("partner-disable-dialog")).toBeInTheDocument();
   });
-  it("known project blocks show reasons and hide confirm", () => {
+  it("known project counts are advisory until the user confirms a server check", () => {
     render(
       <PartnerDisableDialog
         rows={[{ ...row, projectCount: 2 }]}
@@ -132,12 +132,10 @@ describe("UI-15 partner lifecycle", () => {
       />,
     );
     expect(
-      screen.getByRole("heading", { name: "사용을 중지할 수 없습니다" }),
+      screen.getByRole("heading", { name: "거래처 사용 중지" }),
     ).toBeInTheDocument();
     expect(screen.getByText(/진행 프로젝트 2건/)).toBeInTheDocument();
-    expect(
-      screen.queryByTestId("partner-disable-confirm"),
-    ).not.toBeInTheDocument();
+    expect(screen.getByTestId("partner-disable-confirm")).toBeEnabled();
     expect(fetcher).not.toHaveBeenCalled();
   });
   it("partial result keeps latest reasons in the same dialog", async () => {
