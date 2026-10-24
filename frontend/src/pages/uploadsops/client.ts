@@ -10,6 +10,10 @@ export interface UploadIssue {
   fix?: { type: "MAPPING"; group: string };
 }
 export interface UploadValidationResult {
+  reviewId?: number;
+  month?: string | null;
+  overwriteNotice?: string | null;
+  canApply?: boolean;
   fileName: string;
   upldId?: string;
   token?: string;
@@ -31,15 +35,24 @@ export const uploadErrorPath = (id: string) =>
 export async function createUploadValidation(
   form: string,
   file: File,
+  month?: string,
 ): Promise<UploadValidationResult> {
   const body = new FormData();
   body.append("file", file);
+  const personnel = form === "B.8" || form === "B.1";
+  if (personnel) body.append("form_type", form);
+  if (month) body.append("month", month);
   let response: Response;
   try {
-    response = await fetch(`/api/uploads/${enc(form)}/validate`, {
-      method: "POST",
-      body,
-    });
+    response = await fetch(
+      personnel
+        ? "/api/uploads/validate"
+        : `/api/uploads/${enc(form)}/validate`,
+      {
+        method: "POST",
+        body,
+      },
+    );
   } catch {
     throw new ApiFailure("서버에 연결할 수 없습니다.", null, null);
   }
@@ -63,8 +76,125 @@ export async function createUploadValidation(
       error.code,
     );
   }
+  if (personnel)
+    return reviewResult(
+      (result as unknown as ApiResponse<PersonnelValidation>).data!,
+      file.name,
+    );
   return (result as ApiResponse<UploadValidationResult>).data!;
 }
+export interface PersonnelValidation {
+  upload_id: number;
+  form_type: "B.8" | "B.1";
+  month: string | null;
+  row_count: number;
+  error_count: number;
+  warning_count: number;
+  can_apply: boolean;
+  overwrite_notice: string | null;
+}
+export interface PersonnelIssue {
+  row: number;
+  column: string;
+  severity: "ERROR" | "WARNING";
+  message: string;
+  raw_value: string | null;
+  normalized_value: string | null;
+  mapping_allowed: boolean;
+}
+export interface PersonnelPreview {
+  row: number;
+  severity: string;
+  developer?: Record<string, unknown>;
+  salary?: Record<string, unknown>;
+}
+export interface PersonnelPage<T> {
+  items: T[];
+  total: number;
+  page: number;
+  size: number;
+}
+const mappingGroups: Record<string, string> = {
+  직원구분: "EMP_TYPE",
+  구분: "EMP_TYPE",
+  직위: "POSITION",
+  "업무 구분": "WORK_TYPE",
+  등급: "GRADE",
+  "주 직무": "JOB",
+  "보조 직무": "JOB",
+  스킬: "SKILL",
+  상태: "WORK_STATUS",
+};
+async function reviewResult(
+  data: PersonnelValidation,
+  fileName: string,
+): Promise<UploadValidationResult> {
+  const items: PersonnelIssue[] = [];
+  let page = 0,
+    total = 0;
+  do {
+    const response = (
+      await api<PersonnelPage<PersonnelIssue>>(
+        `/api/uploads/${data.upload_id}/issues?page=${page}&size=100&sort=row,asc`,
+      )
+    ).data!;
+    items.push(...response.items);
+    total = response.total;
+    page++;
+  } while (items.length < total);
+  return {
+    fileName,
+    reviewId: data.upload_id,
+    upldId: String(data.upload_id),
+    month: data.month,
+    overwriteNotice: data.overwrite_notice,
+    canApply: data.can_apply,
+    totalRows: data.row_count,
+    okRows: data.row_count - data.error_count,
+    errorRows: data.error_count,
+    warningRows: data.warning_count,
+    items: items.map((i) => ({
+      rowNo: i.row,
+      severity: i.severity === "WARNING" ? "WARN" : "ERROR",
+      column: i.column,
+      rawValue: i.raw_value,
+      message: i.message,
+      ...(i.mapping_allowed && mappingGroups[i.column]
+        ? { fix: { type: "MAPPING" as const, group: mappingGroups[i.column] } }
+        : {}),
+    })),
+  };
+}
+export const revalidatePersonnelUpload = async (id: number, name: string) =>
+  reviewResult(
+    (
+      await api<PersonnelValidation>(`/api/uploads/${id}/revalidate`, {
+        method: "POST",
+      })
+    ).data!,
+    name,
+  );
+export const applyPersonnelUpload = async (
+  id: number,
+): Promise<UploadApplyResult> => {
+  const data = (
+    await api<{ upload_id: number; applied_count: number }>(
+      `/api/uploads/${id}/apply`,
+      { method: "POST" },
+    )
+  ).data!;
+  return { upldId: String(data.upload_id), appliedRows: data.applied_count };
+};
+export const listPersonnelUploadRows = async (
+  id: number,
+  page: number,
+  severity: string,
+) =>
+  (
+    await api<PersonnelPage<PersonnelPreview>>(
+      `/api/uploads/${id}/rows?${new URLSearchParams({ page: String(page), size: "50", sort: "row,asc", severity })}`,
+    )
+  ).data!;
 export const saveUploadRecheck = async (id: string) =>
   (
     await api<UploadValidationResult>(`/api/uploads/${enc(id)}/recheck`, {

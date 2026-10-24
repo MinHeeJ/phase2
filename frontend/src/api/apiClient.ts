@@ -97,3 +97,50 @@ export type {
   UploadValidationResult,
   UploadApplyResult,
 } from "../pages/uploadsops/client";
+export {
+  listDevelopers,
+  getDeveloper,
+  createDeveloper,
+  updateDeveloper,
+  enableDeveloper,
+} from "../pages/developers/client";
+export type {
+  DeveloperInput,
+  DeveloperDetail,
+  DeveloperListItem,
+  DeveloperFilters,
+} from "../pages/developers/client";
+export {
+  listDeveloperOptions,
+  listDeveloperAssignments,
+  listDeveloperMonthlyCosts,
+  listDeveloperHistory,
+  disableDevelopers,
+  downloadDevelopers,
+} from "../pages/developersops/client";
+export type {
+  DeveloperOption,
+  DeveloperAssignment,
+  DeveloperCost,
+  DeveloperChange,
+  DeveloperBlock,
+  DeveloperDisableResult,
+} from "../pages/developersops/client";
+export {
+  listDeveloperWorkStatuses,
+  createDeveloperWorkStatus,
+  updateDeveloperWorkStatus,
+  updateDeveloperWorkStatusRemoval,
+} from "../pages/workstatus/client";
+export type {
+  WorkStatusInput,
+  WorkStatusRow,
+  WorkStatusCode,
+} from "../pages/workstatus/client";
+export { getUploadResult } from "../pages/apiops/client";
+export type { UploadResult } from "../pages/apiops/client";
+export {
+  revalidatePersonnelUpload,
+  applyPersonnelUpload,
+  listPersonnelUploadRows,
+} from "../pages/uploadsops/client";

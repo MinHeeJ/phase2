@@ -51,13 +51,20 @@ class UploadApiTest {
     JsonNode data(ResultActions response)throws Exception{return json.readTree(response.andExpect(status().isOk()).andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8)).get("data");}
     String token(String[]...rows)throws Exception{return data(validate(file(rows))).get("token").asText();}
     void noBusiness(){verify(mapper,never()).insertPartner(any());verify(mapper,never()).appendHistory(any());}
-    @Test void publicTemplateIsRealThreeSheetWorkbookWithTextAndValidation()throws Exception {
+    @Test void anonymousHappyTemplateIsRealThreeSheetWorkbookWithTextAndValidation()throws Exception {
         var response=mvc.perform(get("/api/uploads/templates/B.7")).andExpect(status().isOk()).andExpect(content().contentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")).andReturn().getResponse();
         assertThat(response.getHeader("Content-Disposition")).contains("UTF-8");
         try(var book=new XSSFWorkbook(new ByteArrayInputStream(response.getContentAsByteArray()))){assertThat(book.getNumberOfSheets()).isEqualTo(3);var sheet=book.getSheetAt(0);assertThat(sheet.getRow(0).getCell(0).getStringCellValue()).isEqualTo("* 표시는 필수입니다. 4행 제목은 바꾸지 마세요.");assertThat((Object)sheet.getRow(1)).isNotNull();assertThat(sheet.getRow(3).getCell(0).getStringCellValue()).contains("구분","*");assertThat(sheet.getRow(4).getCell(1).getStringCellValue()).startsWith("예시)");assertThat(sheet.getDataValidations()).hasSize(3);assertThat(sheet.getColumnStyle(2).getDataFormatString()).isEqualTo("@");assertThat(sheet.getColumnStyle(9).getDataFormatString()).isEqualTo("@");assertThat(book.getSheet("목록").getProtect()).isTrue();assertThat(book.getSheet("목록").getRow(1).getCell(0).getStringCellValue()).isEqualTo("고객사");}
         verify(mapper).access(argThat(a->a.type().equals("DOWNLOAD")&&a.actor()==null&&a.display().equals("거래처_업로드양식.xlsx")&&a.detail().contains("B.7")));noBusiness();
     }
     @Test void unknownTemplateIs404()throws Exception{mvc.perform(get("/api/uploads/templates/other")).andExpect(status().isNotFound()).andExpect(jsonPath("$.code").value("NOT_FOUND"));verify(mapper,never()).access(any());}
+    @Test void anonymousFormValidationHasLiteralPathAndNoBusinessWrites()throws Exception {
+        mvc.perform(multipart("/api/uploads/B.7/validate")
+            .file(new MockMultipartFile("file","거래처.xlsx","application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",file(customer("1234567890")))))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.data.totalRows").value(1))
+            .andExpect(jsonPath("$.data.errorRows").value(0)).andExpect(jsonPath("$.data.token").isNotEmpty());
+        noBusiness();verify(mapper,never()).insertUpload(any());
+    }
     @Test void validatesSixRowsFiveErrorsAndPersistsOnlyRejectedLedger()throws Exception{
         String[][] rows=new String[6][];for(int i=0;i<6;i++)rows[i]=customer("123456789"+i);for(int i=1;i<6;i++)rows[i][1]="";
         JsonNode result=data(mvc.perform(multipart("/api/uploads/B.7/validate")

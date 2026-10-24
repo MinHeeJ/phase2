@@ -1,0 +1,220 @@
+.search {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  background: var(--surface);
+  border: 1px solid var(--divider);
+  border-radius: var(--radius-panel);
+  margin-bottom: var(--space-4);
+}
+.search label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.search input,
+.search select {
+  height: var(--control-height);
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  padding: var(--space-2);
+}
+.toolbar,
+.drawerHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.toolbar {
+  min-height: var(--control-height);
+}
+.actions,
+.writeActions {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  margin: var(--space-2) 0;
+}
+.linkButton {
+  display: inline-flex;
+  align-items: center;
+  height: var(--control-height);
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--text);
+  text-decoration: none;
+}
+.tableScroll {
+  max-width: 100%;
+  max-height: 65vh;
+  overflow: auto;
+  border: 1px solid var(--divider);
+  border-radius: var(--radius-panel);
+  background: var(--surface);
+}
+.table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: var(--table-size);
+  line-height: var(--table-line);
+  white-space: nowrap;
+}
+.table th,
+.table td {
+  height: 40px;
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--divider);
+  text-align: left;
+}
+.table th {
+  position: sticky;
+  top: 0;
+  background: var(--header-bg);
+  font-weight: var(--table-heading-weight);
+}
+.table th button,
+.textButton {
+  border: 0;
+  padding: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.table tbody tr {
+  cursor: pointer;
+}
+.table tbody tr:hover,
+.highlight {
+  background: var(--primary-bg);
+}
+.numeric,
+.table .amount {
+  font-variant-numeric: tabular-nums;
+}
+.table .amount {
+  text-align: right;
+}
+.form {
+  display: grid;
+  gap: var(--space-4);
+}
+.card {
+  border: 1px solid var(--divider);
+  background: var(--surface);
+  border-radius: var(--radius-panel);
+  padding: var(--space-6);
+}
+.card h2 {
+  font-size: var(--section-size);
+  line-height: var(--section-line);
+  font-weight: var(--section-weight);
+  margin: 0 0 var(--space-6);
+}
+.fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-4) var(--space-6);
+}
+.help {
+  grid-column: 1 / -1;
+  color: var(--text-sub);
+  font-size: var(--caption-size);
+  margin: 0;
+}
+.multiple {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  border: 1px solid var(--divider);
+  border-radius: var(--radius-control);
+  padding: var(--space-3);
+  margin: 0;
+  min-width: 0;
+}
+.multiple label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+.multiple legend {
+  color: var(--text-sub);
+  font-size: var(--label-size);
+}
+.scrim {
+  position: fixed;
+  inset: 0;
+  background: var(--overlay-bg);
+  z-index: 40;
+}
+.drawer {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 600px;
+  max-width: 100%;
+  padding: var(--space-6);
+  background: var(--surface);
+  overflow: auto;
+  box-shadow: var(--shadow-overlay);
+}
+.drawerHeader h2 {
+  margin: 0;
+  font-size: var(--title-size);
+  line-height: var(--title-line);
+}
+.drawer .fields {
+  grid-template-columns: minmax(0, 1fr);
+}
+.details {
+  display: grid;
+  grid-template-columns: var(--form-label-width) minmax(0, 1fr);
+  gap: var(--space-4);
+}
+.details dt {
+  color: var(--text-sub);
+}
+.details dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  display: flex;
+  gap: var(--space-1);
+  flex-wrap: wrap;
+}
+.empty {
+  padding: var(--space-8) var(--space-4);
+  text-align: center;
+  color: var(--text-sub);
+  min-height: var(--empty-height);
+}
+@media (max-width: 767px) {
+  .writeActions,
+  .form {
+    display: none;
+  }
+  .fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .drawer {
+    padding: var(--space-4);
+  }
+  .search label {
+    flex-wrap: wrap;
+  }
+  .search input,
+  .search select {
+    min-height: 44px;
+    max-width: 100%;
+  }
+}
