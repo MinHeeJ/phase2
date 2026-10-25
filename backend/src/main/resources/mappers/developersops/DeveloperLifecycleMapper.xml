@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sicost.developersops.DeveloperLifecycleMapper">
+  <resultMap id="stateRow" type="com.sicost.developersops.DeveloperLifecycleModels$DeveloperState"><constructor>
+    <arg column="dev_id" javaType="_long"/><arg column="dev_nm" javaType="string"/><arg column="use_yn" javaType="string"/>
+  </constructor></resultMap>
+  <resultMap id="optionRow" type="com.sicost.developersops.DeveloperLifecycleModels$DeveloperOption"><constructor>
+    <arg column="id" javaType="_long"/><arg column="mngNo" javaType="string"/><arg column="name" javaType="string"/><arg column="mainJob" javaType="string"/><arg column="empType" javaType="string"/>
+  </constructor></resultMap>
+  <resultMap id="assignmentRow" type="com.sicost.developersops.DeveloperLifecycleModels$DeveloperAssignment"><constructor>
+    <arg column="asgn_id" javaType="_long"/><arg column="prj_id" javaType="_long"/><arg column="prj_nm" javaType="string"/><arg column="job_cd" javaType="string"/><arg column="job_name" javaType="string"/>
+    <arg column="bgn_dt" javaType="java.time.LocalDate"/><arg column="end_dt" javaType="java.time.LocalDate"/><arg column="asgn_rt" javaType="java.math.BigDecimal"/><arg column="asgn_stts_cd" javaType="string"/>
+  </constructor></resultMap>
+  <resultMap id="costRow" type="com.sicost.developersops.DeveloperLifecycleModels$DeveloperMonthlyCost"><constructor>
+    <arg column="cst_ym" javaType="string"/><arg column="emp_se_cd" javaType="string"/>
+    <arg column="slry_amt" javaType="_long"/><arg column="alwnc_amt" javaType="_long"/><arg column="sins_cmpny_amt" javaType="_long"/><arg column="rtrpay_acml_amt" javaType="_long"/><arg column="indv_lbr_cst_amt" javaType="_long"/><arg column="real_pay_amt" javaType="_long"/>
+  </constructor></resultMap>
+  <resultMap id="salaryRow" type="com.sicost.developersops.DeveloperLifecycleModels$DeveloperSalary"><constructor><arg column="month" javaType="string"/><arg column="slry_amt" javaType="_long"/></constructor></resultMap>
+  <resultMap id="historyRow" type="com.sicost.developersops.DeveloperLifecycleModels$DeveloperChange"><constructor>
+    <arg column="changed_at" javaType="java.time.LocalDateTime"/><arg column="table_name" javaType="string"/><arg column="record_id" javaType="string"/><arg column="change_type" javaType="string"/><arg column="item" javaType="string"/><arg column="before" javaType="string"/><arg column="after" javaType="string"/><arg column="actor" javaType="string"/>
+  </constructor></resultMap>
+  <select id="state" resultMap="stateRow">SELECT dev_id,dev_nm,use_yn FROM mst.dev WHERE dev_id=#{id}</select>
+  <sql id="currentPredicate">a.asgn_stts_cd='ACTIVE' AND a.bgn_dt &lt;= #{today} AND a.end_dt &gt;= #{today} AND p.prj_stts_cd IN ('PLAN','RUN','HOLD')</sql>
+  <select id="currentAssignments" resultType="long">SELECT count(*) FROM asgn.asgn a JOIN prj.prj p ON p.prj_id=a.prj_id WHERE a.dev_id=#{id} AND <include refid="currentPredicate"/></select>
+  <update id="changeState">UPDATE mst.dev SET use_yn=#{use},updated_by=#{actor} WHERE dev_id=#{id} AND use_yn&lt;&gt;#{use}</update>
+  <insert id="audit">INSERT INTO sys.data_chg_hist(tbl_nm,obj_rec_id,data_chg_ty_cd,clmn_nm,bfr_val,aft_val,chg_user_id) VALUES('mst.dev',CAST(#{id} AS text),#{type},'use_yn',#{before},#{after},#{actor})</insert>
+  <select id="options" resultMap="optionRow">
+    SELECT d.dev_id AS id,d.mng_no AS "mngNo",d.dev_nm AS name,coalesce(j.cd_nm,d.main_job_cd,'') AS "mainJob",d.emp_se_cd AS "empType"
+    FROM mst.dev d LEFT JOIN cmn.cd_dtl j ON j.cd_grp_id='JOB' AND j.dtl_cd=d.main_job_cd
+    WHERE d.use_yn='Y' AND (d.rsgn_dt IS NULL OR d.rsgn_dt&gt;#{today})
+    <if test="q != null">AND (position(lower(#{q}) in lower(d.dev_nm))&gt;0 OR position(lower(#{q}) in lower(d.mng_no))&gt;0)</if>
+    ORDER BY d.dev_nm,d.dev_id
+  </select>
+  <sql id="assignmentFrom">FROM asgn.asgn a JOIN prj.prj p ON p.prj_id=a.prj_id LEFT JOIN cmn.cd_dtl j ON j.cd_grp_id='JOB' AND j.dtl_cd=a.job_cd WHERE a.dev_id=#{id}<if test="filter != null"> AND a.asgn_stts_cd=#{filter}</if></sql>
+  <select id="assignments" resultMap="assignmentRow">SELECT a.asgn_id,a.prj_id,p.prj_nm,a.job_cd,j.cd_nm AS job_name,a.bgn_dt,a.end_dt,a.asgn_rt,a.asgn_stts_cd <include refid="assignmentFrom"/> ORDER BY ${order},a.asgn_id DESC LIMIT #{size} OFFSET #{offset}</select>
+  <select id="assignmentCount" resultType="long">SELECT count(*) <include refid="assignmentFrom"/></select>
+  <sql id="costFrom">FROM cst.mth_cst c WHERE c.dev_id=#{id} AND c.cst_ym&gt;=#{from} AND c.cst_ym&lt;=#{to}</sql>
+  <select id="monthlyCosts" resultMap="costRow">SELECT c.cst_ym,c.emp_se_cd,c.slry_amt,c.alwnc_amt,c.sins_cmpny_amt,c.rtrpay_acml_amt,c.indv_lbr_cst_amt,c.real_pay_amt <include refid="costFrom"/> ORDER BY ${order},c.mth_cst_id DESC LIMIT #{size} OFFSET #{offset}</select>
+  <select id="monthlyCostCount" resultType="long">SELECT count(*) <include refid="costFrom"/></select>
+  <sql id="historyFrom">
+    FROM sys.data_chg_hist h LEFT JOIN sys.user_info u ON u.user_id=h.chg_user_id
+    WHERE ((h.tbl_nm='mst.dev' AND h.obj_rec_id=CAST(#{id} AS text)) OR
+      (h.tbl_nm='mst.dev_work_stts_hist' AND h.data_chg_ty_cd IN ('INSERT','UPDATE','DELETE') AND (
+        EXISTS(SELECT 1 FROM mst.dev_work_stts_hist w WHERE w.dev_id=#{id} AND CAST(w.work_stts_hist_id AS text)=h.obj_rec_id)
+        OR CASE WHEN pg_input_is_valid(h.bfr_val,'jsonb') THEN h.bfr_val::jsonb-&gt;&gt;'dev_id' END=CAST(#{id} AS text)
+        OR CASE WHEN pg_input_is_valid(h.aft_val,'jsonb') THEN h.aft_val::jsonb-&gt;&gt;'dev_id' END=CAST(#{id} AS text))))
+    <if test="filter != null">AND h.clmn_nm=#{filter}</if>
+  </sql>
+  <select id="history" resultMap="historyRow">SELECT h.chg_at AS changed_at,h.tbl_nm AS table_name,h.obj_rec_id AS record_id,h.data_chg_ty_cd AS change_type,h.clmn_nm AS item,h.bfr_val AS before,h.aft_val AS after,coalesce(u.user_nm,'기본 사용자') AS actor <include refid="historyFrom"/> ORDER BY ${order},h.data_chg_hist_id DESC LIMIT #{size} OFFSET #{offset}</select>
+  <select id="historyCount" resultType="long">SELECT count(*) <include refid="historyFrom"/></select>
+  <sql id="developerProjection">
+    SELECT d.dev_id,d.mng_no,d.dev_nm,coalesce(v.ptnr_nm,'자사') AS affiliation_name,d.emp_se_cd,e.cd_nm AS emp_type_name,d.grd_cd,g.cd_nm AS grade_name,d.main_job_cd,j.cd_nm AS main_job_name,
+      CASE WHEN d.rsgn_dt&lt;=#{today} THEN '퇴사'
+      WHEN EXISTS(SELECT 1 FROM mst.dev_work_stts_hist w WHERE w.dev_id=d.dev_id AND w.work_stts_cd IN ('VACATION','PARENTAL','UNPAID','LEAVE') AND w.bgn_dt&lt;=#{today} AND (w.end_dt IS NULL OR w.end_dt&gt;=#{today})) THEN '휴직'
+      WHEN ca.current_assignment_count&gt;0 AND to_char(ca.latest_assignment_end_dt,'YYYY-MM')&lt;=to_char(CAST(#{today} AS date)+interval '2 months','YYYY-MM') THEN '철수예정'
+      WHEN ca.current_assignment_count&gt;0 THEN '투입중' ELSE '대기' END AS status,
+      ca.current_project_name,ca.current_assignment_count,coalesce(mm.current_month_mm,0.00) AS current_month_mm,coalesce(mm.current_month_mm,0)&gt;1.00 AS over_one_mm,ca.latest_assignment_end_dt,d.dflt_untprc_amt,d.use_yn,d.rsgn_dt,
+      d.vndr_ptnr_id,d.pstn_cd,d.duty_se_cd,d.bsn_part_id,d.hire_dt,d.tel_no,d.email_addr,d.rmrk_desc,d.updated_at
+    FROM mst.dev d LEFT JOIN mst.ptnr v ON v.ptnr_id=d.vndr_ptnr_id
+    LEFT JOIN cmn.cd_dtl e ON e.cd_grp_id='EMP_TYPE' AND e.dtl_cd=d.emp_se_cd
+    LEFT JOIN cmn.cd_dtl g ON g.cd_grp_id='GRADE' AND g.dtl_cd=d.grd_cd
+    LEFT JOIN cmn.cd_dtl j ON j.cd_grp_id='JOB' AND j.dtl_cd=d.main_job_cd
+    LEFT JOIN LATERAL (SELECT count(*) AS current_assignment_count,max(a.end_dt) AS latest_assignment_end_dt,(array_agg(p.prj_nm ORDER BY a.bgn_dt,a.asgn_id))[1] AS current_project_name
+      FROM asgn.asgn a JOIN prj.prj p ON p.prj_id=a.prj_id WHERE a.dev_id=d.dev_id AND <include refid="currentPredicate"/>) ca ON true
+    LEFT JOIN LATERAL (SELECT sum(m.mm_qty) AS current_month_mm FROM asgn.asgn a JOIN asgn.asgn_mth m ON m.asgn_id=a.asgn_id WHERE a.dev_id=d.dev_id AND a.asgn_stts_cd!='CANCELLED' AND m.work_ym=to_char(CAST(#{today} AS date),'YYYY-MM')) mm ON true
+  </sql>
+  <select id="exportRows" resultType="map">SELECT * FROM (<include refid="developerProjection"/>) r WHERE r.use_yn=#{use_yn}
+    <choose><when test="status != null">AND r.status=#{status}</when><otherwise><if test='use_yn == "Y"'>AND r.status!='퇴사'</if></otherwise></choose>
+    <if test="empType != null">AND r.emp_se_cd=#{empType}</if>
+    <if test="job != null">AND (r.main_job_cd=#{job} OR EXISTS(SELECT 1 FROM mst.dev_sub_job s WHERE s.dev_id=r.dev_id AND s.job_cd=#{job}))</if>
+    <if test="q != null">AND (position(lower(#{q}) in lower(r.dev_nm))&gt;0 OR position(lower(#{q}) in lower(r.mng_no))&gt;0)</if>
+    ORDER BY r.dev_nm,r.dev_id
+  </select>
+  <select id="detail" resultType="map"><include refid="developerProjection"/> WHERE d.dev_id=#{id}</select>
+  <select id="subJobs" resultType="string">SELECT job_cd FROM mst.dev_sub_job WHERE dev_id=#{id} ORDER BY job_cd</select>
+  <select id="skills" resultType="string">SELECT skl_cd FROM mst.dev_skl WHERE dev_id=#{id} ORDER BY skl_cd</select>
+  <select id="latestSalary" resultMap="salaryRow">SELECT cst_ym AS month,slry_amt FROM cst.mth_cst WHERE dev_id=#{id} ORDER BY cst_ym DESC LIMIT 1</select>
+</mapper>

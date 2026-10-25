@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sicost.developers.DeveloperMapper">
+  <resultMap id="listRow" type="com.sicost.developers.DeveloperModels$DeveloperListItem"><constructor>
+    <arg column="dev_id" javaType="_long"/><arg column="mng_no" javaType="java.lang.String"/><arg column="dev_nm" javaType="java.lang.String"/><arg column="affiliation_name" javaType="java.lang.String"/>
+    <arg column="emp_se_cd" javaType="java.lang.String"/><arg column="emp_type_name" javaType="java.lang.String"/><arg column="grd_cd" javaType="java.lang.String"/><arg column="grade_name" javaType="java.lang.String"/>
+    <arg column="main_job_cd" javaType="java.lang.String"/><arg column="main_job_name" javaType="java.lang.String"/><arg column="status" javaType="java.lang.String"/><arg column="current_project_name" javaType="java.lang.String"/>
+    <arg column="current_assignment_count" javaType="_long"/><arg column="current_month_mm" javaType="java.math.BigDecimal"/><arg column="over_one_mm" javaType="_boolean"/><arg column="latest_assignment_end_dt" javaType="java.time.LocalDate"/>
+    <arg column="dflt_untprc_amt" javaType="java.lang.Long"/><arg column="use_yn" javaType="java.lang.String"/><arg column="rsgn_dt" javaType="java.time.LocalDate"/>
+  </constructor></resultMap>
+  <resultMap id="developerRow" type="com.sicost.developers.DeveloperModels$DeveloperRow"><constructor>
+    <arg column="dev_id" javaType="_long"/><arg column="mng_no" javaType="java.lang.String"/><arg column="dev_nm" javaType="java.lang.String"/><arg column="emp_se_cd" javaType="java.lang.String"/><arg column="main_job_cd" javaType="java.lang.String"/>
+    <arg column="vndr_ptnr_id" javaType="java.lang.Long"/><arg column="pstn_cd" javaType="java.lang.String"/><arg column="duty_se_cd" javaType="java.lang.String"/><arg column="grd_cd" javaType="java.lang.String"/><arg column="bsn_part_id" javaType="java.lang.Long"/>
+    <arg column="hire_dt" javaType="java.time.LocalDate"/><arg column="tel_no" javaType="java.lang.String"/><arg column="email_addr" javaType="java.lang.String"/><arg column="rmrk_desc" javaType="java.lang.String"/><arg column="dflt_untprc_amt" javaType="java.lang.Long"/><arg column="updated_at" javaType="java.time.LocalDateTime"/>
+  </constructor></resultMap>
+  <resultMap id="salaryRow" type="com.sicost.developers.DeveloperModels$LatestSalary"><constructor>
+    <arg column="month" javaType="java.lang.String"/><arg column="slry_amt" javaType="_long"/>
+  </constructor></resultMap>
+  <resultMap id="codeRow" type="com.sicost.developers.DeveloperModels$DeveloperCodeName"><constructor>
+    <arg column="cd_grp_id" javaType="java.lang.String"/><arg column="dtl_cd" javaType="java.lang.String"/><arg column="cd_nm" javaType="java.lang.String"/>
+  </constructor></resultMap>
+  <sql id="projection">
+    SELECT d.dev_id,d.mng_no,d.dev_nm,CASE WHEN d.emp_se_cd='OS' THEN p.ptnr_nm ELSE '자사' END AS affiliation_name,
+      d.emp_se_cd,e.cd_nm AS emp_type_name,d.grd_cd,g.cd_nm AS grade_name,d.main_job_cd,j.cd_nm AS main_job_name,
+      CASE WHEN d.rsgn_dt &lt;= #{today} THEN '퇴사'
+        WHEN EXISTS(SELECT 1 FROM mst.dev_work_stts_hist h WHERE h.dev_id=d.dev_id AND h.work_stts_cd IN ('VACATION','PARENTAL','UNPAID','LEAVE')
+          AND h.bgn_dt &lt;= #{today} AND (h.end_dt IS NULL OR h.end_dt &gt;= #{today})) THEN '휴직'
+        WHEN cur.current_assignment_count&gt;0 AND to_char(cur.latest_assignment_end_dt,'YYYY-MM') &lt;= #{withdrawalMonth} THEN '철수예정'
+        WHEN cur.current_assignment_count&gt;0 THEN '투입중' ELSE '대기' END AS status,
+      cur.current_project_name,cur.current_assignment_count,mm.current_month_mm,mm.current_month_mm&gt;1.00 AS over_one_mm,
+      cur.latest_assignment_end_dt,d.dflt_untprc_amt,d.use_yn,d.rsgn_dt
+    FROM mst.dev d LEFT JOIN mst.ptnr p ON p.ptnr_id=d.vndr_ptnr_id
+    LEFT JOIN cmn.cd_dtl e ON e.cd_grp_id='EMP_TYPE' AND e.dtl_cd=d.emp_se_cd
+    LEFT JOIN cmn.cd_dtl g ON g.cd_grp_id='GRADE' AND g.dtl_cd=d.grd_cd
+    LEFT JOIN cmn.cd_dtl j ON j.cd_grp_id='JOB' AND j.dtl_cd=d.main_job_cd
+    CROSS JOIN LATERAL (
+      SELECT count(*) AS current_assignment_count,max(a.end_dt) AS latest_assignment_end_dt,
+        (array_agg(r.prj_nm ORDER BY a.bgn_dt,a.asgn_id))[1] AS current_project_name
+      FROM asgn.asgn a JOIN prj.prj r ON r.prj_id=a.prj_id WHERE a.dev_id=d.dev_id
+        AND a.asgn_stts_cd='ACTIVE' AND a.bgn_dt &lt;= #{today} AND a.end_dt &gt;= #{today} AND r.prj_stts_cd IN ('PLAN','RUN','HOLD')
+    ) cur
+    CROSS JOIN LATERAL (
+      SELECT coalesce(sum(m.mm_qty),0.00) AS current_month_mm FROM asgn.asgn a JOIN asgn.asgn_mth m ON m.asgn_id=a.asgn_id
+      WHERE a.dev_id=d.dev_id AND a.asgn_stts_cd!='CANCELLED' AND m.work_ym=#{month}
+    ) mm
+  </sql>
+  <sql id="filter"><where>
+    rows.use_yn=#{useYn}
+    <choose><when test="status != null">AND rows.status=#{status}</when><otherwise><if test='useYn == "Y"'>AND rows.status!='퇴사'</if></otherwise></choose>
+    <if test="empType != null">AND rows.emp_se_cd=#{empType}</if>
+    <if test="job != null">AND (rows.main_job_cd=#{job} OR EXISTS(SELECT 1 FROM mst.dev_sub_job s WHERE s.dev_id=rows.dev_id AND s.job_cd=#{job}))</if>
+    <if test="q != null">AND (position(lower(#{q}) in lower(rows.dev_nm))&gt;0 OR position(lower(#{q}) in lower(rows.mng_no))&gt;0)</if>
+  </where></sql>
+  <select id="list" resultMap="listRow">SELECT * FROM (<include refid="projection"/>) rows <include refid="filter"/> ORDER BY ${order} LIMIT #{size} OFFSET #{offset}</select>
+  <select id="count" resultType="long">SELECT count(*) FROM (<include refid="projection"/>) rows <include refid="filter"/></select>
+  <select id="summary" resultMap="listRow"><include refid="projection"/> WHERE d.dev_id=#{id}</select>
+  <select id="row" resultMap="developerRow">SELECT dev_id,mng_no,dev_nm,emp_se_cd,main_job_cd,vndr_ptnr_id,pstn_cd,duty_se_cd,grd_cd,bsn_part_id,hire_dt,tel_no,email_addr,rmrk_desc,dflt_untprc_amt,updated_at FROM mst.dev WHERE dev_id=#{id}</select>
+  <select id="subJobs" resultType="string">SELECT job_cd FROM mst.dev_sub_job WHERE dev_id=#{id} ORDER BY job_cd</select>
+  <select id="skills" resultType="string">SELECT skl_cd FROM mst.dev_skl WHERE dev_id=#{id} ORDER BY skl_cd</select>
+  <select id="latestSalary" resultMap="salaryRow">SELECT cst_ym AS month,slry_amt FROM cst.mth_cst WHERE dev_id=#{id} ORDER BY cst_ym DESC LIMIT 1</select>
+  <select id="codeNames" resultMap="codeRow">SELECT cd_grp_id,dtl_cd,cd_nm FROM cmn.cd_dtl WHERE cd_grp_id IN ('EMP_TYPE','POSITION','WORK_TYPE','GRADE','JOB','SKILL') ORDER BY cd_grp_id,sort_seq,dtl_cd</select>
+  <select id="partName" resultType="string">SELECT bsn_part_nm FROM mst.bsn_part WHERE bsn_part_id=#{id}</select>
+  <select id="activeCode" resultType="boolean">SELECT EXISTS(SELECT 1 FROM cmn.cd_dtl d JOIN cmn.cd_grp g ON g.cd_grp_id=d.cd_grp_id WHERE d.cd_grp_id=#{group} AND d.dtl_cd=#{code} AND d.use_yn='Y' AND g.use_yn='Y')</select>
+  <select id="activePartner" resultType="boolean">SELECT EXISTS(SELECT 1 FROM mst.ptnr WHERE ptnr_id=#{id} AND use_yn='Y' AND ptnr_se_cd IN ('VEND','BOTH'))</select>
+  <select id="activePart" resultType="boolean">SELECT EXISTS(SELECT 1 FROM mst.bsn_part WHERE bsn_part_id=#{id} AND use_yn='Y')</select>
+  <select id="duplicateNumber" resultType="boolean">SELECT EXISTS(SELECT 1 FROM mst.dev WHERE mng_no=#{no})</select>
+  <select id="nextId" resultType="long">SELECT nextval('mst.seq_dev_id')</select>
+  <select id="insert" resultType="long" affectData="true" flushCache="true">
+    INSERT INTO mst.dev(dev_id,mng_no,dev_nm,emp_se_cd,main_job_cd,vndr_ptnr_id,pstn_cd,duty_se_cd,grd_cd,bsn_part_id,hire_dt,tel_no,email_addr,rmrk_desc,dflt_untprc_amt,use_yn,created_by)
+    VALUES(#{id},#{no},#{input.dev_nm},#{input.emp_se_cd},#{input.main_job_cd},#{input.vndr_ptnr_id},#{input.pstn_cd},#{input.duty_se_cd},#{input.grd_cd},#{input.bsn_part_id},#{input.hire_dt},#{input.tel_no},#{input.email_addr},#{input.rmrk_desc},#{input.dflt_untprc_amt},'Y',#{actor}) RETURNING dev_id
+  </select>
+  <update id="update">UPDATE mst.dev <set>
+    <if test="changed.contains('dev_nm')">dev_nm=#{input.dev_nm},</if>
+    <if test="changed.contains('emp_se_cd')">emp_se_cd=#{input.emp_se_cd},</if>
+    <if test="changed.contains('main_job_cd')">main_job_cd=#{input.main_job_cd},</if>
+    <if test="changed.contains('vndr_ptnr_id')">vndr_ptnr_id=#{input.vndr_ptnr_id},</if>
+    <if test="changed.contains('pstn_cd')">pstn_cd=#{input.pstn_cd},</if>
+    <if test="changed.contains('duty_se_cd')">duty_se_cd=#{input.duty_se_cd},</if>
+    <if test="changed.contains('grd_cd')">grd_cd=#{input.grd_cd},</if>
+    <if test="changed.contains('bsn_part_id')">bsn_part_id=#{input.bsn_part_id},</if>
+    <if test="changed.contains('hire_dt')">hire_dt=#{input.hire_dt},</if>
+    <if test="changed.contains('tel_no')">tel_no=#{input.tel_no},</if>
+    <if test="changed.contains('email_addr')">email_addr=#{input.email_addr},</if>
+    <if test="changed.contains('rmrk_desc')">rmrk_desc=#{input.rmrk_desc},</if>
+    <if test="changed.contains('dflt_untprc_amt')">dflt_untprc_amt=#{input.dflt_untprc_amt},</if>
+    updated_by=#{actor}</set> WHERE dev_id=#{id}
+  </update>
+  <delete id="deleteJobs">DELETE FROM mst.dev_sub_job WHERE dev_id=#{id}</delete>
+  <delete id="deleteSkills">DELETE FROM mst.dev_skl WHERE dev_id=#{id}</delete>
+  <insert id="insertJob">INSERT INTO mst.dev_sub_job(dev_id,job_cd) VALUES(#{id},#{code})</insert>
+  <insert id="insertSkill">INSERT INTO mst.dev_skl(dev_id,skl_cd) VALUES(#{id},#{code})</insert>
+  <insert id="appendHistory">INSERT INTO sys.data_chg_hist(tbl_nm,obj_rec_id,data_chg_ty_cd,clmn_nm,bfr_val,aft_val,chg_user_id) VALUES('mst.dev',#{id},#{type},#{column},#{before},#{after},#{actor})</insert>
+</mapper>

@@ -8,6 +8,10 @@ import * as partnerLifecycle from "../pages/partnersops/client";
 import * as salesParts from "../pages/salesparts/client";
 import * as salesPartLifecycle from "../pages/salespartsops/client";
 import * as uploads from "../pages/uploadsops/client";
+import * as developers from "../pages/developers/client";
+import * as developerLifecycle from "../pages/developersops/client";
+import * as workStatus from "../pages/workstatus/client";
+import * as uploadResults from "../pages/apiops/client";
 
 const response = (data: unknown) =>
   new Response(JSON.stringify({ success: true, meta: {}, data }));
@@ -38,6 +42,28 @@ describe("API client registration", () => {
     ["downloadUploadFile", uploads.downloadUploadFile],
     ["uploadTemplatePath", uploads.uploadTemplatePath],
     ["uploadErrorPath", uploads.uploadErrorPath],
+    ["listDevelopers", developers.listDevelopers],
+    ["getDeveloper", developers.getDeveloper],
+    ["createDeveloper", developers.createDeveloper],
+    ["updateDeveloper", developers.updateDeveloper],
+    ["enableDeveloper", developers.enableDeveloper],
+    ["listDeveloperOptions", developerLifecycle.listDeveloperOptions],
+    ["listDeveloperAssignments", developerLifecycle.listDeveloperAssignments],
+    ["listDeveloperMonthlyCosts", developerLifecycle.listDeveloperMonthlyCosts],
+    ["listDeveloperHistory", developerLifecycle.listDeveloperHistory],
+    ["disableDevelopers", developerLifecycle.disableDevelopers],
+    ["downloadDevelopers", developerLifecycle.downloadDevelopers],
+    ["listDeveloperWorkStatuses", workStatus.listDeveloperWorkStatuses],
+    ["createDeveloperWorkStatus", workStatus.createDeveloperWorkStatus],
+    ["updateDeveloperWorkStatus", workStatus.updateDeveloperWorkStatus],
+    [
+      "updateDeveloperWorkStatusRemoval",
+      workStatus.updateDeveloperWorkStatusRemoval,
+    ],
+    ["getUploadResult", uploadResults.getUploadResult],
+    ["revalidatePersonnelUpload", uploads.revalidatePersonnelUpload],
+    ["applyPersonnelUpload", uploads.applyPersonnelUpload],
+    ["listPersonnelUploadRows", uploads.listPersonnelUploadRows],
   ] as const)(
     "registers %s directly from its owning client",
     (name, implementation) => {
