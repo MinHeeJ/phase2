@@ -105,6 +105,15 @@ class WorkStatusApiTest {
         var old=existing("LEAVE","2026-10-01",null);when(mapper.overlap(any())).thenReturn(old);when(mapper.codeName("LEAVE")).thenReturn("휴직");
         write(method,body()).andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("PERIOD_OVERLAP")).andExpect(jsonPath("$.message").value("다른 근무 상태(휴직 2026-10-01~–)와 기간이 겹칩니다."));assertThat(rows.get(2L)).isEqualTo(old);untouched();
     }
+    @Test void createBusinessOverlapPreservesStatusResignationAndAudit() throws Exception {
+        var old = existing("LEAVE", "2026-10-01", null);
+        when(mapper.overlap(any())).thenReturn(old); when(mapper.codeName("LEAVE")).thenReturn("휴직");
+        mvc.perform(post("/api/developers/1/work-status").contentType(MediaType.APPLICATION_JSON)
+            .content(json.writeValueAsString(body()))).andExpect(status().isConflict())
+            .andExpect(jsonPath("$.code").value("PERIOD_OVERLAP"))
+            .andExpect(jsonPath("$.message").isNotEmpty()).andExpect(jsonPath("$.requestId").isNotEmpty());
+        assertThat(rows.get(2L)).isEqualTo(old); assertThat(resignation).isNull(); untouched();
+    }
     @ParameterizedTest @ValueSource(strings={"POST","PUT"})
     void secondResignationIsNotPeriodOverlap(String method)throws Exception {
         existing("LEAVE","2026-10-01",null);when(mapper.resignationExists(any())).thenReturn(true);var b=body();b.put("work_stts_cd","RESIGN");

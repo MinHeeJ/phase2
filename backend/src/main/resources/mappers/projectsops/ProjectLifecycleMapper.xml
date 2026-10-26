@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sicost.projectsops.ProjectLifecycleMapper">
+  <resultMap id="stateRow" type="com.sicost.projectsops.ProjectLifecycleModels$ProjectState"><constructor>
+    <arg column="prj_id" javaType="_long"/><arg column="use_yn" javaType="java.lang.String"/>
+  </constructor></resultMap>
+  <resultMap id="usageRow" type="com.sicost.projectsops.ProjectLifecycleModels$ProjectUsage"><constructor>
+    <arg column="assignments" javaType="_long"/><arg column="bill_stages" javaType="_long"/><arg column="allocations" javaType="_long"/><arg column="expenses" javaType="_long"/>
+  </constructor></resultMap>
+  <resultMap id="optionRow" type="com.sicost.projectsops.ProjectLifecycleModels$ProjectOption"><constructor>
+    <arg column="id" javaType="_long"/><arg column="no" javaType="java.lang.String"/><arg column="name" javaType="java.lang.String"/><arg column="type" javaType="java.lang.String"/><arg column="custName" javaType="java.lang.String"/>
+  </constructor></resultMap>
+  <resultMap id="assignmentRow" type="com.sicost.projectsops.ProjectLifecycleModels$ProjectAssignment"><constructor>
+    <arg column="name" javaType="java.lang.String"/><arg column="job" javaType="java.lang.String"/><arg column="beginDate" javaType="java.time.LocalDate"/><arg column="endDate" javaType="java.time.LocalDate"/><arg column="assignmentRate" javaType="java.math.BigDecimal"/><arg column="status" javaType="java.lang.String"/>
+  </constructor></resultMap>
+  <resultMap id="historyRow" type="com.sicost.projectsops.ProjectLifecycleModels$ProjectHistoryEntry"><constructor>
+    <arg column="changedAt" javaType="java.time.LocalDateTime"/><arg column="field" javaType="java.lang.String"/><arg column="before" javaType="java.lang.String"/><arg column="after" javaType="java.lang.String"/><arg column="actor" javaType="java.lang.String"/>
+  </constructor></resultMap>
+  <select id="state" resultMap="stateRow">SELECT prj_id,use_yn FROM prj.prj WHERE prj_id=#{id}</select>
+  <select id="lockState" resultMap="stateRow">SELECT prj_id,use_yn FROM prj.prj WHERE prj_id=#{id} FOR UPDATE</select>
+  <select id="usage" resultMap="usageRow">
+    SELECT (SELECT count(*) FROM asgn.asgn WHERE prj_id=#{id} AND asgn_stts_cd!='CANCELLED') AS assignments,
+      (SELECT count(*) FROM prj.bill_stg WHERE prj_id=#{id}) AS bill_stages,
+      (SELECT count(*) FROM prj.tk_aloc_line WHERE prj_id=#{id}) AS allocations,
+      (SELECT count(*) FROM cst.drct_expns WHERE prj_id=#{id} AND dev_id IS NULL) AS expenses
+  </select>
+  <sql id="currentPeople">
+    (SELECT count(DISTINCT a.dev_id) FROM asgn.asgn a WHERE a.prj_id=p.prj_id AND a.asgn_stts_cd='ACTIVE'
+      AND a.bgn_dt &lt;= #{today} AND a.end_dt &gt;= #{today} AND p.prj_stts_cd IN ('PLAN','RUN','HOLD')) AS "assignmentCount"
+  </sql>
+  <sql id="joins">FROM prj.prj p LEFT JOIN mst.ptnr c ON c.ptnr_id=p.cust_ptnr_id LEFT JOIN mst.bsn_part b ON b.bsn_part_id=p.bsn_part_id</sql>
+  <select id="detail" resultType="map">
+    SELECT p.prj_id,p.prj_no,p.prj_nm,p.cust_ptnr_id,p.cntrct_ty_cd,p.prj_stts_cd,p.win_prblt_rt,p.cntrct_dt,
+      p.cntrct_bgn_dt,p.cntrct_end_dt,p.prfm_bgn_dt,p.bsn_part_id,p.stlm_mthd_cd,p.pm_dev_id,p.free_sprt_yn,
+      p.quot_amt,p.init_cntrct_amt,p.trgt_mrgn_rt,p.trgt_cst_amt,p.indty_cd,p.duty_fld_nm,p.prev_prj_id,p.rmrk_desc,
+      p.cur_cntrct_amt,coalesce(p.cur_end_dt,p.cntrct_end_dt) AS cur_end_dt,p.cntrct_mm_qty,p.use_yn,
+      c.ptnr_nm AS "custName",
+      CASE WHEN b.hq_yn='Y' THEN '본사(직접 영업)' ELSE b.bsn_part_nm END AS "partName",
+      d.dev_nm AS "pmName",<include refid="currentPeople"/>
+    <include refid="joins"/> LEFT JOIN mst.dev d ON d.dev_id=p.pm_dev_id WHERE p.prj_id=#{id}
+  </select>
+  <select id="skills" resultType="string">SELECT skl_cd FROM prj.prj_skl WHERE prj_id=#{id} ORDER BY skl_cd</select>
+  <select id="options" resultMap="optionRow">
+    SELECT p.prj_id AS id,p.prj_no AS no,p.prj_nm AS name,p.cntrct_ty_cd AS type,c.ptnr_nm AS "custName"
+    <include refid="joins"/> WHERE p.use_yn='Y' AND p.prj_stts_cd NOT IN ('END','LOST')
+    <if test="q != null">AND (position(lower(#{q}) in lower(p.prj_no))&gt;0 OR position(lower(#{q}) in lower(p.prj_nm))&gt;0 OR position(lower(#{q}) in lower(c.ptnr_nm))&gt;0)</if>
+    ORDER BY p.prj_no,p.prj_id
+  </select>
+  <select id="assignments" resultMap="assignmentRow">
+    SELECT d.dev_nm AS name,coalesce(j.cd_nm,a.job_cd) AS job,a.bgn_dt AS "beginDate",a.end_dt AS "endDate",a.asgn_rt AS "assignmentRate",a.asgn_stts_cd AS status
+    FROM asgn.asgn a JOIN mst.dev d ON d.dev_id=a.dev_id LEFT JOIN cmn.cd_dtl j ON j.cd_grp_id='JOB' AND j.dtl_cd=a.job_cd
+    WHERE a.prj_id=#{id} AND a.asgn_stts_cd!='CANCELLED' ORDER BY a.bgn_dt,a.asgn_id
+  </select>
+  <select id="history" resultMap="historyRow">
+    SELECT h.chg_at AS "changedAt",coalesce(h.clmn_nm,h.data_chg_ty_cd) AS field,h.bfr_val AS before,h.aft_val AS after,'기본 사용자' AS actor
+    FROM sys.data_chg_hist h WHERE h.obj_rec_id=#{id}
+      AND h.tbl_nm IN ('prj.prj','prj.prj_part_hist','prj.bill_stg','prj.tk_aloc_line','cst.drct_expns','prj.cntrct_chg_hist','prj.psn_plan')
+    ORDER BY h.chg_at DESC,h.data_chg_hist_id DESC
+  </select>
+  <select id="exportRows" resultType="map">
+    SELECT * FROM (
+      SELECT p.prj_id,p.prj_no,p.prj_nm,c.ptnr_nm AS "custName",p.cntrct_ty_cd,p.cntrct_bgn_dt,
+        coalesce(p.cur_end_dt,p.cntrct_end_dt) AS cur_end_dt,p.cur_cntrct_amt,<include refid="currentPeople"/>,
+        p.bsn_part_id,CASE WHEN p.cntrct_ty_cd='IN' THEN '없음' WHEN b.hq_yn='Y' THEN '본사(직접 영업)' WHEN b.bsn_part_id IS NULL THEN '미지정' ELSE b.bsn_part_nm END AS "partName",p.prj_stts_cd
+      <include refid="joins"/>
+      WHERE p.use_yn='Y' AND coalesce(p.prfm_bgn_dt,p.cntrct_bgn_dt) &lt;= #{yearEnd} AND coalesce(p.cur_end_dt,p.cntrct_end_dt) &gt;= #{yearStart}
+      <if test="type != null">AND p.cntrct_ty_cd=#{type}</if>
+      <choose><when test="status != null">AND p.prj_stts_cd=#{status}</when><otherwise>AND p.prj_stts_cd NOT IN ('END','LOST')</otherwise></choose>
+      <if test="unassigned">AND p.cntrct_ty_cd!='IN' AND p.bsn_part_id IS NULL</if>
+      <if test="partId != null">AND p.bsn_part_id=#{partId}</if>
+      <if test="q != null">AND (position(lower(#{q}) in lower(p.prj_nm))&gt;0 OR position(lower(#{q}) in lower(c.ptnr_nm))&gt;0)</if>
+    ) rows ORDER BY ${order}
+  </select>
+  <update id="changeState">UPDATE prj.prj SET use_yn=#{useYn},updated_by=#{actor} WHERE prj_id=#{id}</update>
+  <insert id="audit">INSERT INTO sys.data_chg_hist(tbl_nm,obj_rec_id,data_chg_ty_cd,clmn_nm,bfr_val,aft_val,chg_user_id) VALUES('prj.prj',#{id},#{type},'use_yn',#{before},#{after},#{actor})</insert>
+</mapper>

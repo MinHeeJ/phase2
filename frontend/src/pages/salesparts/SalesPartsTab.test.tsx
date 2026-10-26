@@ -350,6 +350,49 @@ describe("영업 파트 목록·상세", () => {
 });
 
 describe("영업 파트 추가", () => {
+  it("blocks duplicate submits while a create request is pending", async () => {
+    dialog();
+    await waitFor(() =>
+      expect(screen.getByLabelText("이익 배분율 (%)")).toHaveValue(40),
+    );
+    change("파트명", "새 파트");
+    change("파트장", "파트장");
+    let complete!: (value: Response) => void;
+    fetcher.mockImplementationOnce(
+      () =>
+        new Promise<Response>((resolve) => {
+          complete = resolve;
+        }),
+    );
+    submit();
+    submit();
+    expect(screen.getByTestId("sales-part-create-submit")).toBeDisabled();
+    expect(screen.getByRole("button", { name: "취소" })).toBeDisabled();
+    expect(
+      fetcher.mock.calls.filter(([, init]) => init?.method === "POST"),
+    ).toHaveLength(1);
+    await act(async () => complete(response(part)));
+    await waitFor(() =>
+      expect(screen.getByTestId("sales-part-create-submit")).toBeEnabled(),
+    );
+  });
+  it("rejects unsafe integer fees without sending a rounded amount", async () => {
+    dialog();
+    await waitFor(() =>
+      expect(screen.getByLabelText("이익 배분율 (%)")).toHaveValue(40),
+    );
+    change("파트명", "새 파트");
+    change("파트장", "파트장");
+    change("영업비 (원)", "9007199254740993");
+    submit();
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "영업비를 입력해 주세요.",
+    );
+    expect(screen.getByLabelText("영업비 (원)")).toHaveFocus();
+    expect(fetcher.mock.calls.some(([, init]) => init?.method === "POST")).toBe(
+      false,
+    );
+  });
   it("loads closing metadata through HQ detail before monthly defaults", async () => {
     render(<SalesPartsTab />);
     await openAdd();

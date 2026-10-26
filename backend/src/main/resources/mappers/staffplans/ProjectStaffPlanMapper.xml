@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sicost.staffplans.ProjectStaffPlanMapper">
+  <resultMap id="projectRow" type="com.sicost.staffplans.ProjectStaffPlanModels$StaffProject"><constructor>
+    <arg column="use_yn" javaType="java.lang.String"/>
+    <arg column="start" javaType="java.time.LocalDate"/>
+    <arg column="end" javaType="java.time.LocalDate"/>
+  </constructor></resultMap>
+  <resultMap id="planRow" type="com.sicost.staffplans.ProjectStaffPlanModels$StaffPlan"><constructor>
+    <arg column="plan_ym" javaType="java.lang.String"/>
+    <arg column="job_cd" javaType="java.lang.String"/>
+    <arg column="grd_cd" javaType="java.lang.String"/>
+    <arg column="need_mm_qty" javaType="java.math.BigDecimal"/>
+    <arg column="expc_mth_cst_amt" javaType="java.lang.Long"/>
+    <arg column="need_psn_cnt" javaType="java.math.BigDecimal"/>
+    <arg column="src_need_id" javaType="java.lang.Long"/>
+  </constructor></resultMap>
+  <resultMap id="actualRow" type="com.sicost.staffplans.ProjectStaffPlanModels$ActualMM"><constructor>
+    <arg column="job_cd" javaType="java.lang.String"/>
+    <arg column="mm_qty" javaType="java.math.BigDecimal"/>
+  </constructor></resultMap>
+  <select id="project" resultMap="projectRow">
+    SELECT p.use_yn, coalesce(p.prfm_bgn_dt,p.cntrct_bgn_dt) AS start,
+      coalesce(p.cur_end_dt,p.cntrct_end_dt) AS "end"
+    FROM prj.prj p WHERE p.prj_id=#{id}
+  </select>
+  <select id="plans" resultMap="planRow">
+    SELECT p.plan_ym,p.job_cd,p.grd_cd,p.need_mm_qty,p.expc_mth_cst_amt,p.need_psn_cnt,p.src_need_id
+    FROM prj.psn_plan p WHERE p.prj_id=#{id} ORDER BY p.job_cd,p.grd_cd,p.plan_ym
+  </select>
+  <select id="actual" resultMap="actualRow">
+    SELECT a.job_cd,sum(m.mm_qty) AS mm_qty
+    FROM asgn.asgn a JOIN asgn.asgn_mth m ON m.asgn_id=a.asgn_id
+    WHERE a.prj_id=#{id} AND a.asgn_stts_cd!='CANCELLED'
+    GROUP BY a.job_cd ORDER BY a.job_cd
+  </select>
+  <select id="activeCode" resultType="boolean">
+    SELECT EXISTS(SELECT 1 FROM cmn.cd_dtl d JOIN cmn.cd_grp g ON g.cd_grp_id=d.cd_grp_id
+      WHERE d.cd_grp_id=#{group} AND d.dtl_cd=#{code} AND d.use_yn='Y' AND g.use_yn='Y')
+  </select>
+  <delete id="deleteManual">DELETE FROM prj.psn_plan WHERE prj_id=#{id} AND src_need_id IS NULL</delete>
+  <insert id="insert">
+    INSERT INTO prj.psn_plan(prj_id,plan_ym,job_cd,grd_cd,need_mm_qty,expc_mth_cst_amt,need_psn_cnt,created_by)
+    VALUES(#{id},#{input.plan_ym},#{input.job_cd},#{input.grd_cd},#{input.need_mm_qty},#{input.expc_mth_cst_amt},#{count},#{actor})
+  </insert>
+  <insert id="history">
+    INSERT INTO sys.data_chg_hist(tbl_nm,obj_rec_id,data_chg_ty_cd,clmn_nm,bfr_val,aft_val,chg_user_id)
+    VALUES('prj.psn_plan',#{id},'UPDATE','인원 계획',#{before},#{after},#{actor})
+  </insert>
+</mapper>

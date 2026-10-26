@@ -3284,6 +3284,18 @@ paths:
       - REQ-220
       - REQ-221
       - REQ-223
+      - REQ-227
+      - REQ-252
+      - REQ-303
+      - REQ-304
+      - REQ-305
+      - REQ-306
+      - REQ-330
+      - REQ-331
+      - REQ-332
+      - REQ-333
+      - REQ-334
+      - REQ-335
       parameters: []
       responses:
         '200':
@@ -3316,7 +3328,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/ApiError'
         '409':
-          description: CLOSED_MONTH:마감월B.1검사·업로드거절.
+          description: 'CLOSED_MONTH:마감월B.1검사·업로드거절. B.6 PROJECT_MISMATCH: 이 파일은 {A1} 프로젝트 배분표입니다.; B.9 DUPLICATE_PRJ_NO: 이미 있는
+            프로젝트ID입니다.'
           headers:
             X-Request-Id:
               schema:
@@ -3340,10 +3353,8 @@ paths:
       x-business-rules:
       - B.8 제목 줄 표지는 이름, 키 관리번호. 이름50·직원구분·주직무 필수, 연락처30·비고500. 빈 관리번호 자동발급; 직접번호 형식·기존번호 중복 검사, 기존 개발자 자동갱신 금지.
       - 파일 관리번호 중복은 두번째 이후 줄만 파일 안에서 {n}행과 관리번호가 같습니다. 오류. 기존 번호는 이미 있는 관리번호입니다.
-      - EMP_TYPE 업체→외주(OS), 정직원→정규직(FT) 변환 경고. POSITION/WORK_TYPE/GRADE/JOB/SKILL/WORK_STATUS 공통코드·③CMN-726 재사용. 구체③정규화
-        우선순위는 OQ-UPLOAD-WIRE.
-      - OS 소속은 사용 중 VEND/BOTH 사업자번호 또는 상호; 동일상호 여러개 오류, 미등록협력사 오류·선등록 필요. 비OS 소속은NULL·자사 저장 경고. 자사/빈소속은 자사여서 OS에는
-        협력사필수오류.
+      - EMP_TYPE 업체→외주(OS), 정직원→정규직(FT) 변환 경고. POSITION/WORK_TYPE/GRADE/JOB/SKILL/WORK_STATUS 공통코드·③CMN-726 재사용. 구체③정규화 우선순위는 OQ-UPLOAD-WIRE.
+      - OS 소속은 사용 중 VEND/BOTH 사업자번호 또는 상호; 동일상호 여러개 오류, 미등록협력사 오류·선등록 필요. 비OS 소속은NULL·자사 저장 경고. 자사/빈소속은 자사여서 OS에는 협력사필수오류.
       - 업무구분 빈칸 DIRECT, 보조직무 쉼표·/ 분리, 스킬 쉼표 분리. 주직무중복 보조제외, 사용중 파트명 확인(영업파트는 대응등록 불가). 미등록코드는 행·열·이유·대응등록가능여부 반환.
       - 상태 빈칸·재직·대기중은 근무상태 미생성. 상태있으면 시작필수·종료역전오류, 근무상태 함께생성·퇴사면rsgn_dt 동기화.
       - 오류 하나라도 전체 미반영(all-or-nothing); 경고만 있으면 반영 가능. 자동관리번호·INSERT는 파일행순.
@@ -3354,35 +3365,56 @@ paths:
       - 수당빈칸 POSITION.attr1_val정액, FL/OS0. FT퇴직금빈칸(급여+수당)/12 원반올림; CT는적은사람만, FL/OS0.
       - OS vat_amt빈칸 공급가액×해당월VAT_RATE/100 원반올림, 비OS vat_amt0. 기존 getEffectiveParam(VAT_RATE,month)참조.
       - DB개인월인건비 FT/CT=급여+수당+회사보험+퇴직적립; FL=원천세전그달지급액; OS=공급가액. 본인보험·원천세·근로소득세·부가세 인건비제외.
-      - indv_lbr_cst_amt·real_pay_amt는 DB계산 readOnly·앱INSERT/UPDATE대상아님. 엑셀P/Q 비교만, DB와1원차이도경고·excel_diff_desc. 실지급전체DB식은SQL부재
-        OQ-002, 임의공식금지.
+      - indv_lbr_cst_amt·real_pay_amt는 DB계산 readOnly·앱INSERT/UPDATE대상아님. 엑셀P/Q 비교만, DB와1원차이도경고·excel_diff_desc. 실지급전체DB식은SQL부재 OQ-002,
+        임의공식금지.
       - emp_se_cd·duty_se_cd·pstn_cd·bsn_part_id 월스냅샷, 이후개발자변경으로기존월불변. 과거미마감월기준정보시점 OQ-CHG-005.
       - TEAM·PEXP는dev_id·prj_id NULL 경비,0/빈칸미생성. OS두경비무시·경고. 음수전면금지는추정 OQ-CHG-003.
       - 오류1건도 해당월기존급여·연계경비전체무변경. 기존해당월인원수·전체교체안내반환. 빈파일거절은 OQ-CHG-002; minItems=1 임의확정금지.
+      - 'REQ-303 (SPEC-REQUEST.md:257): 프로젝트ID A1·3행 제목과 원문 월별 열 구성을 가진 B.6 양식을 내려받는다.'
+      - 'REQ-304 (SPEC-REQUEST.md:257): 상세 배분표의 B.6 엑셀 업로드를 공통 구조에 연결하고 sys.upld.obj_key_val에 prj_no를 기록한다.'
+      - 'REQ-305 (SPEC-REQUEST.md:258): B.6 A1 불일치는409 PROJECT_MISMATCH, 사람 관리번호·이름·직무·투입일 오류와 잘못된 월 제목은 오류, 수행 기간 밖 월은 경고로 구분한다.'
+      - 'REQ-306 (SPEC-REQUEST.md:258): B.6 전체 검사 후 파일에 등장한 단계마다 줄·월 값을 전체 교체한다. 한 행 오류면 모든 단계가 미반영된다.'
+      - 'REQ-238 (SPEC-REQUEST.md:45): 업로드 직접 ID는 P-와 숫자4~5자리이며 중복을 거절하고 저장 후 변경하지 않는다.'
+      - 'REQ-331 (SPEC-REQUEST.md:335): B.9의 프로젝트ID·프로젝트명·고객사·계약유형·상태·계약기간·수행시작일·금액·영업파트·무상지원·비고를 333~345행 별칭/필수/검사 그대로 처리한다.'
+      - 'REQ-332 (SPEC-REQUEST.md:343): 영업 파트 — 파트 — | 사용 중 파트명 또는 ''본사''. TK·MO·DP인데 비면 경고 후 미지정으로 저장 — bsn_part_id'
+      - 'REQ-333 (SPEC-REQUEST.md:347): - 오류 문구는 FR-029 검증 문구를 그대로 쓰고, 고객사·파트를 못 찾으면 "''{값}''은(는) 등록된 {고객사|영업 파트}가 아닙니다.", ID 중복은
+        "이미 있는 프로젝트ID입니다." 경고는 "영업 파트가 비어 미지정으로 저장합니다." / "''{표기}''를 ''{코드 이름}''(으)로 바꿔 읽었습니다."'
+      - 'REQ-334 (SPEC-REQUEST.md:348): B.9는 파일 행 순서대로 신규 프로젝트·자동번호·파트 이력·단계 표·목표 원가를 원자 적재하며 기존ID는 갱신하지 않는다. 한 행 오류면 전체 미반영이다.'
+      - 'REQ-335 (SPEC-REQUEST.md:348): B.9 반영 프로젝트에 upld_id와 sys.data_chg_hist의 rsn_desc="엑셀 업로드 #{upldId}"를 남긴다.'
       x-side-effects:
       - 검사결과·오류/경고만제공, mst.dev/cst.mth_cst/cst.drct_expns업무반영없음.
       - 검사단계sys.upld/sys.upld_err생성시점·파일보관·ID·결과보관은③근거없는 OQ-UPLOAD-WIRE.
+      - B.6/B.9 검사·재검사만으로 프로젝트·배분표·단계표·업무감사이력 쓰기 없음.
       x-required-tests:
       - 'happy: 정상 B.8 3행 파일을 검사 -> getUploadResult의 row_count=3·error_count=0과 listUploadRows의 정규화 개발자 행을 읽는다.'
       - 'auth: 인증 없이 B.1 month와 파일 검사 -> 로그인·역할 거절 없이 검사 결과의 month와 행별 결과를 읽는다.'
       - 'validation: B.1 month 없이 검사 -> 400 ApiError.field=month; 주 직무 빈 B.8 행은 결과 행·열·이유 오류이며 업무 반영이 없다.'
       - 'business: B.1 month=2026-09 CLOSED 검사 -> 409 CLOSED_MONTH이고 cst.mth_cst·cst.drct_expns의 기존 월 데이터는 그대로다.'
-      - 'side-effect: B.8/B.1 검사만 완료 -> getUploadResult/listUploadIssues에 검사 결과·행열이유가 있고 mst.dev·mth_cst·drct_expns는 증가·교체되지
-        않는다. 원문은 업무 반영 때만 변경/UPLOAD 이력을 요구한다.'
-      - 'calculation: TL 급여4000000·수당빈칸·회사보험420000·퇴직금빈칸의 2026-10 검사를 거쳐 반영 -> alwnc_amt200000·rtrpay_acml_amt350000·DB
-        indv_lbr_cst_amt4970000을 읽는다.'
+      - 'side-effect: B.8/B.1 검사만 완료 -> getUploadResult/listUploadIssues에 검사 결과·행열이유가 있고 mst.dev·mth_cst·drct_expns는 증가·교체되지 않는다.
+        원문은 업무 반영 때만 변경/UPLOAD 이력을 요구한다.'
+      - 'calculation: TL 급여4000000·수당빈칸·회사보험420000·퇴직금빈칸의 2026-10 검사를 거쳐 반영 -> alwnc_amt200000·rtrpay_acml_amt350000·DB indv_lbr_cst_amt4970000을
+        읽는다.'
+      - 'happy: 정상 B.9 3행 검사/재검사 -> getUploadResult row_count3/error_count0, listUploadRows project 미리보기를 읽는다.'
+      - 'auth: 인증 없이 B.6 projectId·파일 검사 후 반영 -> getProjectAllocations 해당 단계 줄·월값을 읽고 로그인 거절 없음.'
+      - 'validation: B.6 사람 관리번호/이름/직무/투입일 오류 또는 월제목 형식오류 -> listUploadIssues 행·열·이유, can_apply=false; 반영시 기존 줄·월값 불변.'
+      - 'business: B.6 A1과 projectId 프로젝트번호 다름 -> 409 PROJECT_MISMATCH 및 이 파일은 {A1} 프로젝트 배분표입니다.; B.9 기존번호 -> 409 DUPLICATE_PRJ_NO(행검사는
+        issues도 제공), 기존 프로젝트 미갱신.'
+      - 'side-effect: 검사만 -> getUploadResult/listUploadIssues 결과는 읽히고 prj·phs·배분표·업무변경기록은 그대로.'
+      - 'business: B.9 월정액·빈파트 MO -> listUploadIssues 변환/미지정 경고, 반영후 listProjects type MO·파트NULL·미지정안내건수 증가; B.6 기간밖 월은 경고(저장/합계
+        정책 미확정).'
       x-permission-keys:
       - UI-02.upload
+      - UI-01.upload
       x-design-decision:
         status: 업무 동작은 요청 확정; HTTP DTO 세부는 승인 보류 제안
         open_question: OQ-UPLOAD-WIRE
         reason: 기존③ upload 계약·실제품 코드가 기준선에 없어 경로 하위구조·검사 ID·결과 보관·재검사·확인·파일 전송 wire를 기존 구현이라고 주장하지 않는다.
         unresolved_scope: ③세부wire는미확인제안이나 B.8/B.1검증·month필수·오류전체미반영 업무는확정요청이며OQ로미루지않는다.
-      x-request-body-policy: 본문 없음. GET/DELETE는 경로·쿼리로 대상 지정하며 단순 상태 전이는 빈 본문을 허용한다.
+      x-request-body-policy: multipart 본문 필수. B.6 projectId는 파일 A1 프로젝트번호 대조 대상; B.9 파일 열은 원문333~345행.
       x-api-id: API-25
       requestBody:
         required: true
-        description: B.1은month를multipart에필수동봉. form_type·file명칭은제안wire.
+        description: 기존 B.8/B.1 multipart 보존; B.9 form_type/file 추가; B.6은 projectId 필수 동봉(SPEC-REQUEST.md:89).
         content:
           multipart/form-data:
             schema:
@@ -3416,6 +3448,38 @@ paths:
                 - file
                 - month
                 additionalProperties: false
+              - type: object
+                properties:
+                  form_type:
+                    type: string
+                    enum:
+                    - B.6
+                  file:
+                    type: string
+                    format: binary
+                  projectId:
+                    type: integer
+                    format: int64
+                    minimum: 1
+                    description: SPEC-REQUEST.md:89 B.6 validate 함께 받는 프로젝트ID
+                additionalProperties: false
+                required:
+                - form_type
+                - file
+                - projectId
+              - type: object
+                properties:
+                  form_type:
+                    type: string
+                    enum:
+                    - B.9
+                  file:
+                    type: string
+                    format: binary
+                additionalProperties: false
+                required:
+                - form_type
+                - file
       x-form-columns:
         B.8:
         - '| 열 제목 | 별칭 | 필수 | 읽기·검사 | 컬럼 |'
@@ -3424,8 +3488,7 @@ paths:
         - '| 이름 | 성명 | 필수 | 50자 | dev_nm |'
         - '| 연락처 | 전화번호 | | 30자 | tel_no |'
         - '| 직원구분 | 구분 | 필수 | EMP_TYPE(③ CMN-726, ''업체''→외주, ''정직원''→정규직) | emp_se_cd |'
-        - '| 소속 | 소속사, 업체명 | 외주면 필수 | ''자사'' 또는 빈칸 = 자사. 그 밖은 사용 중 협력사(VEND·BOTH)의 사업자번호 또는 상호. 같은 상호가 여럿이면 오류 | vndr_ptnr_id
-          |'
+        - '| 소속 | 소속사, 업체명 | 외주면 필수 | ''자사'' 또는 빈칸 = 자사. 그 밖은 사용 중 협력사(VEND·BOTH)의 사업자번호 또는 상호. 같은 상호가 여럿이면 오류 | vndr_ptnr_id |'
         - '| 직위 | | | POSITION | pstn_cd |'
         - '| 업무 구분 | 직접/간접 | | WORK_TYPE, 비면 직접 | duty_se_cd |'
         - '| 등급 | | | GRADE | grd_cd |'
@@ -3435,8 +3498,7 @@ paths:
         - '| 영업 파트 | 파트 | | 사용 중 파트명 | bsn_part_id |'
         - '| 입사일 | 계약일 | | 날짜 | hire_dt |'
         - '| 월 단가 | 단가 | | 금액 | dflt_untprc_amt |'
-        - '| 상태 · 시작일 · 종료일 | 근무 상태 | 상태가 있으면 시작일 필수 | WORK_STATUS. 빈칸·''재직''·''대기중''은 근무 상태를 만들지 않는다 | dev_work_stts_hist
-          |'
+        - '| 상태 · 시작일 · 종료일 | 근무 상태 | 상태가 있으면 시작일 필수 | WORK_STATUS. 빈칸·''재직''·''대기중''은 근무 상태를 만들지 않는다 | dev_work_stts_hist |'
         - '| 비고 | 메모 | | 500자 | rmrk_desc |'
         B.1:
         - '| 열 제목 | 엑셀 열 | 필수 | 읽기·검사 | 컬럼 |'
@@ -3458,14 +3520,29 @@ paths:
         - '| 실지급액 · 개인별 원가 | P, Q | | 비교만: DB 계산값과 1원이라도 다르면 경고, 내용은 excel_diff_desc | (비교) |'
         - '| 팀비 · 프로젝트경비 | R, S | | CMN-828 | cst.drct_expns |'
         - '| 원가합계 · 영업이익 · 가동·가득 | T, U, V, W | | 읽지 않음(원가 문서에서 비교) | |'
+        B.9:
+        - '| 열 제목 | 별칭 | 필수 | 읽기·검사 | 컬럼 |'
+        - '| --- | --- | --- | --- | --- |'
+        - '| 프로젝트ID | | | 비우면 자동(CMN-901). 형식·중복 검사 | prj_no |'
+        - '| 프로젝트명 | 사업명 | 필수 | 100자, 앞뒤 빈칸 제거 | prj_nm |'
+        - '| 고객사 | 발주처 | IN 제외 필수 | 사용 중 CUST·BOTH의 사업자번호 또는 상호(같은 상호가 여럿이면 오류) | cust_ptnr_id |'
+        - '| 계약유형 | 구분 | 필수 | CONTRACT_TYPE(''월정액''→월단위) | cntrct_ty_cd |'
+        - '| 상태 | | | PROJECT_STATUS 중 수주예정·진행·보류·종료, 비면 진행 | prj_stts_cd |'
+        - '| 계약 시작일 · 계약 종료일 | 시작일 · 종료일 | 필수 | 날짜, 종료 ≥ 시작 | cntrct_bgn_dt, cntrct_end_dt |'
+        - '| 수행 시작일 | | | 날짜 | prfm_bgn_dt |'
+        - '| 견적 금액 · 계약금액 | 최초 계약금액 | 계약금액 IN 제외 필수 | 금액 | quot_amt, init_cntrct_amt |'
+        - '| 영업 파트 | 파트 | | 사용 중 파트명 또는 ''본사''. TK·MO·DP인데 비면 경고 후 미지정으로 저장 | bsn_part_id |'
+        - '| 무상지원 | | | Y·N, 예·아니오 | free_sprt_yn |'
+        - '| 비고 | 메모 | | 500자 | rmrk_desc |'
+        B.6:
+        - '| 업로드 | 탭 안 [양식 내려받기] [엑셀 업로드]. 양식 B.6: A1 프로젝트ID, 3행 제목, 열 = 배분 구분(견적·최종 계약·실제 투입계획), 줄 종류(사람·항목), 관리번호, 이름 또는 항목명,
+          직무, 투입일, 값 종류(금액·MM), 월별 열(제목 YYYY-MM), 비고. 한 사람이 금액 줄·MM 줄 2줄 가능 | sys.upld obj_key_val=prj_no |'
       x-field-error-messages:
         B.8:
         - '| 오류 · 이름 / 주 직무 / 직원구분 | 이름이 비어 있습니다. / 주 직무가 비어 있습니다. / 직원구분은 정규직·계약직·프리랜서·외주 중 하나로 적어 주세요. |'
         - '| 오류 · 관리번호 | 이미 있는 관리번호입니다. / 파일 안에서 {n}행과 관리번호가 같습니다. / 관리번호는 영문 대문자·숫자·하이픈으로 20자까지 씁니다. |'
-        - '| 오류 · 소속 | 외주는 소속 협력사가 꼭 필요합니다. / ''{값}''은(는) 등록된 협력사가 아닙니다. 거래처에 먼저 등록해 주세요. / 같은 상호의 협력사가 여럿입니다. 사업자번호로
-          적어 주세요. |'
-        - '| 오류 · 직위·등급·직무·스킬·영업 파트 | ''{값}''은(는) 등록된 {항목}이 아닙니다. 목록에 있는 이름으로 적거나 [대응 등록]으로 연결해 주세요. (영업 파트는 대응 등록
-          없음) |'
+        - '| 오류 · 소속 | 외주는 소속 협력사가 꼭 필요합니다. / ''{값}''은(는) 등록된 협력사가 아닙니다. 거래처에 먼저 등록해 주세요. / 같은 상호의 협력사가 여럿입니다. 사업자번호로 적어 주세요. |'
+        - '| 오류 · 직위·등급·직무·스킬·영업 파트 | ''{값}''은(는) 등록된 {항목}이 아닙니다. 목록에 있는 이름으로 적거나 [대응 등록]으로 연결해 주세요. (영업 파트는 대응 등록 없음) |'
         - '| 오류 · 시작일 | 상태가 있으면 시작일이 꼭 필요합니다. / 종료일은 시작일 이후여야 합니다. |'
         - '| 경고 | ''{표기}''를 ''{코드 이름}''(으)로 바꿔 읽었습니다. / 외주가 아니어서 소속을 자사로 저장합니다. |'
         B.1:
@@ -3477,6 +3554,21 @@ paths:
         - '| 경고 · 실지급액·개인별 원가 | 엑셀 값({엑셀})과 시스템 계산값({시스템})이 다릅니다. |'
         - '| 경고 · 퇴사 | 이 달 전에 퇴사한 사람입니다(퇴사일 {날짜}). |'
         - '| 경고 · 팀비·프로젝트경비 | 외주는 팀비·프로젝트경비를 넣지 않아 무시했습니다. |'
+        B.9:
+        - '| 프로젝트명 없음 / 100자 초과 | 프로젝트명을 입력해 주세요. / 프로젝트명은 100자까지 쓸 수 있습니다. |'
+        - '| 고객사 없음 | 고객사를 골라 주세요. |'
+        - '| 계약유형 없음 | 계약유형을 골라 주세요. |'
+        - '| 시작일·종료일 없음 | 계약 기간을 입력해 주세요. |'
+        - '| 종료일이 시작일보다 빠름 | 종료일은 시작일과 같거나 뒤여야 합니다. |'
+        - '| 수행 시작일이 계약 시작일보다 빠름 | 수행 시작일은 계약 시작일 이후여야 합니다. |'
+        - '| 영업 파트 없음(TK·MO·DP) | 영업 파트를 골라 주세요. 본사가 직접 영업했으면 「본사(직접 영업)」를 고릅니다. |'
+        - '| 계약금액 없음(IN 제외) | 계약금액을 입력해 주세요. |'
+        - '| 비율 범위 | 0~100 사이 숫자로 입력해 주세요. |'
+        - '- 오류 문구는 FR-029 검증 문구를 그대로 쓰고, 고객사·파트를 못 찾으면 "''{값}''은(는) 등록된 {고객사|영업 파트}가 아닙니다.", ID 중복은 "이미 있는 프로젝트ID입니다." 경고는 "영업
+          파트가 비어 미지정으로 저장합니다." / "''{표기}''를 ''{코드 이름}''(으)로 바꿔 읽었습니다."'
+        B.6:
+        - '| 업로드 검사 | A1이 지금 프로젝트와 다르면 오류(409 PROJECT_MISMATCH 문구 "이 파일은 {A1} 프로젝트 배분표입니다."). 사람 줄 관리번호 없음·이름 불일치·직무·투입일 빈칸은 오류,
+          월 제목이 YYYY-MM이 아니면 오류, 수행 기간 밖 월은 경고. 반영은 파일에 나온 단계마다 전체 교체 | |'
       x-existing-reference-bindings:
       - operationId: getCodeOptions
         usage: 공통코드 이름·선택지 재사용; 기존 operation 수정 없음.
@@ -3488,6 +3580,10 @@ paths:
         usage: 기존 월마감 조회; 급여 초기월·마감 상태 표시. 가장 이른 작업중월 탐색 범위는 OQ-UPLOAD-WIRE.
       x-state-transitions:
       - 검사 또는 재검사 결과만 생성/갱신. 업무표의 상태 전이 없음. 결과보관 상태 enum은 OQ-UPLOAD-WIRE.
+      - B.6/B.9 오류≥1→전체 미반영; 경고만이면 반영 가능. B.9 신규만·기존번호 갱신 없음.
+      x-open-questions:
+      - 'OQ-PROJECT-B6-OUTSIDE: 기간밖 월은 원문상 경고이나 저장 여부·합계 포함 여부는 399~400 추정 미확인.'
+      - 'OQ-PROJECT-DISABLED: 중지 상태 입력거절 정책은 미확정.'
   /api/uploads/{uploadId}:
     get:
       operationId: getUploadResult
@@ -3501,6 +3597,18 @@ paths:
       - REQ-212
       - REQ-215
       - REQ-220
+      - REQ-227
+      - REQ-252
+      - REQ-303
+      - REQ-304
+      - REQ-305
+      - REQ-306
+      - REQ-330
+      - REQ-331
+      - REQ-332
+      - REQ-333
+      - REQ-334
+      - REQ-335
       parameters:
       - name: uploadId
         in: path
@@ -3565,6 +3673,7 @@ paths:
       x-business-rules:
       - 검사요약·기존급여인원·덮어쓰기안내·오류/경고건수반환. 조회는반영아님.
       - 행은listUploadRows, 행·열·이유는listUploadIssues. 결과ID수명·만료·보관은OQ-UPLOAD-WIRE.
+      - B.6/B.9 오류·경고·행·열·이유는 기존 공통 결과 계약을 재사용; 급여·단가는 프로젝트 DTO로 투영하지 않는다.
       x-side-effects:
       - 업무 데이터 쓰기 없음. 조회 전용.
       x-required-tests:
@@ -3573,6 +3682,7 @@ paths:
       - 'error-contract: 잘못된 필드/경로/필터를 보내면 명세한 4xx ApiError의 field·message·requestId를 확인한다. 인증은 검증 오류 조건으로 사용하지 않는다.'
       x-permission-keys:
       - UI-02.upload
+      - UI-01.upload
       x-design-decision:
         status: 업무 동작은 요청 확정; HTTP DTO 세부는 승인 보류 제안
         open_question: OQ-UPLOAD-WIRE
@@ -3607,6 +3717,18 @@ paths:
       - REQ-220
       - REQ-221
       - REQ-223
+      - REQ-227
+      - REQ-252
+      - REQ-303
+      - REQ-304
+      - REQ-305
+      - REQ-306
+      - REQ-330
+      - REQ-331
+      - REQ-332
+      - REQ-333
+      - REQ-334
+      - REQ-335
       parameters:
       - name: uploadId
         in: path
@@ -3711,6 +3833,7 @@ paths:
                 $ref: '#/components/schemas/ApiError'
       x-business-rules:
       - 행·열·이유·원시/변환값·대응가능여부. severity/column필터·행순정렬·페이지. 영업파트mapping_allowed=false.
+      - B.6/B.9 오류·경고·행·열·이유는 기존 공통 결과 계약을 재사용; 급여·단가는 프로젝트 DTO로 투영하지 않는다.
       x-side-effects:
       - 업무 데이터 쓰기 없음. 조회 전용.
       x-required-tests:
@@ -3719,6 +3842,7 @@ paths:
       - 'error-contract: 잘못된 필드/경로/필터를 보내면 명세한 4xx ApiError의 field·message·requestId를 확인한다. 인증은 검증 오류 조건으로 사용하지 않는다.'
       x-permission-keys:
       - UI-02.upload
+      - UI-01.upload
       x-design-decision:
         status: 업무 동작은 요청 확정; HTTP DTO 세부는 승인 보류 제안
         open_question: OQ-UPLOAD-WIRE
@@ -3747,6 +3871,18 @@ paths:
       - REQ-206
       - REQ-218
       - REQ-220
+      - REQ-227
+      - REQ-252
+      - REQ-303
+      - REQ-304
+      - REQ-305
+      - REQ-306
+      - REQ-330
+      - REQ-331
+      - REQ-332
+      - REQ-333
+      - REQ-334
+      - REQ-335
       parameters:
       - name: uploadId
         in: path
@@ -3847,6 +3983,7 @@ paths:
       x-business-rules:
       - 정상/경고/오류탭 정규화행조회·업무반영없음.
       - 부분파싱오류행은issues로설명, 유효DTO없으면developer/salary생략·NULL. 원시셀노출범위OQ-UPLOAD-WIRE.
+      - B.6/B.9 오류·경고·행·열·이유는 기존 공통 결과 계약을 재사용; 급여·단가는 프로젝트 DTO로 투영하지 않는다.
       x-side-effects:
       - 업무 데이터 쓰기 없음. 조회 전용.
       x-required-tests:
@@ -3855,6 +3992,7 @@ paths:
       - 'error-contract: 잘못된 필드/경로/필터를 보내면 명세한 4xx ApiError의 field·message·requestId를 확인한다. 인증은 검증 오류 조건으로 사용하지 않는다.'
       x-permission-keys:
       - UI-02.upload
+      - UI-01.upload
       x-design-decision:
         status: 업무 동작은 요청 확정; HTTP DTO 세부는 승인 보류 제안
         open_question: OQ-UPLOAD-WIRE
@@ -3885,6 +4023,18 @@ paths:
       - REQ-208
       - REQ-218
       - REQ-219
+      - REQ-227
+      - REQ-252
+      - REQ-303
+      - REQ-304
+      - REQ-305
+      - REQ-306
+      - REQ-330
+      - REQ-331
+      - REQ-332
+      - REQ-333
+      - REQ-334
+      - REQ-335
       parameters:
       - name: uploadId
         in: path
@@ -3936,7 +4086,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ApiError'
         '409':
-          description: B.1 CLOSED_MONTH.
+          description: 'B.1 CLOSED_MONTH. B.6 PROJECT_MISMATCH: 이 파일은 {A1} 프로젝트 배분표입니다.; B.9 DUPLICATE_PRJ_NO: 이미 있는 프로젝트ID입니다.'
           headers:
             X-Request-Id:
               schema:
@@ -3962,8 +4112,7 @@ paths:
       - 재검사파일보관·기준정보재조회·결과ID교체·미리보기방식OQ-UPLOAD-WIRE. 업무반영없음.
       - B.8 제목 줄 표지는 이름, 키 관리번호. 이름50·직원구분·주직무 필수, 연락처30·비고500. 빈 관리번호 자동발급; 직접번호 형식·기존번호 중복 검사, 기존 개발자 자동갱신 금지.
       - 파일 관리번호 중복은 두번째 이후 줄만 파일 안에서 {n}행과 관리번호가 같습니다. 오류. 기존 번호는 이미 있는 관리번호입니다.
-      - EMP_TYPE 업체→외주(OS), 정직원→정규직(FT) 변환 경고. POSITION/WORK_TYPE/GRADE/JOB/SKILL/WORK_STATUS 공통코드·③CMN-726 재사용. 구체③정규화
-        우선순위는 OQ-UPLOAD-WIRE.
+      - EMP_TYPE 업체→외주(OS), 정직원→정규직(FT) 변환 경고. POSITION/WORK_TYPE/GRADE/JOB/SKILL/WORK_STATUS 공통코드·③CMN-726 재사용. 구체③정규화 우선순위는 OQ-UPLOAD-WIRE.
       - OS 소속은 사용 중 VEND/BOTH 사업자번호 또는 상호; 동일상호 여러개 오류, 미등록협력사 오류·선등록 필요. 비OS 소속은NULL·자사 저장 경고. 자사/빈소속은 자사여서 OS에는 협력사필수오류.
       - 업무구분 빈칸 DIRECT, 보조직무 쉼표·/ 분리, 스킬 쉼표 분리. 주직무중복 보조제외, 사용중 파트명 확인(영업파트는 대응등록 불가). 미등록코드는 행·열·이유·대응등록가능여부 반환.
       - 상태 빈칸·재직·대기중은 근무상태 미생성. 상태있으면 시작필수·종료역전오류, 근무상태 함께생성·퇴사면rsgn_dt 동기화.
@@ -3975,21 +4124,42 @@ paths:
       - 수당빈칸 POSITION.attr1_val정액, FL/OS0. FT퇴직금빈칸(급여+수당)/12 원반올림; CT는적은사람만, FL/OS0.
       - OS vat_amt빈칸 공급가액×해당월VAT_RATE/100 원반올림, 비OS vat_amt0. 기존 getEffectiveParam(VAT_RATE,month)참조.
       - DB개인월인건비 FT/CT=급여+수당+회사보험+퇴직적립; FL=원천세전그달지급액; OS=공급가액. 본인보험·원천세·근로소득세·부가세 인건비제외.
-      - indv_lbr_cst_amt·real_pay_amt는 DB계산 readOnly·앱INSERT/UPDATE대상아님. 엑셀P/Q 비교만, DB와1원차이도경고·excel_diff_desc. 실지급전체DB식은SQL부재
-        OQ-002, 임의공식금지.
+      - indv_lbr_cst_amt·real_pay_amt는 DB계산 readOnly·앱INSERT/UPDATE대상아님. 엑셀P/Q 비교만, DB와1원차이도경고·excel_diff_desc. 실지급전체DB식은SQL부재 OQ-002,
+        임의공식금지.
       - emp_se_cd·duty_se_cd·pstn_cd·bsn_part_id 월스냅샷, 이후개발자변경으로기존월불변. 과거미마감월기준정보시점 OQ-CHG-005.
       - TEAM·PEXP는dev_id·prj_id NULL 경비,0/빈칸미생성. OS두경비무시·경고. 음수전면금지는추정 OQ-CHG-003.
       - 오류1건도 해당월기존급여·연계경비전체무변경. 기존해당월인원수·전체교체안내반환. 빈파일거절은 OQ-CHG-002; minItems=1 임의확정금지.
+      - 'REQ-303 (SPEC-REQUEST.md:257): 프로젝트ID A1·3행 제목과 원문 월별 열 구성을 가진 B.6 양식을 내려받는다.'
+      - 'REQ-304 (SPEC-REQUEST.md:257): 상세 배분표의 B.6 엑셀 업로드를 공통 구조에 연결하고 sys.upld.obj_key_val에 prj_no를 기록한다.'
+      - 'REQ-305 (SPEC-REQUEST.md:258): B.6 A1 불일치는409 PROJECT_MISMATCH, 사람 관리번호·이름·직무·투입일 오류와 잘못된 월 제목은 오류, 수행 기간 밖 월은 경고로 구분한다.'
+      - 'REQ-306 (SPEC-REQUEST.md:258): B.6 전체 검사 후 파일에 등장한 단계마다 줄·월 값을 전체 교체한다. 한 행 오류면 모든 단계가 미반영된다.'
+      - 'REQ-238 (SPEC-REQUEST.md:45): 업로드 직접 ID는 P-와 숫자4~5자리이며 중복을 거절하고 저장 후 변경하지 않는다.'
+      - 'REQ-331 (SPEC-REQUEST.md:335): B.9의 프로젝트ID·프로젝트명·고객사·계약유형·상태·계약기간·수행시작일·금액·영업파트·무상지원·비고를 333~345행 별칭/필수/검사 그대로 처리한다.'
+      - 'REQ-332 (SPEC-REQUEST.md:343): 영업 파트 — 파트 — | 사용 중 파트명 또는 ''본사''. TK·MO·DP인데 비면 경고 후 미지정으로 저장 — bsn_part_id'
+      - 'REQ-333 (SPEC-REQUEST.md:347): - 오류 문구는 FR-029 검증 문구를 그대로 쓰고, 고객사·파트를 못 찾으면 "''{값}''은(는) 등록된 {고객사|영업 파트}가 아닙니다.", ID 중복은
+        "이미 있는 프로젝트ID입니다." 경고는 "영업 파트가 비어 미지정으로 저장합니다." / "''{표기}''를 ''{코드 이름}''(으)로 바꿔 읽었습니다."'
+      - 'REQ-334 (SPEC-REQUEST.md:348): B.9는 파일 행 순서대로 신규 프로젝트·자동번호·파트 이력·단계 표·목표 원가를 원자 적재하며 기존ID는 갱신하지 않는다. 한 행 오류면 전체 미반영이다.'
+      - 'REQ-335 (SPEC-REQUEST.md:348): B.9 반영 프로젝트에 upld_id와 sys.data_chg_hist의 rsn_desc="엑셀 업로드 #{upldId}"를 남긴다.'
       x-side-effects:
       - 검사결과만갱신·실제sys.upld_err쓰기시점OQ-UPLOAD-WIRE·업무표무변경.
+      - B.6/B.9 검사·재검사만으로 프로젝트·배분표·단계표·업무감사이력 쓰기 없음.
       x-required-tests:
       - 'happy: JOB 미등록 표기의 대응을 기존 createExcelMap으로 등록한 뒤 다시 검사 -> 같은 파일의 해당 행이 정규 코드와 변환 경고로 표시된다.'
       - 'auth: 인증 없이 기존 검사 대상을 다시 검사 -> 권한 거절 없이 getUploadResult와 listUploadIssues에서 갱신된 결과를 읽는다.'
       - 'validation: 경로 uploadId=0으로 재검사 -> 400 ApiError.field=uploadId이며 대상 업무 데이터는 변하지 않는다.'
       - 'business: 재검사에도 B.8 기존 관리번호 중복이 남음 -> listUploadIssues에 관리번호 오류·can_apply=false이며 mst.dev 기존 행을 갱신하지 않는다.'
       - 'side-effect: 대응 등록 후 재검사만 완료 -> 검사 결과는 갱신되어 읽히지만 mst.dev·cst.mth_cst·경비 및 반영 이력은 그대로다.'
+      - 'happy: 정상 B.9 3행 검사/재검사 -> getUploadResult row_count3/error_count0, listUploadRows project 미리보기를 읽는다.'
+      - 'auth: 인증 없이 B.6 projectId·파일 검사 후 반영 -> getProjectAllocations 해당 단계 줄·월값을 읽고 로그인 거절 없음.'
+      - 'validation: B.6 사람 관리번호/이름/직무/투입일 오류 또는 월제목 형식오류 -> listUploadIssues 행·열·이유, can_apply=false; 반영시 기존 줄·월값 불변.'
+      - 'business: B.6 A1과 projectId 프로젝트번호 다름 -> 409 PROJECT_MISMATCH 및 이 파일은 {A1} 프로젝트 배분표입니다.; B.9 기존번호 -> 409 DUPLICATE_PRJ_NO(행검사는
+        issues도 제공), 기존 프로젝트 미갱신.'
+      - 'side-effect: 검사만 -> getUploadResult/listUploadIssues 결과는 읽히고 prj·phs·배분표·업무변경기록은 그대로.'
+      - 'business: B.9 월정액·빈파트 MO -> listUploadIssues 변환/미지정 경고, 반영후 listProjects type MO·파트NULL·미지정안내건수 증가; B.6 기간밖 월은 경고(저장/합계
+        정책 미확정).'
       x-permission-keys:
       - UI-02.upload
+      - UI-01.upload
       x-design-decision:
         status: 업무 동작은 요청 확정; HTTP DTO 세부는 승인 보류 제안
         open_question: OQ-UPLOAD-WIRE
@@ -4006,7 +4176,45 @@ paths:
         usage: 기존 월마감 조회; 급여 초기월·마감 상태 표시. 가장 이른 작업중월 탐색 범위는 OQ-UPLOAD-WIRE.
       x-state-transitions:
       - 검사 또는 재검사 결과만 생성/갱신. 업무표의 상태 전이 없음. 결과보관 상태 enum은 OQ-UPLOAD-WIRE.
+      - B.6/B.9 오류≥1→전체 미반영; 경고만이면 반영 가능. B.9 신규만·기존번호 갱신 없음.
       x-no-request-body-reason: 다시 검사는 경로 uploadId의 기존 파일을 대상으로 하며 별도의 중복 upload_id 입력을 요구하지 않는다.
+      x-field-error-messages:
+        B.9:
+        - '| 프로젝트명 없음 / 100자 초과 | 프로젝트명을 입력해 주세요. / 프로젝트명은 100자까지 쓸 수 있습니다. |'
+        - '| 고객사 없음 | 고객사를 골라 주세요. |'
+        - '| 계약유형 없음 | 계약유형을 골라 주세요. |'
+        - '| 시작일·종료일 없음 | 계약 기간을 입력해 주세요. |'
+        - '| 종료일이 시작일보다 빠름 | 종료일은 시작일과 같거나 뒤여야 합니다. |'
+        - '| 수행 시작일이 계약 시작일보다 빠름 | 수행 시작일은 계약 시작일 이후여야 합니다. |'
+        - '| 영업 파트 없음(TK·MO·DP) | 영업 파트를 골라 주세요. 본사가 직접 영업했으면 「본사(직접 영업)」를 고릅니다. |'
+        - '| 계약금액 없음(IN 제외) | 계약금액을 입력해 주세요. |'
+        - '| 비율 범위 | 0~100 사이 숫자로 입력해 주세요. |'
+        - '- 오류 문구는 FR-029 검증 문구를 그대로 쓰고, 고객사·파트를 못 찾으면 "''{값}''은(는) 등록된 {고객사|영업 파트}가 아닙니다.", ID 중복은 "이미 있는 프로젝트ID입니다." 경고는 "영업
+          파트가 비어 미지정으로 저장합니다." / "''{표기}''를 ''{코드 이름}''(으)로 바꿔 읽었습니다."'
+        B.6:
+        - '| 업로드 검사 | A1이 지금 프로젝트와 다르면 오류(409 PROJECT_MISMATCH 문구 "이 파일은 {A1} 프로젝트 배분표입니다."). 사람 줄 관리번호 없음·이름 불일치·직무·투입일 빈칸은 오류,
+          월 제목이 YYYY-MM이 아니면 오류, 수행 기간 밖 월은 경고. 반영은 파일에 나온 단계마다 전체 교체 | |'
+      x-form-columns:
+        B.9:
+        - '| 열 제목 | 별칭 | 필수 | 읽기·검사 | 컬럼 |'
+        - '| --- | --- | --- | --- | --- |'
+        - '| 프로젝트ID | | | 비우면 자동(CMN-901). 형식·중복 검사 | prj_no |'
+        - '| 프로젝트명 | 사업명 | 필수 | 100자, 앞뒤 빈칸 제거 | prj_nm |'
+        - '| 고객사 | 발주처 | IN 제외 필수 | 사용 중 CUST·BOTH의 사업자번호 또는 상호(같은 상호가 여럿이면 오류) | cust_ptnr_id |'
+        - '| 계약유형 | 구분 | 필수 | CONTRACT_TYPE(''월정액''→월단위) | cntrct_ty_cd |'
+        - '| 상태 | | | PROJECT_STATUS 중 수주예정·진행·보류·종료, 비면 진행 | prj_stts_cd |'
+        - '| 계약 시작일 · 계약 종료일 | 시작일 · 종료일 | 필수 | 날짜, 종료 ≥ 시작 | cntrct_bgn_dt, cntrct_end_dt |'
+        - '| 수행 시작일 | | | 날짜 | prfm_bgn_dt |'
+        - '| 견적 금액 · 계약금액 | 최초 계약금액 | 계약금액 IN 제외 필수 | 금액 | quot_amt, init_cntrct_amt |'
+        - '| 영업 파트 | 파트 | | 사용 중 파트명 또는 ''본사''. TK·MO·DP인데 비면 경고 후 미지정으로 저장 | bsn_part_id |'
+        - '| 무상지원 | | | Y·N, 예·아니오 | free_sprt_yn |'
+        - '| 비고 | 메모 | | 500자 | rmrk_desc |'
+        B.6:
+        - '| 업로드 | 탭 안 [양식 내려받기] [엑셀 업로드]. 양식 B.6: A1 프로젝트ID, 3행 제목, 열 = 배분 구분(견적·최종 계약·실제 투입계획), 줄 종류(사람·항목), 관리번호, 이름 또는 항목명,
+          직무, 투입일, 값 종류(금액·MM), 월별 열(제목 YYYY-MM), 비고. 한 사람이 금액 줄·MM 줄 2줄 가능 | sys.upld obj_key_val=prj_no |'
+      x-open-questions:
+      - 'OQ-PROJECT-B6-OUTSIDE: 기간밖 월은 원문상 경고이나 저장 여부·합계 포함 여부는 399~400 추정 미확인.'
+      - 'OQ-PROJECT-DISABLED: 중지 상태 입력거절 정책은 미확정.'
   /api/uploads/{uploadId}/apply:
     post:
       operationId: saveUploadApplication
@@ -4040,6 +4248,18 @@ paths:
       - REQ-217
       - REQ-220
       - REQ-223
+      - REQ-227
+      - REQ-252
+      - REQ-303
+      - REQ-304
+      - REQ-305
+      - REQ-306
+      - REQ-330
+      - REQ-331
+      - REQ-332
+      - REQ-333
+      - REQ-334
+      - REQ-335
       parameters:
       - name: uploadId
         in: path
@@ -4065,7 +4285,9 @@ paths:
                 - type: object
                   properties:
                     data:
-                      $ref: '#/components/schemas/UploadApplicationResult'
+                      oneOf:
+                      - $ref: '#/components/schemas/UploadApplicationResult'
+                      - $ref: '#/components/schemas/ProjectUploadApplicationResult'
                   required:
                   - data
         '400':
@@ -4091,7 +4313,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/ApiError'
         '409':
-          description: CLOSED_MONTH. 결과변경·이미반영ID등추가code승인전발명금지.
+          description: 'CLOSED_MONTH. 결과변경·이미반영ID등추가code승인전발명금지. B.6 PROJECT_MISMATCH: 이 파일은 {A1} 프로젝트 배분표입니다.; B.9 DUPLICATE_PRJ_NO:
+            이미 있는 프로젝트ID입니다.'
           headers:
             X-Request-Id:
               schema:
@@ -4115,8 +4338,7 @@ paths:
       x-business-rules:
       - B.8 제목 줄 표지는 이름, 키 관리번호. 이름50·직원구분·주직무 필수, 연락처30·비고500. 빈 관리번호 자동발급; 직접번호 형식·기존번호 중복 검사, 기존 개발자 자동갱신 금지.
       - 파일 관리번호 중복은 두번째 이후 줄만 파일 안에서 {n}행과 관리번호가 같습니다. 오류. 기존 번호는 이미 있는 관리번호입니다.
-      - EMP_TYPE 업체→외주(OS), 정직원→정규직(FT) 변환 경고. POSITION/WORK_TYPE/GRADE/JOB/SKILL/WORK_STATUS 공통코드·③CMN-726 재사용. 구체③정규화
-        우선순위는 OQ-UPLOAD-WIRE.
+      - EMP_TYPE 업체→외주(OS), 정직원→정규직(FT) 변환 경고. POSITION/WORK_TYPE/GRADE/JOB/SKILL/WORK_STATUS 공통코드·③CMN-726 재사용. 구체③정규화 우선순위는 OQ-UPLOAD-WIRE.
       - OS 소속은 사용 중 VEND/BOTH 사업자번호 또는 상호; 동일상호 여러개 오류, 미등록협력사 오류·선등록 필요. 비OS 소속은NULL·자사 저장 경고. 자사/빈소속은 자사여서 OS에는 협력사필수오류.
       - 업무구분 빈칸 DIRECT, 보조직무 쉼표·/ 분리, 스킬 쉼표 분리. 주직무중복 보조제외, 사용중 파트명 확인(영업파트는 대응등록 불가). 미등록코드는 행·열·이유·대응등록가능여부 반환.
       - 상태 빈칸·재직·대기중은 근무상태 미생성. 상태있으면 시작필수·종료역전오류, 근무상태 함께생성·퇴사면rsgn_dt 동기화.
@@ -4128,36 +4350,56 @@ paths:
       - 수당빈칸 POSITION.attr1_val정액, FL/OS0. FT퇴직금빈칸(급여+수당)/12 원반올림; CT는적은사람만, FL/OS0.
       - OS vat_amt빈칸 공급가액×해당월VAT_RATE/100 원반올림, 비OS vat_amt0. 기존 getEffectiveParam(VAT_RATE,month)참조.
       - DB개인월인건비 FT/CT=급여+수당+회사보험+퇴직적립; FL=원천세전그달지급액; OS=공급가액. 본인보험·원천세·근로소득세·부가세 인건비제외.
-      - indv_lbr_cst_amt·real_pay_amt는 DB계산 readOnly·앱INSERT/UPDATE대상아님. 엑셀P/Q 비교만, DB와1원차이도경고·excel_diff_desc. 실지급전체DB식은SQL부재
-        OQ-002, 임의공식금지.
+      - indv_lbr_cst_amt·real_pay_amt는 DB계산 readOnly·앱INSERT/UPDATE대상아님. 엑셀P/Q 비교만, DB와1원차이도경고·excel_diff_desc. 실지급전체DB식은SQL부재 OQ-002,
+        임의공식금지.
       - emp_se_cd·duty_se_cd·pstn_cd·bsn_part_id 월스냅샷, 이후개발자변경으로기존월불변. 과거미마감월기준정보시점 OQ-CHG-005.
       - TEAM·PEXP는dev_id·prj_id NULL 경비,0/빈칸미생성. OS두경비무시·경고. 음수전면금지는추정 OQ-CHG-003.
       - 오류1건도 해당월기존급여·연계경비전체무변경. 기존해당월인원수·전체교체안내반환. 빈파일거절은 OQ-CHG-002; minItems=1 임의확정금지.
       - 오류1건도반영거절·업무표전체무변경. 오류결과거절상태/code는OQ-UPLOAD-WIRE(현재400제안).
       - B.1 CLOSED면반드시409 CLOSED_MONTH. 검사후마감도쓰기금지. 그외기준정보변경재검사·금액/경고변경재확인프로토콜은OQ-CHG-001 추정미확인.
+      - 'REQ-303 (SPEC-REQUEST.md:257): 프로젝트ID A1·3행 제목과 원문 월별 열 구성을 가진 B.6 양식을 내려받는다.'
+      - 'REQ-304 (SPEC-REQUEST.md:257): 상세 배분표의 B.6 엑셀 업로드를 공통 구조에 연결하고 sys.upld.obj_key_val에 prj_no를 기록한다.'
+      - 'REQ-305 (SPEC-REQUEST.md:258): B.6 A1 불일치는409 PROJECT_MISMATCH, 사람 관리번호·이름·직무·투입일 오류와 잘못된 월 제목은 오류, 수행 기간 밖 월은 경고로 구분한다.'
+      - 'REQ-306 (SPEC-REQUEST.md:258): B.6 전체 검사 후 파일에 등장한 단계마다 줄·월 값을 전체 교체한다. 한 행 오류면 모든 단계가 미반영된다.'
+      - 'REQ-238 (SPEC-REQUEST.md:45): 업로드 직접 ID는 P-와 숫자4~5자리이며 중복을 거절하고 저장 후 변경하지 않는다.'
+      - 'REQ-331 (SPEC-REQUEST.md:335): B.9의 프로젝트ID·프로젝트명·고객사·계약유형·상태·계약기간·수행시작일·금액·영업파트·무상지원·비고를 333~345행 별칭/필수/검사 그대로 처리한다.'
+      - 'REQ-332 (SPEC-REQUEST.md:343): 영업 파트 — 파트 — | 사용 중 파트명 또는 ''본사''. TK·MO·DP인데 비면 경고 후 미지정으로 저장 — bsn_part_id'
+      - 'REQ-333 (SPEC-REQUEST.md:347): - 오류 문구는 FR-029 검증 문구를 그대로 쓰고, 고객사·파트를 못 찾으면 "''{값}''은(는) 등록된 {고객사|영업 파트}가 아닙니다.", ID 중복은
+        "이미 있는 프로젝트ID입니다." 경고는 "영업 파트가 비어 미지정으로 저장합니다." / "''{표기}''를 ''{코드 이름}''(으)로 바꿔 읽었습니다."'
+      - 'REQ-334 (SPEC-REQUEST.md:348): B.9는 파일 행 순서대로 신규 프로젝트·자동번호·파트 이력·단계 표·목표 원가를 원자 적재하며 기존ID는 갱신하지 않는다. 한 행 오류면 전체 미반영이다.'
+      - 'REQ-335 (SPEC-REQUEST.md:348): B.9 반영 프로젝트에 upld_id와 sys.data_chg_hist의 rsn_desc="엑셀 업로드 #{upldId}"를 남긴다.'
       x-side-effects:
-      - 'B.8 한트랜잭션:파일행순mst.dev INSERT(upld_id,use_yn=Y)→자동번호→보조직무·스킬→근무상태/퇴사일→행별data_chg_hist INSERT(rsn_desc=엑셀 업로드
-        #{upldId})→acs_hist UPLOAD. 기존번호UPDATE금지·실패전체롤백.'
+      - 'B.8 한트랜잭션:파일행순mst.dev INSERT(upld_id,use_yn=Y)→자동번호→보조직무·스킬→근무상태/퇴사일→행별data_chg_hist INSERT(rsn_desc=엑셀 업로드 #{upldId})→acs_hist
+        UPLOAD. 기존번호UPDATE금지·실패전체롤백.'
       - 'B.1 한트랜잭션:대상월cst.mth_cst전체DELETE→그달B.1유래TEAM/PEXP drct_expns만DELETE→파일행별mth_cst INSERT(계산열제외,upld_id,스냅샷)→비외주0/빈칸아닌경비INSERT(dev_id,prj_id=NULL)→sys.upld(obj_ym,이미급여있으면ovwr_yn=Y)→data_chg_hist1줄(tbl_nm=cst.mth_cst,obj_rec_id=연월,INSERT/UPDATE,rsn_desc=급여
         업로드 #{upldId} · {n}명)→acs_hist UPLOAD.'
       - 타월·타출처경비·프로젝트·투입불변. 파일에서빠진사람급여도삭제하는전체교체·부분upsert아님. 실패는급여·경비·해당변경기록전체롤백. 실패검사기록보존OQ-UPLOAD-WIRE.
       - DB indv_lbr_cst_amt/real_pay_amt쓰기없이재조회. 비교경고excel_diff_desc저장. 기존월은개발자수정자동추종없음.
+      - 'B.6: 파일에 나온 단계별 tk_aloc_line·tk_aloc_mth 전체교체, obj_key_val=prj_no; 재조정표시 N·요약이력. B.9: 행순 신규등록만, CMN-901 번호잠금·파트이력·phs·목표원가·upld_id·INSERT변경기록
+        rsn_desc=엑셀 업로드 #{upldId}; 오류1행도 전체 미반영.'
       x-required-tests:
-      - 'happy: 2026-10 정상 급여3명 후 2명 파일 반영 -> cst.mth_cst 해당월 2줄·sys.upld.ovwr_yn=Y를 재조회한다; B.8 정상3행은 mst.dev3줄·행순서
-        관리번호다.'
+      - 'happy: 2026-10 정상 급여3명 후 2명 파일 반영 -> cst.mth_cst 해당월 2줄·sys.upld.ovwr_yn=Y를 재조회한다; B.8 정상3행은 mst.dev3줄·행순서 관리번호다.'
       - 'auth: 인증 없이 검사 통과한 B.8/B.1 반영 -> 로그인·역할 거절 없이 개발자 또는 월별 원가 조회에서 반영 행을 읽는다.'
-      - 'validation: 주 직무 빈 B.8 또는 관리번호/이름/월 급여 오류가 하나 있는 B.1 반영 -> 오류 행·열·이유를 읽고 업무 행·연계 경비·변경 이력 모두 무변경이다(오류결과 HTTP는
-        OQ-UPLOAD-WIRE의400 제안).'
-      - 'business: 2026-09 CLOSED 급여 반영 -> 409 CLOSED_MONTH·기존 cst.mth_cst 및 그달 경비 보존; 검사 후 마감도 쓰지 않으며 갱신 검토 재확인 절차는
-        OQ-CHG-001이다.'
-      - 'side-effect: B.1 FT TEAM50000 반영 -> cst.drct_expns에 dev_id·prj_id NULL·TEAM50000, sys.upld.obj_ym, data_chg_hist
-        대상 cst.mth_cst/연월 1줄, acs_hist UPLOAD를 읽고 타출처 경비는 보존한다. B.8은 dev_id별 INSERT 이력과 acs_hist UPLOAD다.'
-      - 'calculation: FT 급여4000000·TL수당빈칸·회사보험420000·퇴직금빈칸으로 반영 -> 수당200000·퇴직금350000·DB인건비4970000; OS급여5000000·VAT빈칸은
-        VAT500000·인건비5000000·실지급5500000을 읽는다.'
+      - 'validation: 주 직무 빈 B.8 또는 관리번호/이름/월 급여 오류가 하나 있는 B.1 반영 -> 오류 행·열·이유를 읽고 업무 행·연계 경비·변경 이력 모두 무변경이다(오류결과 HTTP는 OQ-UPLOAD-WIRE의400
+        제안).'
+      - 'business: 2026-09 CLOSED 급여 반영 -> 409 CLOSED_MONTH·기존 cst.mth_cst 및 그달 경비 보존; 검사 후 마감도 쓰지 않으며 갱신 검토 재확인 절차는 OQ-CHG-001이다.'
+      - 'side-effect: B.1 FT TEAM50000 반영 -> cst.drct_expns에 dev_id·prj_id NULL·TEAM50000, sys.upld.obj_ym, data_chg_hist 대상 cst.mth_cst/연월
+        1줄, acs_hist UPLOAD를 읽고 타출처 경비는 보존한다. B.8은 dev_id별 INSERT 이력과 acs_hist UPLOAD다.'
+      - 'calculation: FT 급여4000000·TL수당빈칸·회사보험420000·퇴직금빈칸으로 반영 -> 수당200000·퇴직금350000·DB인건비4970000; OS급여5000000·VAT빈칸은 VAT500000·인건비5000000·실지급5500000을
+        읽는다.'
       - 'comparison: 엑셀 개인별 원가가 DB값과 1원 차이나는 파일 반영 -> 경고·excel_diff_desc를 읽으며 DB계산 컬럼을 앱이 쓰지 않는다.'
       - 'snapshot: 급여 반영 후 개발자 직원구분·직위·파트 수정 -> 기존 2026-10 cst.mth_cst 스냅샷이 그대로다.'
+      - 'happy: 정상 B.9 3행 반영 -> listProjects 신규3건·각 단계표·빈ID 자동번호를 읽는다.'
+      - 'auth: 인증 없이 B.6 projectId·파일 검사 후 반영 -> getProjectAllocations 해당 단계 줄·월값을 읽고 로그인 거절 없음.'
+      - 'validation: B.6 사람 관리번호/이름/직무/투입일 오류 또는 월제목 형식오류 -> listUploadIssues 행·열·이유, can_apply=false; 반영시 기존 줄·월값 불변.'
+      - 'business: B.6 A1과 projectId 프로젝트번호 다름 -> 409 PROJECT_MISMATCH 및 이 파일은 {A1} 프로젝트 배분표입니다.; B.9 기존번호 -> 409 DUPLICATE_PRJ_NO(행검사는
+        issues도 제공), 기존 프로젝트 미갱신.'
+      - 'side-effect: B.9 반영 -> DB upld_id·rsn_desc 엑셀 업로드 #{upldId}·파트이력·phs, B.6 반영 -> 해당단계 전체교체·obj_key_val=prj_no; 실패시 전부 보존.'
+      - 'business: B.9 월정액·빈파트 MO -> listUploadIssues 변환/미지정 경고, 반영후 listProjects type MO·파트NULL·미지정안내건수 증가; B.6 기간밖 월은 경고(저장/합계
+        정책 미확정).'
       x-permission-keys:
       - UI-02.upload
+      - UI-01.upload
       x-design-decision:
         status: 업무 동작은 요청 확정; HTTP DTO 세부는 승인 보류 제안
         open_question: OQ-UPLOAD-WIRE
@@ -4166,6 +4408,7 @@ paths:
       - B.8 오류0·경고허용→전체신규등록;오류≥1→업무표전이없음.
       - B.1 OPEN·오류0→월전체교체;CLOSED/오류→이전급여·경비유지.
       - 검사/재검사/확인/반영상태enum·재요청프로토콜OQ-UPLOAD-WIRE.
+      - B.6/B.9 오류≥1→전체 미반영; 경고만이면 반영 가능. B.9 신규만·기존번호 갱신 없음.
       x-api-id: API-30
       x-existing-reference-bindings:
       - operationId: getCodeOptions
@@ -4177,6 +4420,9 @@ paths:
       - operationId: getMonthClose
         usage: 기존 월마감 조회; 급여 초기월·마감 상태 표시. 가장 이른 작업중월 탐색 범위는 OQ-UPLOAD-WIRE.
       x-no-request-body-reason: 검사 결과 창의 반영은 경로 uploadId가 가리키는 파일을 적용하는 동작이며 추가 사용자 입력을 요구하지 않는다.
+      x-open-questions:
+      - 'OQ-PROJECT-B6-OUTSIDE: 기간밖 월은 원문상 경고이나 저장 여부·합계 포함 여부는 399~400 추정 미확인.'
+      - 'OQ-PROJECT-DISABLED: 중지 상태 입력거절 정책은 미확정.'
   /api/uploads/templates/{formType}:
     get:
       operationId: getUploadTemplate
@@ -4189,6 +4435,11 @@ paths:
       - REQ-150
       - REQ-211
       - REQ-222
+      - REQ-227
+      - REQ-252
+      - REQ-303
+      - REQ-330
+      - REQ-331
       parameters:
       - name: formType
         in: path
@@ -4252,6 +4503,19 @@ paths:
       - 'B.8 개발자_업로드양식.xlsx: B.7같은안내행·필수*·예시·선택목록·입력방법/목록시트·관리번호텍스트.'
       - B.1 급여_업로드양식.xlsx:4행제목·5행예시·기존B~W위치유지·관리번호/부가세/근로소득세신규열오른쪽끝·연월창입력.
       - 파일전송OQ-UPLOAD-WIRE. DownloadArtifact JSON/base64는제안·기존③wire주장아님.
+      - 'REQ-303 (SPEC-REQUEST.md:257): 프로젝트ID A1·3행 제목과 원문 월별 열 구성을 가진 B.6 양식을 내려받는다.'
+      - 'REQ-304 (SPEC-REQUEST.md:257): 상세 배분표의 B.6 엑셀 업로드를 공통 구조에 연결하고 sys.upld.obj_key_val에 prj_no를 기록한다.'
+      - 'REQ-305 (SPEC-REQUEST.md:258): B.6 A1 불일치는409 PROJECT_MISMATCH, 사람 관리번호·이름·직무·투입일 오류와 잘못된 월 제목은 오류, 수행 기간 밖 월은 경고로 구분한다.'
+      - 'REQ-306 (SPEC-REQUEST.md:258): B.6 전체 검사 후 파일에 등장한 단계마다 줄·월 값을 전체 교체한다. 한 행 오류면 모든 단계가 미반영된다.'
+      - 'REQ-238 (SPEC-REQUEST.md:45): 업로드 직접 ID는 P-와 숫자4~5자리이며 중복을 거절하고 저장 후 변경하지 않는다.'
+      - 'REQ-331 (SPEC-REQUEST.md:335): B.9의 프로젝트ID·프로젝트명·고객사·계약유형·상태·계약기간·수행시작일·금액·영업파트·무상지원·비고를 333~345행 별칭/필수/검사 그대로 처리한다.'
+      - 'REQ-332 (SPEC-REQUEST.md:343): 영업 파트 — 파트 — | 사용 중 파트명 또는 ''본사''. TK·MO·DP인데 비면 경고 후 미지정으로 저장 — bsn_part_id'
+      - 'REQ-333 (SPEC-REQUEST.md:347): - 오류 문구는 FR-029 검증 문구를 그대로 쓰고, 고객사·파트를 못 찾으면 "''{값}''은(는) 등록된 {고객사|영업 파트}가 아닙니다.", ID 중복은
+        "이미 있는 프로젝트ID입니다." 경고는 "영업 파트가 비어 미지정으로 저장합니다." / "''{표기}''를 ''{코드 이름}''(으)로 바꿔 읽었습니다."'
+      - 'REQ-334 (SPEC-REQUEST.md:348): B.9는 파일 행 순서대로 신규 프로젝트·자동번호·파트 이력·단계 표·목표 원가를 원자 적재하며 기존ID는 갱신하지 않는다. 한 행 오류면 전체 미반영이다.'
+      - 'REQ-335 (SPEC-REQUEST.md:348): B.9 반영 프로젝트에 upld_id와 sys.data_chg_hist의 rsn_desc="엑셀 업로드 #{upldId}"를 남긴다.'
+      - B.6 A1 프로젝트ID·3행제목·배분구분/줄종류/관리번호/이름또는항목명/직무/투입일/값종류/월별YYYY-MM/비고. B.9 제목표지 프로젝트명·키 프로젝트ID; 별칭333~345행 그대로. 프로젝트별 사전채움 전송변수는
+        미확정, 새 필수 query를 발명하지 않음.
       x-side-effects:
       - 업무 데이터 쓰기 없음. 조회 전용.
       x-required-tests:
@@ -4261,6 +4525,7 @@ paths:
       - 'error-contract: 잘못된 필드/경로/필터를 보내면 명세한 4xx ApiError의 field·message·requestId를 확인한다. 인증은 검증 오류 조건으로 사용하지 않는다.'
       x-permission-keys:
       - UI-02.upload
+      - UI-01.upload
       x-design-decision:
         status: 업무 동작은 요청 확정; HTTP DTO 세부는 승인 보류 제안
         open_question: OQ-UPLOAD-WIRE
@@ -4289,6 +4554,18 @@ paths:
       - REQ-205
       - REQ-212
       - REQ-223
+      - REQ-227
+      - REQ-252
+      - REQ-303
+      - REQ-304
+      - REQ-305
+      - REQ-306
+      - REQ-330
+      - REQ-331
+      - REQ-332
+      - REQ-333
+      - REQ-334
+      - REQ-335
       parameters:
       - name: uploadId
         in: path
@@ -4353,6 +4630,7 @@ paths:
       x-business-rules:
       - ③공통오류파일재사용·B.8/B.1행·열·오류이유보존.
       - 열배치·파일명·행범위·무오류다운로드·전송은실제③근거없는OQ-UPLOAD-WIRE.
+      - B.6/B.9 오류·경고·행·열·이유는 기존 공통 결과 계약을 재사용; 급여·단가는 프로젝트 DTO로 투영하지 않는다.
       x-side-effects:
       - 업무 데이터 쓰기 없음. 조회 전용.
       x-required-tests:
@@ -4361,6 +4639,7 @@ paths:
       - 'error-contract: 잘못된 필드/경로/필터를 보내면 명세한 4xx ApiError의 field·message·requestId를 확인한다. 인증은 검증 오류 조건으로 사용하지 않는다.'
       x-permission-keys:
       - UI-02.upload
+      - UI-01.upload
       x-design-decision:
         status: 업무 동작은 요청 확정; HTTP DTO 세부는 승인 보류 제안
         open_question: OQ-UPLOAD-WIRE
@@ -4376,6 +4655,2405 @@ paths:
         usage: B.1 해당월 VAT_RATE 조회.
       - operationId: getMonthClose
         usage: 기존 월마감 조회; 급여 초기월·마감 상태 표시. 가장 이른 작업중월 탐색 범위는 OQ-UPLOAD-WIRE.
+  /api/partners:
+    get:
+      operationId: listPartners
+      summary: 거래처 목록 조회
+      parameters:
+      - name: kind
+        in: query
+        schema:
+          type: string
+      - name: useYn
+        in: query
+        schema:
+          type: string
+      - name: q
+        in: query
+        schema:
+          type: string
+      - name: page
+        in: query
+        schema:
+          type: integer
+          default: 1
+      - name: size
+        in: query
+        schema:
+          type: integer
+          default: 50
+      - name: sort
+        in: query
+        schema:
+          type: string
+      responses:
+        '200':
+          description: 거래처 목록 페이지를 성공 봉투로 반환한다. 페이지 항목의 세부 필드는 별도 확인이 필요하다.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+    post:
+      operationId: createPartner
+      summary: 거래처 등록
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {}
+      responses:
+        '200':
+          description: 등록된 거래처 상세를 성공 봉투로 반환한다. 입력 및 상세 DTO 필드는 별도 확인이 필요하다.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+  /api/partners/{id}:
+    parameters:
+    - name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+    get:
+      operationId: getPartner
+      summary: 거래처 상세 조회
+      responses:
+        '200':
+          description: 거래처 상세를 성공 봉투로 반환한다. 상세 DTO 필드는 별도 확인이 필요하다.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+    put:
+      operationId: updatePartner
+      summary: 거래처 수정
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {}
+      responses:
+        '200':
+          description: 수정된 거래처 상세를 성공 봉투로 반환한다. 입력 및 상세 DTO 필드는 별도 확인이 필요하다.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+  /api/sales-parts:
+    get:
+      operationId: listSalesParts
+      summary: 영업 파트 목록 조회
+      parameters:
+      - name: page
+        in: query
+        schema:
+          type: integer
+          default: 1
+      - name: size
+        in: query
+        schema:
+          type: integer
+          default: 50
+      - name: sort
+        in: query
+        schema:
+          type: string
+      responses:
+        '200':
+          description: 영업 파트 목록 페이지를 성공 봉투로 반환한다. 페이지 항목의 세부 필드는 별도 확인이 필요하다.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+    post:
+      operationId: createSalesPart
+      summary: 영업 파트 등록
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {}
+      responses:
+        '200':
+          description: 등록된 영업 파트 상세를 성공 봉투로 반환한다. 입력 및 상세 DTO 필드는 별도 확인이 필요하다.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+  /api/sales-parts/{id}:
+    get:
+      operationId: getSalesPart
+      summary: 영업 파트 상세 조회
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: 영업 파트 상세를 성공 봉투로 반환한다. 상세 DTO 필드는 별도 확인이 필요하다.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+  /api/projects:
+    get:
+      operationId: listProjects
+      summary: 프로젝트 목록 조회
+      description: 인증·권한 판정 없이 누구나 호출한다. DTO 명칭·공통 wire의 세부는 설계 투영 제안이며 미확정 정책을 승인하지 않는다.
+      security: []
+      x-related-requirements:
+      - REQ-227
+      - REQ-252
+      - REQ-243
+      - REQ-244
+      - REQ-257
+      - REQ-258
+      - REQ-259
+      - REQ-260
+      - REQ-261
+      - REQ-262
+      - REQ-337
+      parameters:
+      - name: year
+        in: query
+        required: false
+        description: 수행기간과 교집합인 연도; 생략 올해
+        schema:
+          type: integer
+      - name: type
+        in: query
+        required: false
+        description: 계약유형
+        schema:
+          type: string
+          enum:
+          - TK
+          - MO
+          - DP
+          - IN
+      - name: status
+        in: query
+        required: false
+        description: 공란 END/LOST 제외
+        schema:
+          type: string
+          enum:
+          - PLAN
+          - RUN
+          - HOLD
+          - END
+          - LOST
+      - name: part
+        in: query
+        required: false
+        description: 사용 중 파트/본사 id 또는 NONE; NONE은 IN 제외 bsn_part_id NULL
+        schema:
+          type: string
+      - name: q
+        in: query
+        required: false
+        description: 프로젝트명 또는 고객사 글자 검색; 모든 조건 AND
+        schema:
+          type: string
+      - name: page
+        in: query
+        required: false
+        description: 0 시작 페이지(공통 wire 제안)
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+      - name: size
+        in: query
+        required: false
+        description: 기본50; 공통20/50/100 wire 제안
+        schema:
+          type: integer
+          enum:
+          - 20
+          - 50
+          - 100
+          default: 50
+      - name: sort
+        in: query
+        required: false
+        description: 허용 목록 열 prj_no/prj_nm/custName/cntrct_ty_cd/cntrct_bgn_dt/cur_end_dt/cur_cntrct_amt/assignmentCount/partName/prj_stts_cd
+          + ,asc|,desc; 필터→정렬→페이지 (wire 제안)
+        schema:
+          type: string
+          default: cntrct_bgn_dt,desc
+      responses:
+        '200':
+          description: 처리 성공; 저장된 자료는 관련 GET으로 재조회한다.
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/ListProjectsData'
+                  required:
+                  - data
+        '400':
+          description: 입력 필드·식별자·필터 형식 또는 해당 유형 업무 검증 오류; ApiError.field와 원문 문구 제공.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+      x-permission-keys:
+      - UI-01.read
+      x-business-rules:
+      - 'REQ-243 (SPEC-REQUEST.md:50): 수행시작일 또는 계약시작일부터 현재종료일 또는 계약종료일까지 연도에 걸친 프로젝트를 조회한다.'
+      - 'REQ-244 (SPEC-REQUEST.md:51): ③ CMN-704 현재 투입 정의를 재사용하여 dev_id 중복을 제거한다.'
+      - 'REQ-258 (SPEC-REQUEST.md:113): 조회 조건 — 계약유형, 상태(비우면 END·LOST 제외), 영업 파트(파트들·본사·미지정), 프로젝트명·고객사 글자. 모두 만족 — 미지정 = IN이
+        아니고 bsn_part_id NULL'
+      - 'REQ-259 (SPEC-REQUEST.md:114): 안내 띠 — 그 해 미지정 프로젝트가 n건(n>0)이면 "영업 파트가 없는 프로젝트가 n건 있습니다. 파트를 정해야 파트별 실적·권한·정산에 들어갑니다."
+        [이 건만 보기] → 영업 파트 조건 ''미지정'''
+      - 'REQ-261 (SPEC-REQUEST.md:116): 정렬·쪽 — 처음 계약 시작일 최신순, 열 제목 정렬, 한 쪽 50건. use_yn=''N''은 안 보인다'
+      x-aiops-query-role:
+        entity: prj.prj
+        result_path:
+        - data
+      x-side-effects:
+      - 업무 테이블 쓰기 없음.
+      x-required-tests:
+      - 'auth: 인증 헤더 없이 유효 요청 -> 200 success=true이며 data에서 해당 조회 자료를 읽는다.'
+      x-open-questions:
+      - 'OQ-PROJECT-WIRE: page 0 시작·size선택·sort문법은 공통 wire 제안. 연도 기본값의 서버 시간대는 기존 공통 확인.'
+    post:
+      operationId: createProject
+      summary: 프로젝트 등록
+      description: 인증·권한 판정 없이 누구나 호출한다. DTO 명칭·공통 wire의 세부는 설계 투영 제안이며 미확정 정책을 승인하지 않는다.
+      security: []
+      x-related-requirements:
+      - REQ-227
+      - REQ-252
+      - REQ-237
+      - REQ-238
+      - REQ-239
+      - REQ-240
+      - REQ-241
+      - REQ-245
+      - REQ-247
+      - REQ-250
+      - REQ-253
+      - REQ-264
+      - REQ-265
+      - REQ-266
+      - REQ-267
+      - REQ-268
+      - REQ-337
+      parameters: []
+      responses:
+        '200':
+          description: 처리 성공; 저장된 자료는 관련 GET으로 재조회한다.
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/CreateProjectData'
+                  required:
+                  - data
+        '400':
+          description: 입력 필드·식별자·필터 형식 또는 해당 유형 업무 검증 오류; ApiError.field와 원문 문구 제공.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '409':
+          description: 'DUPLICATE_PRJ_NO: 발급/업로드 프로젝트번호 중복 불가'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+      x-permission-keys:
+      - UI-01.create
+      x-business-rules:
+      - 'REQ-237 (SPEC-REQUEST.md:45): 등록·업로드 트랜잭션에서 advisory lock 후 계약 시작 연도 최대 번호+1로 prj_no를 발급한다.'
+      - 'REQ-238 (SPEC-REQUEST.md:45): 업로드 직접 ID는 P-와 숫자4~5자리이며 중복을 거절하고 저장 후 변경하지 않는다.'
+      - 'REQ-239 (SPEC-REQUEST.md:46): TK·MO·DP는 사용 중 파트/본사 필수, IN의 고객·파트·금액·목표원가·청구단계·배분표는 NULL·숨김이다.'
+      - 'REQ-240 (SPEC-REQUEST.md:47): TK STAGE 고정, MO·DP MONTH 기본·DAY/HOUR 선택, IN NULL.'
+      - 'REQ-241 (SPEC-REQUEST.md:48): 계약금액과 목표 마진율로 원단위 버림 계산, 기본 마진율100−BUDGET_RATE; 직접 수정 허용.'
+      - 'REQ-245 (SPEC-REQUEST.md:52): 등록시 수행시작연월 이력1줄, 변경시 시작월 upsert 후 가장 늦은 시작월 파트를 대표값으로 맞춘다.'
+      - 'REQ-247 (SPEC-REQUEST.md:53): TK·IN PHASE_TK, MO·DP PHASE_OP 순서·비중으로 수행일수 분배; 버림 잔여는 마지막 단계.'
+      - 'REQ-268 (SPEC-REQUEST.md:140): 저장 — 한 트랜잭션: prj INSERT(prj_no CMN-901, cur_end_dt = 계약 종료일, cur_cntrct_amt = 계약금액,
+        use_yn ''Y'') → prj_skl → 영업 파트 이력 1줄(CMN-908) → 단계 표(CMN-909) → 이력 INSERT → "저장했습니다." → 목록, 새 건 강조'
+      - 'REQ-253 (SPEC-REQUEST.md:57): 잠금 없는 최종 저장 우선이며 동일 프로젝트명을 허용한다.'
+      - IN 등록 시 고객·파트·계약금액·목표원가 NULL이며 영업파트 없음; CMN-908 등록 이력과 IN 예외의 구체 저장 형태는 확인 필요.
+      - CNTRCT 종료일≥시작일; 수행시작일≥계약시작일, 이름 trim100자, 비율0~100. 등록 상태 PLAN/RUN. pm_user_id/oppt_id NULL.
+      x-aiops-query-role:
+        entity: prj.prj
+        result_path:
+        - data
+      x-side-effects:
+      - 한 트랜잭션 prj.prj INSERT→prj_skl→파트 이력→phs→sys.data_chg_hist INSERT(tbl_nm=prj.prj,obj_rec_id=prj_id).
+      - pg_advisory_xact_lock(hashtext('prj.prj_no')) 후 연도별 최대번호+1. 일반 정보 수정 잠금 정책과 구분. use_yn Y, cur_end_dt=cntrct_end_dt,
+        cur_cntrct_amt=init_cntrct_amt.
+      x-state-transitions:
+      - 미등록→use_yn Y, 상태 PLAN 또는 RUN; 현재금액/현재종료일 최초값 초기화.
+      requestBody:
+        required: true
+        description: 원문 입력 항목만 받는다. 유형별 조건부 필수는 업무 규칙에서 검증한다.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProjectCreateRequest'
+      x-required-tests:
+      - 'happy: MO·2026-03-01~12-31·파트·500000000 등록 -> getProject에서 P-2601·cur_cntrct_amt500000000·trgt_cst_amt400000000, listProjectPartChanges
+        2026-03 1줄 및 DB phs PHASE_OP5줄을 읽는다.'
+      - 'auth: 인증 헤더 없이 IN 정상 등록 -> getProject에서 고객·파트·금액·목표원가 NULL, DB PHASE_TK7줄을 읽으며 인증 거절이 없다.'
+      - 'validation: 이름101자 또는 종료일<시작일 또는 MO파트누락 -> 400 field 오류, DB 프로젝트·스킬·파트이력·phs·감사이력 모두 증가 없음; 이름100자·시작=종료는 저장되어 읽힌다.'
+      - 'business: 동명 프로젝트 2건 등록 -> listProjects에서 서로 다른 prj_no 2건을 읽는다; 123456789 등록 -> getProject 목표98765431.'
+      - 'side-effect: 정상 TK100일 등록 -> DB PHASE_TK 분석15일·마지막단계잔여일과 data_chg_hist INSERT/prj_id 및 스킬을 읽는다; 트랜잭션 실패 시 전부 없음.'
+      x-open-questions:
+      - 'OQ-PROJECT-DISABLED: 중지 상태에서의 입력 제한은 SPEC-REQUEST.md:405~406 추정·미확인; 새 거절 정책을 확정하지 않는다.'
+  /api/projects/{id}:
+    get:
+      operationId: getProject
+      summary: 프로젝트 상세 조회
+      description: 인증·권한 판정 없이 누구나 호출한다. DTO 명칭·공통 wire의 세부는 설계 투영 제안이며 미확정 정책을 승인하지 않는다.
+      security: []
+      x-related-requirements:
+      - REQ-227
+      - REQ-252
+      - REQ-239
+      - REQ-244
+      - REQ-271
+      - REQ-272
+      - REQ-274
+      - REQ-337
+      - REQ-338
+      parameters:
+      - name: id
+        in: path
+        required: true
+        description: 해당 프로젝트에 속한 대상 식별자
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      responses:
+        '200':
+          description: 처리 성공; 저장된 자료는 관련 GET으로 재조회한다.
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/GetProjectData'
+                  required:
+                  - data
+        '400':
+          description: 입력 필드·식별자·필터 형식 또는 해당 유형 업무 검증 오류; ApiError.field와 원문 문구 제공.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: 프로젝트 또는 해당 프로젝트의 대상 자료가 없음.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+      x-permission-keys:
+      - UI-01.read
+      x-business-rules:
+      - 'REQ-271 (SPEC-REQUEST.md:172): [기본 정보] — 계약유형, 상태, 계약 기간, 수행 시작일, 현재 종료일, 최초·현재 계약금액, 목표 마진율, 목표 원가(ⓘ 계산식), 정산 방식,
+        영업 파트 + [변경](IN 없음) + 변경 이력 줄("2026-03~ A파트 → 2026-10~ B파트"), PM, 업종·업무 분야·기술 스택, 선행 프로젝트, 무상지원, 비고. IN은 금액 줄이 – — prj.prj,
+        prj_part_hist'
+      - 'REQ-272 (SPEC-REQUEST.md:173): 선투입 띠 — PLAN이고 현재 투입이 n명이면 "계약 전에 n명이 먼저 투입되었습니다(미계약 선투입)."'
+      - 'REQ-274 (SPEC-REQUEST.md:175): 중지 띠 — use_yn=''N''이면 "사용 안 함으로 바꾼 프로젝트입니다."'
+      x-aiops-query-role:
+        entity: prj.prj
+        result_path:
+        - data
+      x-side-effects:
+      - 업무 테이블 쓰기 없음.
+      x-required-tests:
+      - 'auth: 인증 헤더 없이 유효 요청 -> 200 success=true이며 data에서 해당 조회 자료를 읽는다.'
+      x-open-questions:
+      - 'OQ-PROJECT-FUTURE-PART: 대표파트는 CMN-908 가장 늦은 시작월 값을 유지; 미래예약 별도 표시는 미확정.'
+    put:
+      operationId: updateProject
+      summary: 프로젝트 수정
+      description: 인증·권한 판정 없이 누구나 호출한다. DTO 명칭·공통 wire의 세부는 설계 투영 제안이며 미확정 정책을 승인하지 않는다.
+      security: []
+      x-related-requirements:
+      - REQ-227
+      - REQ-252
+      - REQ-238
+      - REQ-241
+      - REQ-242
+      - REQ-248
+      - REQ-250
+      - REQ-253
+      - REQ-276
+      - REQ-277
+      - REQ-278
+      - REQ-279
+      - REQ-280
+      - REQ-329
+      - REQ-337
+      - REQ-338
+      parameters:
+      - name: id
+        in: path
+        required: true
+        description: 해당 프로젝트에 속한 대상 식별자
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      responses:
+        '200':
+          description: 처리 성공; 저장된 자료는 관련 GET으로 재조회한다.
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/UpdateProjectData'
+                  required:
+                  - data
+        '400':
+          description: 입력 필드·식별자·필터 형식 또는 해당 유형 업무 검증 오류; ApiError.field와 원문 문구 제공.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: 프로젝트 또는 해당 프로젝트의 대상 자료가 없음.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '409':
+          description: 'TYPE_LOCKED: 청구단계·배분표·취소 제외 투입이 있으면 유형 변경 불가'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+      x-permission-keys:
+      - UI-01.update
+      x-business-rules:
+      - 'REQ-276 (SPEC-REQUEST.md:193): 수정 칸 — 등록과 같은 칸. 상태는 수주예정·진행·보류·종료 중(실주는 영업 파이프라인 문서). prj_no와 현재 계약금액·현재 종료일·계약 MM은
+        읽기 전용(CMN-905)'
+      - 'REQ-277 (SPEC-REQUEST.md:194): 청구 단계·배분표·취소 외 투입이 있으면 계약유형 변경을 409 TYPE_LOCKED로 거절한다.'
+      - 'REQ-278 (SPEC-REQUEST.md:194): 확정 계약 변경이 없을 때만 최초 계약금액·계약 종료일을 바꾸고 현재 값도 동기화한다.'
+      - 'REQ-279 (SPEC-REQUEST.md:195): 수정은 바뀐 컬럼만 UPDATE하고 보기 모드로 돌아간다. 변경이 없으면 "바뀐 내용이 없습니다."를 표시한다. 영업 파트는 FR-032에서만 변경한다.'
+      - 'REQ-280 (SPEC-REQUEST.md:195): 수정한 컬럼마다 sys.data_chg_hist에 UPDATE 이력을 남긴다.'
+      - 'REQ-248 (SPEC-REQUEST.md:53): 계약유형·기간 변경에도 이미 생성한 단계 표는 변경하지 않는다.'
+      - 'REQ-253 (SPEC-REQUEST.md:57): 잠금 없는 최종 저장 우선이며 동일 프로젝트명을 허용한다.'
+      x-aiops-query-role:
+        entity: prj.prj
+        result_path:
+        - data
+      x-side-effects:
+      - 변경된 컬럼만 UPDATE, 컬럼마다 sys.data_chg_hist UPDATE; prj_skl 변경은 전체 교체. 영업파트는 별도 변경 API. 기존 phs 유지.
+      - 확정 계약 변경이 없을 때 최초금액·계약종료일 변경 시 현재값도 동기화; 확정내역 있으면 최초정보 편집 불가(새409코드는 발명하지 않음).
+      x-state-transitions:
+      - 일반 정보 최종 저장 우선(잠금 없음). 상태 PLAN/RUN/HOLD/END 입력, 확정 계산값 직접 편집 없음.
+      requestBody:
+        required: true
+        description: 원문 입력 항목만 받는다. 유형별 조건부 필수는 업무 규칙에서 검증한다.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProjectUpdateRequest'
+      x-required-tests:
+      - 'happy: prj_nm만 변경 -> getProject 새 이름, listProjectHistory UPDATE/prj_nm 1줄을 읽는다.'
+      - 'auth: 인증 없이 목표원가 수동값 저장 -> getProject에서 그 값을 읽고 권한 거절 없음.'
+      - 'validation: 종료일 역전 입력 -> 400 field와 DB 기존 계약일·이력 무변경을 읽는다.'
+      - 'business: 취소 아닌 투입이 있는 프로젝트 유형 변경 -> 409 TYPE_LOCKED와 기존 유형; 확정 변경 없는 최초금액 수정 -> getProject 최초·현재금액 동기. prj_no/cur_cntrct_amt
+        전송 -> 기존값 유지.'
+      - 'side-effect: 유형/기간 수정 -> DB phs 행·예정일 그대로, 변경컬럼별 이력; 순차 이름 수정 두번 -> getProject 마지막 이름.'
+      x-open-questions:
+      - 'OQ-PROJECT-DISABLED: 중지 상태에서의 입력 제한은 SPEC-REQUEST.md:405~406 추정·미확인; 새 거절 정책을 확정하지 않는다.'
+      - 'OQ-PROJECT-IN-CONVERSION: IN↔외부 전환의 정보 정리·이력 시작 정책은 미확정. 명시 유형 변경 제한과 기존 단계 유지 규칙만 확정.'
+      - 'OQ-PROJECT-PERIOD: 기간 축소의 기존 기간밖 월자료 처리 미확정.'
+      - 'OQ-PROJECT-TARGET: 기본 정보 계약금액/마진율 변경 시 목표원가 계산·수동 조정은 유지. 계약변경 확정시 수동값 강제대체는 미확정.'
+  /api/projects/{id}/disable:
+    post:
+      operationId: updateProjectDisable
+      summary: 프로젝트 사용 안 함
+      description: 인증·권한 판정 없이 누구나 호출한다. DTO 명칭·공통 wire의 세부는 설계 투영 제안이며 미확정 정책을 승인하지 않는다.
+      security: []
+      x-related-requirements:
+      - REQ-227
+      - REQ-252
+      - REQ-250
+      - REQ-281
+      - REQ-282
+      - REQ-337
+      - REQ-338
+      parameters:
+      - name: id
+        in: path
+        required: true
+        description: 해당 프로젝트에 속한 대상 식별자
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      responses:
+        '200':
+          description: 처리 성공; 저장된 자료는 관련 GET으로 재조회한다.
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/UpdateProjectDisableData'
+                  required:
+                  - data
+        '400':
+          description: 입력 필드·식별자·필터 형식 또는 해당 유형 업무 검증 오류; ApiError.field와 원문 문구 제공.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: 프로젝트 또는 해당 프로젝트의 대상 자료가 없음.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '409':
+          description: 'PROJECT_IN_USE: 취소 제외 투입·청구단계·배분표·직접경비 존재'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+      x-permission-keys:
+      - UI-01.delete
+      x-business-rules:
+      - 'REQ-281 (SPEC-REQUEST.md:196): 취소 외 투입·청구 단계·배분표·직접 경비 중 하나라도 있으면 사용 안 함을 409 PROJECT_IN_USE로 거절하고 종류별 건수를 안내한다.'
+      - 'REQ-250 (SPEC-REQUEST.md:55): prj.prj 등록INSERT·컬럼별UPDATE·DISABLE·재사용UPDATE(use_yn)을 기록한다.'
+      x-aiops-query-role:
+        entity: prj.prj
+        result_path:
+        - data
+      x-side-effects:
+      - use_yn N; sys.data_chg_hist DISABLE; 업무 기록 물리 삭제 없음.
+      x-state-transitions:
+      - use_yn Y→N
+      x-no-request-body-reason: 원문에 추가 입력이 없는 대상 지정 상태 전이/삭제이다. 경로 식별자로 대상과 저장된 값을 읽어 처리하므로 별도 본문을 요구하지 않는다.
+      x-required-tests:
+      - 'happy: 관련 자료 없는 프로젝트 disable -> getProject use_yn=N를 읽는다.'
+      - 'auth: 인증 없이 disable -> getProject의 use_yn=N, 로그인 거절 없음.'
+      - 'validation: id=0 -> 400 field=id, 기존 프로젝트·이력 무변경; 없는 id -> 404.'
+      - 'business: 취소 제외 투입/청구단계/배분표/직접경비가 하나라도 있음 -> 409 PROJECT_IN_USE, getProject use_yn=Y와 기존 자료를 읽는다.'
+      - 'side-effect: disable -> listProjectHistory에 DISABLE; listProjects/options 대상 제외를 읽는다.'
+      x-open-questions:
+      - 'OQ-PROJECT-DISABLED: 중지 상태에서의 입력 제한은 SPEC-REQUEST.md:405~406 추정·미확인; 새 거절 정책을 확정하지 않는다.'
+  /api/projects/{id}/enable:
+    post:
+      operationId: updateProjectEnable
+      summary: 프로젝트 다시 사용
+      description: 인증·권한 판정 없이 누구나 호출한다. DTO 명칭·공통 wire의 세부는 설계 투영 제안이며 미확정 정책을 승인하지 않는다.
+      security: []
+      x-related-requirements:
+      - REQ-227
+      - REQ-252
+      - REQ-250
+      - REQ-283
+      - REQ-337
+      - REQ-338
+      parameters:
+      - name: id
+        in: path
+        required: true
+        description: 해당 프로젝트에 속한 대상 식별자
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      responses:
+        '200':
+          description: 처리 성공; 저장된 자료는 관련 GET으로 재조회한다.
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/UpdateProjectEnableData'
+                  required:
+                  - data
+        '400':
+          description: 입력 필드·식별자·필터 형식 또는 해당 유형 업무 검증 오류; ApiError.field와 원문 문구 제공.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: 프로젝트 또는 해당 프로젝트의 대상 자료가 없음.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+      x-permission-keys:
+      - UI-01.delete
+      x-business-rules:
+      - 'REQ-283 (SPEC-REQUEST.md:197): POST /api/projects/{id}/enable 또는 /UI-01?open=P-xxxx 상세 진입에서 다시 사용을 실행한다.'
+      - 'REQ-250 (SPEC-REQUEST.md:55): prj.prj 등록INSERT·컬럼별UPDATE·DISABLE·재사용UPDATE(use_yn)을 기록한다.'
+      x-aiops-query-role:
+        entity: prj.prj
+        result_path:
+        - data
+      x-side-effects:
+      - use_yn Y; sys.data_chg_hist UPDATE(use_yn); 업무 기록 물리 삭제 없음.
+      x-state-transitions:
+      - use_yn N→Y
+      x-no-request-body-reason: 원문에 추가 입력이 없는 대상 지정 상태 전이/삭제이다. 경로 식별자로 대상과 저장된 값을 읽어 처리하므로 별도 본문을 요구하지 않는다.
+      x-required-tests:
+      - 'happy: 관련 자료 없는 프로젝트 enable -> getProject use_yn=Y를 읽는다.'
+      - 'auth: 인증 없이 enable -> getProject의 use_yn=Y, 로그인 거절 없음.'
+      - 'validation: id=0 -> 400 field=id, 기존 프로젝트·이력 무변경; 없는 id -> 404.'
+      - 'business: 중지 프로젝트를 직접 id로 다시 사용 -> getProject Y 및 END/LOST가 아닌 경우 options 재등장.'
+      - 'side-effect: enable -> listProjectHistory에 UPDATE use_yn; 기존 업무기록 유지를 읽는다.'
+      x-open-questions:
+      - 'OQ-PROJECT-DISABLED: 중지 상태에서의 입력 제한은 SPEC-REQUEST.md:405~406 추정·미확인; 새 거절 정책을 확정하지 않는다.'
+  /api/projects/{id}/history:
+    get:
+      operationId: listProjectHistory
+      summary: 프로젝트 변경 이력 조회
+      description: 인증·권한 판정 없이 누구나 호출한다. DTO 명칭·공통 wire의 세부는 설계 투영 제안이며 미확정 정책을 승인하지 않는다.
+      security: []
+      x-related-requirements:
+      - REQ-227
+      - REQ-252
+      - REQ-250
+      - REQ-251
+      - REQ-275
+      - REQ-337
+      - REQ-338
+      parameters:
+      - name: id
+        in: path
+        required: true
+        description: 해당 프로젝트에 속한 대상 식별자
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      responses:
+        '200':
+          description: 처리 성공; 저장된 자료는 관련 GET으로 재조회한다.
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/ListProjectHistoryData'
+                  required:
+                  - data
+        '400':
+          description: 입력 필드·식별자·필터 형식 또는 해당 유형 업무 검증 오류; ApiError.field와 원문 문구 제공.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: 프로젝트 또는 해당 프로젝트의 대상 자료가 없음.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+      x-permission-keys:
+      - UI-01.read
+      x-business-rules:
+      - 'REQ-275 (SPEC-REQUEST.md:176): [변경 이력] — ⋯ 변경 이력 보기로 여는 탭: 일시, 항목, 바꾸기 전, 바꾼 뒤, 처리자 — data_chg_hist(CMN-911)'
+      - obj_rec_id=prj_id인 프로젝트 및 부속 변경 이력. 전체 이력 반환; 원문 페이지/정렬 미지정, 별도 필터 미정.
+      x-aiops-query-role:
+        entity: sys.data_chg_hist
+        result_path:
+        - data
+      x-side-effects:
+      - 업무 테이블 쓰기 없음.
+      x-required-tests:
+      - 'auth: 인증 헤더 없이 유효 요청 -> 200 success=true이며 data에서 해당 조회 자료를 읽는다.'
+      x-pagination-exemption: 프로젝트 한 건의 이력 탭 전체 조회; 별도 페이지가 원문에 없으며 날짜 필터를 발명하지 않는다.
+  /api/projects/{id}/assignments:
+    get:
+      operationId: listProjectAssignments
+      summary: 프로젝트 투입 인력 조회
+      description: 인증·권한 판정 없이 누구나 호출한다. DTO 명칭·공통 wire의 세부는 설계 투영 제안이며 미확정 정책을 승인하지 않는다.
+      security: []
+      x-related-requirements:
+      - REQ-227
+      - REQ-252
+      - REQ-244
+      - REQ-273
+      - REQ-337
+      - REQ-338
+      parameters:
+      - name: id
+        in: path
+        required: true
+        description: 해당 프로젝트에 속한 대상 식별자
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      responses:
+        '200':
+          description: 처리 성공; 저장된 자료는 관련 GET으로 재조회한다.
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/ListProjectAssignmentsData'
+                  required:
+                  - data
+        '400':
+          description: 입력 필드·식별자·필터 형식 또는 해당 유형 업무 검증 오류; ApiError.field와 원문 문구 제공.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: 프로젝트 또는 해당 프로젝트의 대상 자료가 없음.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+      x-permission-keys:
+      - UI-01.read
+      x-business-rules:
+      - 'REQ-273 (SPEC-REQUEST.md:174): [투입 인력 (n)] — 이름, 직무, 기간 "투입 ~ 철수", 투입률, 상태. 단가·급여는 보이지 않는다. 없으면 "투입된 인력이 없습니다." — GET
+        /assignments(취소 제외)'
+      - 해당 프로젝트 취소 제외 전체 투입; 필터 없음; 급여·단가 조회/응답 없음.
+      x-aiops-query-role:
+        entity: asgn.asgn
+        result_path:
+        - data
+      x-side-effects:
+      - 업무 테이블 쓰기 없음.
+      x-required-tests:
+      - 'auth: 인증 헤더 없이 유효 요청 -> 200 success=true이며 data에서 해당 조회 자료를 읽는다.'
+      x-pagination-exemption: 프로젝트 상세의 전체 투입 인력 배열; 별도 페이지 미요구.
+  /api/projects/export:
+    get:
+      operationId: getProjectExport
+      summary: 프로젝트 목록 엑셀 다운로드
+      description: 인증·권한 판정 없이 누구나 호출한다. DTO 명칭·공통 wire의 세부는 설계 투영 제안이며 미확정 정책을 승인하지 않는다.
+      security: []
+      x-related-requirements:
+      - REQ-227
+      - REQ-252
+      - REQ-243
+      - REQ-258
+      - REQ-261
+      - REQ-263
+      - REQ-337
+      parameters:
+      - name: year
+        in: query
+        required: false
+        description: 수행기간과 교집합인 연도; 생략 올해
+        schema:
+          type: integer
+      - name: type
+        in: query
+        required: false
+        description: 계약유형
+        schema:
+          type: string
+          enum:
+          - TK
+          - MO
+          - DP
+          - IN
+      - name: status
+        in: query
+        required: false
+        description: 공란 END/LOST 제외
+        schema:
+          type: string
+          enum:
+          - PLAN
+          - RUN
+          - HOLD
+          - END
+          - LOST
+      - name: part
+        in: query
+        required: false
+        description: 사용 중 파트/본사 id 또는 NONE; NONE은 IN 제외 bsn_part_id NULL
+        schema:
+          type: string
+      - name: q
+        in: query
+        required: false
+        description: 프로젝트명 또는 고객사 글자 검색; 모든 조건 AND
+        schema:
+          type: string
+      - name: sort
+        in: query
+        required: false
+        description: 허용 목록 열 prj_no/prj_nm/custName/cntrct_ty_cd/cntrct_bgn_dt/cur_end_dt/cur_cntrct_amt/assignmentCount/partName/prj_stts_cd
+          + ,asc|,desc; 필터→정렬→페이지 (wire 제안)
+        schema:
+          type: string
+          default: cntrct_bgn_dt,desc
+      responses:
+        '200':
+          description: 처리 성공; 저장된 자료는 관련 GET으로 재조회한다.
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/GetProjectExportData'
+                  required:
+                  - data
+        '400':
+          description: 입력 필드·식별자·필터 형식 또는 해당 유형 업무 검증 오류; ApiError.field와 원문 문구 제공.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+      x-permission-keys:
+      - UI-01.download
+      x-business-rules:
+      - 'REQ-263 (SPEC-REQUEST.md:118): 다운로드 — ③ 목록 다운로드 공통. 파일명 "프로젝트_{연도}_YYYYMMDD.xlsx" — GET /export'
+      - listProjects와 같은 필터·정렬; 페이지 제한 없는 다운로드 공통 재사용. 파일명 프로젝트_{연도}_YYYYMMDD.xlsx. JSON DownloadArtifact 전송 세부는 기존 공통 미확정 wire
+        유지.
+      x-aiops-query-role:
+        entity: prj.prj
+        result_path:
+        - data
+      x-side-effects:
+      - 업무 테이블 쓰기 없음.
+      x-required-tests:
+      - 'auth: 인증 헤더 없이 유효 요청 -> 200 success=true이며 data에서 해당 조회 자료를 읽는다.'
+  /api/projects/options:
+    get:
+      x-pagination:
+        mode: none
+        filter: q
+        reason: "원문 REQ-336의 프로젝트 선택 배열 계약: q로 검색하고 전체 선택 목록을 반환한다. 페이지 인자는 추가하지 않는다."
+      operationId: listProjectOptions
+      summary: 프로젝트 선택 목록 조회
+      description: 인증·권한 판정 없이 누구나 호출한다. DTO 명칭·공통 wire의 세부는 설계 투영 제안이며 미확정 정책을 승인하지 않는다.
+      security: []
+      x-related-requirements:
+      - REQ-227
+      - REQ-252
+      - REQ-336
+      - REQ-337
+      parameters:
+      - name: q
+        in: query
+        required: false
+        description: 프로젝트 선택 검색 글자
+        schema:
+          type: string
+      responses:
+        '200':
+          description: 처리 성공; 저장된 자료는 관련 GET으로 재조회한다.
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/ListProjectOptionsData'
+                  required:
+                  - data
+        '400':
+          description: 입력 필드·식별자·필터 형식 또는 해당 유형 업무 검증 오류; ApiError.field와 원문 문구 제공.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+      x-permission-keys:
+      - UI-01.read
+      x-business-rules:
+      - 'REQ-336 (SPEC-REQUEST.md:16): 다른 화면이 쓸 프로젝트 선택 목록 API는 use_yn=Y, 상태가 END·LOST가 아닌 프로젝트를 q 검색하여 id,no,name,type,custName으로
+        반환한다.'
+      x-aiops-query-role:
+        entity: prj.prj
+        result_path:
+        - data
+      x-side-effects:
+      - 업무 테이블 쓰기 없음.
+      x-required-tests:
+      - 'auth: 인증 헤더 없이 유효 요청 -> 200 success=true이며 data에서 해당 조회 자료를 읽는다.'
+      x-pagination-exemption: 원문 [{id,no,name,type,custName}] 전체 선택 배열. q 외 페이지·필터 미요구.
+  /api/projects/{id}/part-changes:
+    get:
+      operationId: listProjectPartChanges
+      summary: 영업 파트 이력 조회
+      description: 인증·권한 판정 없이 누구나 호출한다. DTO 명칭·공통 wire의 세부는 설계 투영 제안이며 미확정 정책을 승인하지 않는다.
+      security: []
+      x-related-requirements:
+      - REQ-227
+      - REQ-252
+      - REQ-245
+      - REQ-246
+      - REQ-271
+      - REQ-337
+      - REQ-338
+      parameters:
+      - name: id
+        in: path
+        required: true
+        description: 해당 프로젝트에 속한 대상 식별자
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      responses:
+        '200':
+          description: 처리 성공; 저장된 자료는 관련 GET으로 재조회한다.
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/ListProjectPartChangesData'
+                  required:
+                  - data
+        '400':
+          description: 입력 필드·식별자·필터 형식 또는 해당 유형 업무 검증 오류; ApiError.field와 원문 문구 제공.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: 프로젝트 또는 해당 프로젝트의 대상 자료가 없음.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+      x-permission-keys:
+      - UI-01.read
+      x-business-rules:
+      - 'REQ-245 (SPEC-REQUEST.md:52): 등록시 수행시작연월 이력1줄, 변경시 시작월 upsert 후 가장 늦은 시작월 파트를 대표값으로 맞춘다.'
+      - 'REQ-246 (SPEC-REQUEST.md:52): 월별 집계는 그 달에 적용되는 영업 파트 이력을 쓴다.'
+      - 해당 프로젝트 이력 전체; 적용 시작월 순서. 월별 집계는 그 달 유효한 이력.
+      x-aiops-query-role:
+        entity: prj.prj_part_hist
+        result_path:
+        - data
+      x-side-effects:
+      - 업무 테이블 쓰기 없음.
+      x-required-tests:
+      - 'auth: 인증 헤더 없이 유효 요청 -> 200 success=true이며 data에서 해당 조회 자료를 읽는다.'
+      x-pagination-exemption: 한 프로젝트 영업파트 이력 전체·별도 필터 없음.
+    post:
+      operationId: createProjectPartChange
+      summary: 프로젝트 영업 파트 변경
+      description: 인증·권한 판정 없이 누구나 호출한다. DTO 명칭·공통 wire의 세부는 설계 투영 제안이며 미확정 정책을 승인하지 않는다.
+      security: []
+      x-related-requirements:
+      - REQ-227
+      - REQ-252
+      - REQ-245
+      - REQ-246
+      - REQ-249
+      - REQ-251
+      - REQ-284
+      - REQ-286
+      - REQ-287
+      - REQ-288
+      - REQ-337
+      - REQ-338
+      parameters:
+      - name: id
+        in: path
+        required: true
+        description: 해당 프로젝트에 속한 대상 식별자
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      responses:
+        '200':
+          description: 처리 성공; 저장된 자료는 관련 GET으로 재조회한다.
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/CreateProjectPartChangeData'
+                  required:
+                  - data
+        '400':
+          description: 입력 필드·식별자·필터 형식 또는 해당 유형 업무 검증 오류; ApiError.field와 원문 문구 제공.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: 프로젝트 또는 해당 프로젝트의 대상 자료가 없음.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '409':
+          description: 'CLOSED_MONTH: 시작월이 마지막 마감월 이하'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+      x-permission-keys:
+      - UI-01.update
+      x-business-rules:
+      - 'REQ-284 (SPEC-REQUEST.md:214): 입력 — 새 영업 파트(필수, 지금 파트 제외, 사용 중 파트·본사), 적용 시작 월(필수, 마지막 마감월 다음 달부터, 처음 값 그 달, 도움말 "마감
+        안 된 달(YYYY-MM)부터 고를 수 있습니다."), 사유(필수 200자)'
+      - 'REQ-286 (SPEC-REQUEST.md:216): 파트 변경은 prj_part_hist를 적용 시작월별 INSERT/UPDATE하고 가장 늦은 시작월의 파트를 prj.bsn_part_id에 저장한다.'
+      - 'REQ-288 (SPEC-REQUEST.md:217): 검증 — 시작월이 마감 달 이하 → "적용 시작 월은 {YYYY-MM} 이후로 골라 주세요."(409 CLOSED_MONTH) / 사유 없음 → "사유를
+        입력해 주세요."'
+      - 'REQ-245 (SPEC-REQUEST.md:52): 등록시 수행시작연월 이력1줄, 변경시 시작월 upsert 후 가장 늦은 시작월 파트를 대표값으로 맞춘다.'
+      x-aiops-query-role:
+        entity: prj.prj_part_hist
+        result_path:
+        - data
+      x-side-effects:
+      - 동일 시작월 UPSERT, 대표 bsn_part_id=가장 늦은 시작월 파트. 부속 요약 이력1줄(tbl_nm=prj.prj_part_hist,obj_rec_id=prj_id). 마감월 실적·정산 불변.
+      x-state-transitions:
+      - 적용시작월 이력 삽입/동일월 정정→대표파트 최신시작월로 동기
+      requestBody:
+        required: true
+        description: 원문 입력 항목만 받는다. 유형별 조건부 필수는 업무 규칙에서 검증한다.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProjectPartChangeRequest'
+      x-required-tests:
+      - 'happy: 9월까지 마감·10월 A→B 사유 입력 -> listProjectPartChanges 이력2줄·getProject bsn_part_id B.'
+      - 'auth: 인증 없이 정상 변경 -> listProjectPartChanges 새 시작월·파트를 읽고 거절 없음.'
+      - 'validation: 사유 공백 또는 IN -> 400 field 오류, getProject 파트와 이력 그대로.'
+      - 'business: 시작월2026-09 CLOSED -> 409 CLOSED_MONTH, 기존 파트 유지; 같은2026-10 정정 -> 이력 줄수 유지.'
+      - 'side-effect: 정상 변경 -> listProjectHistory 부속 요약1줄·DB 9월 집계파트 A,10월 B를 읽는다.'
+      x-open-questions:
+      - 'OQ-PROJECT-DISABLED: 중지 상태에서의 입력 제한은 SPEC-REQUEST.md:405~406 추정·미확인; 새 거절 정책을 확정하지 않는다.'
+      - 'OQ-PROJECT-FUTURE-PART: 미마감 과거/미래 예약에 대한 추가 허용·표시 정책 미확정; CMN-908 대표파트 규칙은 유지.'
+  /api/projects/{id}/bill-stages:
+    get:
+      operationId: listProjectBillStages
+      summary: 턴키 청구 단계 조회
+      description: 인증·권한 판정 없이 누구나 호출한다. DTO 명칭·공통 wire의 세부는 설계 투영 제안이며 미확정 정책을 승인하지 않는다.
+      security: []
+      x-related-requirements:
+      - REQ-227
+      - REQ-252
+      - REQ-289
+      - REQ-291
+      - REQ-295
+      - REQ-337
+      - REQ-338
+      parameters:
+      - name: id
+        in: path
+        required: true
+        description: 해당 프로젝트에 속한 대상 식별자
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      responses:
+        '200':
+          description: 처리 성공; 저장된 자료는 관련 GET으로 재조회한다.
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/ListProjectBillStagesData'
+                  required:
+                  - data
+        '400':
+          description: 입력 필드·식별자·필터 형식 또는 해당 유형 업무 검증 오류; ApiError.field와 원문 문구 제공.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: 프로젝트 또는 해당 프로젝트의 대상 자료가 없음.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+      x-permission-keys:
+      - UI-01.read
+      x-business-rules:
+      - 'REQ-289 (SPEC-REQUEST.md:233): 턴키 청구 단계의 차수·단계명·공급가액·표시 부가세·예정일·청구 여부를 조회하고 단계 추가·삭제로 편집한다.'
+      - 'REQ-291 (SPEC-REQUEST.md:234): 합계 — 표 아래 공급가액 합계와 현재 계약금액. 다르면 주황 "청구 단계 합계({합계})가 현재 계약금액({금액})과 다릅니다." 저장은 막지 않는다'
+      - TK만; 차수 순 전체, 청구 여부 bill.bill 참조. 비TK API400.
+      x-aiops-query-role:
+        entity: prj.bill_stg
+        result_path:
+        - data
+      x-side-effects:
+      - 업무 테이블 쓰기 없음.
+      x-required-tests:
+      - 'auth: 인증 헤더 없이 유효 요청 -> 200 success=true이며 data에서 해당 조회 자료를 읽는다.'
+      x-pagination-exemption: 최대20단계 전체; 필터 없음.
+    put:
+      operationId: saveProjectBillStages
+      summary: 턴키 청구 단계 저장
+      description: 인증·권한 판정 없이 누구나 호출한다. DTO 명칭·공통 wire의 세부는 설계 투영 제안이며 미확정 정책을 승인하지 않는다.
+      security: []
+      x-related-requirements:
+      - REQ-227
+      - REQ-252
+      - REQ-251
+      - REQ-289
+      - REQ-290
+      - REQ-291
+      - REQ-292
+      - REQ-293
+      - REQ-294
+      - REQ-295
+      - REQ-337
+      - REQ-338
+      parameters:
+      - name: id
+        in: path
+        required: true
+        description: 해당 프로젝트에 속한 대상 식별자
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      responses:
+        '200':
+          description: 처리 성공; 저장된 자료는 관련 GET으로 재조회한다.
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/SaveProjectBillStagesData'
+                  required:
+                  - data
+        '400':
+          description: 입력 필드·식별자·필터 형식 또는 해당 유형 업무 검증 오류; ApiError.field와 원문 문구 제공.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: 프로젝트 또는 해당 프로젝트의 대상 자료가 없음.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '409':
+          description: 'STAGE_BILLED: bill.bill이 참조하는 단계 수정·삭제'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+      x-permission-keys:
+      - UI-01.update
+      x-business-rules:
+      - 'REQ-290 (SPEC-REQUEST.md:233): 단계명은 필수100자, 공급가액1원 이상·예정일 필수이며 최대20단계를 허용한다.'
+      - 'REQ-291 (SPEC-REQUEST.md:234): 합계 — 표 아래 공급가액 합계와 현재 계약금액. 다르면 주황 "청구 단계 합계({합계})가 현재 계약금액({금액})과 다릅니다." 저장은 막지 않는다'
+      - 'REQ-292 (SPEC-REQUEST.md:235): 한 트랜잭션으로 해당 프로젝트의 청구 단계 목록을 전체 교체하고 차수를1부터 다시 매긴다.'
+      - 'REQ-293 (SPEC-REQUEST.md:235): bill.bill에 연결된 단계의 수정·삭제를 409 STAGE_BILLED로 거절한다.'
+      - 'REQ-295 (SPEC-REQUEST.md:236): 뒤 문서 — 청구·입금 화면은 bill_stg를 청구 예정 건으로 읽는다. 이 문서는 bill.bill을 만들지 않는다'
+      x-aiops-query-role:
+        entity: prj.bill_stg
+        result_path:
+        - data
+      x-side-effects:
+      - 트랜잭션 bill_stg 전체 교체·차수1부터 재부여·부속 요약이력1줄. 청구된 단계 식별과 값 보존, bill.bill 쓰기 없음.
+      x-state-transitions:
+      - TK 해당 프로젝트 단계목록→요청 전체목록; 청구된 단계 변경 불가
+      requestBody:
+        required: true
+        description: 원문 입력 항목만 받는다. 유형별 조건부 필수는 업무 규칙에서 검증한다.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProjectBillStagesRequest'
+      x-required-tests:
+      - 'happy: 1억·2억·2억 3단계 저장 -> listProjectBillStages 3줄·차수1~3·합계5억.'
+      - 'auth: 인증 없이 단계1건 저장 -> listProjectBillStages 해당 단계명·금액을 읽는다.'
+      - 'validation: 공급가0/예정일없음/21단계 또는 MO -> 400 field 오류, 기존 단계 불변.'
+      - 'business: 합계4.9억/계약5억 -> 저장 후 두 합계를 읽고 UI 경고; 청구된 단계 수정/삭제 -> 409 STAGE_BILLED, 기존단계 보존.'
+      - 'side-effect: 정상 저장 -> listProjectHistory prj.bill_stg 요약1줄, DB bill.bill 행수 불변; 실패시 단계·이력 모두 불변.'
+      x-open-questions:
+      - 'OQ-PROJECT-DISABLED: 중지 상태에서의 입력 제한은 SPEC-REQUEST.md:405~406 추정·미확인; 새 거절 정책을 확정하지 않는다.'
+  /api/projects/{id}/allocations:
+    get:
+      operationId: getProjectAllocations
+      summary: 턴키 배분표 조회
+      description: 인증·권한 판정 없이 누구나 호출한다. DTO 명칭·공통 wire의 세부는 설계 투영 제안이며 미확정 정책을 승인하지 않는다.
+      security: []
+      x-related-requirements:
+      - REQ-227
+      - REQ-252
+      - REQ-296
+      - REQ-297
+      - REQ-298
+      - REQ-299
+      - REQ-337
+      - REQ-338
+      parameters:
+      - name: id
+        in: path
+        required: true
+        description: 해당 프로젝트에 속한 대상 식별자
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: stage
+        in: query
+        required: false
+        description: 배분표 단계; GET 생략 시 사용 중 단계, PUT 필수
+        schema:
+          type: string
+          enum:
+          - EST
+          - FINAL
+          - ACTUAL
+      responses:
+        '200':
+          description: 처리 성공; 저장된 자료는 관련 GET으로 재조회한다.
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/GetProjectAllocationsData'
+                  required:
+                  - data
+        '400':
+          description: 입력 필드·식별자·필터 형식 또는 해당 유형 업무 검증 오류; ApiError.field와 원문 문구 제공.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: 프로젝트 또는 해당 프로젝트의 대상 자료가 없음.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+      x-permission-keys:
+      - UI-01.read
+      x-business-rules:
+      - 'REQ-296 (SPEC-REQUEST.md:252): 단계 고르기 — 밑줄 탭 [견적] [최종 계약] [실제 투입계획], 줄이 있는 가장 나중 단계에 "사용 중" 배지(BR: 실제 투입계획 > 최종 계약
+        > 견적). 처음 열 때 사용 중 단계 — aloc_stg_cd'
+      - 'REQ-297 (SPEC-REQUEST.md:253): 표 — 줄마다: 종류(사람·항목), 사람(개발자 선택) 또는 항목명, 직무(사람 필수), 투입일(사람 필수), 투입 구분(선택: ASSIGN_KIND),
+        비고, 그리고 수행 기간의 월마다 금액·MM 두 칸. 아래 월별 합계와 전체 합계. [+ 사람 줄] [+ 항목 줄], 줄 [삭제] — tk_aloc_line, tk_aloc_mth'
+      - 'REQ-298 (SPEC-REQUEST.md:254): 합계 비교 — 사용 중 단계의 금액 합계(사람+항목)가 현재 계약금액과 다르면 주황 "배분표 합계({합계})가 현재 계약금액({금액})과 다릅니다."
+        저장은 막지 않는다'
+      - 'REQ-299 (SPEC-REQUEST.md:255): 확정 계약 변경에 realoc_need_yn=Y가 있으면 배분표 위에 재조정 안내를 표시한다.'
+      x-aiops-query-role:
+        entity: prj.tk_aloc_line
+        result_path:
+        - data
+      x-side-effects:
+      - 업무 테이블 쓰기 없음.
+      x-required-tests:
+      - 'auth: 인증 헤더 없이 유효 요청 -> 200 success=true이며 data에서 해당 조회 자료를 읽는다.'
+      x-pagination-exemption: 선택단계의 줄·월값 전체 편집 계약; stage 외 페이지/필터 없음.
+    put:
+      operationId: saveProjectAllocations
+      summary: 턴키 배분표 저장
+      description: 인증·권한 판정 없이 누구나 호출한다. DTO 명칭·공통 wire의 세부는 설계 투영 제안이며 미확정 정책을 승인하지 않는다.
+      security: []
+      x-related-requirements:
+      - REQ-227
+      - REQ-252
+      - REQ-251
+      - REQ-296
+      - REQ-297
+      - REQ-298
+      - REQ-299
+      - REQ-300
+      - REQ-301
+      - REQ-302
+      - REQ-337
+      - REQ-338
+      parameters:
+      - name: id
+        in: path
+        required: true
+        description: 해당 프로젝트에 속한 대상 식별자
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: stage
+        in: query
+        required: true
+        description: 배분표 단계; GET 생략 시 사용 중 단계, PUT 필수
+        schema:
+          type: string
+          enum:
+          - EST
+          - FINAL
+          - ACTUAL
+      responses:
+        '200':
+          description: 처리 성공; 저장된 자료는 관련 GET으로 재조회한다.
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/SaveProjectAllocationsData'
+                  required:
+                  - data
+        '400':
+          description: 입력 필드·식별자·필터 형식 또는 해당 유형 업무 검증 오류; ApiError.field와 원문 문구 제공.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: 프로젝트 또는 해당 프로젝트의 대상 자료가 없음.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+      x-permission-keys:
+      - UI-01.update
+      x-business-rules:
+      - 'REQ-297 (SPEC-REQUEST.md:253): 표 — 줄마다: 종류(사람·항목), 사람(개발자 선택) 또는 항목명, 직무(사람 필수), 투입일(사람 필수), 투입 구분(선택: ASSIGN_KIND),
+        비고, 그리고 수행 기간의 월마다 금액·MM 두 칸. 아래 월별 합계와 전체 합계. [+ 사람 줄] [+ 항목 줄], 줄 [삭제] — tk_aloc_line, tk_aloc_mth'
+      - 'REQ-298 (SPEC-REQUEST.md:254): 합계 비교 — 사용 중 단계의 금액 합계(사람+항목)가 현재 계약금액과 다르면 주황 "배분표 합계({합계})가 현재 계약금액({금액})과 다릅니다."
+        저장은 막지 않는다'
+      - 'REQ-300 (SPEC-REQUEST.md:255): 배분표 저장 시 해당 프로젝트 cntrct_chg_hist.realoc_need_yn을 N으로 바꾼다.'
+      - 'REQ-301 (SPEC-REQUEST.md:256): 선택한 배분 단계의 줄·월 값을 전체 교체하며 빈 금액·MM 칸은 월 행을 만들지 않는다.'
+      - 'REQ-302 (SPEC-REQUEST.md:256): 배분표 저장에 요약 이력을 남기고 "배분표를 저장했습니다."를 표시한다.'
+      - TK만. PERSON 개발자·직무·투입일 필수; ITEM은 개발자·직무 없이 항목명 입력 허용.
+      x-aiops-query-role:
+        entity: prj.tk_aloc_line
+        result_path:
+        - data
+      x-side-effects:
+      - 해당 stage tk_aloc_line·tk_aloc_mth만 전체 교체; 빈 금액/MM 칸 미생성. 프로젝트 모든 realoc_need_yn N. 부속요약이력1줄. 타단계 보존.
+      x-state-transitions:
+      - 해당 단계 전체교체→재조정표시 Y→N
+      requestBody:
+        required: true
+        description: 원문 입력 항목만 받는다. 유형별 조건부 필수는 업무 규칙에서 검증한다.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProjectAllocationsRequest'
+      x-required-tests:
+      - 'happy: ACTUAL 6억 저장 -> getProjectAllocations stage ACTUAL 줄·월값·합계6억을 읽는다.'
+      - 'auth: 인증 없이 ITEM 항목 저장 -> getProjectAllocations 해당 item_nm을 읽고 거절 없음.'
+      - 'validation: PERSON 직무 없음 -> 400 field=job_cd와 기존 줄·월값 무변경.'
+      - 'business: ACTUAL/FINAL/EST 줄 존재 -> getProjectAllocations activeStage ACTUAL;5.9억/6억도 저장 후 양값을 읽고 경고.'
+      - 'side-effect: 저장 -> DB realoc_need_yn 전부 N·타단계 불변, listProjectHistory prj.tk_aloc_line 요약1줄.'
+      x-open-questions:
+      - 'OQ-PROJECT-DISABLED: 중지 상태에서의 입력 제한은 SPEC-REQUEST.md:405~406 추정·미확인; 새 거절 정책을 확정하지 않는다.'
+      - 'OQ-PROJECT-PERIOD: 기간 축소 후 기간밖 기존자료 보존/합계정책 미확정.'
+  /api/projects/{id}/expenses:
+    get:
+      operationId: listProjectExpenses
+      summary: 프로젝트 직접 경비 조회
+      description: 인증·권한 판정 없이 누구나 호출한다. DTO 명칭·공통 wire의 세부는 설계 투영 제안이며 미확정 정책을 승인하지 않는다.
+      security: []
+      x-related-requirements:
+      - REQ-227
+      - REQ-252
+      - REQ-307
+      - REQ-337
+      - REQ-338
+      parameters:
+      - name: id
+        in: path
+        required: true
+        description: 해당 프로젝트에 속한 대상 식별자
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      responses:
+        '200':
+          description: 처리 성공; 저장된 자료는 관련 GET으로 재조회한다.
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/ListProjectExpensesData'
+                  required:
+                  - data
+        '400':
+          description: 입력 필드·식별자·필터 형식 또는 해당 유형 업무 검증 오류; ApiError.field와 원문 문구 제공.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: 프로젝트 또는 해당 프로젝트의 대상 자료가 없음.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+      x-permission-keys:
+      - UI-01.read
+      x-business-rules:
+      - 'REQ-307 (SPEC-REQUEST.md:275): 표 — 월, 경비 구분, 금액, 부가세, 지급일, 비고, 줄 끝 [수정] [삭제](마감한 달은 숨김). 아래 월별 합계. expns_ym 최신 위. 사람에게
+        붙은 팀비(dev_id 있는 줄)는 이 표에 나오지 않는다 — cst.drct_expns WHERE prj_id=?'
+      - prj_id 일치 AND dev_id NULL; expns_ym 내림차순 전체. IN 포함; 월별 합계는 응답 경비에서 계산.
+      x-aiops-query-role:
+        entity: cst.drct_expns
+        result_path:
+        - data
+      x-side-effects:
+      - 업무 테이블 쓰기 없음.
+      x-required-tests:
+      - 'auth: 인증 헤더 없이 유효 요청 -> 200 success=true이며 data에서 해당 조회 자료를 읽는다.'
+      x-pagination-exemption: 프로젝트 직접경비 탭의 전체 월별 합계용; 별도 필터·페이지 원문 미요구.
+    post:
+      operationId: createProjectExpense
+      summary: 직접 경비 등록
+      description: 인증·권한 판정 없이 누구나 호출한다. DTO 명칭·공통 wire의 세부는 설계 투영 제안이며 미확정 정책을 승인하지 않는다.
+      security: []
+      x-related-requirements:
+      - REQ-227
+      - REQ-252
+      - REQ-249
+      - REQ-251
+      - REQ-308
+      - REQ-309
+      - REQ-312
+      - REQ-313
+      - REQ-337
+      - REQ-338
+      parameters:
+      - name: id
+        in: path
+        required: true
+        description: 해당 프로젝트에 속한 대상 식별자
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      responses:
+        '200':
+          description: 처리 성공; 저장된 자료는 관련 GET으로 재조회한다.
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/CreateProjectExpenseData'
+                  required:
+                  - data
+        '400':
+          description: 입력 필드·식별자·필터 형식 또는 해당 유형 업무 검증 오류; ApiError.field와 원문 문구 제공.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: 프로젝트 또는 해당 프로젝트의 대상 자료가 없음.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '409':
+          description: 'CLOSED_MONTH: {YYYY-MM}은 마감된 달이라 입력할 수 없습니다.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+      x-permission-keys:
+      - UI-01.update
+      x-business-rules:
+      - 'REQ-308 (SPEC-REQUEST.md:276): 입력 창 — 월(필수, 월 선택), 경비 구분(필수, EXPENSE_ITEM 사용 중), 금액(필수, 1원 이상), 부가세(처음 값 금액 × 10% 버림,
+        고칠 수 있음), 지급일, 비고 200자. 안내 "외주 인력비는 넣지 않습니다(투입·지급에서 처리)."'
+      - 'REQ-309 (SPEC-REQUEST.md:277): 미마감월의 프로젝트 직접 경비를 INSERT하고 dev_id는 NULL로 저장한다.'
+      - 'REQ-312 (SPEC-REQUEST.md:277): 직접 경비 등록·수정·삭제에 저장1회 요약 이력을 기록한다.'
+      - 'REQ-313 (SPEC-REQUEST.md:277): 마감월 경비 입력은409 CLOSED_MONTH와 지정 연월 문구로 거절하고 해당 월의 수정·삭제를 숨긴다.'
+      - IN도 사용. dev_id NULL인 해당 프로젝트 경비만; 마감월 등록·수정·삭제 모두 금지. 수정으로 월을 바꿀 때 기존 마감월 행도 수정 불가.
+      x-aiops-query-role:
+        entity: cst.drct_expns
+        result_path:
+        - data
+      x-side-effects:
+      - 경비 POST 및 cst.drct_expns 부속요약이력1줄(obj_rec_id=prj_id). dev_id NULL; 팀비·다른 프로젝트 경비 보존.
+      x-state-transitions:
+      - OPEN월 경비 신규/기존→입력값; CLOSED면 상태유지
+      requestBody:
+        required: true
+        description: 원문 입력 항목만 받는다. 유형별 조건부 필수는 업무 규칙에서 검증한다.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProjectExpenseRequest'
+      x-required-tests:
+      - 'happy: OPEN월2026-10 출장비300000 post -> listProjectExpenses에서 해당 경비 금액300000·VAT기본30000을 읽는다.'
+      - 'auth: 인증 없이 유효 경비 post -> listProjectExpenses에 해당 결과를 읽고 로그인 거절 없음.'
+      - 'validation: 금액0 또는 구분공백 -> 400 field 오류, 기존 경비와 이력 무변경.'
+      - 'business: 2026-09 CLOSED월 post -> 409 CLOSED_MONTH, listProjectExpenses 기존행·금액 그대로.'
+      - 'side-effect: 정상 post -> listProjectHistory cst.drct_expns 요약1줄; 타프로젝트/사람팀비 DB행 그대로.'
+      x-open-questions:
+      - 'OQ-PROJECT-DISABLED: 중지 상태에서의 입력 제한은 SPEC-REQUEST.md:405~406 추정·미확인; 새 거절 정책을 확정하지 않는다.'
+  /api/projects/{id}/expenses/{expnsId}:
+    put:
+      operationId: updateProjectExpense
+      summary: 직접 경비 수정
+      description: 인증·권한 판정 없이 누구나 호출한다. DTO 명칭·공통 wire의 세부는 설계 투영 제안이며 미확정 정책을 승인하지 않는다.
+      security: []
+      x-related-requirements:
+      - REQ-227
+      - REQ-252
+      - REQ-249
+      - REQ-251
+      - REQ-308
+      - REQ-310
+      - REQ-312
+      - REQ-313
+      - REQ-337
+      - REQ-338
+      parameters:
+      - name: expnsId
+        in: path
+        required: true
+        description: 해당 프로젝트에 속한 대상 식별자
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: id
+        in: path
+        required: true
+        description: 해당 프로젝트에 속한 대상 식별자
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      responses:
+        '200':
+          description: 처리 성공; 저장된 자료는 관련 GET으로 재조회한다.
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/UpdateProjectExpenseData'
+                  required:
+                  - data
+        '400':
+          description: 입력 필드·식별자·필터 형식 또는 해당 유형 업무 검증 오류; ApiError.field와 원문 문구 제공.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: 프로젝트 또는 해당 프로젝트의 대상 자료가 없음.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '409':
+          description: 'CLOSED_MONTH: {YYYY-MM}은 마감된 달이라 입력할 수 없습니다.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+      x-permission-keys:
+      - UI-01.update
+      x-business-rules:
+      - 'REQ-308 (SPEC-REQUEST.md:276): 입력 창 — 월(필수, 월 선택), 경비 구분(필수, EXPENSE_ITEM 사용 중), 금액(필수, 1원 이상), 부가세(처음 값 금액 × 10% 버림,
+        고칠 수 있음), 지급일, 비고 200자. 안내 "외주 인력비는 넣지 않습니다(투입·지급에서 처리)."'
+      - 'REQ-310 (SPEC-REQUEST.md:277): 미마감월의 프로젝트 직접 경비를 UPDATE한다.'
+      - 'REQ-312 (SPEC-REQUEST.md:277): 직접 경비 등록·수정·삭제에 저장1회 요약 이력을 기록한다.'
+      - 'REQ-313 (SPEC-REQUEST.md:277): 마감월 경비 입력은409 CLOSED_MONTH와 지정 연월 문구로 거절하고 해당 월의 수정·삭제를 숨긴다.'
+      - IN도 사용. dev_id NULL인 해당 프로젝트 경비만; 마감월 등록·수정·삭제 모두 금지. 수정으로 월을 바꿀 때 기존 마감월 행도 수정 불가.
+      x-aiops-query-role:
+        entity: cst.drct_expns
+        result_path:
+        - data
+      x-side-effects:
+      - 경비 PUT 및 cst.drct_expns 부속요약이력1줄(obj_rec_id=prj_id). dev_id NULL; 팀비·다른 프로젝트 경비 보존.
+      x-state-transitions:
+      - OPEN월 경비 신규/기존→입력값; CLOSED면 상태유지
+      requestBody:
+        required: true
+        description: 원문 입력 항목만 받는다. 유형별 조건부 필수는 업무 규칙에서 검증한다.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProjectExpenseRequest'
+      x-required-tests:
+      - 'happy: OPEN월2026-10 출장비300000 put -> listProjectExpenses에서 해당 경비 금액300000·VAT기본30000을 읽는다.'
+      - 'auth: 인증 없이 유효 경비 put -> listProjectExpenses에 해당 결과를 읽고 로그인 거절 없음.'
+      - 'validation: 금액0 또는 구분공백 -> 400 field 오류, 기존 경비와 이력 무변경.'
+      - 'business: 2026-09 CLOSED월 put -> 409 CLOSED_MONTH, listProjectExpenses 기존행·금액 그대로.'
+      - 'side-effect: 정상 put -> listProjectHistory cst.drct_expns 요약1줄; 타프로젝트/사람팀비 DB행 그대로.'
+      x-open-questions:
+      - 'OQ-PROJECT-DISABLED: 중지 상태에서의 입력 제한은 SPEC-REQUEST.md:405~406 추정·미확인; 새 거절 정책을 확정하지 않는다.'
+    delete:
+      operationId: updateProjectExpenseRemoval
+      summary: 직접 경비 삭제
+      description: 인증·권한 판정 없이 누구나 호출한다. DTO 명칭·공통 wire의 세부는 설계 투영 제안이며 미확정 정책을 승인하지 않는다.
+      security: []
+      x-related-requirements:
+      - REQ-227
+      - REQ-252
+      - REQ-249
+      - REQ-251
+      - REQ-311
+      - REQ-312
+      - REQ-313
+      - REQ-337
+      - REQ-338
+      parameters:
+      - name: expnsId
+        in: path
+        required: true
+        description: 해당 프로젝트에 속한 대상 식별자
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: id
+        in: path
+        required: true
+        description: 해당 프로젝트에 속한 대상 식별자
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      responses:
+        '200':
+          description: 처리 성공; 저장된 자료는 관련 GET으로 재조회한다.
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/UpdateProjectExpenseRemovalData'
+                  required:
+                  - data
+        '400':
+          description: 입력 필드·식별자·필터 형식 또는 해당 유형 업무 검증 오류; ApiError.field와 원문 문구 제공.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: 프로젝트 또는 해당 프로젝트의 대상 자료가 없음.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '409':
+          description: 'CLOSED_MONTH: {YYYY-MM}은 마감된 달이라 입력할 수 없습니다.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+      x-permission-keys:
+      - UI-01.update
+      x-business-rules:
+      - 'REQ-311 (SPEC-REQUEST.md:277): 미마감월의 프로젝트 직접 경비를 DELETE한다.'
+      - 'REQ-312 (SPEC-REQUEST.md:277): 직접 경비 등록·수정·삭제에 저장1회 요약 이력을 기록한다.'
+      - 'REQ-313 (SPEC-REQUEST.md:277): 마감월 경비 입력은409 CLOSED_MONTH와 지정 연월 문구로 거절하고 해당 월의 수정·삭제를 숨긴다.'
+      - IN도 사용. dev_id NULL인 해당 프로젝트 경비만; 마감월 등록·수정·삭제 모두 금지. 수정으로 월을 바꿀 때 기존 마감월 행도 수정 불가.
+      x-aiops-query-role:
+        entity: cst.drct_expns
+        result_path:
+        - data
+      x-side-effects:
+      - 경비 DELETE 및 cst.drct_expns 부속요약이력1줄(obj_rec_id=prj_id). dev_id NULL; 팀비·다른 프로젝트 경비 보존.
+      x-state-transitions:
+      - OPEN월 경비 존재→삭제; CLOSED면 상태유지
+      x-no-request-body-reason: 원문에 추가 입력이 없는 대상 지정 상태 전이/삭제이다. 경로 식별자로 대상과 저장된 값을 읽어 처리하므로 별도 본문을 요구하지 않는다.
+      x-required-tests:
+      - 'happy: OPEN월2026-10 출장비300000 delete -> listProjectExpenses에서 해당 expns_id 없음을 읽는다.'
+      - 'auth: 인증 없이 유효 경비 delete -> listProjectExpenses에 해당 결과를 읽고 로그인 거절 없음.'
+      - 'validation: expnsId=0 -> 400 field 오류, 기존 경비와 이력 무변경.'
+      - 'business: 2026-09 CLOSED월 delete -> 409 CLOSED_MONTH, listProjectExpenses 기존행·금액 그대로.'
+      - 'side-effect: 정상 delete -> listProjectHistory cst.drct_expns 요약1줄; 타프로젝트/사람팀비 DB행 그대로.'
+      x-open-questions:
+      - 'OQ-PROJECT-DISABLED: 중지 상태에서의 입력 제한은 SPEC-REQUEST.md:405~406 추정·미확인; 새 거절 정책을 확정하지 않는다.'
+  /api/projects/{id}/contract-changes:
+    get:
+      operationId: listProjectContractChanges
+      summary: 프로젝트 계약 변경 조회
+      description: 인증·권한 판정 없이 누구나 호출한다. DTO 명칭·공통 wire의 세부는 설계 투영 제안이며 미확정 정책을 승인하지 않는다.
+      security: []
+      x-related-requirements:
+      - REQ-227
+      - REQ-252
+      - REQ-314
+      - REQ-315
+      - REQ-318
+      - REQ-337
+      - REQ-338
+      parameters:
+      - name: id
+        in: path
+        required: true
+        description: 해당 프로젝트에 속한 대상 식별자
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      responses:
+        '200':
+          description: 처리 성공; 저장된 자료는 관련 GET으로 재조회한다.
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/ListProjectContractChangesData'
+                  required:
+                  - data
+        '400':
+          description: 입력 필드·식별자·필터 형식 또는 해당 유형 업무 검증 오류; ApiError.field와 원문 문구 제공.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: 프로젝트 또는 해당 프로젝트의 대상 자료가 없음.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+      x-permission-keys:
+      - UI-01.read
+      x-business-rules:
+      - 'REQ-314 (SPEC-REQUEST.md:288): 계약 변경 표에 최초 계약을 첫줄로, 변경일·내용·변경 후 금액·사유·상태를 표시하며 예정 줄만 확정·수정·삭제를 노출한다.'
+      - 'REQ-318 (SPEC-REQUEST.md:295): 확정 시 bfr/aft 값과 cnfrm_at·cnfrm_user_id를 기록하고 턴키 ADD·CUT·TERM의 realoc_need_yn을 Y로 설정한다.'
+      x-aiops-query-role:
+        entity: prj.cntrct_chg_hist
+        result_path:
+        - data
+      x-side-effects:
+      - 업무 테이블 쓰기 없음.
+      x-required-tests:
+      - 'auth: 인증 헤더 없이 유효 요청 -> 200 success=true이며 data에서 해당 조회 자료를 읽는다.'
+      x-pagination-exemption: 프로젝트 최초계약·변경이력 전체; 별도 정렬/필터/페이지 원문 미지정.
+    post:
+      operationId: createProjectContractChange
+      summary: 계약 변경 등록
+      description: 인증·권한 판정 없이 누구나 호출한다. DTO 명칭·공통 wire의 세부는 설계 투영 제안이며 미확정 정책을 승인하지 않는다.
+      security: []
+      x-related-requirements:
+      - REQ-227
+      - REQ-252
+      - REQ-242
+      - REQ-248
+      - REQ-251
+      - REQ-315
+      - REQ-316
+      - REQ-317
+      - REQ-318
+      - REQ-321
+      - REQ-337
+      - REQ-338
+      parameters:
+      - name: id
+        in: path
+        required: true
+        description: 해당 프로젝트에 속한 대상 식별자
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      responses:
+        '200':
+          description: 처리 성공; 저장된 자료는 관련 GET으로 재조회한다.
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/CreateProjectContractChangeData'
+                  required:
+                  - data
+        '400':
+          description: 입력 필드·식별자·필터 형식 또는 해당 유형 업무 검증 오류; ApiError.field와 원문 문구 제공.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: 프로젝트 또는 해당 프로젝트의 대상 자료가 없음.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+      x-permission-keys:
+      - UI-01.update
+      x-business-rules:
+      - 'REQ-242 (SPEC-REQUEST.md:49): 확정 ADD/CUT로 현재금액·MM, 마지막 확정 TERM으로 현재종료일을 앱이 갱신하며 직접 편집하지 않는다.'
+      - 'REQ-315 (SPEC-REQUEST.md:294): 입력 창 — 종류(필수: 추가 계약·감액·기간 변경·무상지원 합의), 상태(예정·확정, 처음 예정), 변경일(필수), 금액(추가·감액 필수, 1원 이상),
+        증감 MM(추가·감액, 턴키만), 변경 후 종료일(기간 변경 필수, 지금 현재 종료일과 달라야 함), 무상지원 MM(무상지원 합의 필수), 사유(필수 500자) — cntrct_chg_hist'
+      - 'REQ-316 (SPEC-REQUEST.md:295): 예정 계약 변경은 prj.cntrct_chg_hist 줄만 저장하고 현재 계약금액·종료일·MM은 유지한다.'
+      - 'REQ-317 (SPEC-REQUEST.md:295): 확정 저장은 같은 트랜잭션에서 CMN-905에 따라 프로젝트의 현재 계약금액·현재 종료일·계약 MM을 갱신한다.'
+      - 'REQ-318 (SPEC-REQUEST.md:295): 확정 시 bfr/aft 값과 cnfrm_at·cnfrm_user_id를 기록하고 턴키 ADD·CUT·TERM의 realoc_need_yn을 Y로 설정한다.'
+      - 'REQ-320 (SPEC-REQUEST.md:297): 확정 계약 변경의 수정·삭제를409 CHANGE_CONFIRMED로 거절한다.'
+      - 'REQ-321 (SPEC-REQUEST.md:297): 감액 확정 후 현재 계약금액이0원 이하라면400과 지정 오류 문구로 거절한다.'
+      - ADD/CUT amount≥1, CUT후 현재금액≤0은400 원문 문구. TERM 종료일은 필수·현재와 달라야 함. 확정된 줄 PUT/DELETE만409 CHANGE_CONFIRMED.
+      x-aiops-query-role:
+        entity: prj.cntrct_chg_hist
+        result_path:
+        - data
+      x-side-effects:
+      - prj.cntrct_chg_hist 저장. PLAN은 현재값 불변; CONFIRM은 동일트랜잭션 bfr/aft·cnfrm_at/cnfrm_user_id·prj 현재금액/종료일/MM 갱신; TK ADD/CUT/TERM
+        realoc_need_yn Y.; 부속요약이력1줄. 기존 phs는 그대로.
+      x-state-transitions:
+      - 신규→PLAN(현재값불변) 또는 CONFIRM(현재값갱신); PLAN→CONFIRM, CONFIRM수정·삭제 불가
+      requestBody:
+        required: true
+        description: 원문 입력 항목만 받는다. 유형별 조건부 필수는 업무 규칙에서 검증한다.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProjectContractChangeRequest'
+      x-required-tests:
+      - 'happy: 최초5억에 ADD1억 CONFIRM 저장 -> getProject 현재6억, listProjectContractChanges bfr5억/aft6억.'
+      - 'auth: 인증 없이 정상 변경 저장/확정 -> listProjectContractChanges 결과와 getProject 현재값을 읽고 거절 없음.'
+      - 'validation: 사유공백/ADD금액누락 -> 400 field 오류; DB 변경행·prj 현재값·감사이력 무변경.'
+      - 'business: CUT후 현재금액0이하 -> 400 감액 뒤 계약금액이 0원 이하가 됩니다., 기존값 보존; PLAN 저장은 현재값 불변, TERM2027-03-31 확정은 getProject 현재종료일
+        동일.'
+      - 'side-effect: TK ADD/CUT/TERM확정 -> DB realoc_need_yn Y·cnfrm_at·bfr/aft, listProjectHistory 부속요약1줄·phs불변; 확정행 수정은409
+        CHANGE_CONFIRMED.'
+      x-open-questions:
+      - 'OQ-PROJECT-DISABLED: 중지 상태에서의 입력 제한은 SPEC-REQUEST.md:405~406 추정·미확인; 새 거절 정책을 확정하지 않는다.'
+      - 'OQ-PROJECT-CONCURRENCY: 동시·반복 확정의 직렬화/정확히 한번 적용·최신금액 재검사 세부는 385~386 추정 미확인. 명시 단일 확정의 트랜잭션은 유지.'
+      - 'OQ-PROJECT-PERIOD: 기간 축소 월자료 처리 미확정.'
+      - 'OQ-PROJECT-IN-CHANGE: IN에서 허용할 변경유형 미확정; TERM만 허용이라고 승인하지 않는다.'
+      - 'OQ-PROJECT-RETROACTIVE: 소급 변경일과 실제확정순서 관계 미확정; CMN-905 마지막확정 TERM 규칙은 유지.'
+      - 'OQ-PROJECT-TARGET: 확정 후 수동 목표원가 강제 재계산 정책 미확정. 기본정보 CMN-904는 유지.'
+      - 'OQ-PROJECT-FREE: FREE 확정의 free_sprt_yn·계획·계약MM 부작용 미확정; free_mm_qty 기록과 확정 자체는 명시 입력.'
+      - 'OQ-PROJECT-ACTOR: 인증 없는 cnfrm_user_id 채움 방식은 기존 공통 처리자 계약 확인 필요; 임의 사용자/인증 요구 금지.'
+  /api/projects/{id}/contract-changes/{chgId}:
+    put:
+      operationId: updateProjectContractChange
+      summary: 계약 변경 수정
+      description: 인증·권한 판정 없이 누구나 호출한다. DTO 명칭·공통 wire의 세부는 설계 투영 제안이며 미확정 정책을 승인하지 않는다.
+      security: []
+      x-related-requirements:
+      - REQ-227
+      - REQ-252
+      - REQ-242
+      - REQ-248
+      - REQ-251
+      - REQ-315
+      - REQ-316
+      - REQ-317
+      - REQ-318
+      - REQ-320
+      - REQ-321
+      - REQ-323
+      - REQ-337
+      - REQ-338
+      parameters:
+      - name: chgId
+        in: path
+        required: true
+        description: 해당 프로젝트에 속한 대상 식별자
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: id
+        in: path
+        required: true
+        description: 해당 프로젝트에 속한 대상 식별자
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      responses:
+        '200':
+          description: 처리 성공; 저장된 자료는 관련 GET으로 재조회한다.
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/UpdateProjectContractChangeData'
+                  required:
+                  - data
+        '400':
+          description: 입력 필드·식별자·필터 형식 또는 해당 유형 업무 검증 오류; ApiError.field와 원문 문구 제공.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: 프로젝트 또는 해당 프로젝트의 대상 자료가 없음.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '409':
+          description: 'CHANGE_CONFIRMED: 확정된 줄 수정·삭제 불가'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+      x-permission-keys:
+      - UI-01.update
+      x-business-rules:
+      - 'REQ-242 (SPEC-REQUEST.md:49): 확정 ADD/CUT로 현재금액·MM, 마지막 확정 TERM으로 현재종료일을 앱이 갱신하며 직접 편집하지 않는다.'
+      - 'REQ-315 (SPEC-REQUEST.md:294): 입력 창 — 종류(필수: 추가 계약·감액·기간 변경·무상지원 합의), 상태(예정·확정, 처음 예정), 변경일(필수), 금액(추가·감액 필수, 1원 이상),
+        증감 MM(추가·감액, 턴키만), 변경 후 종료일(기간 변경 필수, 지금 현재 종료일과 달라야 함), 무상지원 MM(무상지원 합의 필수), 사유(필수 500자) — cntrct_chg_hist'
+      - 'REQ-316 (SPEC-REQUEST.md:295): 예정 계약 변경은 prj.cntrct_chg_hist 줄만 저장하고 현재 계약금액·종료일·MM은 유지한다.'
+      - 'REQ-317 (SPEC-REQUEST.md:295): 확정 저장은 같은 트랜잭션에서 CMN-905에 따라 프로젝트의 현재 계약금액·현재 종료일·계약 MM을 갱신한다.'
+      - 'REQ-318 (SPEC-REQUEST.md:295): 확정 시 bfr/aft 값과 cnfrm_at·cnfrm_user_id를 기록하고 턴키 ADD·CUT·TERM의 realoc_need_yn을 Y로 설정한다.'
+      - 'REQ-320 (SPEC-REQUEST.md:297): 확정 계약 변경의 수정·삭제를409 CHANGE_CONFIRMED로 거절한다.'
+      - 'REQ-321 (SPEC-REQUEST.md:297): 감액 확정 후 현재 계약금액이0원 이하라면400과 지정 오류 문구로 거절한다.'
+      - ADD/CUT amount≥1, CUT후 현재금액≤0은400 원문 문구. TERM 종료일은 필수·현재와 달라야 함. 확정된 줄 PUT/DELETE만409 CHANGE_CONFIRMED.
+      x-aiops-query-role:
+        entity: prj.cntrct_chg_hist
+        result_path:
+        - data
+      x-side-effects:
+      - prj.cntrct_chg_hist 저장. PLAN은 현재값 불변; CONFIRM은 동일트랜잭션 bfr/aft·cnfrm_at/cnfrm_user_id·prj 현재금액/종료일/MM 갱신; TK ADD/CUT/TERM
+        realoc_need_yn Y.; 부속요약이력1줄. 기존 phs는 그대로.
+      x-state-transitions:
+      - 신규→PLAN(현재값불변) 또는 CONFIRM(현재값갱신); PLAN→CONFIRM, CONFIRM수정·삭제 불가
+      requestBody:
+        required: true
+        description: 원문 입력 항목만 받는다. 유형별 조건부 필수는 업무 규칙에서 검증한다.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProjectContractChangeRequest'
+      x-required-tests:
+      - 'happy: 최초5억에 ADD1억 CONFIRM 저장 -> getProject 현재6억, listProjectContractChanges bfr5억/aft6억.'
+      - 'auth: 인증 없이 정상 변경 저장/확정 -> listProjectContractChanges 결과와 getProject 현재값을 읽고 거절 없음.'
+      - 'validation: 사유공백/ADD금액누락 -> 400 field 오류; DB 변경행·prj 현재값·감사이력 무변경.'
+      - 'business: CUT후 현재금액0이하 -> 400 감액 뒤 계약금액이 0원 이하가 됩니다., 기존값 보존; PLAN 저장은 현재값 불변, TERM2027-03-31 확정은 getProject 현재종료일
+        동일.'
+      - 'side-effect: TK ADD/CUT/TERM확정 -> DB realoc_need_yn Y·cnfrm_at·bfr/aft, listProjectHistory 부속요약1줄·phs불변; 확정행 수정은409
+        CHANGE_CONFIRMED.'
+      x-open-questions:
+      - 'OQ-PROJECT-DISABLED: 중지 상태에서의 입력 제한은 SPEC-REQUEST.md:405~406 추정·미확인; 새 거절 정책을 확정하지 않는다.'
+      - 'OQ-PROJECT-CONCURRENCY: 동시·반복 확정의 직렬화/정확히 한번 적용·최신금액 재검사 세부는 385~386 추정 미확인. 명시 단일 확정의 트랜잭션은 유지.'
+      - 'OQ-PROJECT-PERIOD: 기간 축소 월자료 처리 미확정.'
+      - 'OQ-PROJECT-IN-CHANGE: IN에서 허용할 변경유형 미확정; TERM만 허용이라고 승인하지 않는다.'
+      - 'OQ-PROJECT-RETROACTIVE: 소급 변경일과 실제확정순서 관계 미확정; CMN-905 마지막확정 TERM 규칙은 유지.'
+      - 'OQ-PROJECT-TARGET: 확정 후 수동 목표원가 강제 재계산 정책 미확정. 기본정보 CMN-904는 유지.'
+      - 'OQ-PROJECT-FREE: FREE 확정의 free_sprt_yn·계획·계약MM 부작용 미확정; free_mm_qty 기록과 확정 자체는 명시 입력.'
+      - 'OQ-PROJECT-ACTOR: 인증 없는 cnfrm_user_id 채움 방식은 기존 공통 처리자 계약 확인 필요; 임의 사용자/인증 요구 금지.'
+    delete:
+      operationId: updateProjectContractChangeRemoval
+      summary: 계약 변경 삭제
+      description: 인증·권한 판정 없이 누구나 호출한다. DTO 명칭·공통 wire의 세부는 설계 투영 제안이며 미확정 정책을 승인하지 않는다.
+      security: []
+      x-related-requirements:
+      - REQ-227
+      - REQ-252
+      - REQ-251
+      - REQ-320
+      - REQ-324
+      - REQ-337
+      - REQ-338
+      parameters:
+      - name: chgId
+        in: path
+        required: true
+        description: 해당 프로젝트에 속한 대상 식별자
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: id
+        in: path
+        required: true
+        description: 해당 프로젝트에 속한 대상 식별자
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      responses:
+        '200':
+          description: 처리 성공; 저장된 자료는 관련 GET으로 재조회한다.
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/UpdateProjectContractChangeRemovalData'
+                  required:
+                  - data
+        '400':
+          description: 입력 필드·식별자·필터 형식 또는 해당 유형 업무 검증 오류; ApiError.field와 원문 문구 제공.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: 프로젝트 또는 해당 프로젝트의 대상 자료가 없음.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '409':
+          description: 'CHANGE_CONFIRMED: 확정된 줄 수정·삭제 불가'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+      x-permission-keys:
+      - UI-01.update
+      x-business-rules:
+      - 'REQ-320 (SPEC-REQUEST.md:297): 확정 계약 변경의 수정·삭제를409 CHANGE_CONFIRMED로 거절한다.'
+      - 'REQ-324 (SPEC-REQUEST.md:288): 예정 계약 변경 줄을 삭제하고 확정 줄은 삭제하지 않는다.'
+      x-aiops-query-role:
+        entity: prj.cntrct_chg_hist
+        result_path:
+        - data
+      x-side-effects:
+      - prj.cntrct_chg_hist DELETE(PLAN만); 부속요약이력1줄. 기존 phs는 그대로.
+      x-state-transitions:
+      - PLAN→삭제; CONFIRM 삭제 불가
+      x-no-request-body-reason: 원문에 추가 입력이 없는 대상 지정 상태 전이/삭제이다. 경로 식별자로 대상과 저장된 값을 읽어 처리하므로 별도 본문을 요구하지 않는다.
+      x-required-tests:
+      - 'happy: PLAN 변경 삭제 -> listProjectContractChanges 해당 chgId 없음; getProject 현재값 불변.'
+      - 'auth: 인증 없이 정상 삭제 -> listProjectContractChanges 결과와 getProject 현재값을 읽고 거절 없음.'
+      - 'validation: chgId=0 -> 400 field 오류; DB 변경행·prj 현재값·감사이력 무변경.'
+      - 'business: CONFIRM행 삭제 -> 409 CHANGE_CONFIRMED; listProjectContractChanges 기존 확정행 보존.'
+      - 'side-effect: 삭제 -> DB prj.cntrct_chg_hist 요약1줄, prj/phs불변.'
+      x-open-questions:
+      - 'OQ-PROJECT-DISABLED: 중지 상태에서의 입력 제한은 SPEC-REQUEST.md:405~406 추정·미확인; 새 거절 정책을 확정하지 않는다.'
+      - 'OQ-PROJECT-CONCURRENCY: 동시·반복 확정의 직렬화/정확히 한번 적용·최신금액 재검사 세부는 385~386 추정 미확인. 명시 단일 확정의 트랜잭션은 유지.'
+      - 'OQ-PROJECT-PERIOD: 기간 축소 월자료 처리 미확정.'
+      - 'OQ-PROJECT-IN-CHANGE: IN에서 허용할 변경유형 미확정; TERM만 허용이라고 승인하지 않는다.'
+      - 'OQ-PROJECT-RETROACTIVE: 소급 변경일과 실제확정순서 관계 미확정; CMN-905 마지막확정 TERM 규칙은 유지.'
+      - 'OQ-PROJECT-TARGET: 확정 후 수동 목표원가 강제 재계산 정책 미확정. 기본정보 CMN-904는 유지.'
+      - 'OQ-PROJECT-FREE: FREE 확정의 free_sprt_yn·계획·계약MM 부작용 미확정; free_mm_qty 기록과 확정 자체는 명시 입력.'
+      - 'OQ-PROJECT-ACTOR: 인증 없는 cnfrm_user_id 채움 방식은 기존 공통 처리자 계약 확인 필요; 임의 사용자/인증 요구 금지.'
+  /api/projects/{id}/contract-changes/{chgId}/confirm:
+    post:
+      operationId: updateProjectContractChangeConfirmation
+      summary: 계약 변경 확정
+      description: 인증·권한 판정 없이 누구나 호출한다. DTO 명칭·공통 wire의 세부는 설계 투영 제안이며 미확정 정책을 승인하지 않는다.
+      security: []
+      x-related-requirements:
+      - REQ-227
+      - REQ-252
+      - REQ-242
+      - REQ-248
+      - REQ-251
+      - REQ-317
+      - REQ-318
+      - REQ-319
+      - REQ-321
+      - REQ-337
+      - REQ-338
+      parameters:
+      - name: chgId
+        in: path
+        required: true
+        description: 해당 프로젝트에 속한 대상 식별자
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: id
+        in: path
+        required: true
+        description: 해당 프로젝트에 속한 대상 식별자
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      responses:
+        '200':
+          description: 처리 성공; 저장된 자료는 관련 GET으로 재조회한다.
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/UpdateProjectContractChangeConfirmationData'
+                  required:
+                  - data
+        '400':
+          description: 입력 필드·식별자·필터 형식 또는 해당 유형 업무 검증 오류; ApiError.field와 원문 문구 제공.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: 프로젝트 또는 해당 프로젝트의 대상 자료가 없음.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+      x-permission-keys:
+      - UI-01.confirm
+      x-business-rules:
+      - 'REQ-242 (SPEC-REQUEST.md:49): 확정 ADD/CUT로 현재금액·MM, 마지막 확정 TERM으로 현재종료일을 앱이 갱신하며 직접 편집하지 않는다.'
+      - 'REQ-315 (SPEC-REQUEST.md:294): 입력 창 — 종류(필수: 추가 계약·감액·기간 변경·무상지원 합의), 상태(예정·확정, 처음 예정), 변경일(필수), 금액(추가·감액 필수, 1원 이상),
+        증감 MM(추가·감액, 턴키만), 변경 후 종료일(기간 변경 필수, 지금 현재 종료일과 달라야 함), 무상지원 MM(무상지원 합의 필수), 사유(필수 500자) — cntrct_chg_hist'
+      - 'REQ-316 (SPEC-REQUEST.md:295): 예정 계약 변경은 prj.cntrct_chg_hist 줄만 저장하고 현재 계약금액·종료일·MM은 유지한다.'
+      - 'REQ-317 (SPEC-REQUEST.md:295): 확정 저장은 같은 트랜잭션에서 CMN-905에 따라 프로젝트의 현재 계약금액·현재 종료일·계약 MM을 갱신한다.'
+      - 'REQ-318 (SPEC-REQUEST.md:295): 확정 시 bfr/aft 값과 cnfrm_at·cnfrm_user_id를 기록하고 턴키 ADD·CUT·TERM의 realoc_need_yn을 Y로 설정한다.'
+      - 'REQ-320 (SPEC-REQUEST.md:297): 확정 계약 변경의 수정·삭제를409 CHANGE_CONFIRMED로 거절한다.'
+      - 'REQ-321 (SPEC-REQUEST.md:297): 감액 확정 후 현재 계약금액이0원 이하라면400과 지정 오류 문구로 거절한다.'
+      - ADD/CUT amount≥1, CUT후 현재금액≤0은400 원문 문구. TERM 종료일은 필수·현재와 달라야 함. 확정된 줄 PUT/DELETE만409 CHANGE_CONFIRMED.
+      x-aiops-query-role:
+        entity: prj.cntrct_chg_hist
+        result_path:
+        - data
+      x-side-effects:
+      - prj.cntrct_chg_hist 저장. PLAN은 현재값 불변; CONFIRM은 동일트랜잭션 bfr/aft·cnfrm_at/cnfrm_user_id·prj 현재금액/종료일/MM 갱신; TK ADD/CUT/TERM
+        realoc_need_yn Y.; 부속요약이력1줄. 기존 phs는 그대로.
+      x-state-transitions:
+      - 신규→PLAN(현재값불변) 또는 CONFIRM(현재값갱신); PLAN→CONFIRM, CONFIRM수정·삭제 불가
+      x-no-request-body-reason: 원문에 추가 입력이 없는 대상 지정 상태 전이/삭제이다. 경로 식별자로 대상과 저장된 값을 읽어 처리하므로 별도 본문을 요구하지 않는다.
+      x-required-tests:
+      - 'happy: 최초5억에 ADD1억 예정 확정 -> getProject 현재6억, listProjectContractChanges bfr5억/aft6억.'
+      - 'auth: 인증 없이 정상 변경 저장/확정 -> listProjectContractChanges 결과와 getProject 현재값을 읽고 거절 없음.'
+      - 'validation: chgId=0 -> 400 field 오류; DB 변경행·prj 현재값·감사이력 무변경.'
+      - 'business: CUT후 현재금액0이하 -> 400 감액 뒤 계약금액이 0원 이하가 됩니다., 기존값 보존; PLAN 저장은 현재값 불변, TERM2027-03-31 확정은 getProject 현재종료일
+        동일.'
+      - 'side-effect: TK ADD/CUT/TERM확정 -> DB realoc_need_yn Y·cnfrm_at·bfr/aft, listProjectHistory 부속요약1줄·phs불변; 확정행 수정은409
+        CHANGE_CONFIRMED.'
+      x-open-questions:
+      - 'OQ-PROJECT-DISABLED: 중지 상태에서의 입력 제한은 SPEC-REQUEST.md:405~406 추정·미확인; 새 거절 정책을 확정하지 않는다.'
+      - 'OQ-PROJECT-CONCURRENCY: 동시·반복 확정의 직렬화/정확히 한번 적용·최신금액 재검사 세부는 385~386 추정 미확인. 명시 단일 확정의 트랜잭션은 유지.'
+      - 'OQ-PROJECT-PERIOD: 기간 축소 월자료 처리 미확정.'
+      - 'OQ-PROJECT-IN-CHANGE: IN에서 허용할 변경유형 미확정; TERM만 허용이라고 승인하지 않는다.'
+      - 'OQ-PROJECT-RETROACTIVE: 소급 변경일과 실제확정순서 관계 미확정; CMN-905 마지막확정 TERM 규칙은 유지.'
+      - 'OQ-PROJECT-TARGET: 확정 후 수동 목표원가 강제 재계산 정책 미확정. 기본정보 CMN-904는 유지.'
+      - 'OQ-PROJECT-FREE: FREE 확정의 free_sprt_yn·계획·계약MM 부작용 미확정; free_mm_qty 기록과 확정 자체는 명시 입력.'
+      - 'OQ-PROJECT-ACTOR: 인증 없는 cnfrm_user_id 채움 방식은 기존 공통 처리자 계약 확인 필요; 임의 사용자/인증 요구 금지.'
+  /api/projects/{id}/staff-plans:
+    get:
+      operationId: getProjectStaffPlans
+      summary: 프로젝트 인원 계획 조회
+      description: 인증·권한 판정 없이 누구나 호출한다. DTO 명칭·공통 wire의 세부는 설계 투영 제안이며 미확정 정책을 승인하지 않는다.
+      security: []
+      x-related-requirements:
+      - REQ-227
+      - REQ-252
+      - REQ-325
+      - REQ-326
+      - REQ-337
+      - REQ-338
+      parameters:
+      - name: id
+        in: path
+        required: true
+        description: 해당 프로젝트에 속한 대상 식별자
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      responses:
+        '200':
+          description: 처리 성공; 저장된 자료는 관련 GET으로 재조회한다.
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/GetProjectStaffPlansData'
+                  required:
+                  - data
+        '400':
+          description: 입력 필드·식별자·필터 형식 또는 해당 유형 업무 검증 오류; ApiError.field와 원문 문구 제공.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: 프로젝트 또는 해당 프로젝트의 대상 자료가 없음.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+      x-permission-keys:
+      - UI-01.read
+      x-business-rules:
+      - 'REQ-325 (SPEC-REQUEST.md:316): 보기 표 — 직무, 등급(미지정 –), 계획 MM(그 직무·등급의 need_mm_qty 합), 실제 MM(그 프로젝트 투입의 직무별 asgn_mth.mm_qty
+        합, 등급은 보지 않음 — 등급이 나뉜 직무는 직무 첫 줄에만), 차이 배지(실제 − 계획: 음수 "부족 n.nn", 양수 "초과 n.nn", 0 "맞음"). 계획이 없으면 "인원 계획이 없습니다." — prj.psn_plan,
+        asgn.asgn_mth'
+      x-aiops-query-role:
+        entity: prj.psn_plan
+        result_path:
+        - data
+      x-side-effects:
+      - 업무 테이블 쓰기 없음.
+      x-required-tests:
+      - 'auth: 인증 헤더 없이 유효 요청 -> 200 success=true이며 data에서 해당 조회 자료를 읽는다.'
+      x-open-questions:
+      - 'OQ-PROJECT-GRADE-MM: 다등급 차이배지 직무전체합계·무계획 실제직무 표시 추가정책 미확정; 원문 직무별 실제 MM·첫등급행 표시·단일등급 실제−계획은 유지.'
+      x-pagination-exemption: 한 프로젝트 수행기간 수동/연계계획 및 직무별 실제MM 전체; 필터·페이지 미요구.
+    put:
+      operationId: saveProjectStaffPlans
+      summary: 프로젝트 인원 계획 저장
+      description: 인증·권한 판정 없이 누구나 호출한다. DTO 명칭·공통 wire의 세부는 설계 투영 제안이며 미확정 정책을 승인하지 않는다.
+      security: []
+      x-related-requirements:
+      - REQ-227
+      - REQ-252
+      - REQ-251
+      - REQ-325
+      - REQ-326
+      - REQ-327
+      - REQ-328
+      - REQ-329
+      - REQ-337
+      - REQ-338
+      parameters:
+      - name: id
+        in: path
+        required: true
+        description: 해당 프로젝트에 속한 대상 식별자
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      responses:
+        '200':
+          description: 처리 성공; 저장된 자료는 관련 GET으로 재조회한다.
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/SaveProjectStaffPlansData'
+                  required:
+                  - data
+        '400':
+          description: 입력 필드·식별자·필터 형식 또는 해당 유형 업무 검증 오류; ApiError.field와 원문 문구 제공.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: 프로젝트 또는 해당 프로젝트의 대상 자료가 없음.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+      x-permission-keys:
+      - UI-01.update
+      x-business-rules:
+      - 'REQ-326 (SPEC-REQUEST.md:317): 편집 표 — 줄 = 직무(필수, JOB 사용 중) + 등급(선택), 열 = 수행 기간의 월, 칸 = 필요 MM(0~99.99, 소수 둘째 자리). 줄마다
+        예상 월 원가(선택, 금액). [+ 직무 줄], 줄 [삭제], 아래 [취소] [저장] — need_mm_qty, expc_mth_cst_amt'
+      - 'REQ-327 (SPEC-REQUEST.md:318): src_need_id가 NULL인 수동 인원 계획만 전체 교체하고0·빈칸은 생성하지 않는다. need_psn_cnt는 해당 MM 올림 정수다.'
+      - 'REQ-328 (SPEC-REQUEST.md:318): 인원 계획 저장에 요약 이력을 남기고 "인원 계획을 저장했습니다."를 표시한다.'
+      - 'REQ-329 (SPEC-REQUEST.md:319): 목표 — 목표 원가·목표 마진율은 [기본 정보]의 수정(FR-031)으로 바꾼다'
+      x-aiops-query-role:
+        entity: prj.psn_plan
+        result_path:
+        - data
+      x-side-effects:
+      - src_need_id NULL인 수동줄만 전체교체; src_need_id 존재줄 보존. 0/빈칸 미생성, need_psn_cnt=ceil(need_mm_qty), 요약이력1줄. 실제 asgn_mth 읽기전용.
+      x-state-transitions:
+      - 수동계획 전체교체; 연계계획·실제MM 상태유지
+      requestBody:
+        required: true
+        description: 원문 입력 항목만 받는다. 유형별 조건부 필수는 업무 규칙에서 검증한다.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProjectStaffPlansRequest'
+      x-required-tests:
+      - 'happy: BE2026-10 2.00·11월2.00 저장 -> getProjectStaffPlans items2줄·계획합4.00·실제3.50을 읽어 부족0.50.'
+      - 'auth: 인증 없이 빈 items 저장 -> getProjectStaffPlans 수동계획0줄·빈목록, 거절 없음.'
+      - 'validation: 사용안함 JOB 또는 MM100/셋째소수 -> 400 field 오류, 기존계획·이력 불변.'
+      - 'business: src_need_id 있는 줄과 수동줄이 존재한 채 전체교체 -> DB 연계줄 보존·수동0/빈칸 행 없음, 2.01MM need_psn_cnt3.'
+      - 'side-effect: 정상 저장 -> listProjectHistory prj.psn_plan 요약1줄, asgn_mth·목표원가/마진율 불변.'
+      x-open-questions:
+      - 'OQ-PROJECT-DISABLED: 중지 상태에서의 입력 제한은 SPEC-REQUEST.md:405~406 추정·미확인; 새 거절 정책을 확정하지 않는다.'
+      - 'OQ-PROJECT-PERIOD: 기간 축소 후 기존 기간밖 자료 처리·새자료 제한 확장정책은 미확정. 원문 편집표 수행기간 월은 유지.'
 components:
   schemas:
     ApiResponse:
@@ -5093,6 +7771,8 @@ components:
       enum:
       - B.8
       - B.1
+      - B.6
+      - B.9
     DeveloperManagementNumber:
       type: string
       pattern: ^[A-Z0-9-]{1,20}$
@@ -6172,10 +8852,19 @@ components:
           allOf:
           - $ref: '#/components/schemas/SalaryUploadRow'
           nullable: true
+        project:
+          allOf:
+          - $ref: '#/components/schemas/ProjectUploadRow'
+          nullable: true
+        allocation:
+          allOf:
+          - $ref: '#/components/schemas/ProjectAllocationUploadRow'
+          nullable: true
       required:
       - row
       - severity
-      description: B.8 developer/B.1 salary. 오류행은 원시 셀·issue가 근거이며 DTO 유효성을 주장하지 않는다.
+      description: B.8 developer/B.1 salary. 오류행은 원시 셀·issue가 근거이며 DTO 유효성을 주장하지 않는다. B.9 project/B.6 allocation만 사용하며 salary/developer는
+        생략한다.
     UploadPreviewPage:
       type: object
       properties:
@@ -6200,6 +8889,1327 @@ components:
       - total
       - page
       - size
+    ProjectCreateRequest:
+      type: object
+      properties:
+        prj_nm:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: 앞뒤 공백 제거; 같은 이름 허용
+        cust_ptnr_id:
+          type: integer
+          format: int64
+          nullable: true
+          description: IN 제외 사용 중 CUST/BOTH 필수
+        cntrct_ty_cd:
+          type: string
+          enum:
+          - TK
+          - MO
+          - DP
+          - IN
+        prj_stts_cd:
+          type: string
+          enum:
+          - PLAN
+          - RUN
+          default: RUN
+        win_prblt_rt:
+          type: number
+          minimum: 0
+          maximum: 100
+          nullable: true
+          description: PLAN일 때 입력
+        cntrct_dt:
+          type: string
+          format: date
+          nullable: true
+        cntrct_bgn_dt:
+          type: string
+          format: date
+        cntrct_end_dt:
+          type: string
+          format: date
+        prfm_bgn_dt:
+          type: string
+          format: date
+          nullable: true
+          description: 계약 시작일 이후 또는 같은 날
+        bsn_part_id:
+          type: integer
+          format: int64
+          nullable: true
+          description: TK/MO/DP 사용 중 파트 또는 본사 필수; IN NULL
+        stlm_mthd_cd:
+          type: string
+          enum:
+          - STAGE
+          - MONTH
+          - DAY
+          - HOUR
+          nullable: true
+          description: TK STAGE; MO/DP 기본 MONTH; IN NULL
+        pm_dev_id:
+          type: integer
+          format: int64
+          nullable: true
+        free_sprt_yn:
+          type: string
+          enum:
+          - Y
+          - N
+        quot_amt:
+          type: integer
+          format: int64
+          nullable: true
+        init_cntrct_amt:
+          type: integer
+          format: int64
+          minimum: 1
+          nullable: true
+          description: IN NULL, 그 외 필수
+        trgt_mrgn_rt:
+          type: number
+          minimum: 0
+          maximum: 100
+          nullable: true
+          description: 기본100−BUDGET_RATE; IN NULL
+        trgt_cst_amt:
+          type: integer
+          format: int64
+          nullable: true
+          description: 원 단위 버림 계산 후 직접 조정 허용; IN NULL
+        indty_cd:
+          type: string
+          nullable: true
+        duty_fld_nm:
+          type: string
+          maxLength: 100
+          nullable: true
+        prj_skl:
+          type: array
+          items:
+            type: string
+          description: prj.prj_skl.skl_cd 전체 목록
+        prev_prj_id:
+          type: integer
+          format: int64
+          nullable: true
+        rmrk_desc:
+          type: string
+          maxLength: 500
+          nullable: true
+      description: SPEC-REQUEST.md:136~153. 종료일≥시작일. 유형별 필수/NULL·정산 검증은 서비스에서 수행. IN 전환 정책을 승인하지 않는다.
+      required:
+      - prj_nm
+      - cntrct_ty_cd
+      - prj_stts_cd
+      - cntrct_bgn_dt
+      - cntrct_end_dt
+    ProjectUpdateRequest:
+      type: object
+      properties:
+        prj_nm:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: 앞뒤 공백 제거; 같은 이름 허용
+        cust_ptnr_id:
+          type: integer
+          format: int64
+          nullable: true
+          description: IN 제외 사용 중 CUST/BOTH 필수
+        cntrct_ty_cd:
+          type: string
+          enum:
+          - TK
+          - MO
+          - DP
+          - IN
+        prj_stts_cd:
+          type: string
+          enum:
+          - PLAN
+          - RUN
+          - HOLD
+          - END
+        win_prblt_rt:
+          type: number
+          minimum: 0
+          maximum: 100
+          nullable: true
+          description: PLAN일 때 입력
+        cntrct_dt:
+          type: string
+          format: date
+          nullable: true
+        cntrct_bgn_dt:
+          type: string
+          format: date
+        cntrct_end_dt:
+          type: string
+          format: date
+        prfm_bgn_dt:
+          type: string
+          format: date
+          nullable: true
+          description: 계약 시작일 이후 또는 같은 날
+        stlm_mthd_cd:
+          type: string
+          enum:
+          - STAGE
+          - MONTH
+          - DAY
+          - HOUR
+          nullable: true
+          description: TK STAGE; MO/DP 기본 MONTH; IN NULL
+        pm_dev_id:
+          type: integer
+          format: int64
+          nullable: true
+        free_sprt_yn:
+          type: string
+          enum:
+          - Y
+          - N
+        quot_amt:
+          type: integer
+          format: int64
+          nullable: true
+        init_cntrct_amt:
+          type: integer
+          format: int64
+          minimum: 1
+          nullable: true
+          description: IN NULL, 그 외 필수
+        trgt_mrgn_rt:
+          type: number
+          minimum: 0
+          maximum: 100
+          nullable: true
+          description: 기본100−BUDGET_RATE; IN NULL
+        trgt_cst_amt:
+          type: integer
+          format: int64
+          nullable: true
+          description: 원 단위 버림 계산 후 직접 조정 허용; IN NULL
+        indty_cd:
+          type: string
+          nullable: true
+        duty_fld_nm:
+          type: string
+          maxLength: 100
+          nullable: true
+        prj_skl:
+          type: array
+          items:
+            type: string
+          description: prj.prj_skl.skl_cd 전체 목록
+        prev_prj_id:
+          type: integer
+          format: int64
+          nullable: true
+        rmrk_desc:
+          type: string
+          maxLength: 500
+          nullable: true
+        prj_no:
+          type: string
+          readOnly: true
+          description: 전송해도 변경하지 않음(SPEC-REQUEST.md:193,200)
+        cur_cntrct_amt:
+          type: integer
+          format: int64
+          nullable: true
+          readOnly: true
+          description: 전송해도 변경하지 않음(SPEC-REQUEST.md:193,200)
+        cur_end_dt:
+          type: string
+          format: date
+          readOnly: true
+          description: 전송해도 변경하지 않음(SPEC-REQUEST.md:193,200)
+        cntrct_mm_qty:
+          type: number
+          nullable: true
+          readOnly: true
+          description: 전송해도 변경하지 않음(SPEC-REQUEST.md:193,200)
+      description: 등록 입력과 같은 검증; 영업 파트는 part-changes로만 변경. 변경된 컬럼만 저장. 현재값은 직접 수정 불가.
+      required:
+      - prj_nm
+      - cntrct_ty_cd
+      - prj_stts_cd
+      - cntrct_bgn_dt
+      - cntrct_end_dt
+    ProjectDetail:
+      type: object
+      properties:
+        prj_nm:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: 앞뒤 공백 제거; 같은 이름 허용
+        cust_ptnr_id:
+          type: integer
+          format: int64
+          nullable: true
+          description: IN 제외 사용 중 CUST/BOTH 필수
+        cntrct_ty_cd:
+          type: string
+          enum:
+          - TK
+          - MO
+          - DP
+          - IN
+        prj_stts_cd:
+          type: string
+          enum:
+          - PLAN
+          - RUN
+          - HOLD
+          - END
+          - LOST
+        win_prblt_rt:
+          type: number
+          minimum: 0
+          maximum: 100
+          nullable: true
+          description: PLAN일 때 입력
+        cntrct_dt:
+          type: string
+          format: date
+          nullable: true
+        cntrct_bgn_dt:
+          type: string
+          format: date
+        cntrct_end_dt:
+          type: string
+          format: date
+        prfm_bgn_dt:
+          type: string
+          format: date
+          nullable: true
+          description: 계약 시작일 이후 또는 같은 날
+        bsn_part_id:
+          type: integer
+          format: int64
+          nullable: true
+          description: TK/MO/DP 사용 중 파트 또는 본사 필수; IN NULL
+        stlm_mthd_cd:
+          type: string
+          enum:
+          - STAGE
+          - MONTH
+          - DAY
+          - HOUR
+          nullable: true
+          description: TK STAGE; MO/DP 기본 MONTH; IN NULL
+        pm_dev_id:
+          type: integer
+          format: int64
+          nullable: true
+        free_sprt_yn:
+          type: string
+          enum:
+          - Y
+          - N
+        quot_amt:
+          type: integer
+          format: int64
+          nullable: true
+        init_cntrct_amt:
+          type: integer
+          format: int64
+          minimum: 1
+          nullable: true
+          description: IN NULL, 그 외 필수
+        trgt_mrgn_rt:
+          type: number
+          minimum: 0
+          maximum: 100
+          nullable: true
+          description: 기본100−BUDGET_RATE; IN NULL
+        trgt_cst_amt:
+          type: integer
+          format: int64
+          nullable: true
+          description: 원 단위 버림 계산 후 직접 조정 허용; IN NULL
+        indty_cd:
+          type: string
+          nullable: true
+        duty_fld_nm:
+          type: string
+          maxLength: 100
+          nullable: true
+        prj_skl:
+          type: array
+          items:
+            type: string
+          description: prj.prj_skl.skl_cd 전체 목록
+        prev_prj_id:
+          type: integer
+          format: int64
+          nullable: true
+        rmrk_desc:
+          type: string
+          maxLength: 500
+          nullable: true
+        prj_id:
+          type: integer
+          format: int64
+        prj_no:
+          type: string
+          pattern: ^P-\d{4,5}$
+        cur_cntrct_amt:
+          type: integer
+          format: int64
+          nullable: true
+        cur_end_dt:
+          type: string
+          format: date
+        cntrct_mm_qty:
+          type: number
+          nullable: true
+        use_yn:
+          type: string
+          enum:
+          - Y
+          - N
+        custName:
+          type: string
+          nullable: true
+          description: 고객사 표시명
+        partName:
+          type: string
+          nullable: true
+          description: 영업 파트 표시명
+        pmName:
+          type: string
+          nullable: true
+          description: PM 표시명
+        assignmentCount:
+          type: integer
+          minimum: 0
+          description: 현재 투입 dev_id 중복 제거
+      description: SPEC-REQUEST.md:65,115,172. 급여·단가·pm_user_id/oppt_id 비노출. 영업 파트 이력은 listProjectPartChanges에서 읽는다.
+      required:
+      - prj_id
+      - prj_no
+      - prj_nm
+      - cntrct_ty_cd
+      - prj_stts_cd
+      - use_yn
+      - assignmentCount
+    ProjectListItem:
+      type: object
+      properties:
+        prj_id:
+          type: integer
+          format: int64
+        prj_no:
+          type: string
+          pattern: ^P-\d{4,5}$
+        prj_nm:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: 앞뒤 공백 제거; 같은 이름 허용
+        custName:
+          type: string
+          nullable: true
+          description: 고객사 표시명
+        cntrct_ty_cd:
+          type: string
+          enum:
+          - TK
+          - MO
+          - DP
+          - IN
+        cntrct_bgn_dt:
+          type: string
+          format: date
+        cur_end_dt:
+          type: string
+          format: date
+        cur_cntrct_amt:
+          type: integer
+          format: int64
+          nullable: true
+        assignmentCount:
+          type: integer
+          minimum: 0
+          description: 현재 투입 dev_id 중복 제거
+        bsn_part_id:
+          type: integer
+          format: int64
+          nullable: true
+          description: TK/MO/DP 사용 중 파트 또는 본사 필수; IN NULL
+        partName:
+          type: string
+          nullable: true
+          description: 영업 파트 표시명
+        prj_stts_cd:
+          type: string
+          enum:
+          - PLAN
+          - RUN
+          - HOLD
+          - END
+          - LOST
+      required:
+      - prj_id
+      - prj_no
+      - prj_nm
+      - custName
+      - cntrct_ty_cd
+      - cntrct_bgn_dt
+      - cur_end_dt
+      - cur_cntrct_amt
+      - assignmentCount
+      - bsn_part_id
+      - partName
+      - prj_stts_cd
+    ProjectPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProjectListItem'
+        total:
+          type: integer
+          minimum: 0
+        page:
+          type: integer
+          minimum: 0
+        size:
+          type: integer
+        unassignedCount:
+          type: integer
+          minimum: 0
+          description: 선택 연도 전체에서 IN 제외·영업파트 NULL·use_yn Y 건수; 다른 필터/페이지와 독립
+      required:
+      - items
+      - total
+      - page
+      - size
+      - unassignedCount
+    ProjectOption:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        'no':
+          type: string
+        name:
+          type: string
+        type:
+          type: string
+          enum:
+          - TK
+          - MO
+          - DP
+          - IN
+        custName:
+          type: string
+          nullable: true
+      required:
+      - id
+      - 'no'
+      - name
+      - type
+      - custName
+    ProjectHistoryEntry:
+      type: object
+      properties:
+        changedAt:
+          type: string
+          format: date-time
+        field:
+          type: string
+        before:
+          type: string
+          nullable: true
+        after:
+          type: string
+          nullable: true
+        actor:
+          type: string
+          nullable: true
+      description: SPEC-REQUEST.md:176 표시 필드. 기존 변경 이력 조회 계약의 투영; 처리자 식별 규칙은 기존 공통 유지.
+      required:
+      - changedAt
+      - field
+      - before
+      - after
+      - actor
+    ProjectAssignment:
+      type: object
+      properties:
+        name:
+          type: string
+        job:
+          type: string
+        beginDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+          nullable: true
+        assignmentRate:
+          type: number
+        status:
+          type: string
+      additionalProperties: false
+      description: SPEC-REQUEST.md:174 명시 표시 필드만; 취소 제외. 단가·급여 및 원가 DTO를 참조하지 않음.
+      required:
+      - name
+      - job
+      - beginDate
+      - endDate
+      - assignmentRate
+      - status
+    ProjectPartChangeRequest:
+      type: object
+      properties:
+        bsn_part_id:
+          type: integer
+          format: int64
+          description: 현재 파트 제외 사용 중 파트 또는 본사
+        aply_bgn_ym:
+          type: string
+          pattern: ^\d{4}-(0[1-9]|1[0-2])$
+        rsn_desc:
+          type: string
+          minLength: 1
+          maxLength: 200
+      description: SPEC-REQUEST.md:214~217. 사유 공백 불가, 마지막 마감월 다음 달부터. IN 400.
+      required:
+      - bsn_part_id
+      - aply_bgn_ym
+      - rsn_desc
+    ProjectPartChange:
+      type: object
+      properties:
+        bsn_part_id:
+          type: integer
+          format: int64
+          description: 현재 파트 제외 사용 중 파트 또는 본사
+        aply_bgn_ym:
+          type: string
+          pattern: ^\d{4}-(0[1-9]|1[0-2])$
+        rsn_desc:
+          type: string
+          minLength: 1
+          maxLength: 200
+        chg_user_id:
+          type: integer
+          format: int64
+          nullable: true
+        chg_at:
+          type: string
+          format: date-time
+        partName:
+          type: string
+      required:
+      - bsn_part_id
+      - aply_bgn_ym
+      - rsn_desc
+    ProjectBillStageInput:
+      type: object
+      properties:
+        bill_stg_id:
+          type: integer
+          format: int64
+          description: 기존 단계 식별; 청구됨 단계 보존 판별
+        bill_stg_nm:
+          type: string
+          minLength: 1
+          maxLength: 100
+        sply_amt:
+          type: integer
+          format: int64
+          minimum: 1
+        bill_plan_dt:
+          type: string
+          format: date
+      required:
+      - bill_stg_nm
+      - sply_amt
+      - bill_plan_dt
+    ProjectBillStage:
+      type: object
+      properties:
+        bill_stg_id:
+          type: integer
+          format: int64
+          description: 기존 단계 식별; 청구됨 단계 보존 판별
+        bill_stg_nm:
+          type: string
+          minLength: 1
+          maxLength: 100
+        sply_amt:
+          type: integer
+          format: int64
+          minimum: 1
+        bill_plan_dt:
+          type: string
+          format: date
+        stg_odr_no:
+          type: integer
+          minimum: 1
+        vat_amt:
+          type: integer
+          format: int64
+          description: 표시 전용 floor(sply_amt×0.1)
+        billed:
+          type: boolean
+      required:
+      - bill_stg_nm
+      - sply_amt
+      - bill_plan_dt
+      - stg_odr_no
+      - vat_amt
+      - billed
+    ProjectBillStagesRequest:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProjectBillStageInput'
+          maxItems: 20
+      required:
+      - items
+    ProjectBillStages:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProjectBillStage'
+        cur_cntrct_amt:
+          type: integer
+          format: int64
+        totalSupplyAmount:
+          type: integer
+          format: int64
+      description: 합계 불일치는 경고이며 저장 허용. TK만 사용.
+      required:
+      - items
+      - cur_cntrct_amt
+      - totalSupplyAmount
+    ProjectAllocationMonth:
+      type: object
+      properties:
+        aloc_ym:
+          type: string
+          pattern: ^\d{4}-(0[1-9]|1[0-2])$
+        aloc_amt:
+          type: integer
+          format: int64
+          nullable: true
+        mm_qty:
+          type: number
+          nullable: true
+      required:
+      - aloc_ym
+    ProjectAllocationLine:
+      type: object
+      properties:
+        line_ty_cd:
+          type: string
+          enum:
+          - PERSON
+          - ITEM
+        dev_id:
+          type: integer
+          format: int64
+          nullable: true
+        item_nm:
+          type: string
+          nullable: true
+        job_cd:
+          type: string
+          nullable: true
+        asgn_bgn_dt:
+          type: string
+          format: date
+          nullable: true
+        asgn_se_cd:
+          type: string
+          nullable: true
+          description: ASSIGN_KIND
+        rmrk_desc:
+          type: string
+          nullable: true
+        sort_seq:
+          type: integer
+        months:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProjectAllocationMonth'
+      description: SPEC-REQUEST.md:70,253. PERSON 개발자·직무·투입일 필수, ITEM 항목명; 빈 월 금액/MM은 행 미생성.
+      required:
+      - line_ty_cd
+      - months
+    ProjectAllocationsRequest:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProjectAllocationLine'
+      description: query stage 단위 전체 교체; 수행 기간 월 입력.
+      required:
+      - items
+    ProjectAllocations:
+      type: object
+      properties:
+        aloc_stg_cd:
+          type: string
+          enum:
+          - EST
+          - FINAL
+          - ACTUAL
+        activeStage:
+          type: string
+          enum:
+          - EST
+          - FINAL
+          - ACTUAL
+          nullable: true
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProjectAllocationLine'
+        cur_cntrct_amt:
+          type: integer
+          format: int64
+        realoc_need_yn:
+          type: string
+          enum:
+          - Y
+          - N
+      description: ACTUAL>FINAL>EST 중 줄 있는 마지막 단계가 사용 중. 월별·전체합계는 명시 월값으로 계산; 합계 차이 저장 허용.
+      required:
+      - aloc_stg_cd
+      - activeStage
+      - items
+      - cur_cntrct_amt
+      - realoc_need_yn
+    ProjectExpenseRequest:
+      type: object
+      properties:
+        expns_ym:
+          type: string
+          pattern: ^\d{4}-(0[1-9]|1[0-2])$
+        expns_item_cd:
+          type: string
+          minLength: 1
+          description: 사용 중 EXPENSE_ITEM
+        expns_amt:
+          type: integer
+          format: int64
+          minimum: 1
+        vat_amt:
+          type: integer
+          format: int64
+          description: 생략 시 floor(expns_amt×0.1), 직접 수정 허용
+        pay_dt:
+          type: string
+          format: date
+          nullable: true
+        rmrk_desc:
+          type: string
+          maxLength: 200
+          nullable: true
+      required:
+      - expns_ym
+      - expns_item_cd
+      - expns_amt
+    ProjectExpense:
+      type: object
+      properties:
+        expns_ym:
+          type: string
+          pattern: ^\d{4}-(0[1-9]|1[0-2])$
+        expns_item_cd:
+          type: string
+          minLength: 1
+          description: 사용 중 EXPENSE_ITEM
+        expns_amt:
+          type: integer
+          format: int64
+          minimum: 1
+        vat_amt:
+          type: integer
+          format: int64
+          description: 생략 시 floor(expns_amt×0.1), 직접 수정 허용
+        pay_dt:
+          type: string
+          format: date
+          nullable: true
+        rmrk_desc:
+          type: string
+          maxLength: 200
+          nullable: true
+        expns_id:
+          type: integer
+          format: int64
+      description: dev_id NULL인 프로젝트 직접 경비만. 마감상태는 기존 getMonthClose 재사용.
+      required:
+      - expns_id
+      - expns_ym
+      - expns_item_cd
+      - expns_amt
+      - vat_amt
+    ProjectContractChangeRequest:
+      type: object
+      properties:
+        cntrct_chg_ty_cd:
+          type: string
+          enum:
+          - ADD
+          - CUT
+          - TERM
+          - FREE
+        cntrct_chg_stts_cd:
+          type: string
+          enum:
+          - PLAN
+          - CONFIRM
+          default: PLAN
+        chg_dt:
+          type: string
+          format: date
+        amount:
+          type: integer
+          format: int64
+          minimum: 1
+          description: ADD/CUT 입력 증감 금액(SPEC-REQUEST.md:294); bfr/aft 저장값과 구분
+        incdec_mm_qty:
+          type: number
+          nullable: true
+          description: ADD/CUT 턴키만
+        aft_end_dt:
+          type: string
+          format: date
+          nullable: true
+          description: TERM 필수; 현재 종료일과 달라야 함
+        free_mm_qty:
+          type: number
+          nullable: true
+          description: FREE 필수
+        rsn_desc:
+          type: string
+          minLength: 1
+          maxLength: 500
+      description: SPEC-REQUEST.md:294. ADD/CUT amount 필수, TERM aft_end_dt 필수, FREE free_mm_qty 필수. IN 계약 변경 허용 유형은 미확정 OQ. amount는
+        원문 입력 금액의 DTO명 제안.
+      required:
+      - cntrct_chg_ty_cd
+      - cntrct_chg_stts_cd
+      - chg_dt
+      - rsn_desc
+    ProjectContractChange:
+      type: object
+      properties:
+        cntrct_chg_ty_cd:
+          type: string
+          enum:
+          - ADD
+          - CUT
+          - TERM
+          - FREE
+        cntrct_chg_stts_cd:
+          type: string
+          enum:
+          - PLAN
+          - CONFIRM
+          default: PLAN
+        chg_dt:
+          type: string
+          format: date
+        incdec_mm_qty:
+          type: number
+          nullable: true
+          description: ADD/CUT 턴키만
+        aft_end_dt:
+          type: string
+          format: date
+          nullable: true
+          description: TERM 필수; 현재 종료일과 달라야 함
+        free_mm_qty:
+          type: number
+          nullable: true
+          description: FREE 필수
+        rsn_desc:
+          type: string
+          minLength: 1
+          maxLength: 500
+        chgId:
+          type: integer
+          format: int64
+        bfr_cntrct_amt:
+          type: integer
+          format: int64
+          nullable: true
+        aft_cntrct_amt:
+          type: integer
+          format: int64
+          nullable: true
+        bfr_end_dt:
+          type: string
+          format: date
+          nullable: true
+        realoc_need_yn:
+          type: string
+          enum:
+          - Y
+          - N
+        cnfrm_user_id:
+          type: integer
+          format: int64
+          nullable: true
+        cnfrm_at:
+          type: string
+          format: date-time
+          nullable: true
+      required:
+      - chgId
+      - cntrct_chg_ty_cd
+      - cntrct_chg_stts_cd
+      - chg_dt
+      - rsn_desc
+    ProjectContractChanges:
+      type: object
+      properties:
+        cntrct_bgn_dt:
+          type: string
+          format: date
+        init_cntrct_amt:
+          type: integer
+          format: int64
+          nullable: true
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProjectContractChange'
+      description: 최초 계약 행은 계약 시작일·최초 금액으로 표시한다.
+      required:
+      - cntrct_bgn_dt
+      - init_cntrct_amt
+      - items
+    ProjectStaffPlanInput:
+      type: object
+      properties:
+        plan_ym:
+          type: string
+          pattern: ^\d{4}-(0[1-9]|1[0-2])$
+        job_cd:
+          type: string
+          minLength: 1
+          description: 사용 중 JOB
+        grd_cd:
+          type: string
+          default: ''
+          description: 미지정 빈 문자열
+        need_mm_qty:
+          type: number
+          minimum: 0
+          maximum: 99.99
+          multipleOf: 0.01
+        expc_mth_cst_amt:
+          type: integer
+          format: int64
+          nullable: true
+      required:
+      - plan_ym
+      - job_cd
+      - need_mm_qty
+    ProjectStaffPlansRequest:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProjectStaffPlanInput'
+      description: 수행 기간 월별 수동 계획 전체 교체. 빈 목록 허용, 0/빈칸 미생성. 목표 원가·마진율 입력은 ProjectUpdateRequest만.
+      required:
+      - items
+    ProjectStaffPlan:
+      type: object
+      properties:
+        plan_ym:
+          type: string
+          pattern: ^\d{4}-(0[1-9]|1[0-2])$
+        job_cd:
+          type: string
+          minLength: 1
+          description: 사용 중 JOB
+        grd_cd:
+          type: string
+          default: ''
+          description: 미지정 빈 문자열
+        need_mm_qty:
+          type: number
+          minimum: 0
+          maximum: 99.99
+          multipleOf: 0.01
+        expc_mth_cst_amt:
+          type: integer
+          format: int64
+          nullable: true
+        need_psn_cnt:
+          type: integer
+        src_need_id:
+          type: integer
+          format: int64
+          nullable: true
+      required:
+      - plan_ym
+      - job_cd
+      - grd_cd
+      - need_mm_qty
+      - need_psn_cnt
+    ProjectActualMM:
+      type: object
+      properties:
+        job_cd:
+          type: string
+        mm_qty:
+          type: number
+      description: 프로젝트 asgn_mth.mm_qty 직무별 합계. 등급 무시; 표시할 때 등급이 나뉜 직무 첫 줄만 실제MM 표시.
+      required:
+      - job_cd
+      - mm_qty
+    ProjectStaffPlans:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProjectStaffPlan'
+        actual:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProjectActualMM'
+      description: 계획은 직무·등급별 합계, 실제는 직무별 합계. 단일 등급 4.00계획·3.50실제는 부족0.50. 여러 등급 차이 배지 집계 정책은 미확정 OQ로 남긴다.
+      required:
+      - items
+      - actual
+    ProjectDeleteResult:
+      type: object
+      properties:
+        prj_id:
+          type: integer
+          format: int64
+        expns_id:
+          type: integer
+          format: int64
+        chgId:
+          type: integer
+          format: int64
+      description: 삭제한 대상의 식별자만 반환하는 DTO 투영 제안; 삭제 결과는 각 목록 GET으로 확인.
+      required:
+      - prj_id
+    ListProjectsData:
+      $ref: '#/components/schemas/ProjectPage'
+    CreateProjectData:
+      $ref: '#/components/schemas/ProjectDetail'
+    GetProjectData:
+      $ref: '#/components/schemas/ProjectDetail'
+    UpdateProjectData:
+      $ref: '#/components/schemas/ProjectDetail'
+    UpdateProjectDisableData:
+      $ref: '#/components/schemas/ProjectDetail'
+    UpdateProjectEnableData:
+      $ref: '#/components/schemas/ProjectDetail'
+    ListProjectHistoryData:
+      type: array
+      items:
+        $ref: '#/components/schemas/ProjectHistoryEntry'
+    ListProjectAssignmentsData:
+      type: array
+      items:
+        $ref: '#/components/schemas/ProjectAssignment'
+    GetProjectExportData:
+      $ref: '#/components/schemas/DownloadArtifact'
+    ListProjectOptionsData:
+      type: array
+      items:
+        $ref: '#/components/schemas/ProjectOption'
+    ListProjectPartChangesData:
+      type: array
+      items:
+        $ref: '#/components/schemas/ProjectPartChange'
+    CreateProjectPartChangeData:
+      type: array
+      items:
+        $ref: '#/components/schemas/ProjectPartChange'
+    ListProjectBillStagesData:
+      $ref: '#/components/schemas/ProjectBillStages'
+    SaveProjectBillStagesData:
+      $ref: '#/components/schemas/ProjectBillStages'
+    GetProjectAllocationsData:
+      $ref: '#/components/schemas/ProjectAllocations'
+    SaveProjectAllocationsData:
+      $ref: '#/components/schemas/ProjectAllocations'
+    ListProjectExpensesData:
+      type: array
+      items:
+        $ref: '#/components/schemas/ProjectExpense'
+    CreateProjectExpenseData:
+      $ref: '#/components/schemas/ProjectExpense'
+    UpdateProjectExpenseData:
+      $ref: '#/components/schemas/ProjectExpense'
+    UpdateProjectExpenseRemovalData:
+      $ref: '#/components/schemas/ProjectDeleteResult'
+    ListProjectContractChangesData:
+      $ref: '#/components/schemas/ProjectContractChanges'
+    CreateProjectContractChangeData:
+      $ref: '#/components/schemas/ProjectContractChange'
+    UpdateProjectContractChangeData:
+      $ref: '#/components/schemas/ProjectContractChange'
+    UpdateProjectContractChangeRemovalData:
+      $ref: '#/components/schemas/ProjectDeleteResult'
+    UpdateProjectContractChangeConfirmationData:
+      $ref: '#/components/schemas/ProjectContractChange'
+    GetProjectStaffPlansData:
+      $ref: '#/components/schemas/ProjectStaffPlans'
+    SaveProjectStaffPlansData:
+      $ref: '#/components/schemas/ProjectStaffPlans'
+    ProjectUploadRow:
+      type: object
+      properties:
+        prj_no:
+          type: string
+          nullable: true
+          pattern: ^P-\d{4,5}$
+        prj_nm:
+          type: string
+          maxLength: 100
+        cust_ptnr_id:
+          type: integer
+          format: int64
+          nullable: true
+        cntrct_ty_cd:
+          type: string
+          enum:
+          - TK
+          - MO
+          - DP
+          - IN
+        prj_stts_cd:
+          type: string
+          enum:
+          - PLAN
+          - RUN
+          - HOLD
+          - END
+          default: RUN
+        cntrct_bgn_dt:
+          type: string
+          format: date
+        cntrct_end_dt:
+          type: string
+          format: date
+        prfm_bgn_dt:
+          type: string
+          format: date
+          nullable: true
+        quot_amt:
+          type: integer
+          format: int64
+          nullable: true
+        init_cntrct_amt:
+          type: integer
+          format: int64
+          nullable: true
+        bsn_part_id:
+          type: integer
+          format: int64
+          nullable: true
+        free_sprt_yn:
+          type: string
+          enum:
+          - Y
+          - N
+        rmrk_desc:
+          type: string
+          maxLength: 500
+          nullable: true
+      description: B.9 정규化 미리보기; 원문333~345행 필드만. B.9 빈파트 경고 허용 예외, 기존번호 오류. 유효하지 않은 행은 issues로 설명.
+    ProjectAllocationUploadRow:
+      type: object
+      properties:
+        prj_no:
+          type: string
+        aloc_stg_cd:
+          type: string
+          enum:
+          - EST
+          - FINAL
+          - ACTUAL
+        line_ty_cd:
+          type: string
+          enum:
+          - PERSON
+          - ITEM
+        mng_no:
+          type: string
+          nullable: true
+        nameOrItem:
+          type: string
+        job_cd:
+          type: string
+          nullable: true
+        asgn_bgn_dt:
+          type: string
+          format: date
+          nullable: true
+        valueKind:
+          type: string
+          enum:
+          - 금액
+          - MM
+        months:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProjectAllocationMonth'
+        rmrk_desc:
+          type: string
+          nullable: true
+      description: B.6 A1 및 열257~258행 투영; 한사람 금액/MM 두행 가능. months의 기간밖 값 저장정책 미확정.
+    ProjectUploadApplicationResult:
+      type: object
+      properties:
+        upload_id:
+          type: integer
+          format: int64
+        form_type:
+          type: string
+          enum:
+          - B.6
+          - B.9
+        project_ids:
+          type: array
+          items:
+            type: integer
+            format: int64
+        applied_count:
+          type: integer
+          minimum: 0
+      additionalProperties: false
+      description: 기존 업로드 결과 봉투 내 프로젝트 반영 식별자 투영 제안. 급여·단가·월원가 배열을 반환하지 않는다.
+      required:
+      - upload_id
+      - form_type
+      - project_ids
+      - applied_count
 x-security-policy:
   related_requirements:
   - REQ-001
@@ -7116,6 +11126,50 @@ x-requirement-accounting:
   evidence: updateDeveloperEnabled, listDeveloperOptions — API 계약 투영. UI 문구·배치 또는 실행 완료까지 증명하는 뜻이 아니며 각 OQ의 승인 보류를
     유지한다.
 x-uncovered-requirements:
+- canonical_id: REQ-228
+  status: out-of-scope
+  evidence: 진행 현황·이슈·주간 메모·신호등·UI-31은 후속 ⑥의 구현 범위이다. 이번 계약은 단계 표만 준비하며 이 화면들의 조회·저장
+    경로를 생성하지 않는다.
+- canonical_id: REQ-229
+  status: out-of-scope
+  evidence: 투입 배정·청구·원가 분석의 제품 화면은 제외되고 기존 관련 테이블을 조회만 한다. 이 요구를 근거로 투입 쓰기나 원가 분석
+    서비스를 추가하지 않으며 청구 단계 저장은 해당 프로젝트 연산이 담당한다.
+- canonical_id: REQ-230
+  status: out-of-scope
+  evidence: 열 설정과 좁게 보기 및 휴대폰 카드 표는 명시적 제외 항목이다. 사용자 표시설정 저장 API를 새로 만들지 않는다는 범위 제한을
+    UI 검사로 확인한다.
+- canonical_id: REQ-231
+  status: non-functional
+  evidence: 기존 V1의 prj 테이블을 재사용하는 물리 매핑 제약이다. 신규 DDL 유무와 엔티티의 schema/name 선언으로 검증하며
+    요청·응답을 갖는 독립 업무 동작이 아니다.
+- canonical_id: REQ-232
+  status: non-functional
+  evidence: 기존 UploadForm·ExcelExportService·options 및 공통 UI 인터페이스를 재사용하는 연결 의무이다.
+    모듈 의존성과 기존 경로 호출을 통합 시험하며 같은 기능의 중복 endpoint를 추가하지 않는다.
+- canonical_id: REQ-233
+  status: screen-only
+  evidence: 참고 화면의 메뉴 진입 순서·창 배치·문구를 비교하는 시각 검증 항목이다. 브라우저 경로와 캡처를 근거로 확인하며 별도 서버
+    데이터나 요청 파라미터가 없다.
+- canonical_id: REQ-234
+  status: screen-only
+  evidence: 참고 시안과 요청 원문이 다를 때 데이터·열·검증·API는 요청 원문을 우선하는 문서 해석 규칙이다. 이는 각각의 기존 계약을
+    검토하는 기준이며 새로운 서버 연산이 아니다.
+- canonical_id: REQ-235
+  status: screen-only
+  evidence: 시안의 예시 자료와 안내 전용 토스트를 제품에 복사하지 않는 제한이다. 소스·fixture 분리와 화면 메시지를 검토하여 확인하며
+    실제 업무 데이터를 반환하는 API를 대체하지 않는다.
+- canonical_id: REQ-236
+  status: screen-only
+  evidence: 참고 화면에 없는 청구 단계·배분표·직접 경비·계약 변경·인원 계획 창은 기존 오른쪽 상세 창과 모달 부품을 조합한다. 컴포넌트
+    재사용과 입력 여정은 화면 시험의 책임이며 실제 저장은 이미 정의한 각 업무 연산이 담당한다.
+- canonical_id: REQ-255
+  status: non-functional
+  evidence: 운영 시드를 추가하지 않고 PHASE_TK·PHASE_OP·BUDGET_RATE와 V2 마감을 재사용하는 시험 준비 규칙이다.
+    POI 파일·시험 SQL·테스트용 API 호출은 검증 fixture이므로 신규 제품 endpoint로 노출하지 않는다.
+- canonical_id: REQ-256
+  status: non-functional
+  evidence: ①~④의 기존 합격과 프로젝트 연계 숫자 회귀를 유지하는 수용 조건이다. 기존 거래처·파트·개발자 조회 응답을 프로젝트 fixture와
+    대조하는 회귀 시험으로 증명하며 이 검증 자체에 새로운 API를 만들지 않는다.
 - canonical_id: REQ-002
   status: out-of-scope
   evidence: 'REQ-002 명시 제외: 로그인(UI-22), 사용자·권한·메뉴 관리 화면, 권한 판정, 접근 기록, 공통코드 외 업무 내용, 알림 데이터, AI, 엑셀 업로드·다운로드와 결과 창, 인쇄, 다크
@@ -7446,6 +11500,21 @@ x-uncovered-requirements:
 - canonical_id: REQ-201
   status: screen-only
   evidence: 위험 사용중지 확인창의 인원·이름·차단안내·취소는 UI 소유. API blocked 정보는 REQ-200/202로 매핑하며 확인창 자체를 별도 API로 만들지 않는다.
+- canonical_id: REQ-254
+  status: screen-only
+  evidence: SPEC-REQUEST.md:57 휴대폰·과거연도 입력 제한 — 화면767px·과거연도 CTA 표시 제한은 ui-design/프런트엔드 소유. 서버에 인증·연도 기반 쓰기거절을 추가하지 않는다.
+- canonical_id: REQ-269
+  status: screen-only
+  evidence: SPEC-REQUEST.md:140 등록 완료 목록 복귀·강조 — 저장 토스트·목록 복귀·새행 강조는 UI 소유; 서버 저장은 createProject REQ-268.
+- canonical_id: REQ-270
+  status: screen-only
+  evidence: SPEC-REQUEST.md:141 실패 입력 유지·미저장 보호 — 첫 오류칸 이동·입력 유지·CMN-402 이탈 보호는 UI 소유; 서버 field 오류는 createProject.
+- canonical_id: REQ-285
+  status: screen-only
+  evidence: SPEC-REQUEST.md:215 적용 시점 안내 — 파트 변경 안내문과 마감월 표시 조합은 UI 소유; 기존 getMonthClose 및 listProjectPartChanges 재사용.
+- canonical_id: REQ-322
+  status: screen-only
+  evidence: SPEC-REQUEST.md:298 턴키 확정 재조정 안내 — 턴키 확정 후 토스트 문구는 UI 소유; 서버 확정/재조정 저장은 REQ-317/318.
 x-developer-upload-change-scope:
   source: SPEC-REQUEST.md 전체401행; requirement-registry.json REQ-130~REQ-226 97행.
   baseline_preservation: 기존16 operations·모든 기존schema·ApiResponse/ApiError·security·REQ-001~129 accounting은 무변경.
@@ -7608,3 +11677,11 @@ x-developer-upload-open-questions:
   source_lines: 400~401
   status: 추정 — 사용자 미확인
   question: 과거미마감월의최초·덮어쓰기마다반영시점개발자/수당값을쓸지미승인. 파일직원구분우선과저장후스냅샷보존만원문확정. 과거정보복원제외를확정하지 않는다.
+
+x-confirmed-upload-failure-policy:
+  B.6:
+    requirement: REQ-306
+    policy: "성공한 건은 유지하고 실패한 건만 반려한다. 파일 전체 롤백 규칙보다 사용자 확정 답변을 우선한다."
+  B.9:
+    requirement: REQ-334
+    policy: "성공한 건은 유지하고 실패한 건만 반려한다. 파일 전체 롤백 규칙보다 사용자 확정 답변을 우선한다."

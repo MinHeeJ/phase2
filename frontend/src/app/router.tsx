@@ -4,6 +4,15 @@ import UI27Screen from "../pages/admin/UI27Screen";
 import UI15Screen from "../pages/partners/UI15Screen";
 import SalesPartManagement from "../pages/salespartsops/SalesPartManagement";
 import UI02Screen from "../pages/developers/UI02Screen";
+import UI01Screen from "../pages/projects/UI01Screen";
+import type { ProjectDetail } from "../pages/projects/client";
+import { ProjectBillStagePanel } from "../pages/billstages/ProjectBillStagePanel";
+import { ProjectAllocationPanel } from "../pages/allocations/ProjectAllocationPanel";
+import { ProjectExpensePanel } from "../pages/expenses/ProjectExpensePanel";
+import { ProjectContractChangePanel } from "../pages/contractchanges/ProjectContractChangePanel";
+import { ProjectPartChangeDialog } from "../pages/partchanges/ProjectPartChangePanel";
+import { ProjectStaffPlanPanel } from "../pages/staffplans/ProjectStaffPlanPanel";
+import { ProjectLifecycleActions } from "../pages/projectsops/ProjectActions";
 import type {
   DeveloperFilters,
   DeveloperListItem,
@@ -179,6 +188,133 @@ function DevelopersScreen({
   );
 }
 
+function ProjectsScreen({
+  onDirtyChange,
+  ...bindings
+}: BusinessScreenBindings) {
+  const notify = useRef(onDirtyChange);
+  notify.current = onDirtyChange;
+  const reportDirty = useCallback(
+    (dirty: boolean) => notify.current(dirty),
+    [],
+  );
+  const [partChange, setPartChange] = useState<{
+    project: ProjectDetail;
+    refresh: () => Promise<unknown>;
+  } | null>(null);
+  const [message, setMessage] = useState("");
+  return (
+    <>
+      <UI01Screen
+        {...bindings}
+        onDirtyChange={reportDirty}
+        onPartChange={(project, refresh) => setPartChange({ project, refresh })}
+        detailActions={(project, refresh) => (
+          <ProjectLifecycleActions
+            projectId={project.prj_id}
+            useYn={project.use_yn}
+            reload={refresh}
+            onComplete={setMessage}
+          />
+        )}
+        detailTabs={[
+          {
+            key: "bill-stages",
+            label: "청구 단계",
+            types: ["TK"],
+            render: (project, refresh, _, controls) => (
+              <ProjectBillStagePanel
+                projectId={project.prj_id}
+                contractType={project.cntrct_ty_cd}
+                useYn={project.use_yn}
+                onChanged={refresh}
+                onDirtyChange={controls.onDirtyChange}
+              />
+            ),
+          },
+          {
+            key: "allocations",
+            label: "배분표",
+            types: ["TK"],
+            render: (project, refresh, _, controls) => (
+              <ProjectAllocationPanel
+                key={project.prj_id}
+                projectId={project.prj_id}
+                useYn={project.use_yn}
+                performanceStart={project.prfm_bgn_dt ?? project.cntrct_bgn_dt}
+                performanceEnd={project.cur_end_dt ?? project.cntrct_end_dt}
+                onChanged={refresh}
+                onDirtyChange={controls.onDirtyChange}
+              />
+            ),
+          },
+          {
+            key: "expenses",
+            label: "직접 경비",
+            render: (project, refresh) => (
+              <ProjectExpensePanel
+                key={project.prj_id}
+                projectId={project.prj_id}
+                useYn={project.use_yn}
+                onChanged={refresh}
+              />
+            ),
+          },
+          {
+            key: "contract-changes",
+            label: "계약 변경 이력",
+            render: (project, refresh) => (
+              <ProjectContractChangePanel
+                key={project.prj_id}
+                project={{
+                  ...project,
+                  cntrct_ty_cd: project.cntrct_ty_cd as
+                    | "TK"
+                    | "MO"
+                    | "DP"
+                    | "IN",
+                }}
+                onChanged={refresh}
+              />
+            ),
+          },
+          {
+            key: "staff-plans",
+            label: "인원 계획",
+            render: (project, refresh, _, controls) => (
+              <ProjectStaffPlanPanel
+                projectId={project.prj_id}
+                useYn={project.use_yn}
+                performanceStart={project.prfm_bgn_dt ?? project.cntrct_bgn_dt}
+                performanceEnd={project.cur_end_dt ?? project.cntrct_end_dt}
+                onChanged={refresh}
+                onDirtyChange={controls.onDirtyChange}
+                onBasicInfo={controls.onBasicInfo}
+              />
+            ),
+          },
+        ]}
+        dialogs={
+          partChange && (
+            <ProjectPartChangeDialog
+              project={partChange.project}
+              reload={partChange.refresh}
+              onCancel={() => setPartChange(null)}
+              onSaved={(text) => {
+                setPartChange(null);
+                setMessage(text);
+              }}
+            />
+          )
+        }
+      />
+      {message && (
+        <SuccessToast message={message} onDismiss={() => setMessage("")} />
+      )}
+    </>
+  );
+}
+
 export function AppRouter() {
   return (
     <Routes>
@@ -191,6 +327,8 @@ export function AppRouter() {
                 <PartnersScreen {...bindings} />
               ) : id === "UI-02" ? (
                 <DevelopersScreen {...bindings} />
+              ) : id === "UI-01" ? (
+                <ProjectsScreen {...bindings} />
               ) : id === "UI-27" ? (
                 <CommonCodesScreen {...bindings} />
               ) : null

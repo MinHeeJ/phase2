@@ -12,12 +12,53 @@ import * as developers from "../pages/developers/client";
 import * as developerLifecycle from "../pages/developersops/client";
 import * as workStatus from "../pages/workstatus/client";
 import * as uploadResults from "../pages/apiops/client";
+import * as projects from "../pages/projects/client";
+import * as billStages from "../pages/billstages/client";
+import * as expenses from "../pages/expenses/client";
+import * as partChanges from "../pages/partchanges/client";
+import * as contractChanges from "../pages/contractchanges/client";
+import * as staffPlans from "../pages/staffplans/client";
 
 const response = (data: unknown) =>
   new Response(JSON.stringify({ success: true, meta: {}, data }));
 afterEach(() => vi.unstubAllGlobals());
 describe("API client registration", () => {
   it.each([
+    ["listProjects", projects.listProjects],
+    ["getProject", projects.getProject],
+    ["createProject", projects.createProject],
+    ["updateProject", projects.updateProject],
+    ["exportProjects", projects.exportProjects],
+    ["listProjectOptions", projects.listProjectOptions],
+    ["listProjectAssignments", projects.listProjectAssignments],
+    ["listProjectHistory", projects.listProjectHistory],
+    ["listProjectBillStages", billStages.listProjectBillStages],
+    ["saveProjectBillStages", billStages.saveProjectBillStages],
+    ["listProjectExpenses", expenses.listProjectExpenses],
+    ["createProjectExpense", expenses.createProjectExpense],
+    ["updateProjectExpense", expenses.updateProjectExpense],
+    ["updateProjectExpenseRemoval", expenses.updateProjectExpenseRemoval],
+    ["listProjectPartChanges", partChanges.listProjectPartChanges],
+    ["createProjectPartChange", partChanges.createProjectPartChange],
+    ["listProjectContractChanges", contractChanges.listProjectContractChanges],
+    [
+      "createProjectContractChange",
+      contractChanges.createProjectContractChange,
+    ],
+    [
+      "updateProjectContractChange",
+      contractChanges.updateProjectContractChange,
+    ],
+    [
+      "updateProjectContractChangeConfirmation",
+      contractChanges.updateProjectContractChangeConfirmation,
+    ],
+    [
+      "updateProjectContractChangeRemoval",
+      contractChanges.updateProjectContractChangeRemoval,
+    ],
+    ["getProjectStaffPlans", staffPlans.getProjectStaffPlans],
+    ["saveProjectStaffPlans", staffPlans.saveProjectStaffPlans],
     ["listPartners", partners.listPartners],
     ["getPartner", partners.getPartner],
     ["createPartner", partners.createPartner],

@@ -81,6 +81,56 @@ class SalesPartApiTest {
     @Test void closedMonthRefusesBeforeAnyInsert()throws Exception {var body=valid();body.put("aply_bgn_ym","2026-09");create(body).andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("CLOSED_MONTH")).andExpect(jsonPath("$.field").value("aply_bgn_ym"));untouched();}
     @Test void noClosingAllowsExplicitPastMonth()throws Exception {when(mapper.lastClosed()).thenReturn(null);var body=valid();body.put("aply_bgn_ym","2025-01");create(body).andExpect(status().isOk());}
     @Test void rejectsUnapprovedLeaderAccountField()throws Exception {var body=valid();body.put("ldr_user_id",1);create(body).andExpect(status().isBadRequest()).andExpect(jsonPath("$.field").value("ldr_user_id"));untouched();}
+    @ParameterizedTest
+    @ValueSource(strings={"null","[]","true","{","{} {}"})
+    void malformedCreateReturnsFlatErrorWithoutWriting(String body)throws Exception {
+        mvc.perform(post("/api/sales-parts")
+                .contentType(MediaType.APPLICATION_JSON).content(body))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.success").value(false))
+            .andExpect(jsonPath("$.code").value("INVALID_INPUT"))
+            .andExpect(jsonPath("$.requestId").isNotEmpty());
+        untouched();
+    }
+    @ParameterizedTest
+    @ValueSource(strings={"9223372036854775808","-9223372036854775809","\"1500000\"","true","null"})
+    void unsafeFeeIsRejectedBeforePersistence(String fee)throws Exception {
+        String body=json.writeValueAsString(valid()).replace("1500000",fee);
+        mvc.perform(post("/api/sales-parts")
+                .contentType(MediaType.APPLICATION_JSON).content(body))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.field").value("bsn_fee_amt"));
+        untouched();
+    }
+    @Test void maximumBigintFeeAndTwoDecimalRateRemainExact()throws Exception {
+        var body=valid();
+        body.put("bsn_fee_amt",Long.MAX_VALUE);
+        body.put("prft_dstrb_rt",new BigDecimal("99.99"));
+        create(body).andExpect(status().isOk());
+        verify(mapper).insertStandard(argThat(write->
+            write.input().bsn_fee_amt()==Long.MAX_VALUE
+                &&write.input().prft_dstrb_rt().compareTo(new BigDecimal("99.99"))==0));
+    }
+    @ParameterizedTest
+    @ValueSource(strings={"0","-1","abc","9223372036854775808"})
+    void invalidDetailIdentifiersDoNotReachPersistence(String id)throws Exception {
+        mvc.perform(get("/api/sales-parts/{id}",id))
+            .andExpect(status().isNotFound())
+            .andExpect(jsonPath("$.code").value("NOT_FOUND"));
+        verify(mapper,never()).part(anyLong(),any());
+        untouched();
+    }
+    @Test void emptyListRetainsPageContractWithoutWrites()throws Exception {
+        when(mapper.parts(any())).thenReturn(Collections.emptyList());
+        when(mapper.partCount()).thenReturn(0L);
+        mvc.perform(get("/api/sales-parts"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.success").value(true))
+            .andExpect(jsonPath("$.data.items").isEmpty())
+            .andExpect(jsonPath("$.data.total").value(0))
+            .andExpect(jsonPath("$.data.page").value(1));
+        untouched();
+    }
     @Test void validationCreateZeroFeeHasLiteralPathAndNoPartStandardOrAudit()throws Exception {
         var input=valid();input.put("bsn_fee_amt",0);
         mvc.perform(post("/api/sales-parts").contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(input)))

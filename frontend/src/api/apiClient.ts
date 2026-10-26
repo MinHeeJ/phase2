@@ -144,3 +144,71 @@ export {
   applyPersonnelUpload,
   listPersonnelUploadRows,
 } from "../pages/uploadsops/client";
+export {
+  listProjects,
+  getProject,
+  createProject,
+  updateProject,
+  exportProjects,
+  listProjectOptions,
+  listProjectAssignments,
+  listProjectHistory,
+} from "../pages/projects/client";
+export type {
+  ProjectInput,
+  ProjectDetail,
+  ProjectListItem,
+  ProjectFilters,
+  ProjectPage,
+  ProjectOption,
+  ProjectAssignment,
+  ProjectHistory,
+} from "../pages/projects/client";
+export {
+  listProjectBillStages,
+  saveProjectBillStages,
+} from "../pages/billstages/client";
+export type {
+  ProjectBillStageInput,
+  ProjectBillStage,
+  ProjectBillStages,
+} from "../pages/billstages/client";
+export {
+  listProjectExpenses,
+  createProjectExpense,
+  updateProjectExpense,
+  updateProjectExpenseRemoval,
+} from "../pages/expenses/client";
+export type {
+  ProjectExpenseInput,
+  ProjectExpense,
+} from "../pages/expenses/client";
+export {
+  listProjectPartChanges,
+  createProjectPartChange,
+} from "../pages/partchanges/client";
+export type {
+  ProjectPartChangeRequest,
+  ProjectPartChange,
+} from "../pages/partchanges/client";
+export {
+  listProjectContractChanges,
+  createProjectContractChange,
+  updateProjectContractChange,
+  updateProjectContractChangeConfirmation,
+  updateProjectContractChangeRemoval,
+} from "../pages/contractchanges/client";
+export type {
+  ContractChangeInput,
+  ContractChangeRow,
+  ContractChanges,
+} from "../pages/contractchanges/client";
+export {
+  getProjectStaffPlans,
+  saveProjectStaffPlans,
+} from "../pages/staffplans/client";
+export type {
+  ProjectStaffPlanInput,
+  ProjectStaffPlan,
+  ProjectStaffPlans,
+} from "../pages/staffplans/client";

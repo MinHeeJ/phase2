@@ -3,6 +3,8 @@ package com.sicost.workstatus;
 import static com.sicost.workstatus.WorkStatusModels.*;
 import static org.assertj.core.api.Assertions.*;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 import java.sql.*;
 import java.time.*;
 import java.util.*;
@@ -18,6 +20,8 @@ import org.springframework.core.io.ClassPathResource;
 import org.springframework.jdbc.datasource.*;
 import org.springframework.transaction.annotation.EnableTransactionManagement;
 import org.mybatis.spring.*;
+import org.springframework.http.MediaType;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 class WorkStatusPersistenceTest {
     @Configuration @EnableTransactionManagement static class Transactions {}
@@ -31,7 +35,7 @@ class WorkStatusPersistenceTest {
         adminUrl=System.getenv("TEST_DATABASE_URL");assumeTrue(adminUrl!=null&&!adminUrl.isBlank(),"Real PostgreSQL integration requires TEST_DATABASE_URL");
         user=System.getenv("TEST_DATABASE_USER");password=System.getenv("TEST_DATABASE_PASSWORD");assumeTrue(user!=null&&password!=null,"Test database connection settings are absent");
         database="sicost_test_"+UUID.randomUUID().toString().replace("-","");
-        try(Connection admin=DriverManager.getConnection(adminUrl,user,password);var statement=admin.createStatement()){statement.execute("CREATE DATABASE "+database+" TEMPLATE template0");}
+        try(Connection admin=DriverManager.getConnection(adminUrl,user,password);var statement=admin.createStatement()){com.sicost.support.TestDatabaseDdl.create(statement, database);}
         source=new DriverManagerDataSource(adminUrl.substring(0,adminUrl.lastIndexOf('/')+1)+database,user,password);
         Flyway.configure().dataSource(source).defaultSchema("public").locations("classpath:db/migration").load().migrate();
         var factory=new SqlSessionFactoryBean();factory.setDataSource(source);factory.setMapperLocations(new ClassPathResource("mappers/workstatus/WorkStatusMapper.xml"));factory.afterPropertiesSet();
@@ -39,19 +43,21 @@ class WorkStatusPersistenceTest {
         context=new AnnotationConfigApplicationContext();context.register(Transactions.class,WorkStatusService.class,CurrentUser.class,PermissionService.class);
         context.registerBean(WorkStatusMapper.class,()->mapper);context.registerBean(org.springframework.transaction.PlatformTransactionManager.class,()->new DataSourceTransactionManager(source));
         context.registerBean(Clock.class,()->clock);context.refresh();service=context.getBean(WorkStatusService.class);
+        // Each scenario closes only the months it exercises, independently of production seeds.
+        sql("UPDATE fin.mth_cls SET cls_stts_cd='OPEN'");
         sql("INSERT INTO mst.dev(dev_id,mng_no,dev_nm,emp_se_cd) VALUES(1,'K-0001','개발자','FT'),(2,'K-0002','다른 개발자','FT')");
     }
     @AfterEach void removeIsolatedDatabase()throws Exception {
         if(context!=null)context.close();if(source==null)return;
-        try(Connection admin=DriverManager.getConnection(adminUrl,user,password);var statement=admin.createStatement()){statement.execute("DROP DATABASE "+database+" WITH (FORCE)");}
+        try(Connection admin=DriverManager.getConnection(adminUrl,user,password);var statement=admin.createStatement()){com.sicost.support.TestDatabaseDdl.drop(statement, database);}
     }
-    long scalar(String sql)throws Exception {try(var c=source.getConnection();var s=c.createStatement();var rows=s.executeQuery(sql)){assertThat(rows.next()).isTrue();return rows.getLong(1);}}
-    String value(String sql)throws Exception {try(var c=source.getConnection();var s=c.createStatement();var rows=s.executeQuery(sql)){assertThat(rows.next()).isTrue();return rows.getString(1);}}
-    void sql(String sql)throws Exception {try(var c=source.getConnection();var s=c.createStatement()){s.execute(sql);}}
+    long scalar(String sql, Object... args) {return new org.springframework.jdbc.core.JdbcTemplate(source).queryForObject(sql, Long.class, args);}
+    String value(String sql, Object... args) {return new org.springframework.jdbc.core.JdbcTemplate(source).queryForObject(sql, String.class, args);}
+    void sql(String sql, Object... args) {new org.springframework.jdbc.core.JdbcTemplate(source).update(sql, args);}
     WorkStatusInput input(String code,String start,String end){return new WorkStatusInput(code,LocalDate.parse(start),end==null?null:LocalDate.parse(end),"N","기록");}
     PageResult<WorkStatusRow> list(){return service.list(1,null,new DeveloperPaging(0,50,null));}
     String aggregate()throws Exception {return value("SELECT json_build_object('dev',(SELECT row_to_json(d) FROM mst.dev d WHERE d.dev_id=1),'rows',(SELECT json_agg(h ORDER BY work_stts_hist_id) FROM mst.dev_work_stts_hist h),'audit',(SELECT json_agg(a ORDER BY data_chg_hist_id) FROM sys.data_chg_hist a))::text");}
-    void closedMonth(String month)throws Exception {sql("INSERT INTO fin.mth_cls(cls_ym,cls_stts_cd) VALUES('"+month+"','CLOSED') ON CONFLICT(cls_ym) DO UPDATE SET cls_stts_cd='CLOSED'");}
+    void closedMonth(String month)throws Exception {sql("INSERT INTO fin.mth_cls(cls_ym,cls_stts_cd) VALUES(?,'CLOSED') ON CONFLICT(cls_ym) DO UPDATE SET cls_stts_cd='CLOSED'", month);}
     @Test void xmlMaterializesNumericIdsDatesNullAndSharedFilterCount()throws Exception {
         var old=service.create(1,input("VACATION","2026-08-01","2026-08-02"));var recent=service.create(1,input("PARENTAL","2026-10-01",null));
         assertThat(list().items()).extracting(WorkStatusRow::work_stts_hist_id).containsExactly(recent.work_stts_hist_id(),old.work_stts_hist_id());assertThat(list().items().get(0).end_dt()).isNull();
@@ -71,13 +77,36 @@ class WorkStatusPersistenceTest {
     @Test void resignationCreateEditTransitionDeleteAndFullOwnerSnapshots()throws Exception {
         var row=service.create(1,input("RESIGN","2026-10-20","2026-10-31"));assertThat(value("SELECT rsgn_dt::text FROM mst.dev WHERE dev_id=1")).isEqualTo("2026-10-20");assertThat(row.end_dt()).isNull();
         var json=new ObjectMapper();String record=Long.toString(row.work_stts_hist_id());
-        var after=json.readTree(value("SELECT aft_val FROM sys.data_chg_hist WHERE obj_rec_id='"+record+"' AND data_chg_ty_cd='INSERT'"));assertThat(after.get("dev_id").asLong()).isEqualTo(1);assertThat(after.has("created_at")).isTrue();
+        var after=json.readTree(value("SELECT aft_val FROM sys.data_chg_hist WHERE obj_rec_id=? AND data_chg_ty_cd='INSERT'", record));assertThat(after.get("dev_id").asLong()).isEqualTo(1);assertThat(after.has("created_at")).isTrue();
         service.update(1,row.work_stts_hist_id(),input("RESIGN","2026-10-21",null));assertThat(value("SELECT rsgn_dt::text FROM mst.dev WHERE dev_id=1")).isEqualTo("2026-10-21");
         service.update(1,row.work_stts_hist_id(),input("LEAVE","2026-10-21","2026-10-31"));assertThat(value("SELECT rsgn_dt::text FROM mst.dev WHERE dev_id=1")).isNull();
         service.update(1,row.work_stts_hist_id(),input("RESIGN","2026-10-22",null));
         var result=service.delete(1,row.work_stts_hist_id());assertThat(result.rsgn_dt()).isNull();assertThat(list().items()).isEmpty();
-        assertThat(scalar("SELECT count(*) FROM sys.data_chg_hist WHERE tbl_nm='mst.dev_work_stts_hist' AND obj_rec_id='"+record+"' AND data_chg_ty_cd='DELETE' AND aft_val IS NULL AND (bfr_val::jsonb->>'dev_id')::bigint=1")).isEqualTo(1);
+        assertThat(scalar("SELECT count(*) FROM sys.data_chg_hist WHERE tbl_nm='mst.dev_work_stts_hist' AND obj_rec_id=? AND data_chg_ty_cd='DELETE' AND aft_val IS NULL AND (bfr_val::jsonb->>'dev_id')::bigint=1", record)).isEqualTo(1);
         assertThat(scalar("SELECT count(*) FROM sys.data_chg_hist WHERE data_chg_ty_cd='UPDATE' AND bfr_val IS NOT NULL AND aft_val IS NOT NULL")).isEqualTo(3);
+    }
+    @Test void anonymousWorkStatusCrudPersistsResignationAndOwnedAuditSideEffects() throws Exception {
+        var json = new ObjectMapper().findAndRegisterModules()
+            .disable(com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+        var mvc = MockMvcBuilders.standaloneSetup(new WorkStatusController(service, json))
+            .setMessageConverters(new org.springframework.http.converter.json.MappingJackson2HttpMessageConverter(json))
+            .setControllerAdvice(new ApiExceptionHandler()).addFilters(new RequestIdFilter()).build();
+        var response = mvc.perform(post("/api/developers/1/work-status").contentType(MediaType.APPLICATION_JSON)
+            .content(json.writeValueAsString(input("RESIGN", "2026-10-20", null))))
+            .andExpect(status().isCreated()).andExpect(jsonPath("$.data.dev_id").value(1)).andReturn();
+        long id = json.readTree(response.getResponse().getContentAsByteArray()).path("data").path("work_stts_hist_id").asLong();
+        assertThat(value("SELECT rsgn_dt::text FROM mst.dev WHERE dev_id=1")).isEqualTo("2026-10-20");
+        assertThat(scalar("SELECT count(*) FROM sys.data_chg_hist WHERE tbl_nm='mst.dev_work_stts_hist' AND obj_rec_id=? AND data_chg_ty_cd='INSERT'", Long.toString(id))).isEqualTo(1);
+        mvc.perform(put("/api/developers/1/work-status/{histId}", id).contentType(MediaType.APPLICATION_JSON)
+            .content(json.writeValueAsString(input("RESIGN", "2026-10-21", null))))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.data.bgn_dt").value("2026-10-21"));
+        assertThat(value("SELECT rsgn_dt::text FROM mst.dev WHERE dev_id=1")).isEqualTo("2026-10-21");
+        assertThat(scalar("SELECT count(*) FROM sys.data_chg_hist WHERE tbl_nm='mst.dev_work_stts_hist' AND obj_rec_id=? AND data_chg_ty_cd='UPDATE'", Long.toString(id))).isEqualTo(1);
+        mvc.perform(delete("/api/developers/1/work-status/{histId}", id)).andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.deleted").value(true)).andExpect(jsonPath("$.data.rsgn_dt").isEmpty());
+        assertThat(value("SELECT rsgn_dt::text FROM mst.dev WHERE dev_id=1")).isNull();
+        assertThat(scalar("SELECT count(*) FROM mst.dev_work_stts_hist WHERE dev_id=1")).isZero();
+        assertThat(scalar("SELECT count(*) FROM sys.data_chg_hist WHERE tbl_nm='mst.dev_work_stts_hist' AND obj_rec_id=? AND data_chg_ty_cd='DELETE' AND aft_val IS NULL AND (bfr_val::jsonb->>'dev_id')::bigint=1", Long.toString(id))).isEqualTo(1);
     }
     @Test void updateReusesIdAndDeletePreservesOtherRows()throws Exception {
         var old=service.create(1,input("VACATION","2026-08-01","2026-08-02"));var next=service.create(1,input("LEAVE","2026-10-01","2026-10-02"));

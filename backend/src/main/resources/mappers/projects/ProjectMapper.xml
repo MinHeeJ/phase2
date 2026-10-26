@@ -1,0 +1,173 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sicost.projects.ProjectMapper">
+  <resultMap id="listRow" type="com.sicost.projects.ProjectModels$ProjectListItem"><constructor>
+    <arg column="prj_id" javaType="_long"/>
+    <arg column="prj_no" javaType="java.lang.String"/>
+    <arg column="prj_nm" javaType="java.lang.String"/>
+    <arg column="custName" javaType="java.lang.String"/>
+    <arg column="cntrct_ty_cd" javaType="java.lang.String"/>
+    <arg column="cntrct_bgn_dt" javaType="java.time.LocalDate"/>
+    <arg column="cur_end_dt" javaType="java.time.LocalDate"/>
+    <arg column="cur_cntrct_amt" javaType="java.lang.Long"/>
+    <arg column="assignmentCount" javaType="_long"/>
+    <arg column="bsn_part_id" javaType="java.lang.Long"/>
+    <arg column="partName" javaType="java.lang.String"/>
+    <arg column="prj_stts_cd" javaType="java.lang.String"/>
+  </constructor></resultMap>
+  <resultMap id="projectRow" type="com.sicost.projects.ProjectModels$ProjectRow"><constructor>
+    <arg column="prj_id" javaType="_long"/>
+    <arg column="prj_no" javaType="java.lang.String"/>
+    <arg column="prj_nm" javaType="java.lang.String"/>
+    <arg column="cust_ptnr_id" javaType="java.lang.Long"/>
+    <arg column="cntrct_ty_cd" javaType="java.lang.String"/>
+    <arg column="prj_stts_cd" javaType="java.lang.String"/>
+    <arg column="win_prblt_rt" javaType="java.math.BigDecimal"/>
+    <arg column="cntrct_dt" javaType="java.time.LocalDate"/>
+    <arg column="cntrct_bgn_dt" javaType="java.time.LocalDate"/>
+    <arg column="cntrct_end_dt" javaType="java.time.LocalDate"/>
+    <arg column="prfm_bgn_dt" javaType="java.time.LocalDate"/>
+    <arg column="bsn_part_id" javaType="java.lang.Long"/>
+    <arg column="stlm_mthd_cd" javaType="java.lang.String"/>
+    <arg column="pm_dev_id" javaType="java.lang.Long"/>
+    <arg column="free_sprt_yn" javaType="java.lang.String"/>
+    <arg column="quot_amt" javaType="java.lang.Long"/>
+    <arg column="init_cntrct_amt" javaType="java.lang.Long"/>
+    <arg column="trgt_mrgn_rt" javaType="java.math.BigDecimal"/>
+    <arg column="trgt_cst_amt" javaType="java.lang.Long"/>
+    <arg column="indty_cd" javaType="java.lang.String"/>
+    <arg column="duty_fld_nm" javaType="java.lang.String"/>
+    <arg column="prev_prj_id" javaType="java.lang.Long"/>
+    <arg column="rmrk_desc" javaType="java.lang.String"/>
+    <arg column="cur_cntrct_amt" javaType="java.lang.Long"/>
+    <arg column="cur_end_dt" javaType="java.time.LocalDate"/>
+    <arg column="cntrct_mm_qty" javaType="java.math.BigDecimal"/>
+    <arg column="use_yn" javaType="java.lang.String"/>
+    <arg column="custName" javaType="java.lang.String"/>
+    <arg column="partName" javaType="java.lang.String"/>
+    <arg column="pmName" javaType="java.lang.String"/>
+    <arg column="assignmentCount" javaType="_long"/>
+  </constructor></resultMap>
+  <resultMap id="phaseDefinition" type="com.sicost.common.validation.ProjectPhases$Definition"><constructor>
+    <arg column="sequence" javaType="_int"/>
+    <arg column="name" javaType="java.lang.String"/>
+    <arg column="weight" javaType="java.math.BigDecimal"/>
+  </constructor></resultMap>
+  <sql id="display">
+    c.ptnr_nm AS "custName",
+    CASE WHEN b.hq_yn='Y' THEN '본사(직접 영업)' ELSE b.bsn_part_nm END AS "partName",
+    (SELECT count(DISTINCT a.dev_id) FROM asgn.asgn a
+      WHERE a.prj_id=p.prj_id AND a.asgn_stts_cd='ACTIVE'
+        AND a.bgn_dt &lt;= #{today} AND a.end_dt &gt;= #{today}
+        AND p.prj_stts_cd IN ('PLAN','RUN','HOLD')) AS "assignmentCount"
+  </sql>
+  <sql id="joins">
+    FROM prj.prj p
+    LEFT JOIN mst.ptnr c ON c.ptnr_id=p.cust_ptnr_id
+    LEFT JOIN mst.bsn_part b ON b.bsn_part_id=p.bsn_part_id
+  </sql>
+  <sql id="yearFilter">
+    p.use_yn='Y' AND coalesce(p.prfm_bgn_dt,p.cntrct_bgn_dt) &lt;= #{yearEnd}
+    AND coalesce(p.cur_end_dt,p.cntrct_end_dt) &gt;= #{yearStart}
+  </sql>
+  <sql id="filter">
+    WHERE <include refid="yearFilter"/>
+    <if test="type != null">AND p.cntrct_ty_cd=#{type}</if>
+    <choose>
+      <when test="status != null">AND p.prj_stts_cd=#{status}</when>
+      <otherwise>AND p.prj_stts_cd NOT IN ('END','LOST')</otherwise>
+    </choose>
+    <if test="part != null">
+      <choose>
+        <when test='part == "NONE"'>AND p.cntrct_ty_cd!='IN' AND p.bsn_part_id IS NULL</when>
+        <otherwise>AND p.bsn_part_id=CAST(#{part} AS BIGINT)</otherwise>
+      </choose>
+    </if>
+    <if test="q != null">AND (position(lower(#{q}) in lower(p.prj_nm))&gt;0 OR position(lower(#{q}) in lower(c.ptnr_nm))&gt;0)</if>
+  </sql>
+  <select id="list" resultMap="listRow">
+    SELECT p.prj_id,p.prj_no,p.prj_nm,p.cntrct_ty_cd,p.cntrct_bgn_dt,
+      coalesce(p.cur_end_dt,p.cntrct_end_dt) AS cur_end_dt,p.cur_cntrct_amt,
+      p.bsn_part_id,p.prj_stts_cd,<include refid="display"/>
+    <include refid="joins"/><include refid="filter"/>
+    ORDER BY ${order} LIMIT #{size} OFFSET #{offset}
+  </select>
+  <select id="count" resultType="long">
+    SELECT count(*) <include refid="joins"/><include refid="filter"/>
+  </select>
+  <select id="unassignedCount" resultType="long">
+    SELECT count(*) FROM prj.prj p WHERE <include refid="yearFilter"/>
+    AND p.cntrct_ty_cd!='IN' AND p.bsn_part_id IS NULL
+  </select>
+  <select id="row" resultMap="projectRow">
+    SELECT p.prj_id,p.prj_no,p.prj_nm,p.cust_ptnr_id,p.cntrct_ty_cd,p.prj_stts_cd,
+      p.win_prblt_rt,p.cntrct_dt,p.cntrct_bgn_dt,p.cntrct_end_dt,p.prfm_bgn_dt,
+      p.bsn_part_id,p.stlm_mthd_cd,p.pm_dev_id,p.free_sprt_yn,p.quot_amt,
+      p.init_cntrct_amt,p.trgt_mrgn_rt,p.trgt_cst_amt,p.indty_cd,p.duty_fld_nm,
+      p.prev_prj_id,p.rmrk_desc,p.cur_cntrct_amt,
+      coalesce(p.cur_end_dt,p.cntrct_end_dt) AS cur_end_dt,p.cntrct_mm_qty,p.use_yn,
+      d.dev_nm AS "pmName",<include refid="display"/>
+    <include refid="joins"/> LEFT JOIN mst.dev d ON d.dev_id=p.pm_dev_id
+    WHERE p.prj_id=#{id}
+  </select>
+  <select id="resolveNumber" resultType="java.lang.Long">SELECT p.prj_id FROM prj.prj p WHERE p.prj_no=#{number}</select>
+  <select id="skills" resultType="string">SELECT s.skl_cd FROM prj.prj_skl s WHERE s.prj_id=#{id} ORDER BY s.skl_cd</select>
+  <select id="activeCode" resultType="boolean">
+    SELECT EXISTS(SELECT 1 FROM cmn.cd_dtl d JOIN cmn.cd_grp g ON g.cd_grp_id=d.cd_grp_id
+      WHERE d.cd_grp_id=#{group} AND d.dtl_cd=#{code} AND d.use_yn='Y' AND g.use_yn='Y')
+  </select>
+  <select id="activeCustomer" resultType="boolean">SELECT EXISTS(SELECT 1 FROM mst.ptnr c WHERE c.ptnr_id=#{id} AND c.use_yn='Y' AND c.ptnr_se_cd IN ('CUST','BOTH'))</select>
+  <select id="activePart" resultType="boolean">SELECT EXISTS(SELECT 1 FROM mst.bsn_part b WHERE b.bsn_part_id=#{id} AND b.use_yn='Y')</select>
+  <select id="activeDeveloper" resultType="boolean">SELECT EXISTS(SELECT 1 FROM mst.dev d WHERE d.dev_id=#{id} AND d.use_yn='Y')</select>
+  <select id="activeProject" resultType="boolean">SELECT EXISTS(SELECT 1 FROM prj.prj p WHERE p.prj_id=#{id} AND p.use_yn='Y')</select>
+  <select id="latestPart" resultType="java.lang.Long">
+    SELECT h.bsn_part_id FROM prj.prj_part_hist h WHERE h.prj_id=#{id} ORDER BY h.aply_bgn_ym DESC LIMIT 1
+  </select>
+  <select id="typeLocked" resultType="boolean">
+    SELECT EXISTS(SELECT 1 FROM prj.bill_stg b WHERE b.prj_id=#{id})
+      OR EXISTS(SELECT 1 FROM prj.tk_aloc_line l WHERE l.prj_id=#{id})
+      OR EXISTS(SELECT 1 FROM asgn.asgn a WHERE a.prj_id=#{id} AND a.asgn_stts_cd!='CANCELLED')
+  </select>
+  <select id="confirmed" resultType="boolean">SELECT EXISTS(SELECT 1 FROM prj.cntrct_chg_hist h WHERE h.prj_id=#{id} AND h.cntrct_chg_stts_cd='CONFIRM')</select>
+  <select id="budgetRate" resultType="java.math.BigDecimal">
+    SELECT s.num_val FROM cmn.oprt_std s WHERE s.oprt_std_id='BUDGET_RATE'
+      AND s.aply_bgn_ym &lt;= #{month} ORDER BY s.aply_bgn_ym DESC LIMIT 1
+  </select>
+  <select id="phases" resultMap="phaseDefinition">
+    SELECT d.sort_seq AS sequence,d.cd_nm AS name,CAST(d.attr1_val AS DECIMAL) AS weight
+    FROM cmn.cd_dtl d WHERE d.cd_grp_id=#{group} AND d.use_yn='Y' ORDER BY d.sort_seq,d.dtl_cd
+  </select>
+  <select id="numberLock" resultType="string" affectData="true" flushCache="true">SELECT pg_advisory_xact_lock(hashtext('prj.prj_no'))</select>
+  <select id="maximumSuffix" resultType="int">
+    SELECT coalesce(max(CAST(substring(p.prj_no from 5) AS INTEGER)),0)
+    FROM prj.prj p WHERE p.prj_no ~ ('^' || #{prefix} || '[0-9]{2,3}$')
+  </select>
+  <select id="insert" resultType="long" affectData="true" flushCache="true">
+    INSERT INTO prj.prj(prj_no,prj_nm,cust_ptnr_id,cntrct_ty_cd,prj_stts_cd,win_prblt_rt,
+      cntrct_dt,cntrct_bgn_dt,cntrct_end_dt,prfm_bgn_dt,bsn_part_id,stlm_mthd_cd,
+      pm_dev_id,free_sprt_yn,quot_amt,init_cntrct_amt,trgt_mrgn_rt,trgt_cst_amt,
+      indty_cd,duty_fld_nm,prev_prj_id,rmrk_desc,cur_cntrct_amt,cur_end_dt,cntrct_mm_qty,use_yn,created_by)
+    VALUES(#{no},#{input.prj_nm},#{input.cust_ptnr_id},#{input.cntrct_ty_cd},#{input.prj_stts_cd},#{input.win_prblt_rt},
+      #{input.cntrct_dt},#{input.cntrct_bgn_dt},#{input.cntrct_end_dt},#{input.prfm_bgn_dt},#{input.bsn_part_id},#{input.stlm_mthd_cd},
+      #{input.pm_dev_id},#{input.free_sprt_yn},#{input.quot_amt},#{input.init_cntrct_amt},#{input.trgt_mrgn_rt},#{input.trgt_cst_amt},
+      #{input.indty_cd},#{input.duty_fld_nm},#{input.prev_prj_id},#{input.rmrk_desc},#{input.init_cntrct_amt},#{input.cntrct_end_dt},
+      <choose><when test='input.cntrct_ty_cd == "IN"'>NULL</when><otherwise>0.00</otherwise></choose>,'Y',#{actor}) RETURNING prj_id
+  </select>
+  <update id="update">
+    UPDATE prj.prj <set>
+      <foreach collection="changes" index="column" item="value">${column}=#{value},</foreach>
+      updated_by=#{actor}
+    </set> WHERE prj_id=#{id}
+  </update>
+  <insert id="insertSkill">INSERT INTO prj.prj_skl(prj_id,skl_cd) VALUES(#{id},#{code})</insert>
+  <delete id="deleteSkills">DELETE FROM prj.prj_skl WHERE prj_id=#{id}</delete>
+  <insert id="insertPart">INSERT INTO prj.prj_part_hist(prj_id,aply_bgn_ym,bsn_part_id,chg_user_id) VALUES(#{id},#{month},#{part},#{actor})</insert>
+  <insert id="insertPhase">
+    INSERT INTO prj.phs(prj_id,phs_seq,phs_nm,wght_rt,plan_bgn_dt,plan_end_dt,created_by)
+    VALUES(#{id},#{plan.sequence},#{plan.name},#{plan.weight},#{plan.start},#{plan.end},#{actor})
+  </insert>
+  <insert id="appendHistory">
+    INSERT INTO sys.data_chg_hist(tbl_nm,obj_rec_id,data_chg_ty_cd,clmn_nm,bfr_val,aft_val,chg_user_id)
+    VALUES('prj.prj',#{id},#{type},#{column},#{before},#{after},#{actor})
+  </insert>
+</mapper>

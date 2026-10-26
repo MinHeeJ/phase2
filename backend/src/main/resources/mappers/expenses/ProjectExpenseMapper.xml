@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sicost.expenses.ProjectExpenseMapper">
+  <resultMap id="expense" type="com.sicost.expenses.ProjectExpenseModels$ProjectExpense">
+    <constructor>
+      <arg column="expns_id" javaType="_long"/>
+      <arg column="expns_ym" javaType="java.lang.String"/>
+      <arg column="expns_item_cd" javaType="java.lang.String"/>
+      <arg column="expns_amt" javaType="_long"/>
+      <arg column="vat_amt" javaType="_long"/>
+      <arg column="pay_dt" javaType="java.time.LocalDate"/>
+      <arg column="rmrk_desc" javaType="java.lang.String"/>
+    </constructor>
+  </resultMap>
+  <select id="projectUse" resultType="string">
+    SELECT use_yn FROM prj.prj WHERE prj_id=#{id}
+  </select>
+  <sql id="columns">e.expns_id,e.expns_ym,e.expns_item_cd,e.expns_amt,e.vat_amt,e.pay_dt,e.rmrk_desc</sql>
+  <select id="list" resultMap="expense">
+    SELECT <include refid="columns"/> FROM cst.drct_expns e
+    WHERE e.prj_id=#{id} AND e.dev_id IS NULL
+    ORDER BY e.expns_ym DESC,e.expns_id DESC
+  </select>
+  <select id="row" resultMap="expense">
+    SELECT <include refid="columns"/> FROM cst.drct_expns e
+    WHERE e.prj_id=#{projectId} AND e.expns_id=#{expenseId} AND e.dev_id IS NULL
+  </select>
+  <select id="activeCode" resultType="boolean">
+    SELECT EXISTS(SELECT 1 FROM cmn.cd_dtl d JOIN cmn.cd_grp g ON g.cd_grp_id=d.cd_grp_id
+      WHERE d.cd_grp_id='EXPENSE_ITEM' AND d.dtl_cd=#{code} AND d.use_yn='Y' AND g.use_yn='Y')
+  </select>
+  <select id="monthStatus" resultType="string">
+    SELECT cls_stts_cd FROM fin.mth_cls WHERE cls_ym=#{month}
+  </select>
+  <select id="insert" resultType="long" affectData="true" flushCache="true">
+    INSERT INTO cst.drct_expns(prj_id,dev_id,expns_ym,expns_item_cd,expns_amt,vat_amt,pay_dt,rmrk_desc,created_by)
+    VALUES(#{projectId},NULL,#{input.expns_ym},#{input.expns_item_cd},#{input.expns_amt},#{input.vat_amt},
+      #{input.pay_dt},#{input.rmrk_desc},#{actor}) RETURNING expns_id
+  </select>
+  <update id="update">
+    UPDATE cst.drct_expns SET expns_ym=#{input.expns_ym},expns_item_cd=#{input.expns_item_cd},
+      expns_amt=#{input.expns_amt},vat_amt=#{input.vat_amt},pay_dt=#{input.pay_dt},
+      rmrk_desc=#{input.rmrk_desc},updated_at=CURRENT_TIMESTAMP,updated_by=#{actor}
+    WHERE prj_id=#{projectId} AND expns_id=#{expenseId} AND dev_id IS NULL
+  </update>
+  <delete id="delete">
+    DELETE FROM cst.drct_expns WHERE prj_id=#{projectId} AND expns_id=#{expenseId} AND dev_id IS NULL
+  </delete>
+  <insert id="audit">
+    INSERT INTO sys.data_chg_hist(tbl_nm,obj_rec_id,data_chg_ty_cd,clmn_nm,bfr_val,aft_val,chg_user_id)
+    VALUES('cst.drct_expns',#{projectId},#{type},'직접 경비',#{before},#{after},#{actor})
+  </insert>
+</mapper>

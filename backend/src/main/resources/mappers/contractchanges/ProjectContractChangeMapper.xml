@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sicost.contractchanges.ProjectContractChangeMapper">
+  <resultMap id="projectState" type="com.sicost.contractchanges.ProjectContractChangeModels$ProjectState">
+    <constructor>
+      <arg column="prj_id" javaType="_long"/>
+      <arg column="cntrct_ty_cd" javaType="java.lang.String"/>
+      <arg column="use_yn" javaType="java.lang.String"/>
+      <arg column="cntrct_bgn_dt" javaType="java.time.LocalDate"/>
+      <arg column="cntrct_end_dt" javaType="java.time.LocalDate"/>
+      <arg column="prfm_bgn_dt" javaType="java.time.LocalDate"/>
+      <arg column="cur_end_dt" javaType="java.time.LocalDate"/>
+      <arg column="init_cntrct_amt" javaType="java.lang.Long"/>
+      <arg column="cur_cntrct_amt" javaType="java.lang.Long"/>
+      <arg column="cntrct_mm_qty" javaType="java.math.BigDecimal"/>
+    </constructor>
+  </resultMap>
+  <resultMap id="changeRow" type="com.sicost.contractchanges.ProjectContractChangeModels$ChangeRow">
+    <constructor>
+      <arg column="chgId" javaType="_long"/>
+      <arg column="cntrct_chg_ty_cd" javaType="java.lang.String"/>
+      <arg column="cntrct_chg_stts_cd" javaType="java.lang.String"/>
+      <arg column="chg_dt" javaType="java.time.LocalDate"/>
+      <arg column="bfr_cntrct_amt" javaType="java.lang.Long"/>
+      <arg column="aft_cntrct_amt" javaType="java.lang.Long"/>
+      <arg column="bfr_end_dt" javaType="java.time.LocalDate"/>
+      <arg column="aft_end_dt" javaType="java.time.LocalDate"/>
+      <arg column="incdec_mm_qty" javaType="java.math.BigDecimal"/>
+      <arg column="free_mm_qty" javaType="java.math.BigDecimal"/>
+      <arg column="rsn_desc" javaType="java.lang.String"/>
+      <arg column="realoc_need_yn" javaType="java.lang.String"/>
+      <arg column="cnfrm_user_id" javaType="java.lang.Long"/>
+      <arg column="cnfrm_at" javaType="java.time.LocalDateTime"/>
+    </constructor>
+  </resultMap>
+  <sql id="projectProjection">
+    SELECT p.prj_id,p.cntrct_ty_cd,p.use_yn,p.cntrct_bgn_dt,p.cntrct_end_dt,p.prfm_bgn_dt,
+      p.cur_end_dt,p.init_cntrct_amt,p.cur_cntrct_amt,p.cntrct_mm_qty
+    FROM prj.prj p WHERE p.prj_id=#{id}
+  </sql>
+  <select id="project" resultMap="projectState"><include refid="projectProjection"/></select>
+  <select id="lockProject" resultMap="projectState" flushCache="true" useCache="false">
+    <include refid="projectProjection"/> FOR UPDATE
+  </select>
+  <sql id="changeProjection">
+    SELECT h.cntrct_chg_id AS "chgId",h.cntrct_chg_ty_cd,h.cntrct_chg_stts_cd,h.chg_dt,
+      h.bfr_cntrct_amt,h.aft_cntrct_amt,h.bfr_end_dt,h.aft_end_dt,h.incdec_mm_qty,h.free_mm_qty,
+      h.rsn_desc,h.realoc_need_yn,h.cnfrm_user_id,h.cnfrm_at
+    FROM prj.cntrct_chg_hist h WHERE h.prj_id=#{id}
+  </sql>
+  <select id="list" resultMap="changeRow">
+    <include refid="changeProjection"/> ORDER BY h.chg_dt,h.cntrct_chg_id
+  </select>
+  <select id="row" resultMap="changeRow">
+    <include refid="changeProjection"/> AND h.cntrct_chg_id=#{chgId}
+  </select>
+  <select id="insert" resultType="long" affectData="true" flushCache="true">
+    INSERT INTO prj.cntrct_chg_hist(prj_id,cntrct_chg_ty_cd,cntrct_chg_stts_cd,chg_dt,
+      bfr_cntrct_amt,aft_cntrct_amt,bfr_end_dt,aft_end_dt,incdec_mm_qty,free_mm_qty,rsn_desc,
+      realoc_need_yn,cnfrm_user_id,cnfrm_at,created_by)
+    VALUES(#{id},#{row.cntrct_chg_ty_cd},#{row.cntrct_chg_stts_cd},#{row.chg_dt},
+      #{row.bfr_cntrct_amt},#{row.aft_cntrct_amt},#{row.bfr_end_dt},#{row.aft_end_dt},
+      #{row.incdec_mm_qty},#{row.free_mm_qty},#{row.rsn_desc},#{row.realoc_need_yn},
+      #{row.cnfrm_user_id},#{row.cnfrm_at},#{actor}) RETURNING cntrct_chg_id
+  </select>
+  <update id="update">
+    UPDATE prj.cntrct_chg_hist SET cntrct_chg_ty_cd=#{row.cntrct_chg_ty_cd},
+      cntrct_chg_stts_cd=#{row.cntrct_chg_stts_cd},chg_dt=#{row.chg_dt},
+      bfr_cntrct_amt=#{row.bfr_cntrct_amt},aft_cntrct_amt=#{row.aft_cntrct_amt},
+      bfr_end_dt=#{row.bfr_end_dt},aft_end_dt=#{row.aft_end_dt},incdec_mm_qty=#{row.incdec_mm_qty},
+      free_mm_qty=#{row.free_mm_qty},rsn_desc=#{row.rsn_desc},realoc_need_yn=#{row.realoc_need_yn},
+      cnfrm_user_id=#{row.cnfrm_user_id},cnfrm_at=#{row.cnfrm_at}
+    WHERE prj_id=#{id} AND cntrct_chg_id=#{row.chgId} AND cntrct_chg_stts_cd='PLAN'
+  </update>
+  <delete id="delete">
+    DELETE FROM prj.cntrct_chg_hist WHERE prj_id=#{id} AND cntrct_chg_id=#{chgId}
+      AND cntrct_chg_stts_cd='PLAN'
+  </delete>
+  <update id="current">
+    UPDATE prj.prj SET cur_cntrct_amt=#{amount},cur_end_dt=#{end},cntrct_mm_qty=#{mm},updated_by=#{actor}
+    WHERE prj_id=#{id}
+  </update>
+  <insert id="audit">
+    INSERT INTO sys.data_chg_hist(tbl_nm,obj_rec_id,data_chg_ty_cd,bfr_val,aft_val,chg_user_id)
+    VALUES('prj.cntrct_chg_hist',#{id},#{type},#{before},#{after},#{actor})
+  </insert>
+</mapper>

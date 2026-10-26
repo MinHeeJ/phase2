@@ -1,0 +1,68 @@
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+.toolbar h3 {
+  margin: 0;
+  font-size: var(--section-size);
+}
+.tableScroll {
+  overflow: auto;
+  max-width: 100%;
+  border: 1px solid var(--divider);
+  border-radius: var(--radius-panel);
+}
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--table-size);
+  background: var(--surface);
+}
+.table th,
+.table td {
+  height: 40px;
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--divider);
+  text-align: left;
+  white-space: nowrap;
+}
+.table th {
+  background: var(--header-bg);
+  font-weight: var(--table-heading-weight);
+}
+.table .money {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.table .memo {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  min-width: 100px;
+}
+.empty {
+  text-align: center;
+  color: var(--text-sub);
+  padding: 48px 16px;
+}
+.form {
+  display: grid;
+  gap: var(--space-4);
+}
+.fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-4);
+}
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+.notice {
+  margin: 0;
+  color: var(--text-sub);
+  font-size: var(--table-size);
+}

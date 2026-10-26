@@ -144,6 +144,15 @@ class PersonnelUploadApiTest {
             .param("form_type","B.1"))
             .andExpect(status().isBadRequest()).andExpect(jsonPath("$.field").value("month"));noBusiness();
     }
+    @Test void validationMissingFileHasLiteralPostContractWithoutBusinessWrites() throws Exception {
+        mvc.perform(post("/api/uploads/validate").contentType("multipart/form-data").param("form_type", "B.8"))
+            .andExpect(status().isBadRequest()).andExpect(jsonPath("$.success").value(false))
+            .andExpect(jsonPath("$.code").value("INVALID_INPUT"))
+            .andExpect(jsonPath("$.field").value("file"))
+            .andExpect(jsonPath("$.message").value("파일을 선택해 주세요."))
+            .andExpect(jsonPath("$.requestId").isNotEmpty());
+        noBusiness(); verify(mapper, never()).nextUploadId();
+    }
     @Test void developerValidationRejectsSalaryMonthBeforeCreatingAReview()throws Exception {
         validate("B.8","2026-10",List.of(developer()))
             .andExpect(status().isBadRequest()).andExpect(jsonPath("$.field").value("month"))
