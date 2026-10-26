@@ -92,7 +92,7 @@ class DeveloperApiTest {
             .andExpect(jsonPath("$.message").isNotEmpty()).andExpect(jsonPath("$.requestId").isNotEmpty());untouched();
     }
     @Test void duplicateRaceTranslatedOutsideTransaction()throws Exception {when(mapper.insert(any())).thenThrow(new org.springframework.dao.DuplicateKeyException("duplicate"));write("POST",body()).andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("DUPLICATE_MNG_NO"));verify(mapper,never()).appendHistory(any());}
-    @Test void gradeOnlyUpdateAndReadback()throws Exception {
+    @Test void anonymousGradeOnlyUpdateAndAuditSideEffect()throws Exception {
         var b=body();b.put("grd_cd","S");
         mvc.perform(put("/api/developers/1").contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(b)))
             .andExpect(status().isOk()).andExpect(jsonPath("$.data.changed").value(true));
@@ -107,7 +107,13 @@ class DeveloperApiTest {
     @Test void inactivePartnerRejectedEvenWhenUnchanged()throws Exception {when(mapper.activePartner(2)).thenReturn(false);var b=body();b.put("emp_se_cd","OS");b.put("vndr_ptnr_id",2);write("PUT",b).andExpect(status().isBadRequest()).andExpect(jsonPath("$.field").value("vndr_ptnr_id"));untouched();}
     @Test void inactivePartRejected()throws Exception {when(mapper.activePart(2)).thenReturn(false);var b=body();b.put("bsn_part_id",2);write("POST",b).andExpect(status().isBadRequest()).andExpect(jsonPath("$.field").value("bsn_part_id"));untouched();}
     @Test void inactiveNewCodeRejected()throws Exception {when(mapper.activeCode(new DeveloperCode("GRADE","S"))).thenReturn(false);var b=body();b.put("grd_cd","S");write("PUT",b).andExpect(status().isBadRequest()).andExpect(jsonPath("$.field").value("grd_cd"));untouched();}
-    @Test void unchangedInactiveCodeAndIgnoredManagementNumberAreZeroDml()throws Exception {when(mapper.activeCode(any())).thenReturn(false);var b=body();b.put("mng_no",Map.of("ignored",true));write("PUT",b).andExpect(status().isOk()).andExpect(jsonPath("$.data.changed").value(false)).andExpect(jsonPath("$.data.developer.mng_no").value("K-0001"));untouched();}
+    @Test void updateBusinessIgnoredManagementNumberIsZeroDml()throws Exception {
+        when(mapper.activeCode(any())).thenReturn(false);var b=body();b.put("mng_no",Map.of("ignored",true));
+        mvc.perform(put("/api/developers/1").contentType(MediaType.APPLICATION_JSON)
+            .content(json.writeValueAsString(b))).andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.changed").value(false))
+            .andExpect(jsonPath("$.data.developer.mng_no").value("K-0001"));untouched();
+    }
     @Test void unchangedCollectionOrderDoesNotReplaceChildren()throws Exception {when(mapper.subJobs(1)).thenReturn(List.of("FE","UX"));var b=body();b.put("sub_job",List.of("UX","FE"));write("PUT",b).andExpect(status().isOk()).andExpect(jsonPath("$.data.changed").value(false));untouched();}
     @Test void omittedOptionalScalarClearsAndOmittedDutyDefaultsDirect()throws Exception {
         when(mapper.row(1)).thenReturn(new DeveloperRow(1,"K-0001","개발자","FT","BE",null,null,"INDIRECT",null,null,null,"010",null,null,null,null));

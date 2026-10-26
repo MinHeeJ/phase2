@@ -65,6 +65,15 @@ class UploadApiTest {
             .andExpect(jsonPath("$.data.errorRows").value(0)).andExpect(jsonPath("$.data.token").isNotEmpty());
         noBusiness();verify(mapper,never()).insertUpload(any());
     }
+    @Test void validationMissingFileUsesApiErrorAndDoesNotReachPersistence() throws Exception {
+        mvc.perform(post("/api/uploads/B.7/validate").contentType("multipart/form-data"))
+            .andExpect(status().isBadRequest()).andExpect(jsonPath("$.success").value(false))
+            .andExpect(jsonPath("$.code").value("INVALID_INPUT"))
+            .andExpect(jsonPath("$.field").value("file"))
+            .andExpect(jsonPath("$.message").value("파일을 선택해 주세요."))
+            .andExpect(jsonPath("$.requestId").isNotEmpty());
+        verifyNoInteractions(mapper, transactions);
+    }
     @Test void validatesSixRowsFiveErrorsAndPersistsOnlyRejectedLedger()throws Exception{
         String[][] rows=new String[6][];for(int i=0;i<6;i++)rows[i]=customer("123456789"+i);for(int i=1;i<6;i++)rows[i][1]="";
         JsonNode result=data(mvc.perform(multipart("/api/uploads/B.7/validate")

@@ -98,12 +98,27 @@ class DeveloperLifecycleApiTest {
         when(mapper.monthlyCosts(any())).thenReturn(List.of(new DeveloperMonthlyCost("2026-10","FT",4000000,100000,200000,300000,4600000,3900000)));when(mapper.monthlyCostCount(any())).thenReturn(1L);
         mvc.perform(get("/api/developers/1/monthly-costs")).andExpect(status().isOk()).andExpect(jsonPath("$.data.items[0].slry_amt").value(4000000)).andExpect(jsonPath("$.data.items[0].indv_lbr_cst_amt").value(4600000)).andExpect(jsonPath("$.data.items[0].real_pay_amt").value(3900000));verify(mapper).monthlyCosts(argThat(q->q.from().equals("2025-11")&&q.to().equals("2026-10")));untouched();
     }
-    @Test void disableAnonymousPersistsTwoAndExcludesOptions()throws Exception{disable(1L,2L).andExpect(status().isOk()).andExpect(jsonPath("$.data.disabled_count").value(2));assertThat(states.get(1L).use_yn()).isEqualTo("N");mvc.perform(get("/api/developers/options")).andExpect(jsonPath("$.data.length()").value(1));assertThat(audits).containsExactly(new DeveloperAudit(1,"DISABLE","Y","N",null),new DeveloperAudit(2,"DISABLE","Y","N",null));}
+    @Test void disableAnonymousPersistsTwoAndExcludesOptions()throws Exception {
+        mvc.perform(post("/api/developers/disable").contentType(MediaType.APPLICATION_JSON)
+            .content(json.writeValueAsString(Map.of("ids", List.of(1L, 2L)))))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.data.disabled_count").value(2));
+        assertThat(states.get(1L).use_yn()).isEqualTo("N");
+        mvc.perform(get("/api/developers/options")).andExpect(jsonPath("$.data.length()").value(1));
+        assertThat(audits).containsExactly(new DeveloperAudit(1,"DISABLE","Y","N",null),
+            new DeveloperAudit(2,"DISABLE","Y","N",null));
+    }
     @Test void emptyIdsDoesNotWrite()throws Exception{error(disable(),"ids");}
     @ParameterizedTest @ValueSource(strings={"{\"ids\":[0]}","{\"ids\":[null]}","{\"ids\":[\"1\"]}","{\"ids\":[1.5]}","{}"}) void malformedIds(String body)throws Exception{error(mvc.perform(post("/api/developers/disable").contentType(MediaType.APPLICATION_JSON).content(body)),"ids");}
     @Test void missingIdAbortsWholeBatch()throws Exception{disable(1L,99L).andExpect(status().isNotFound());untouched();}
     void block(long id){when(mapper.currentAssignments(new DeveloperDate(id,LocalDate.of(2026,10,23)))).thenReturn(1L);}
-    @Test void singleCurrentAssignmentIsConflictAndUnchanged()throws Exception{block(1);disable(1L).andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("DEVELOPER_IN_USE")).andExpect(jsonPath("$.message").value("현재 투입 1건"));assertThat(states.get(1L).use_yn()).isEqualTo("Y");untouched();}
+    @Test void disableBusinessCurrentAssignmentIsConflictAndUnchanged()throws Exception {
+        block(1);
+        mvc.perform(post("/api/developers/disable").contentType(MediaType.APPLICATION_JSON)
+            .content(json.writeValueAsString(Map.of("ids", List.of(1L)))))
+            .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("DEVELOPER_IN_USE"))
+            .andExpect(jsonPath("$.message").value("현재 투입 1건"));
+        assertThat(states.get(1L).use_yn()).isEqualTo("Y");untouched();
+    }
     @Test void mixedBatchAuditsOnlyAllowed()throws Exception{block(3);disable(1L,2L,3L).andExpect(status().isOk()).andExpect(jsonPath("$.data.disabled_count").value(2)).andExpect(jsonPath("$.data.blocked_count").value(1)).andExpect(jsonPath("$.data.blocked[0].name").value("개발자 3")).andExpect(jsonPath("$.data.blocked[0].current_assignment_count").value(1));assertThat(audits).extracting(DeveloperAudit::id).containsExactly(1L,2L);assertThat(states.get(3L).use_yn()).isEqualTo("Y");}
     @Test void allBlockedBulkIs200()throws Exception{block(1);block(2);disable(1L,2L).andExpect(status().isOk()).andExpect(jsonPath("$.data.disabled_count").value(0)).andExpect(jsonPath("$.data.blocked_count").value(2));untouched();}
     @Test void deduplicateAndReplayDoNotDuplicateHistory()throws Exception{disable(1L,1L).andExpect(jsonPath("$.data.disabled_count").value(1));disable(1L).andExpect(jsonPath("$.data.disabled_count").value(0));assertThat(audits).hasSize(1);}

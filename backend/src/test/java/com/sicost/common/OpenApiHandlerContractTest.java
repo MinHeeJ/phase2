@@ -15,6 +15,14 @@ import com.sicost.salesparts.*;
 import com.sicost.salespartsops.*;
 import com.sicost.shared.*;
 import com.sicost.uploadsops.*;
+import com.sicost.projects.*;
+import com.sicost.projectsops.*;
+import com.sicost.partchanges.*;
+import com.sicost.contractchanges.*;
+import com.sicost.allocations.*;
+import com.sicost.billstages.*;
+import com.sicost.expenses.*;
+import com.sicost.staffplans.*;
 import java.util.*;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -28,7 +36,10 @@ import org.yaml.snakeyaml.Yaml;
 @WebMvcTest(controllers={AdminController.class, SharedReadController.class, HealthController.class,
     PartnerController.class, PartnerLifecycleController.class, SalesPartController.class,
     SalesPartLifecycleController.class, UploadController.class, DeveloperController.class,
-    DeveloperLifecycleController.class, WorkStatusController.class, UploadResultController.class})
+    DeveloperLifecycleController.class, WorkStatusController.class, UploadResultController.class,
+    ProjectController.class, ProjectLifecycleController.class, PartChangeController.class,
+    ProjectContractChangeController.class, ProjectAllocationController.class,
+    ProjectBillStageController.class, ProjectExpenseController.class, ProjectStaffPlanController.class})
 @Import(CurrentUser.class)
 class OpenApiHandlerContractTest {
     @Autowired RequestMappingHandlerMapping handlers;
@@ -45,6 +56,14 @@ class OpenApiHandlerContractTest {
     @MockBean DeveloperLifecycleService developerLifecycle;
     @MockBean WorkStatusService workStatuses;
     @MockBean UploadResultService uploadResults;
+    @MockBean ProjectService projects;
+    @MockBean ProjectLifecycleService projectLifecycle;
+    @MockBean PartChangeService partChanges;
+    @MockBean ProjectContractChangeService contractChanges;
+    @MockBean ProjectAllocationService allocations;
+    @MockBean ProjectBillStageService billStages;
+    @MockBean ProjectExpenseService expenses;
+    @MockBean ProjectStaffPlanService staffPlans;
 
     @Test void everyDurableOperationHasOneRegisteredLiteralHandler() throws Exception {
         Map<?,?> contract;

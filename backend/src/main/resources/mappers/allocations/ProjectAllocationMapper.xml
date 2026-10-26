@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sicost.allocations.ProjectAllocationMapper">
+  <resultMap id="projectRow" type="com.sicost.allocations.ProjectAllocationModels$AllocationProject">
+    <constructor>
+      <arg column="cntrct_ty_cd" javaType="java.lang.String"/>
+      <arg column="use_yn" javaType="java.lang.String"/>
+      <arg column="cur_cntrct_amt" javaType="java.lang.Long"/>
+      <arg column="begin_date" javaType="java.time.LocalDate"/>
+      <arg column="end_date" javaType="java.time.LocalDate"/>
+    </constructor>
+  </resultMap>
+  <resultMap id="lineRow" type="com.sicost.allocations.ProjectAllocationModels$AllocationStoredLine">
+    <constructor>
+      <arg column="aloc_line_id" javaType="_long"/>
+      <arg column="line_ty_cd" javaType="java.lang.String"/>
+      <arg column="dev_id" javaType="java.lang.Long"/>
+      <arg column="item_nm" javaType="java.lang.String"/>
+      <arg column="job_cd" javaType="java.lang.String"/>
+      <arg column="asgn_bgn_dt" javaType="java.time.LocalDate"/>
+      <arg column="asgn_se_cd" javaType="java.lang.String"/>
+      <arg column="rmrk_desc" javaType="java.lang.String"/>
+      <arg column="sort_seq" javaType="_int"/>
+    </constructor>
+  </resultMap>
+  <resultMap id="monthRow" type="com.sicost.allocations.ProjectAllocationModels$AllocationMonth">
+    <constructor>
+      <arg column="aloc_ym" javaType="java.lang.String"/>
+      <arg column="aloc_amt" javaType="java.lang.Long"/>
+      <arg column="mm_qty" javaType="java.math.BigDecimal"/>
+    </constructor>
+  </resultMap>
+  <select id="project" resultMap="projectRow">
+    SELECT p.cntrct_ty_cd, p.use_yn, p.cur_cntrct_amt,
+      coalesce(p.prfm_bgn_dt,p.cntrct_bgn_dt) AS begin_date,
+      coalesce(p.cur_end_dt,p.cntrct_end_dt) AS end_date
+    FROM prj.prj p WHERE p.prj_id=#{id}
+  </select>
+  <select id="activeStage" resultType="string">
+    SELECT l.aloc_stg_cd FROM prj.tk_aloc_line l WHERE l.prj_id=#{id}
+    ORDER BY CASE l.aloc_stg_cd WHEN 'ACTUAL' THEN 3 WHEN 'FINAL' THEN 2 ELSE 1 END DESC LIMIT 1
+  </select>
+  <select id="reallocation" resultType="string">
+    SELECT CASE WHEN EXISTS(SELECT 1 FROM prj.cntrct_chg_hist h
+      WHERE h.prj_id=#{id} AND h.cntrct_chg_stts_cd='CONFIRM' AND h.realoc_need_yn='Y')
+      THEN 'Y' ELSE 'N' END
+  </select>
+  <select id="lines" resultMap="lineRow">
+    SELECT l.aloc_line_id,l.line_ty_cd,l.dev_id,l.item_nm,l.job_cd,
+      l.asgn_bgn_dt,l.asgn_se_cd,l.rmrk_desc,l.sort_seq
+    FROM prj.tk_aloc_line l WHERE l.prj_id=#{id} AND l.aloc_stg_cd=#{stage}
+    ORDER BY l.sort_seq,l.aloc_line_id
+  </select>
+  <select id="months" resultMap="monthRow">
+    SELECT m.aloc_ym,m.aloc_amt,m.mm_qty FROM prj.tk_aloc_mth m
+    WHERE m.aloc_line_id=#{id} ORDER BY m.aloc_ym
+  </select>
+  <select id="activeDeveloper" resultType="boolean">
+    SELECT EXISTS(SELECT 1 FROM mst.dev d WHERE d.dev_id=#{id} AND d.use_yn='Y')
+  </select>
+  <select id="activeCode" resultType="boolean">
+    SELECT EXISTS(SELECT 1 FROM cmn.cd_dtl d JOIN cmn.cd_grp g ON g.cd_grp_id=d.cd_grp_id
+      WHERE d.cd_grp_id=#{group} AND d.dtl_cd=#{code} AND d.use_yn='Y' AND g.use_yn='Y')
+  </select>
+  <delete id="deleteMonths">
+    DELETE FROM prj.tk_aloc_mth m USING prj.tk_aloc_line l
+    WHERE m.aloc_line_id=l.aloc_line_id AND l.prj_id=#{id} AND l.aloc_stg_cd=#{stage}
+  </delete>
+  <delete id="deleteLines">
+    DELETE FROM prj.tk_aloc_line WHERE prj_id=#{id} AND aloc_stg_cd=#{stage}
+  </delete>
+  <select id="insertLine" resultType="long" affectData="true" flushCache="true">
+    INSERT INTO prj.tk_aloc_line(prj_id,aloc_stg_cd,line_ty_cd,dev_id,item_nm,job_cd,
+      asgn_bgn_dt,asgn_se_cd,rmrk_desc,sort_seq,created_by)
+    VALUES(#{scope.id},#{scope.stage},#{line.line_ty_cd},#{line.dev_id},#{line.item_nm},
+      #{line.job_cd},#{line.asgn_bgn_dt},#{line.asgn_se_cd},#{line.rmrk_desc},#{line.sort_seq},#{actor})
+    RETURNING aloc_line_id
+  </select>
+  <insert id="insertMonth">
+    INSERT INTO prj.tk_aloc_mth(aloc_line_id,aloc_ym,aloc_amt,mm_qty)
+    VALUES(#{id},#{month.aloc_ym},#{month.aloc_amt},#{month.mm_qty})
+  </insert>
+  <update id="clearReallocation">
+    UPDATE prj.cntrct_chg_hist SET realoc_need_yn='N' WHERE prj_id=#{id} AND realoc_need_yn='Y'
+  </update>
+  <insert id="audit">
+    INSERT INTO sys.data_chg_hist(tbl_nm,obj_rec_id,data_chg_ty_cd,clmn_nm,bfr_val,aft_val,chg_user_id)
+    VALUES('prj.tk_aloc_line',#{id},'UPDATE',#{stage},#{before},#{after},#{actor})
+  </insert>
+</mapper>

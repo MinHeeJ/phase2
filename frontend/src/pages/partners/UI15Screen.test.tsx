@@ -504,6 +504,39 @@ describe("partner create and edit", () => {
     expect(row.className).toContain("highlight");
     expect(screen.getAllByTestId(/^partner-row-/)[0]).toBe(row);
   });
+  it("successful create resets visible filters and clears the previous selection", async () => {
+    render(<UI15Screen />);
+    await screen.findByTestId("partner-row-1");
+    await screen.findByRole("option", { name: "고객사" });
+    change("조회 구분", "CUST");
+    change("사용 여부", "");
+    change("상호·사업자번호", "가 거래처");
+    fireEvent.click(screen.getByTestId("partner-query"));
+    await waitFor(() =>
+      expect(screen.queryByTestId("partner-row-2")).not.toBeInTheDocument(),
+    );
+    fireEvent.click(screen.getByLabelText("가 거래처 선택"));
+    expect(screen.getByText("1건 선택")).toBeVisible();
+    await createForm();
+    await validCustomer();
+    fireEvent.click(screen.getByRole("button", { name: "저장" }));
+    await screen.findByTestId("partner-row-3");
+    expect(screen.getByLabelText("조회 구분")).toHaveValue("");
+    expect(screen.getByLabelText("사용 여부")).toHaveValue("Y");
+    expect(screen.getByLabelText("상호·사업자번호")).toHaveValue("");
+    expect(screen.queryByText("1건 선택")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("가 거래처 선택")).not.toBeChecked();
+    fireEvent.click(screen.getByTestId("partner-query"));
+    await waitFor(() => {
+      const calls = fetcher.mock.calls.filter((c) =>
+        String(c[0]).startsWith("/api/partners?"),
+      );
+      const query = new URLSearchParams(String(calls.at(-1)![0]).split("?")[1]);
+      expect(query.get("q")).toBe("");
+      expect(query.get("kind")).toBe("");
+      expect(query.get("useYn")).toBe("Y");
+    });
+  });
   it("create cancel reuses unsaved protection and continue retains input", async () => {
     render(<UI15Screen />);
     await createForm();

@@ -11,13 +11,14 @@ import org.yaml.snakeyaml.Yaml;
 class AnonymousSecurityContractTest {
     @Test
     @SuppressWarnings("unchecked")
-    void explicitAnonymousPolicyHasNoAuthenticationOrRoleDeclarations() throws Exception {
+    void explicitAnonymousPolicyHasNoAuthenticationOrRoleRequirements() throws Exception {
         Map<String, Object> contract;
         try (var input = new ClassPathResource("contracts/openapi.yaml").getInputStream()) {
             contract = new Yaml().load(input);
         }
         var components = (Map<String, Object>) contract.get("components");
-        assertThat((Map<String, Object>) components.getOrDefault("securitySchemes", Map.of())).isEmpty();
+        assertThat((Map<String, Object>) components.getOrDefault("securitySchemes", Map.of()))
+            .isEmpty();
         assertThat((List<Object>) contract.getOrDefault("security", List.of())).isEmpty();
         var paths = (Map<String, Map<String, Object>>) contract.get("paths");
         for (var path : paths.values()) {

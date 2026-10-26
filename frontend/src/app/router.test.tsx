@@ -63,6 +63,22 @@ beforeEach(() => {
   fetcher = vi.fn(async (url: string) => {
     if (url === "/api/menus") return response(menus);
     if (url.startsWith("/api/month-close?")) return response([]);
+    if (url.startsWith("/api/projects?"))
+      return response({
+        items: [],
+        total: 0,
+        page: 0,
+        size: 50,
+        unassignedCount: 0,
+      });
+    if (
+      url === "/api/projects/options" ||
+      url.startsWith("/api/developers/options") ||
+      url === "/api/partners/options?kind=CUST"
+    )
+      return response([]);
+    if (url.startsWith("/api/params/BUDGET_RATE"))
+      return response({ num_val: 80 });
     if (url.startsWith("/api/codes/"))
       return response(codeFixtures[url.split("/").at(-1)!] ?? []);
     if (url.startsWith("/api/developers?"))
@@ -137,7 +153,13 @@ describe("application route registration", () => {
       expect(
         await screen.findByRole("heading", {
           name:
-            id === "UI-27" ? /공통코드/ : id === "UI-32" ? /개발자 등록/ : id,
+            id === "UI-27"
+              ? /공통코드/
+              : id === "UI-32"
+                ? /개발자 등록/
+                : id === "UI-33"
+                  ? /프로젝트 등록/
+                  : id,
         }),
       ).toBeInTheDocument();
       expect(screen.getAllByLabelText("열린 화면")).toHaveLength(1);

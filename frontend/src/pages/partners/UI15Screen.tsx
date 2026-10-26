@@ -172,7 +172,7 @@ export default function UI15Screen({
             onSaved={(row) => {
               setCreating(false);
               dirtyChange(false);
-              setFilters({ ...defaultPartnerFilters });
+              reset();
               setMessage("저장했습니다.");
               if (row)
                 void listPartners({

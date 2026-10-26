@@ -7,7 +7,7 @@ export function ErrorBanner({
   pending = false,
 }: {
   error: ApiFailure | null;
-  onRetry: () => void;
+  onRetry?: () => void;
   pending?: boolean;
 }) {
   if (!error) return null;
@@ -24,9 +24,11 @@ export function ErrorBanner({
       {error.uncertainWrite && (
         <p>저장 결과를 다시 조회한 뒤 확인하고 직접 저장해 주세요.</p>
       )}
-      <button type="button" onClick={onRetry} disabled={pending}>
-        다시 시도
-      </button>
+      {onRetry && (
+        <button type="button" onClick={onRetry} disabled={pending}>
+          다시 시도
+        </button>
+      )}
     </section>
   );
 }

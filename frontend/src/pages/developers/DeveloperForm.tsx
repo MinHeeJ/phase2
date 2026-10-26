@@ -186,7 +186,10 @@ export function DeveloperForm({
       <fieldset className={styles.multiple} disabled={write.pending}>
         <legend>{label}</legend>
         {[...options, ...missing].map((c) => (
-          <label key={c.code}>
+          <label
+            key={c.code}
+            data-testid={`developer-${key.replace("_", "-")}-label-${c.code.toLowerCase().replaceAll("_", "-")}`}
+          >
             <input
               data-testid={`developer-${key.replace("_", "-")}-${c.code.toLowerCase()}`}
               name={key}

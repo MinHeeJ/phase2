@@ -140,7 +140,11 @@ export default function DeveloperLifecycleScreen({
           >
             <option value="">전체</option>
             {emp.codes.map((c) => (
-              <option key={c.code} value={c.code}>
+              <option
+                key={c.code}
+                data-testid={`developer-lifecycle-employee-option-${c.code.toLowerCase().replaceAll("_", "-")}`}
+                value={c.code}
+              >
                 {c.name}
               </option>
             ))}
@@ -155,7 +159,11 @@ export default function DeveloperLifecycleScreen({
           >
             <option value="">전체</option>
             {jobs.codes.map((c) => (
-              <option key={c.code} value={c.code}>
+              <option
+                key={c.code}
+                data-testid={`developer-lifecycle-job-option-${c.code.toLowerCase().replaceAll("_", "-")}`}
+                value={c.code}
+              >
                 {c.name}
               </option>
             ))}
@@ -170,7 +178,12 @@ export default function DeveloperLifecycleScreen({
           >
             <option value="">전체</option>
             {["투입중", "철수예정", "대기", "휴직", "퇴사"].map((s) => (
-              <option key={s}>{s}</option>
+              <option
+                key={s}
+                data-testid={`developer-lifecycle-status-option-${["투입중", "철수예정", "대기", "휴직", "퇴사"].indexOf(s)}`}
+              >
+                {s}
+              </option>
             ))}
           </select>
         </label>

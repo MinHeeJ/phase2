@@ -1,0 +1,111 @@
+.panel {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.panel h3 {
+  margin: 0;
+  font-size: var(--section-size);
+}
+.tabs {
+  display: flex;
+  gap: var(--space-4);
+  border-bottom: 1px solid var(--divider);
+}
+.tabs button {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 10px 4px;
+  background: transparent;
+  color: var(--text-sub);
+  border: 0;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+}
+.tabs button[aria-selected="true"] {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+  font-weight: 600;
+}
+.toolbar,
+.footer {
+  display: flex;
+  gap: var(--space-2);
+}
+.footer {
+  justify-content: flex-end;
+}
+.scroll {
+  overflow-x: auto;
+  border: 1px solid var(--divider);
+  border-radius: var(--radius-control);
+}
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--table-size);
+  white-space: nowrap;
+}
+.table th {
+  background: var(--header-bg);
+  font-weight: var(--table-heading-weight);
+}
+.table th,
+.table td {
+  padding: 6px 12px;
+  height: 40px;
+  border-bottom: 1px solid var(--divider);
+  text-align: left;
+}
+.table input,
+.table select {
+  width: 140px;
+  height: var(--control-height);
+  padding: 0 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  color: var(--text);
+  font: inherit;
+}
+.table input[inputmode="decimal"] {
+  width: 120px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.table input:disabled,
+.table input:read-only,
+.table select:disabled {
+  background: var(--readonly-bg);
+}
+.warning,
+.locked {
+  margin: 0;
+  padding: 10px 16px;
+  border-radius: var(--radius-panel);
+  font-size: var(--table-size);
+}
+.warning {
+  color: var(--warning);
+  background: var(--warning-bg);
+}
+.locked {
+  color: var(--locked);
+  background: var(--locked-bg);
+}
+.empty {
+  padding: 48px 16px;
+  text-align: center;
+  color: var(--text-sub);
+}
+.fieldError {
+  display: block;
+  white-space: normal;
+  color: var(--danger);
+  max-width: 180px;
+}
+.total {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}

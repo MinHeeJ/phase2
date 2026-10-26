@@ -112,4 +112,60 @@ class PartnerApiTest {
             .andExpect(status().isBadRequest()).andExpect(jsonPath("$.field").value("txinv_email_addr"))
             .andExpect(jsonPath("$.message").isNotEmpty());untouched();
     }
+    @ParameterizedTest
+    @ValueSource(strings={"POST","PUT"})
+    void malformedJsonIsRejectedBeforePersistence(String method)throws Exception {
+        mvc.perform((method.equals("POST")?post("/api/partners"):put("/api/partners/1"))
+            .contentType(MediaType.APPLICATION_JSON).content("{\"ptnr_nm\":"))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.success").value(false))
+            .andExpect(jsonPath("$.code").value("INVALID_INPUT"))
+            .andExpect(jsonPath("$.requestId").isNotEmpty());
+        untouched();
+        verifyNoInteractions(mapper);
+    }
+    @ParameterizedTest
+    @ValueSource(strings={"POST","PUT"})
+    void trailingJsonIsRejectedBeforePersistence(String method)throws Exception {
+        mvc.perform((method.equals("POST")?post("/api/partners"):put("/api/partners/1"))
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(json.writeValueAsString(body("BOTH"))+" {}"))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("INVALID_INPUT"));
+        untouched();
+        verifyNoInteractions(mapper);
+    }
+    @Test void inactiveIndustryCannotBeSelectedOnCreate()throws Exception {
+        var input=body("CUST");input.put("indty_cd","SI");
+        when(mapper.activeCode(new PartnerCode("INDUSTRY","SI"))).thenReturn(false);
+        write("POST",input).andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.field").value("indty_cd"));
+        untouched();
+        verify(mapper,never()).nextId();
+    }
+    @Test void changingToInactiveBankDoesNotUpdateOrAudit()throws Exception {
+        var input=body("BOTH");input.put("bank_cd","CLOSED_BANK");
+        when(mapper.activeCode(new PartnerCode("BANK","CLOSED_BANK"))).thenReturn(false);
+        write("PUT",input).andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.field").value("bank_cd"));
+        untouched();
+    }
+    @Test void unchangedInactiveBankAllowsContactEdit()throws Exception {
+        var input=json.convertValue(both.input(),new com.fasterxml.jackson.core.type.TypeReference<Map<String,Object>>(){});
+        input.put("chrg_nm","새 담당");
+        when(mapper.activeCode(any())).thenReturn(false);
+        write("PUT",input).andExpect(status().isOk());
+        verify(mapper,never()).activeCode(any());
+        verify(mapper).update(argThat(w->w.changed().equals(Set.of("chrg_nm"))));
+    }
+    @Test void creationWritesBeforeReadbackAndUsesReservedIdentity()throws Exception {
+        write("POST",body("CUST")).andExpect(status().isOk());
+        var order=inOrder(mapper);
+        order.verify(mapper).duplicateName("123-45-67890");
+        order.verify(mapper).nextId();
+        order.verify(mapper).insert(argThat(w->w.id()==1&&w.no().equals("C-001")));
+        order.verify(mapper).appendHistory(argThat(h->h.id().equals("1")&&h.type().equals("INSERT")));
+        order.verify(mapper).detail(1);
+        verify(mapper,never()).list(any());
+    }
 }

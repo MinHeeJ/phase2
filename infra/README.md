@@ -3,11 +3,27 @@
 저장소 루트에서 docker compose -f infra/docker-compose.yml up --build 를 실행합니다.
 기본 프런트 포트는 3000, 백엔드 포트는 8081이며 FRONTEND_PORT와 BACKEND_PORT로 변경합니다.
 PostgreSQL은 내부 서비스명 db로만 접근하며 호스트 포트를 노출하지 않습니다.
+기본 네트워크는 프로젝트별로 생성하며 서브넷은 Docker IPAM이 충돌 없이 자동 할당합니다.
+고정 서브넷과 COMPOSE_SUBNET 기본값을 사용하지 않아 동시 실행하는 QA·미리보기 프로젝트를 격리합니다.
+Docker 주소 풀이 고갈된 환경에서는 운영자가 데몬 주소 풀을 확보해야 합니다. 앱이 고정 주소로 우회하지 않습니다.
+다른 프로젝트의 네트워크를 prune하거나 Docker 데몬의 전역 주소 풀을 변경하지 않습니다.
+기동 후 python infra/verify_runtime.py --project <Compose-프로젝트명>으로 3개 서비스의 healthy 상태,
+runtime-check의 헬스·첫 메뉴 응답 계약, nginx API 프록시와 첫 메뉴 경로를 읽기 전용 검증합니다.
+프로젝트명을 생략하면 Compose 기본 프로젝트를 검사합니다. 응답 본문·헤더·접속 설정은 출력하지 않습니다.
+검증기 회귀 시험: python -m unittest discover -s infra -p 'test_verify_runtime.py'
+네트워크·DB 준비 상태 회귀 시험: python -m unittest discover -s infra -p 'test_compose_network.py'
+이 시험은 실제 PostgreSQL 이미지의 비루트 임시 컨테이너에서 소켓 전용 초기 서버와
+미생성 DB와 정지한 서버를 거부하고 최초 기동·재기동한 TCP 서버를 허용하는지 확인합니다.
+앱 볼륨은 사용하지 않습니다.
 Compose의 비운영 DB 기본 설정은 로컬 개발용입니다. 운영에서는 POSTGRES_DB, POSTGRES_USER,
 POSTGRES_PASSWORD를 배포 환경에서 재정의하고 운영 비밀을 저장소에 넣지 마세요.
 인증은 제공하지 않으며 계정 생성이나 확인 계정 환경변수 없이 시작합니다.
 
 데이터베이스
+
+DB 헬스체크는 127.0.0.1:5432의 TCP 준비 상태와 대상 DB의 SELECT 1 성공을 함께 확인합니다.
+공식 이미지 초기화 중 Unix 소켓 전용 임시 서버를 healthy로 오인하지 않으며,
+대상 DB 생성과 TCP 서버 기동 이후에만 백엔드를 시작합니다. 검사 출력은 폐기합니다.
 
 Flyway가 V1 원본 정규화 스냅샷과 V2 월마감 시드를 순서대로 적용합니다.
 schema.sql은 같은 정규화 아티팩트의 보관본이며 spring.sql.init.mode=never로 실행하지 않습니다.

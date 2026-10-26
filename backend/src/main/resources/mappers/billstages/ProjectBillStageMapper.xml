@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sicost.billstages.ProjectBillStageMapper">
+  <resultMap id="projectState" type="com.sicost.billstages.ProjectBillStageModels$ProjectState">
+    <constructor>
+      <arg column="prj_id" javaType="_long"/>
+      <arg column="cntrct_ty_cd" javaType="java.lang.String"/>
+      <arg column="use_yn" javaType="java.lang.String"/>
+      <arg column="cur_cntrct_amt" javaType="java.lang.Long"/>
+    </constructor>
+  </resultMap>
+  <resultMap id="stage" type="com.sicost.billstages.ProjectBillStageModels$Stage">
+    <constructor>
+      <arg column="bill_stg_id" javaType="_long"/>
+      <arg column="bill_stg_nm" javaType="java.lang.String"/>
+      <arg column="sply_amt" javaType="_long"/>
+      <arg column="bill_plan_dt" javaType="java.time.LocalDate"/>
+      <arg column="stg_odr_no" javaType="_int"/>
+      <arg column="vat_amt" javaType="_long"/>
+      <arg column="billed" javaType="_boolean"/>
+    </constructor>
+  </resultMap>
+  <select id="project" resultMap="projectState">
+    SELECT p.prj_id, p.cntrct_ty_cd, p.use_yn, p.cur_cntrct_amt
+    FROM prj.prj p WHERE p.prj_id=#{id}
+  </select>
+  <select id="lockProject" resultMap="projectState">
+    SELECT p.prj_id, p.cntrct_ty_cd, p.use_yn, p.cur_cntrct_amt
+    FROM prj.prj p WHERE p.prj_id=#{id} FOR UPDATE
+  </select>
+  <select id="stages" resultMap="stage">
+    SELECT s.bill_stg_id, s.bill_stg_nm, s.sply_amt, s.bill_plan_dt, s.stg_odr_no,
+      floor(s.sply_amt::numeric / 10)::bigint AS vat_amt,
+      EXISTS(SELECT 1 FROM bill.bill b WHERE b.bill_stg_id=s.bill_stg_id) AS billed
+    FROM prj.bill_stg s WHERE s.prj_id=#{id} ORDER BY s.stg_odr_no
+  </select>
+  <update id="position">
+    UPDATE prj.bill_stg SET stg_odr_no=#{ordinal}
+    WHERE prj_id=#{projectId} AND bill_stg_id=#{stageId}
+  </update>
+  <delete id="delete">
+    DELETE FROM prj.bill_stg WHERE prj_id=#{projectId} AND bill_stg_id=#{stageId}
+  </delete>
+  <update id="update">
+    UPDATE prj.bill_stg SET stg_odr_no=#{ordinal}, bill_stg_nm=#{input.bill_stg_nm},
+      sply_amt=#{input.sply_amt}, bill_plan_dt=#{input.bill_plan_dt}, updated_by=#{actor}
+    WHERE prj_id=#{projectId} AND bill_stg_id=#{input.bill_stg_id}
+  </update>
+  <select id="insert" resultType="long" affectData="true" flushCache="true">
+    INSERT INTO prj.bill_stg(prj_id,stg_odr_no,bill_stg_nm,sply_amt,bill_plan_dt,created_by)
+    VALUES(#{projectId},#{ordinal},#{input.bill_stg_nm},#{input.sply_amt},#{input.bill_plan_dt},#{actor})
+    RETURNING bill_stg_id
+  </select>
+  <insert id="history">
+    INSERT INTO sys.data_chg_hist(tbl_nm,obj_rec_id,data_chg_ty_cd,bfr_val,aft_val,chg_user_id)
+    VALUES('prj.bill_stg',#{projectId},'UPDATE',#{before},#{after},#{actor})
+  </insert>
+</mapper>

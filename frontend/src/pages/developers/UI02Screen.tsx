@@ -197,6 +197,7 @@ export default function UI02Screen({
           }
         />
         <form
+          data-testid="developer-search-form"
           className={styles.search}
           onSubmit={(e) => {
             e.preventDefault();
@@ -215,7 +216,11 @@ export default function UI02Screen({
             >
               <option value="">전체</option>
               {employees.codes.map((c) => (
-                <option key={c.code} value={c.code}>
+                <option
+                  key={c.code}
+                  data-testid={`developer-employee-option-${c.code.toLowerCase().replaceAll("_", "-")}`}
+                  value={c.code}
+                >
                   {c.name}
                 </option>
               ))}
@@ -231,7 +236,11 @@ export default function UI02Screen({
             >
               <option value="">전체</option>
               {jobs.codes.map((c) => (
-                <option key={c.code} value={c.code}>
+                <option
+                  key={c.code}
+                  data-testid={`developer-job-option-${c.code.toLowerCase().replaceAll("_", "-")}`}
+                  value={c.code}
+                >
                   {c.name}
                 </option>
               ))}
@@ -249,7 +258,12 @@ export default function UI02Screen({
             >
               <option value="">전체</option>
               {developerStatuses.map((s) => (
-                <option key={s}>{s}</option>
+                <option
+                  key={s}
+                  data-testid={`developer-status-option-${developerStatuses.indexOf(s)}`}
+                >
+                  {s}
+                </option>
               ))}
             </select>
           </label>
@@ -347,6 +361,7 @@ export default function UI02Screen({
                   {columns.map(([key, label]) => (
                     <th
                       key={key}
+                      data-testid={`developer-header-${key.replaceAll("_", "-")}`}
                       aria-sort={
                         filters.sort === `${key},asc`
                           ? "ascending"
@@ -377,7 +392,10 @@ export default function UI02Screen({
                     onClick={() => setDetailId(row.dev_id)}
                   >
                     {!readOnly && (
-                      <td onClick={(e) => e.stopPropagation()}>
+                      <td
+                        data-testid={`developer-selection-cell-${row.dev_id}`}
+                        onClick={(e) => e.stopPropagation()}
+                      >
                         <input
                           data-testid={`developer-select-${row.dev_id}`}
                           aria-label={`${row.dev_nm} 선택`}
