@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.si.cost.admin.AdminMapper">
+  <sql id="groupColumns">g.cd_grp_id AS "groupId", g.cd_grp_nm AS name, g.cd_grp_se_cd AS kind,
+    g.attr1_nm AS "attr1Name", g.attr2_nm AS "attr2Name", g.attr3_nm AS "attr3Name",
+    g.sort_seq AS "order", g.use_yn AS use,
+    (SELECT count(*)::int FROM cmn.cd_dtl d WHERE d.cd_grp_id=g.cd_grp_id) AS "codeCount"</sql>
+  <sql id="direction"><choose><when test="page.descending">DESC</when><otherwise>ASC</otherwise></choose></sql>
+  <sql id="paging"><bind name="offset" value="page.page * page.size"/>LIMIT #{page.size} OFFSET #{offset}</sql>
+  <select id="groups" resultType="com.si.cost.admin.AdminModels$Group">
+    SELECT <include refid="groupColumns"/> FROM cmn.cd_grp g ORDER BY g.sort_seq <include refid="direction"/>, g.cd_grp_id <include refid="paging"/>
+  </select>
+  <select id="groupCount" resultType="long">SELECT count(*) FROM cmn.cd_grp</select>
+  <select id="group" resultType="com.si.cost.admin.AdminModels$Group">
+    SELECT <include refid="groupColumns"/> FROM cmn.cd_grp g WHERE g.cd_grp_id=#{group}
+  </select>
+  <sql id="codeColumns">dtl_cd AS code, cd_nm AS name, sort_seq AS "order", use_yn AS use,
+    attr1_val AS attr1, attr2_val AS attr2, attr3_val AS attr3, aply_bgn_dt AS date</sql>
+  <select id="codes" resultType="com.si.cost.admin.AdminModels$Code">
+    SELECT <include refid="codeColumns"/> FROM cmn.cd_dtl WHERE cd_grp_id=#{group}
+    ORDER BY sort_seq <include refid="direction"/>, dtl_cd <include refid="paging"/>
+  </select>
+  <select id="allCodes" resultType="com.si.cost.admin.AdminModels$Code">
+    SELECT <include refid="codeColumns"/> FROM cmn.cd_dtl WHERE cd_grp_id=#{group} ORDER BY sort_seq, dtl_cd
+  </select>
+  <select id="codeCount" resultType="long">SELECT count(*) FROM cmn.cd_dtl WHERE cd_grp_id=#{group}</select>
+  <insert id="insertGroup">
+    INSERT INTO cmn.cd_grp (cd_grp_id,cd_grp_nm,cd_grp_se_cd,sort_seq,attr1_nm,attr2_nm,attr3_nm,created_by)
+    SELECT #{groupId},#{name},'BIZ',COALESCE(MAX(sort_seq),0)+1,#{attr1Name},#{attr2Name},#{attr3Name},NULL FROM cmn.cd_grp
+  </insert>
+  <insert id="insertCode">
+    INSERT INTO cmn.cd_dtl(cd_grp_id,dtl_cd,cd_nm,sort_seq,use_yn,attr1_val,attr2_val,attr3_val,aply_bgn_dt,created_by)
+    VALUES(#{group},#{row.code},#{row.name},#{row.order},'Y',#{row.attr1},#{row.attr2},#{row.attr3},#{row.date},NULL)
+  </insert>
+  <update id="updateCode">
+    UPDATE cmn.cd_dtl <set>
+      <if test="changes.containsKey('cd_nm')">cd_nm=#{changes.cd_nm},</if>
+      <if test="changes.containsKey('sort_seq')">sort_seq=#{changes.sort_seq},</if>
+      <if test="changes.containsKey('use_yn')">use_yn=#{changes.use_yn},</if>
+      <if test="changes.containsKey('attr1_val')">attr1_val=#{changes.attr1_val,jdbcType=VARCHAR},</if>
+      <if test="changes.containsKey('attr2_val')">attr2_val=#{changes.attr2_val,jdbcType=VARCHAR},</if>
+      <if test="changes.containsKey('attr3_val')">attr3_val=#{changes.attr3_val,jdbcType=VARCHAR},</if>
+      <if test="changes.containsKey('aply_bgn_dt')">aply_bgn_dt=#{changes.aply_bgn_dt,jdbcType=DATE},</if>
+      updated_at=CURRENT_TIMESTAMP,updated_by=NULL
+    </set> WHERE cd_grp_id=#{group} AND dtl_cd=#{code}
+  </update>
+  <sql id="mapColumns">m.map_id::text AS id,m.excel_lbl_nm AS label,m.trns_cd_grp_id AS "groupId",m.trns_cd AS code,
+    g.cd_grp_nm AS "groupName",d.cd_nm AS "codeName",m.map_role_cd AS role,m.rmrk_desc AS memo,m.use_yn AS use</sql>
+  <sql id="mapJoin">FROM cmn.excel_map m JOIN cmn.cd_grp g ON g.cd_grp_id=m.trns_cd_grp_id
+    JOIN cmn.cd_dtl d ON d.cd_grp_id=m.trns_cd_grp_id AND d.dtl_cd=m.trns_cd</sql>
+  <select id="maps" resultType="com.si.cost.admin.AdminModels$ExcelMap">
+    SELECT <include refid="mapColumns"/> <include refid="mapJoin"/>
+    ORDER BY m.excel_lbl_nm <include refid="direction"/>,m.map_id <include refid="paging"/>
+  </select>
+  <select id="mapCount" resultType="long">SELECT count(*) <include refid="mapJoin"/></select>
+  <select id="excelMap" resultType="com.si.cost.admin.AdminModels$ExcelMap">
+    SELECT <include refid="mapColumns"/> <include refid="mapJoin"/> WHERE m.map_id=#{id}
+  </select>
+  <select id="activeTarget" resultType="boolean">
+    SELECT EXISTS(SELECT 1 FROM cmn.cd_dtl d JOIN cmn.cd_grp g USING(cd_grp_id)
+      WHERE cd_grp_id=#{group} AND dtl_cd=#{code} AND d.use_yn='Y' AND g.use_yn='Y')
+  </select>
+  <select id="duplicateMap" resultType="boolean">
+    SELECT EXISTS(SELECT 1 FROM cmn.excel_map WHERE excel_lbl_nm=#{label} AND trns_cd_grp_id=#{groupId} AND trns_cd=#{code})
+  </select>
+  <select id="insertMap" resultType="long" affectData="true" flushCache="true">
+    INSERT INTO cmn.excel_map(excel_lbl_nm,trns_cd_grp_id,trns_cd,map_role_cd,rmrk_desc,created_by)
+    VALUES(#{label},#{groupId},#{code},#{role},#{memo},NULL) RETURNING map_id
+  </select>
+  <update id="updateMap">
+    UPDATE cmn.excel_map <set>
+      <if test="changes.containsKey('map_role_cd')">map_role_cd=#{changes.map_role_cd},</if>
+      <if test="changes.containsKey('rmrk_desc')">rmrk_desc=#{changes.rmrk_desc},</if>
+      <if test="changes.containsKey('use_yn')">use_yn=#{changes.use_yn},</if>
+    </set> WHERE map_id=#{id}
+  </update>
+  <sql id="historyWhere"><where><if test="group != null">h.cd_grp_id=#{group}</if></where></sql>
+  <select id="history" resultType="com.si.cost.admin.AdminModels$Change">
+    SELECT h.chg_at AS "changedAt",h.cd_grp_id AS "groupId",
+      CASE WHEN h.cd_grp_id='PARAM' THEN '기준값' ELSE COALESCE(g.cd_grp_nm,h.cd_grp_id) END AS "groupName",
+      h.dtl_cd AS code,h.cd_chg_ty_cd AS type,h.item_nm AS item,h.bfr_val AS before,h.aft_val AS after,h.chg_user_id AS "userId"
+    FROM cmn.cd_hist h LEFT JOIN cmn.cd_grp g ON g.cd_grp_id=h.cd_grp_id <include refid="historyWhere"/>
+    ORDER BY h.chg_at <include refid="direction"/>,h.cd_hist_id DESC <include refid="paging"/>
+  </select>
+  <select id="historyCount" resultType="long">SELECT count(*) FROM cmn.cd_hist h <include refid="historyWhere"/></select>
+  <insert id="audit">
+    INSERT INTO cmn.cd_hist(cd_grp_id,dtl_cd,cd_chg_ty_cd,item_nm,bfr_val,aft_val,chg_user_id)
+    VALUES(#{groupId},#{code},#{type},#{item},#{before},#{after},NULL)
+  </insert>
+  <sql id="paramColumns">oprt_std_id AS key,aply_bgn_ym AS month,oprt_std_nm AS name,num_val AS number,
+    txt_val AS text,unit_nm AS unit,use_plc_desc AS usage</sql>
+  <sql id="currentWhere">WHERE aply_bgn_ym &lt;= #{month} AND NOT EXISTS
+    (SELECT 1 FROM cmn.oprt_std newer WHERE newer.oprt_std_id=p.oprt_std_id AND newer.aply_bgn_ym &lt;= #{month} AND newer.aply_bgn_ym &gt; p.aply_bgn_ym)</sql>
+  <select id="currentParams" resultType="com.si.cost.admin.AdminModels$Param">
+    SELECT <include refid="paramColumns"/> FROM cmn.oprt_std p <include refid="currentWhere"/>
+    ORDER BY oprt_std_id <include refid="direction"/> <include refid="paging"/>
+  </select>
+  <select id="currentParamCount" resultType="long">SELECT count(*) FROM cmn.oprt_std p <include refid="currentWhere"/></select>
+  <select id="versions" resultType="com.si.cost.admin.AdminModels$Param">
+    SELECT <include refid="paramColumns"/> FROM cmn.oprt_std WHERE oprt_std_id=#{key}
+    ORDER BY aply_bgn_ym <include refid="direction"/> <include refid="paging"/>
+  </select>
+  <select id="versionCount" resultType="long">SELECT count(*) FROM cmn.oprt_std WHERE oprt_std_id=#{key}</select>
+  <select id="paramSource" resultType="com.si.cost.admin.AdminModels$ParamSource">
+    SELECT <include refid="paramColumns"/>,oprt_std_desc AS description FROM cmn.oprt_std WHERE oprt_std_id=#{key} ORDER BY aply_bgn_ym DESC LIMIT 1
+  </select>
+  <select id="paramBefore" resultType="com.si.cost.admin.AdminModels$Param">
+    SELECT <include refid="paramColumns"/> FROM cmn.oprt_std WHERE oprt_std_id=#{key} AND aply_bgn_ym &lt;= #{month} ORDER BY aply_bgn_ym DESC LIMIT 1
+  </select>
+  <select id="lastClosed" resultType="string">SELECT MAX(cls_ym) FROM fin.mth_cls WHERE cls_stts_cd='CLOSED'</select>
+  <insert id="saveParam">
+    INSERT INTO cmn.oprt_std(oprt_std_id,aply_bgn_ym,oprt_std_nm,num_val,txt_val,unit_nm,use_plc_desc,oprt_std_desc,created_by)
+    VALUES(#{source.key},#{month},#{source.name},#{value.number},#{value.text},#{source.unit},#{source.usage},#{source.description},NULL)
+    ON CONFLICT(oprt_std_id,aply_bgn_ym) DO UPDATE SET num_val=EXCLUDED.num_val,txt_val=EXCLUDED.txt_val
+  </insert>
+</mapper>

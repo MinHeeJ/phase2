@@ -1,0 +1,11 @@
+node_modules
+.next
+dist
+build
+coverage
+.git
+.cache
+.vite
+*.log
+.env*
+secrets

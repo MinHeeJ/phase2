@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.si.cost.shared.SharedReadMapper">
+  <select id="menus" resultType="com.si.cost.shared.SharedReadModels$MenuRow">
+    SELECT menu_id AS "menuId", upr_menu_id AS "parentId", menu_nm AS name,
+           scrn_id AS "screenId", icon_nm AS icon, (mbl_expsr_yn = 'Y') AS mobile
+    FROM sys.menu WHERE use_yn = 'Y' ORDER BY sort_seq, menu_id
+  </select>
+  <select id="groupExists" resultType="boolean">
+    SELECT EXISTS(SELECT 1 FROM cmn.cd_grp WHERE cd_grp_id = #{group})
+  </select>
+  <select id="codeOptions" resultType="com.si.cost.shared.SharedReadModels$CodeOption">
+    SELECT dtl_cd AS code, cd_nm AS name, attr1_val AS attr1, attr2_val AS attr2, attr3_val AS attr3
+    FROM cmn.cd_dtl WHERE cd_grp_id = #{group} AND use_yn = 'Y'
+    ORDER BY sort_seq, dtl_cd
+  </select>
+  <select id="monthClose" resultType="com.si.cost.shared.SharedReadModels$MonthClose">
+    SELECT cls_ym AS month, cls_stts_cd AS status FROM fin.mth_cls
+    WHERE cls_ym &gt;= #{from} AND cls_ym &lt;= #{to} ORDER BY cls_ym
+  </select>
+  <select id="effectiveParam" resultType="com.si.cost.shared.SharedReadModels$EffectiveParam">
+    SELECT oprt_std_id AS key, aply_bgn_ym AS "effectiveMonth", oprt_std_nm AS name,
+           num_val AS "numberValue", txt_val AS "textValue", unit_nm AS unit, use_plc_desc AS usage
+    FROM cmn.oprt_std WHERE oprt_std_id = #{key} AND aply_bgn_ym &lt;= #{month}
+    ORDER BY aply_bgn_ym DESC LIMIT 1
+  </select>
+</mapper>
