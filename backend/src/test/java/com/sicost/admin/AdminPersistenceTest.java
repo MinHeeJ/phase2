@@ -3,6 +3,8 @@ package com.sicost.admin;
 import static com.sicost.admin.AdminModels.*;
 import static org.assertj.core.api.Assertions.*;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 import java.sql.*;
 import java.time.*;
 import java.math.BigDecimal;
@@ -25,6 +27,7 @@ class AdminPersistenceTest {
     AnnotationConfigApplicationContext context;
     AdminService service;
     AdminMapper mapper;
+    org.springframework.test.web.servlet.MockMvc mvc;
     @BeforeEach void restoreIsolatedDatabase()throws Exception {
         adminUrl=System.getenv("TEST_DATABASE_URL");assumeTrue(adminUrl!=null&&!adminUrl.isBlank(),"Real PostgreSQL integration requires TEST_DATABASE_URL");
         user=System.getenv("TEST_DATABASE_USER");password=System.getenv("TEST_DATABASE_PASSWORD");assumeTrue(user!=null&&password!=null,"Test database connection settings are absent");
@@ -37,6 +40,10 @@ class AdminPersistenceTest {
         context=new AnnotationConfigApplicationContext();context.register(Transactions.class,AdminService.class,CurrentUser.class,PermissionService.class);
         context.registerBean(AdminMapper.class,()->mapper);context.registerBean(org.springframework.transaction.PlatformTransactionManager.class,()->new DataSourceTransactionManager(source));
         context.registerBean(Clock.class,()->Clock.fixed(Instant.parse("2026-10-22T00:00:00Z"),ZoneId.of("Asia/Seoul")));context.refresh();service=context.getBean(AdminService.class);
+        mvc=org.springframework.test.web.servlet.setup.MockMvcBuilders.standaloneSetup(
+            new AdminController(service,new CurrentUser(),new ObjectMapper()))
+            .setControllerAdvice(new com.sicost.common.api.ApiExceptionHandler())
+            .addFilters(new com.sicost.common.api.RequestIdFilter()).build();
     }
     @AfterEach void removeIsolatedDatabase()throws Exception {
         if(context!=null)context.close();if(source==null)return;
@@ -44,6 +51,58 @@ class AdminPersistenceTest {
     }
     long scalar(String sql)throws Exception {try(var connection=source.getConnection();var statement=connection.createStatement();var rows=statement.executeQuery(sql)){assertThat(rows.next()).isTrue();return rows.getLong(1);}}
     CodeRow changed(CodeRow r,String name,String use,String attr) {return new CodeRow(r.dtl_cd(),name,r.sort_seq(),use,attr,r.attr2_val(),r.attr3_val(),r.aply_bgn_dt());}
+    @Test void anonymousGroupInsertSideEffectCommitsNullDtlCdAndChgUserId() throws Exception {
+        mvc.perform(post("/api/admin/code-groups").contentType("application/json")
+            .content("{\"cd_grp_id\":\"NEW_GROUP\",\"cd_grp_nm\":\"신규 그룹\"}"))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.success").value(true));
+        assertThat(scalar("SELECT count(*) FROM cmn.cd_grp WHERE cd_grp_id='NEW_GROUP' AND cd_grp_se_cd='BIZ'")).isEqualTo(1);
+        assertThat(scalar("SELECT count(*) FROM cmn.cd_hist WHERE cd_grp_id='NEW_GROUP' AND cd_chg_ty_cd='ADD' AND dtl_cd IS NULL AND chg_user_id IS NULL")).isEqualTo(1);
+    }
+    @Test void anonymousCodeSaveSideEffectCommitsCdDtlAndCdHist() throws Exception {
+        var rows=new ArrayList<>(mapper.allCodes("JOB"));
+        rows.add(new CodeRow("TEST1","테스트",rows.stream().mapToInt(CodeRow::sort_seq).max().orElseThrow()+1,"Y",null,null,null,null));
+        mvc.perform(put("/api/admin/code-groups/JOB/codes").contentType("application/json")
+            .content(new ObjectMapper().writeValueAsString(rows))).andExpect(status().isOk())
+            .andExpect(jsonPath("$.success").value(true));
+        assertThat(scalar("SELECT count(*) FROM cmn.cd_dtl WHERE cd_grp_id='JOB' AND dtl_cd='TEST1' AND use_yn='Y' AND created_by IS NULL AND updated_at IS NOT NULL")).isEqualTo(1);
+        assertThat(scalar("SELECT count(*) FROM cmn.cd_hist WHERE cd_grp_id='JOB' AND dtl_cd='TEST1' AND cd_chg_ty_cd='ADD' AND chg_user_id IS NULL")).isEqualTo(1);
+    }
+    @Test void excelMapValidationAndInsertAuditHaveRealDatabaseReadback() throws Exception {
+        long before=scalar("SELECT count(*) FROM cmn.excel_map");
+        long events=scalar("SELECT count(*) FROM cmn.cd_hist");
+        mvc.perform(post("/api/admin/excel-maps").contentType("application/json")
+            .content("{\"excel_lbl_nm\":\"\",\"trns_cd_grp_id\":\"JOB\",\"trns_cd\":\"BE\",\"map_role_cd\":\"MAIN\"}"))
+            .andExpect(status().isBadRequest()).andExpect(jsonPath("$.field").value("excel_lbl_nm"));
+        assertThat(scalar("SELECT count(*) FROM cmn.excel_map")).isEqualTo(before);
+        assertThat(scalar("SELECT count(*) FROM cmn.cd_hist")).isEqualTo(events);
+        mvc.perform(post("/api/admin/excel-maps").contentType("application/json")
+            .content("{\"excel_lbl_nm\":\"새 표기\",\"trns_cd_grp_id\":\"JOB\",\"trns_cd\":\"BE\",\"map_role_cd\":\"MAIN\"}"))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.success").value(true));
+        assertThat(scalar("SELECT count(*) FROM cmn.excel_map WHERE excel_lbl_nm='새 표기' AND trns_cd='BE' AND map_role_cd='MAIN'")).isEqualTo(1);
+        assertThat(scalar("SELECT count(*) FROM cmn.cd_hist WHERE chg_user_id IS NULL")).isEqualTo(events+1);
+    }
+    @Test void excelMapBusinessIdentityGuardAndDisableSideEffect() throws Exception {
+        service.createMapping(new ExcelMapCreate("표기 보존","JOB","BE","MAIN","원래 메모"));
+        var id=Long.toString(scalar("SELECT map_id FROM cmn.excel_map WHERE excel_lbl_nm='표기 보존'"));
+        long events=scalar("SELECT count(*) FROM cmn.cd_hist");
+        mvc.perform(patch("/api/admin/excel-maps/{mapId}",id).contentType("application/json")
+            .content("{\"excel_lbl_nm\":\"교체 불가\",\"map_role_cd\":\"SUB\"}"))
+            .andExpect(status().isBadRequest()).andExpect(jsonPath("$.field").value("excel_lbl_nm"));
+        assertThat(mapper.mapping(id).excel_lbl_nm()).isEqualTo("표기 보존");
+        assertThat(scalar("SELECT count(*) FROM cmn.cd_hist")).isEqualTo(events);
+        mvc.perform(patch("/api/admin/excel-maps/{mapId}",id).contentType("application/json")
+            .content("{\"use_yn\":\"N\",\"rmrk_desc\":\"수정 메모\"}"))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.success").value(true));
+        assertThat(mapper.mapping(id).use_yn()).isEqualTo("N");
+        assertThat(mapper.mapping(id).excel_lbl_nm()).isEqualTo("표기 보존");
+        assertThat(scalar("SELECT count(*) FROM cmn.cd_hist WHERE item_nm='map_id="+id+":rmrk_desc' AND bfr_val='원래 메모' AND aft_val='수정 메모' AND chg_user_id IS NULL")).isEqualTo(1);
+    }
+    @Test void parameterWriteSideEffectCommitsExactHistoryColumns() throws Exception {
+        mvc.perform(put("/api/admin/params/VAT_RATE/versions/2026-11").contentType("application/json")
+            .content("{\"num_val\":11}")).andExpect(status().isOk()).andExpect(jsonPath("$.success").value(true));
+        assertThat(mapper.source("VAT_RATE","2026-11").num_val()).isEqualByComparingTo("11");
+        assertThat(scalar("SELECT count(*) FROM cmn.cd_hist WHERE cd_grp_id='PARAM' AND dtl_cd='VAT_RATE' AND cd_chg_ty_cd='UPDATE' AND item_nm='적용 시작월' AND aft_val='2026-11' AND chg_user_id IS NULL")).isEqualTo(1);
+    }
     @Test void allManagementMappersExecuteAndHistoryFilterTotalMatches()throws Exception {
         assertThat(mapper.groups(AdminQuery.of(new PageRequest(1,50,null),"groups",null,null,null))).hasSize(36);
         assertThat(mapper.allCodes("JOB")).hasSize(12);assertThat(mapper.group("JOB").attr1_nm()).isEqualTo("기본 단가(원)");

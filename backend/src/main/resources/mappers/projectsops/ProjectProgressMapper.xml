@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sicost.projectsops.ProjectProgressMapper">
+  <resultMap id="state" type="com.sicost.projectsops.ProjectProgressModels$ProjectState"><constructor>
+    <arg column="prj_id" javaType="_long"/><arg column="cntrct_ty_cd" javaType="java.lang.String"/>
+    <arg column="prj_stts_cd" javaType="java.lang.String"/><arg column="use_yn" javaType="java.lang.String"/>
+  </constructor></resultMap>
+  <resultMap id="memo" type="com.sicost.projectsops.ProjectProgressModels$MemoSource"><constructor>
+    <arg column="memo_id" javaType="_long"/><arg column="prj_id" javaType="_long"/>
+    <arg column="wrt_dt" javaType="java.time.LocalDate"/><arg column="actl_prgs_rt" javaType="java.math.BigDecimal"/>
+    <arg column="cmpl_work_desc" javaType="java.lang.String"/><arg column="plan_work_desc" javaType="java.lang.String"/>
+    <arg column="rqst_desc" javaType="java.lang.String"/>
+  </constructor></resultMap>
+  <resultMap id="issue" type="com.sicost.projectsops.ProjectProgressModels$ProjectIssue"><constructor>
+    <arg column="prj_id" javaType="_long"/><arg column="ttl_nm" javaType="java.lang.String"/>
+    <arg column="svrt_cd" javaType="java.lang.String"/><arg column="chrg_nm" javaType="java.lang.String"/>
+    <arg column="ddln_dt" javaType="java.time.LocalDate"/><arg column="issue_stts_cd" javaType="java.lang.String"/>
+    <arg column="actn_desc" javaType="java.lang.String"/><arg column="issue_id" javaType="_long"/>
+    <arg column="reg_dt" javaType="java.time.LocalDate"/><arg column="end_dt" javaType="java.time.LocalDate"/>
+  </constructor></resultMap>
+  <select id="state" resultMap="state">
+    SELECT prj_id,cntrct_ty_cd,prj_stts_cd,use_yn FROM prj.prj WHERE prj_id=#{id}
+  </select>
+  <select id="source" resultMap="com.sicost.apiops.ProjectBoardMapper.source">
+    SELECT p.prj_id,p.prj_no,p.prj_nm,c.ptnr_nm AS "custName",p.cntrct_ty_cd,p.bsn_part_id,
+      coalesce(d.dev_nm,'PM 미지정') AS "pmName",p.cur_cntrct_amt,p.prfm_bgn_dt,
+      m.wrt_dt AS last_memo_dt,m.actl_prgs_rt,
+      (SELECT count(*) FROM prj.issue i WHERE i.prj_id=p.prj_id AND i.issue_stts_cd IN ('OPEN','DOING')) AS open_issue_count,
+      (SELECT count(*) FROM prj.issue i WHERE i.prj_id=p.prj_id AND i.issue_stts_cd IN ('OPEN','DOING') AND i.svrt_cd='HIGH') AS high_open_issue_count,
+      (SELECT count(*) FROM prj.issue i WHERE i.prj_id=p.prj_id AND i.issue_stts_cd!='CLOSED' AND i.ddln_dt &lt; #{today}) AS overdue_issue_count,
+      (SELECT count(*) FROM prj.issue i WHERE i.prj_id=p.prj_id AND i.issue_stts_cd!='CLOSED' AND i.ddln_dt &lt; #{today} AND i.svrt_cd='HIGH') AS high_overdue_count
+    FROM prj.prj p LEFT JOIN mst.ptnr c ON c.ptnr_id=p.cust_ptnr_id LEFT JOIN mst.dev d ON d.dev_id=p.pm_dev_id
+    LEFT JOIN LATERAL (SELECT wrt_dt,actl_prgs_rt FROM prj.wkly_memo w WHERE w.prj_id=p.prj_id ORDER BY wrt_dt DESC,memo_id DESC LIMIT 1) m ON true
+    WHERE p.prj_id=#{id}
+  </select>
+  <select id="memos" resultMap="memo">
+    SELECT memo_id,prj_id,wrt_dt,actl_prgs_rt,cmpl_work_desc,plan_work_desc,rqst_desc
+    FROM prj.wkly_memo WHERE prj_id=#{id} ORDER BY wrt_dt DESC,memo_id DESC
+  </select>
+  <select id="issues" resultMap="issue">
+    SELECT prj_id,ttl_nm,svrt_cd,chrg_nm,ddln_dt,issue_stts_cd,actn_desc,issue_id,reg_dt,end_dt
+    FROM prj.issue WHERE prj_id=#{id}
+    ORDER BY CASE WHEN issue_stts_cd='CLOSED' THEN 1 ELSE 0 END,
+      CASE svrt_cd WHEN 'HIGH' THEN 0 WHEN 'MID' THEN 1 ELSE 2 END,ddln_dt NULLS LAST,issue_id
+  </select>
+</mapper>

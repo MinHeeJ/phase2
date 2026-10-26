@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sicost.apiops.ProjectBoardMapper">
+  <resultMap id="parameter" type="com.sicost.apiops.ProjectBoardModels$OperatingParam"><constructor>
+    <arg column="oprt_std_id" javaType="java.lang.String"/>
+    <arg column="aply_bgn_ym" javaType="java.lang.String"/>
+    <arg column="oprt_std_nm" javaType="java.lang.String"/>
+    <arg column="num_val" javaType="java.math.BigDecimal"/>
+    <arg column="txt_val" javaType="java.lang.String"/>
+    <arg column="unit_nm" javaType="java.lang.String"/>
+    <arg column="use_plc_desc" javaType="java.lang.String"/>
+  </constructor></resultMap>
+  <resultMap id="source" type="com.sicost.apiops.ProjectBoardModels$BoardSource"><constructor>
+    <arg column="prj_id" javaType="_long"/>
+    <arg column="prj_no" javaType="java.lang.String"/>
+    <arg column="prj_nm" javaType="java.lang.String"/>
+    <arg column="custName" javaType="java.lang.String"/>
+    <arg column="cntrct_ty_cd" javaType="java.lang.String"/>
+    <arg column="bsn_part_id" javaType="java.lang.Long"/>
+    <arg column="pmName" javaType="java.lang.String"/>
+    <arg column="cur_cntrct_amt" javaType="java.lang.Long"/>
+    <arg column="prfm_bgn_dt" javaType="java.time.LocalDate"/>
+    <arg column="last_memo_dt" javaType="java.time.LocalDate"/>
+    <arg column="actl_prgs_rt" javaType="java.math.BigDecimal"/>
+    <arg column="open_issue_count" javaType="_int"/>
+    <arg column="high_open_issue_count" javaType="_int"/>
+    <arg column="overdue_issue_count" javaType="_int"/>
+    <arg column="high_overdue_count" javaType="_int"/>
+  </constructor></resultMap>
+  <resultMap id="phase" type="com.sicost.apiops.ProjectBoardModels$Phase"><constructor>
+    <arg column="phs_id" javaType="_long"/>
+    <arg column="prj_id" javaType="_long"/>
+    <arg column="phs_seq" javaType="_int"/>
+    <arg column="phs_nm" javaType="java.lang.String"/>
+    <arg column="wght_rt" javaType="java.math.BigDecimal"/>
+    <arg column="plan_bgn_dt" javaType="java.time.LocalDate"/>
+    <arg column="plan_end_dt" javaType="java.time.LocalDate"/>
+    <arg column="cmpl_dt" javaType="java.time.LocalDate"/>
+    <arg column="status" javaType="java.lang.String"/>
+  </constructor></resultMap>
+  <resultMap id="costMonth" type="com.sicost.apiops.ProjectBoardModels$CostMonth"><constructor>
+    <arg column="month" javaType="java.lang.String"/>
+    <arg column="amount" javaType="java.math.BigDecimal"/>
+    <arg column="missing_salary" javaType="_boolean"/>
+  </constructor></resultMap>
+  <select id="params" resultMap="parameter">
+    SELECT DISTINCT ON (oprt_std_id) oprt_std_id,aply_bgn_ym,oprt_std_nm,num_val,txt_val,unit_nm,use_plc_desc
+    FROM cmn.oprt_std WHERE aply_bgn_ym &lt;= #{month}
+      AND oprt_std_id IN ('SIG_DELAY_WARN','SIG_DELAY_RISK','SIG_COST_WARN','SIG_COST_RISK','SIG_STALE_DAYS','BUDGET_RATE')
+    ORDER BY oprt_std_id,aply_bgn_ym DESC
+  </select>
+  <select id="projects" resultMap="source">
+    SELECT p.prj_id,p.prj_no,p.prj_nm,c.ptnr_nm AS "custName",p.cntrct_ty_cd,p.bsn_part_id,
+      coalesce(d.dev_nm,'PM 미지정') AS "pmName",p.cur_cntrct_amt,p.prfm_bgn_dt,
+      m.wrt_dt AS last_memo_dt,m.actl_prgs_rt,
+      (SELECT count(*) FROM prj.issue i WHERE i.prj_id=p.prj_id AND i.issue_stts_cd IN ('OPEN','DOING')) AS open_issue_count,
+      (SELECT count(*) FROM prj.issue i WHERE i.prj_id=p.prj_id AND i.issue_stts_cd IN ('OPEN','DOING') AND i.svrt_cd='HIGH') AS high_open_issue_count,
+      (SELECT count(*) FROM prj.issue i WHERE i.prj_id=p.prj_id AND i.issue_stts_cd!='CLOSED' AND i.ddln_dt &lt; #{today}) AS overdue_issue_count,
+      (SELECT count(*) FROM prj.issue i WHERE i.prj_id=p.prj_id AND i.issue_stts_cd!='CLOSED' AND i.ddln_dt &lt; #{today} AND i.svrt_cd='HIGH') AS high_overdue_count
+    FROM prj.prj p LEFT JOIN mst.ptnr c ON c.ptnr_id=p.cust_ptnr_id
+    LEFT JOIN mst.dev d ON d.dev_id=p.pm_dev_id
+    LEFT JOIN LATERAL (SELECT wrt_dt,actl_prgs_rt FROM prj.wkly_memo w WHERE w.prj_id=p.prj_id ORDER BY wrt_dt DESC,memo_id DESC LIMIT 1) m ON true
+    WHERE p.use_yn='Y' AND (p.prj_stts_cd='RUN' OR (p.prj_stts_cd='PLAN' AND EXISTS(
+      SELECT 1 FROM asgn.asgn a WHERE a.prj_id=p.prj_id AND a.asgn_stts_cd='ACTIVE'
+      AND a.bgn_dt &lt;= #{today} AND a.end_dt &gt;= #{today})))
+    ORDER BY p.prj_id
+  </select>
+  <select id="phases" resultMap="phase">
+    SELECT phs_id,prj_id,phs_seq,phs_nm,wght_rt,plan_bgn_dt,plan_end_dt,cmpl_dt,NULL::text AS status
+    FROM prj.phs WHERE prj_id=#{id} ORDER BY phs_seq,phs_id
+  </select>
+  <select id="costs" resultMap="costMonth">
+    WITH project_mm AS (
+      SELECT a.dev_id,m.work_ym,sum(m.mm_qty) AS mm
+      FROM asgn.asgn a JOIN asgn.asgn_mth m ON m.asgn_id=a.asgn_id
+      WHERE a.prj_id=#{id} AND a.asgn_stts_cd!='CANCELLED' AND m.work_ym &lt;= #{month}
+      GROUP BY a.dev_id,m.work_ym
+    ), person_mm AS (
+      SELECT a.dev_id,m.work_ym,sum(m.mm_qty) AS mm
+      FROM asgn.asgn a JOIN asgn.asgn_mth m ON m.asgn_id=a.asgn_id
+      WHERE a.asgn_stts_cd!='CANCELLED' AND m.work_ym &lt;= #{month}
+      GROUP BY a.dev_id,m.work_ym
+    ), labor AS (
+      SELECT p.work_ym AS month,sum(floor(coalesce(s.indv_lbr_cst_amt,0)::numeric*p.mm/greatest(t.mm,1.00))) AS amount,
+        bool_or(s.mth_cst_id IS NULL AND p.mm&gt;0) AS missing_salary
+      FROM project_mm p JOIN person_mm t ON t.dev_id=p.dev_id AND t.work_ym=p.work_ym
+      LEFT JOIN cst.mth_cst s ON s.dev_id=p.dev_id AND s.cst_ym=p.work_ym GROUP BY p.work_ym
+    ), expenses AS (
+      SELECT expns_ym AS month,sum(expns_amt)::numeric AS amount FROM cst.drct_expns
+      WHERE prj_id=#{id} AND expns_ym &lt;= #{month} GROUP BY expns_ym
+    ), closed AS (
+      SELECT a.cst_ym AS month,sum(a.lbr_cst_amt::numeric+a.drct_expns_amt) AS amount
+      FROM cst.cst_aloc a JOIN fin.mth_cls f ON f.cls_ym=a.cst_ym AND f.cls_stts_cd='CLOSED'
+      WHERE a.prj_id=#{id} AND a.cst_ym &lt;= #{month} GROUP BY a.cst_ym
+    ), months AS (SELECT month FROM labor UNION SELECT month FROM expenses UNION SELECT month FROM closed)
+    SELECT m.month,CASE WHEN c.month IS NOT NULL THEN c.amount ELSE coalesce(l.amount,0)+coalesce(e.amount,0) END AS amount,
+      CASE WHEN c.month IS NOT NULL THEN false ELSE coalesce(l.missing_salary,false) END AS missing_salary
+    FROM months m LEFT JOIN labor l ON l.month=m.month LEFT JOIN expenses e ON e.month=m.month
+    LEFT JOIN closed c ON c.month=m.month ORDER BY m.month
+  </select>
+</mapper>

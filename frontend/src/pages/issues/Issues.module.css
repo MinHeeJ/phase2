@@ -1,0 +1,122 @@
+.toolbar,
+.filters,
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.toolbar {
+  justify-content: space-between;
+  margin-bottom: var(--space-4);
+}
+.toolbar h3 {
+  margin: 0;
+  font-size: var(--section-size);
+}
+.filters {
+  flex-wrap: wrap;
+  align-items: flex-end;
+  margin-bottom: var(--space-4);
+}
+.filters > div {
+  min-width: 150px;
+}
+.filters > button {
+  margin-left: auto;
+}
+.actions {
+  justify-content: flex-end;
+}
+.form {
+  display: grid;
+  gap: var(--space-4);
+}
+.dates {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-4);
+}
+.hint {
+  color: var(--text-sub);
+  font-size: var(--caption-size);
+  margin: 0 0 var(--space-3);
+}
+.tableScroll {
+  max-width: 100%;
+  overflow: auto;
+  border: 1px solid var(--divider);
+  border-radius: var(--radius-panel);
+}
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--surface);
+  font-size: var(--table-size);
+}
+.table th,
+.table td {
+  padding: var(--space-2) var(--space-3);
+  height: 40px;
+  text-align: left;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--divider);
+}
+.table th {
+  background: var(--header-bg);
+  font-weight: var(--table-heading-weight);
+}
+.table .description {
+  min-width: 150px;
+  max-width: 400px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.table small {
+  display: block;
+  color: var(--text-sub);
+}
+.table .overdue,
+.table .overdue small {
+  color: var(--danger);
+}
+.editable {
+  cursor: pointer;
+}
+.editable:hover,
+.editable:focus-visible {
+  background: var(--readonly-bg);
+}
+.link {
+  color: var(--primary);
+  text-decoration: underline;
+}
+.empty {
+  text-align: center;
+  padding: 48px 16px;
+  color: var(--text-sub);
+}
+.tabs {
+  display: flex;
+  gap: var(--space-6);
+  border-bottom: 1px solid var(--divider);
+  margin-bottom: var(--space-6);
+}
+.tabs button {
+  color: var(--text-sub);
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  padding: var(--space-3) var(--space-2);
+}
+.tabs button[aria-selected="true"] {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+}
+@media (max-width: 767px) {
+  .dates {
+    grid-template-columns: 1fr;
+  }
+  .filters > div {
+    flex: 1 1 140px;
+  }
+}

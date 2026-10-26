@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sicost.issuesops.IssueOwnerMapper">
+  <resultMap id="issueOwnerOption" type="com.sicost.issuesops.IssueOwnerModels$IssueOwnerOption">
+    <constructor><arg column="name" javaType="java.lang.String"/></constructor>
+  </resultMap>
+  <select id="projectExists" resultType="boolean">
+    SELECT EXISTS(SELECT 1 FROM prj.prj WHERE prj_id=#{projectId})
+  </select>
+  <select id="options" resultMap="issueOwnerOption">
+    SELECT d.dev_nm AS name
+    FROM prj.prj p JOIN mst.dev d ON d.dev_id=p.pm_dev_id
+    WHERE p.prj_id=#{projectId}
+    UNION
+    SELECT d.dev_nm AS name
+    FROM asgn.asgn a JOIN mst.dev d ON d.dev_id=a.dev_id
+    JOIN prj.prj p ON p.prj_id=a.prj_id
+    WHERE a.prj_id=#{projectId} AND a.asgn_stts_cd='ACTIVE'
+      AND a.bgn_dt &lt;= #{today} AND a.end_dt &gt;= #{today}
+      AND p.prj_stts_cd IN ('PLAN','RUN','HOLD')
+    ORDER BY name
+  </select>
+</mapper>

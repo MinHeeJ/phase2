@@ -81,6 +81,7 @@ export function ProjectForm({
   const [draft, setDraft] = useState<ProjectInput>(() =>
     projectPayload(initial ?? emptyProject),
   );
+  const [budgetInitialized, setBudgetInitialized] = useState(!!initial);
   const [localError, setLocalError] = useState<{
     field: string;
     message: string;
@@ -111,7 +112,9 @@ export function ProjectForm({
   const original = initial ?? {
     ...emptyProject,
     trgt_mrgn_rt:
-      budget.data?.num_val == null ? null : 100 - budget.data.num_val,
+      !budgetInitialized || budget.data?.num_val == null
+        ? null
+        : 100 - budget.data.num_val,
   };
   const dirty =
     JSON.stringify(projectPayload(draft)) !==
@@ -121,12 +124,15 @@ export function ProjectForm({
     return () => onDirtyChange(false);
   }, [dirty, onDirtyChange]);
   useEffect(() => {
-    if (!initial && budget.data?.num_val != null)
-      setDraft((d) =>
-        d.trgt_mrgn_rt == null
-          ? { ...d, trgt_mrgn_rt: 100 - budget.data!.num_val! }
-          : d,
-      );
+    if (!initial && budget.data != null) {
+      if (budget.data.num_val != null)
+        setDraft((d) =>
+          d.trgt_mrgn_rt == null
+            ? { ...d, trgt_mrgn_rt: 100 - budget.data!.num_val! }
+            : d,
+        );
+      setBudgetInitialized(true);
+    }
   }, [budget.data, initial]);
   useEffect(() => {
     const guard = (e: BeforeUnloadEvent) => {
@@ -262,6 +268,7 @@ export function ProjectForm({
   const sources = [types, statuses, settlements, industries, skills];
   const reads = [customers, parts, developers, previous, budget, contracts];
   const unavailable =
+    !budgetInitialized ||
     sources.some((s) => s.loading || !!s.error) ||
     reads.some((s) => s.loading || !!s.error);
   return (

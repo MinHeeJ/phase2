@@ -31,7 +31,7 @@ import styles from "./Projects.module.css";
 
 export interface ProjectDetailTab {
   key: string;
-  label: string;
+  label: string | ((row: ProjectDetail) => ReactNode);
   types?: string[];
   render: (
     row: ProjectDetail,
@@ -74,6 +74,7 @@ export function ProjectDrawer({
   tabs = [],
   onPartChange,
   actions,
+  initialTab = "basic",
 }: {
   id: number | string;
   onClose: () => void;
@@ -82,12 +83,13 @@ export function ProjectDrawer({
   tabs?: ProjectDetailTab[];
   onPartChange?: (row: ProjectDetail, refresh: () => Promise<unknown>) => void;
   actions?: (row: ProjectDetail, refresh: () => Promise<unknown>) => ReactNode;
+  initialTab?: string;
 }) {
   const detail = useAdminRead(useCallback(() => getProject(id), [id]));
   const [editing, setEditing] = useState(false),
     [dirty, setDirty] = useState(false),
     [pendingLeave, setPendingLeave] = useState<(() => void) | null>(null),
-    [tab, setTab] = useState("basic"),
+    [tab, setTab] = useState(initialTab),
     [more, setMore] = useState(false);
   const readOnly = useDeveloperReadOnly();
   const row = detail.data;
@@ -365,7 +367,7 @@ export function ProjectDrawer({
                         });
                     }}
                   >
-                    {t.label}
+                    {typeof t.label === "function" ? t.label(row) : t.label}
                   </Button>
                 ))}
               </div>
@@ -384,6 +386,14 @@ export function ProjectDrawer({
                         </Fragment>
                       ))}
                     </dl>
+                    {extra.some((t) => t.key === "progress") && (
+                      <Button
+                        data-testid="project-progress-open"
+                        onClick={() => requestLeave(() => setTab("progress"))}
+                      >
+                        진행 현황 보기
+                      </Button>
+                    )}
                   </>
                 )}
                 {extra
@@ -417,7 +427,12 @@ export function ProjectDrawer({
                                 "투입률",
                                 "상태",
                               ].map((c) => (
-                                <th key={c}>{c}</th>
+                                <th
+                                  data-testid={`project-assignment-column-${["이름", "직무", "투입 ~ 철수", "투입률", "상태"].indexOf(c)}`}
+                                  key={c}
+                                >
+                                  {c}
+                                </th>
                               ))}
                             </tr>
                           </thead>
@@ -464,7 +479,12 @@ export function ProjectDrawer({
                                 "바꾼 뒤",
                                 "처리자",
                               ].map((c) => (
-                                <th key={c}>{c}</th>
+                                <th
+                                  data-testid={`project-history-column-${["일시", "항목", "바꾸기 전", "바꾼 뒤", "처리자"].indexOf(c)}`}
+                                  key={c}
+                                >
+                                  {c}
+                                </th>
                               ))}
                             </tr>
                           </thead>

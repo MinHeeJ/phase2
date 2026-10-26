@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sicost.issues.IssueMapper">
+  <resultMap id="issueRow" type="com.sicost.issues.IssueModels$IssueRow"><constructor>
+    <arg column="issue_id" javaType="_long"/><arg column="prj_id" javaType="_long"/>
+    <arg column="ttl_nm" javaType="java.lang.String"/><arg column="svrt_cd" javaType="java.lang.String"/>
+    <arg column="chrg_nm" javaType="java.lang.String"/><arg column="ddln_dt" javaType="java.time.LocalDate"/>
+    <arg column="issue_stts_cd" javaType="java.lang.String"/><arg column="actn_desc" javaType="java.lang.String"/>
+    <arg column="reg_dt" javaType="java.time.LocalDate"/><arg column="end_dt" javaType="java.time.LocalDate"/>
+  </constructor></resultMap>
+  <resultMap id="issueListRow" type="com.sicost.issues.IssueModels$IssueListRow"><constructor>
+    <arg column="issue_id" javaType="_long"/><arg column="prj_id" javaType="_long"/>
+    <arg column="ttl_nm" javaType="java.lang.String"/><arg column="svrt_cd" javaType="java.lang.String"/>
+    <arg column="chrg_nm" javaType="java.lang.String"/><arg column="ddln_dt" javaType="java.time.LocalDate"/>
+    <arg column="issue_stts_cd" javaType="java.lang.String"/><arg column="actn_desc" javaType="java.lang.String"/>
+    <arg column="reg_dt" javaType="java.time.LocalDate"/><arg column="end_dt" javaType="java.time.LocalDate"/>
+    <arg column="prj_nm" javaType="java.lang.String"/>
+  </constructor></resultMap>
+  <resultMap id="issueProject" type="com.sicost.issues.IssueModels$IssueProject"><constructor>
+    <arg column="prj_id" javaType="_long"/><arg column="use_yn" javaType="java.lang.String"/>
+    <arg column="prj_stts_cd" javaType="java.lang.String"/>
+  </constructor></resultMap>
+  <select id="lockProject" resultMap="issueProject" flushCache="true" useCache="false">
+    SELECT prj_id,use_yn,prj_stts_cd FROM prj.prj WHERE prj_id=#{id} FOR UPDATE
+  </select>
+  <select id="parent" resultType="java.lang.Long">SELECT prj_id FROM prj.issue WHERE issue_id=#{id}</select>
+  <sql id="projection">i.issue_id,i.prj_id,i.ttl_nm,i.svrt_cd,i.chrg_nm,i.ddln_dt,i.issue_stts_cd,i.actn_desc,i.reg_dt,i.end_dt</sql>
+  <select id="row" resultMap="issueRow">SELECT <include refid="projection"/> FROM prj.issue i WHERE i.issue_id=#{id}</select>
+  <select id="lockIssue" resultMap="issueRow" flushCache="true" useCache="false">
+    SELECT <include refid="projection"/> FROM prj.issue i WHERE i.issue_id=#{id} FOR UPDATE
+  </select>
+  <sql id="eligible">p.use_yn='Y' AND p.prj_stts_cd NOT IN ('END','LOST')</sql>
+  <sql id="filter">
+    WHERE <include refid="eligible"/>
+    <choose>
+      <when test='status == "CLOSED"'>AND i.issue_stts_cd='CLOSED'</when>
+      <when test='status == "OVERDUE"'>AND i.issue_stts_cd!='CLOSED' AND i.ddln_dt &lt; #{today}</when>
+      <otherwise>AND i.issue_stts_cd IN ('OPEN','DOING')</otherwise>
+    </choose>
+    <if test="severity != null">AND i.svrt_cd=#{severity}</if>
+    <if test="projectId != null">AND i.prj_id=#{projectId}</if>
+  </sql>
+  <select id="list" resultMap="issueListRow">
+    SELECT <include refid="projection"/>,p.prj_nm FROM prj.issue i JOIN prj.prj p ON p.prj_id=i.prj_id
+    <include refid="filter"/>
+    ORDER BY CASE WHEN i.issue_stts_cd='CLOSED' THEN 1 ELSE 0 END,
+      CASE i.svrt_cd WHEN 'HIGH' THEN 0 WHEN 'MID' THEN 1 ELSE 2 END,i.ddln_dt ASC NULLS LAST,i.issue_id
+    LIMIT #{size} OFFSET #{offset}
+  </select>
+  <select id="count" resultType="long">
+    SELECT count(*) FROM prj.issue i JOIN prj.prj p ON p.prj_id=i.prj_id <include refid="filter"/>
+  </select>
+  <select id="openCount" resultType="long">
+    SELECT count(*) FROM prj.issue i JOIN prj.prj p ON p.prj_id=i.prj_id
+    WHERE <include refid="eligible"/> AND i.issue_stts_cd IN ('OPEN','DOING')
+  </select>
+  <select id="insert" resultType="long" affectData="true" flushCache="true">
+    INSERT INTO prj.issue(prj_id,ttl_nm,svrt_cd,chrg_nm,chrg_user_id,ddln_dt,issue_stts_cd,actn_desc,reg_dt,end_dt,created_by)
+    VALUES(#{projectId},#{input.ttl_nm},#{input.svrt_cd},#{input.chrg_nm},NULL,#{input.ddln_dt},
+      #{input.issue_stts_cd},#{input.actn_desc},#{today},#{end},#{actor}) RETURNING issue_id
+  </select>
+  <update id="update">
+    UPDATE prj.issue <set>
+      <foreach collection="changes" index="column" item="value">${column}=#{value},</foreach>
+      updated_at=CURRENT_TIMESTAMP,updated_by=#{actor}
+    </set> WHERE issue_id=#{id}
+  </update>
+  <insert id="history">
+    INSERT INTO sys.data_chg_hist(tbl_nm,obj_rec_id,data_chg_ty_cd,clmn_nm,bfr_val,aft_val,chg_user_id)
+    VALUES('prj.issue',#{id},'UPDATE',#{column},#{before},#{after},#{actor})
+  </insert>
+</mapper>

@@ -141,7 +141,12 @@ export function ProjectExpensePanel({
                           "비고",
                           "작업",
                         ].map((label) => (
-                          <th key={label}>{label}</th>
+                          <th
+                            data-testid={`project-expense-column-${["월", "경비 구분", "금액", "부가세", "지급일", "비고", "작업"].indexOf(label)}`}
+                            key={label}
+                          >
+                            {label}
+                          </th>
                         ))}
                       </tr>
                     </thead>

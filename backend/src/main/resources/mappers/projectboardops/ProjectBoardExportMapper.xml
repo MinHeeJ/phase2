@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sicost.projectboardops.ProjectBoardExportMapper">
+  <resultMap id="source" type="com.sicost.projectboardops.ProjectBoardExportModels$BoardExportSource"><constructor>
+    <arg column="prj_id" javaType="_long"/><arg column="prj_nm" javaType="java.lang.String"/>
+    <arg column="custName" javaType="java.lang.String"/><arg column="cntrct_ty_cd" javaType="java.lang.String"/>
+    <arg column="pmName" javaType="java.lang.String"/><arg column="currentPhase" javaType="java.lang.String"/>
+    <arg column="phaseCount" javaType="_int"/><arg column="plan_prgs_rt" javaType="java.math.BigDecimal"/>
+    <arg column="memoProgress" javaType="java.math.BigDecimal"/><arg column="last_memo_dt" javaType="java.time.LocalDate"/>
+    <arg column="prfm_bgn_dt" javaType="java.time.LocalDate"/><arg column="cur_cntrct_amt" javaType="java.lang.Long"/>
+    <arg column="open_issue_count" javaType="_long"/><arg column="overdue_issue_count" javaType="_long"/>
+    <arg column="highOverdueCount" javaType="_long"/>
+  </constructor></resultMap>
+  <resultMap id="param" type="com.sicost.projectboardops.ProjectBoardExportModels$BoardExportParam"><constructor>
+    <arg column="key" javaType="java.lang.String"/><arg column="number" javaType="java.math.BigDecimal"/>
+    <arg column="text" javaType="java.lang.String"/>
+  </constructor></resultMap>
+  <select id="parameters" resultMap="param">
+    SELECT DISTINCT ON (oprt_std_id) oprt_std_id AS key,num_val AS number,txt_val AS text
+    FROM cmn.oprt_std WHERE aply_bgn_ym &lt;= #{month}
+      AND oprt_std_id IN ('BUDGET_RATE','SIG_DELAY_WARN','SIG_DELAY_RISK','SIG_COST_WARN','SIG_COST_RISK','SIG_STALE_DAYS')
+    ORDER BY oprt_std_id,aply_bgn_ym DESC
+  </select>
+  <select id="sources" resultMap="source">
+    SELECT p.prj_id,p.prj_nm,c.ptnr_nm AS "custName",p.cntrct_ty_cd,
+      coalesce(d.dev_nm,'PM 미지정') AS "pmName",phase.phs_nm AS "currentPhase",
+      ph.count AS "phaseCount",ph.plan AS plan_prgs_rt,m.actl_prgs_rt AS "memoProgress",
+      m.wrt_dt AS last_memo_dt,p.prfm_bgn_dt,p.cur_cntrct_amt,
+      issues.open_count AS open_issue_count,issues.overdue_count AS overdue_issue_count,
+      issues.high_count AS "highOverdueCount"
+    FROM prj.prj p LEFT JOIN mst.ptnr c ON c.ptnr_id=p.cust_ptnr_id
+    LEFT JOIN mst.dev d ON d.dev_id=p.pm_dev_id
+    LEFT JOIN LATERAL (
+      SELECT count(*)::integer AS count,
+        round(least(100,greatest(0,coalesce(sum(CASE
+          WHEN f.plan_bgn_dt IS NULL OR f.plan_end_dt IS NULL THEN 0
+          WHEN f.plan_end_dt &lt; #{today} THEN f.wght_rt
+          WHEN f.plan_bgn_dt &lt;= #{today} THEN f.wght_rt * (CAST(#{today} AS date)-f.plan_bgn_dt)::numeric / (f.plan_end_dt-f.plan_bgn_dt+1)
+          ELSE 0 END),0))),1) AS plan
+      FROM prj.phs f WHERE f.prj_id=p.prj_id
+    ) ph ON true
+    LEFT JOIN LATERAL (
+      SELECT f.phs_nm FROM prj.phs f WHERE f.prj_id=p.prj_id
+      ORDER BY (f.cmpl_dt IS NOT NULL),
+        CASE WHEN f.cmpl_dt IS NULL THEN f.phs_seq END ASC,
+        CASE WHEN f.cmpl_dt IS NOT NULL THEN f.phs_seq END DESC,f.phs_id LIMIT 1
+    ) phase ON true
+    LEFT JOIN LATERAL (SELECT w.wrt_dt,w.actl_prgs_rt FROM prj.wkly_memo w
+      WHERE w.prj_id=p.prj_id ORDER BY w.wrt_dt DESC,w.memo_id DESC LIMIT 1) m ON true
+    LEFT JOIN LATERAL (
+      SELECT count(*) FILTER (WHERE i.issue_stts_cd IN ('OPEN','DOING')) AS open_count,
+        count(*) FILTER (WHERE i.issue_stts_cd!='CLOSED' AND i.ddln_dt &lt; #{today}) AS overdue_count,
+        count(*) FILTER (WHERE i.issue_stts_cd!='CLOSED' AND i.ddln_dt &lt; #{today} AND i.svrt_cd='HIGH') AS high_count
+      FROM prj.issue i WHERE i.prj_id=p.prj_id
+    ) issues ON true
+    WHERE p.use_yn='Y' AND (p.prj_stts_cd='RUN' OR (p.prj_stts_cd='PLAN' AND EXISTS (
+      SELECT 1 FROM asgn.asgn a WHERE a.prj_id=p.prj_id AND a.asgn_stts_cd='ACTIVE'
+        AND a.bgn_dt &lt;= #{today} AND a.end_dt &gt;= #{today})))
+    <if test="type != null">AND p.cntrct_ty_cd=#{type}</if>
+    <if test="part != null">AND p.bsn_part_id=#{part}</if>
+  </select>
+  <insert id="access">
+    INSERT INTO sys.acs_hist(user_id,acs_ty_cd,scrn_id,obj_desc,dtl_desc)
+    VALUES(#{actor,jdbcType=BIGINT},'DOWNLOAD','UI-31',#{filename},#{detail})
+  </insert>
+</mapper>

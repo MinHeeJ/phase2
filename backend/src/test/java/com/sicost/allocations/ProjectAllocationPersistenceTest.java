@@ -3,6 +3,8 @@ package com.sicost.allocations;
 import static com.sicost.allocations.ProjectAllocationModels.*;
 import static org.assertj.core.api.Assertions.*;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 import java.sql.*;
 import java.time.*;
 import java.math.BigDecimal;
@@ -23,6 +25,7 @@ class ProjectAllocationPersistenceTest {
     AnnotationConfigApplicationContext context;
     ProjectAllocationService service;
     ProjectAllocationMapper mapper;
+    org.springframework.test.web.servlet.MockMvc mvc;
 
     @BeforeEach void restoreIsolatedDatabase() throws Exception {
         adminUrl = System.getenv("TEST_DATABASE_URL");
@@ -45,6 +48,10 @@ class ProjectAllocationPersistenceTest {
         context.registerBean(ProjectAllocationMapper.class, () -> mapper);
         context.registerBean(org.springframework.transaction.PlatformTransactionManager.class, () -> new DataSourceTransactionManager(source));
         context.refresh(); service = context.getBean(ProjectAllocationService.class);
+        mvc=org.springframework.test.web.servlet.setup.MockMvcBuilders.standaloneSetup(
+            new ProjectAllocationController(service,new com.fasterxml.jackson.databind.ObjectMapper()))
+            .setControllerAdvice(new com.sicost.common.api.ApiExceptionHandler())
+            .addFilters(new com.sicost.common.api.RequestIdFilter()).build();
         sql("INSERT INTO prj.prj(prj_id,prj_no,prj_nm,cntrct_ty_cd,cntrct_bgn_dt,cntrct_end_dt,cur_cntrct_amt) VALUES(1,'P-2601','프로젝트','TK','2026-01-01','2026-12-31',600000000),(2,'P-2602','다른 프로젝트','TK','2026-01-01','2026-12-31',600000000)");
         sql("INSERT INTO prj.cntrct_chg_hist(prj_id,cntrct_chg_ty_cd,cntrct_chg_stts_cd,chg_dt,realoc_need_yn) VALUES(1,'ADD','CONFIRM','2026-10-01','Y'),(1,'TERM','CONFIRM','2026-10-02','Y'),(2,'ADD','CONFIRM','2026-10-01','Y')");
     }
@@ -72,7 +79,11 @@ class ProjectAllocationPersistenceTest {
         assertThat(scalar("SELECT count(*) FROM prj.cntrct_chg_hist WHERE prj_id=2 AND realoc_need_yn='Y'")).isEqualTo(1);
         assertThat(scalar("SELECT aloc_line_id FROM prj.tk_aloc_line WHERE aloc_stg_cd='EST'")).isEqualTo(estimateId);
         assertThat(scalar("SELECT count(*) FROM sys.data_chg_hist WHERE tbl_nm='prj.tk_aloc_line' AND obj_rec_id='1' AND clmn_nm='ACTUAL' AND chg_user_id IS NULL")).isEqualTo(1);
-        service.save(1, "ACTUAL", input(590000000));
+        mvc.perform(put("/api/projects/1/allocations").param("stage","ACTUAL").contentType("application/json")
+            .content(new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(Map.of("items",input(590000000)))))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.data.activeStage").value("ACTUAL"));
+        assertThat(scalar("SELECT count(*) FROM prj.tk_aloc_line WHERE prj_id=1 AND aloc_stg_cd='ACTUAL'")).isEqualTo(1);
+        assertThat(scalar("SELECT count(*) FROM prj.tk_aloc_mth m JOIN prj.tk_aloc_line l USING(aloc_line_id) WHERE l.prj_id=1 AND l.aloc_stg_cd='ACTUAL' AND m.aloc_amt=590000000")).isEqualTo(1);
         assertThat(service.get(1, "ACTUAL").items().get(0).months().get(0).aloc_amt()).isEqualTo(590000000);
         assertThat(service.get(1, "FINAL").items().get(0).months().get(0).aloc_amt()).isEqualTo(30);
     }

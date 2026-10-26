@@ -5,6 +5,12 @@ import UI15Screen from "../pages/partners/UI15Screen";
 import SalesPartManagement from "../pages/salespartsops/SalesPartManagement";
 import UI02Screen from "../pages/developers/UI02Screen";
 import UI01Screen from "../pages/projects/UI01Screen";
+import UI31Screen from "../pages/apiops/UI31Screen";
+import { IssueListPanel } from "../pages/issues/UI31Screen";
+import { issueDetailTab } from "../pages/issues/ProjectIssuePanel";
+import { downloadProjectBoard } from "../pages/projectboardops/client";
+import { projectProgressTabs } from "../pages/projectsops/ProjectProgressTabs";
+import { ProjectPhaseDialog } from "../pages/phases/ProjectPhasePanel";
 import type { ProjectDetail } from "../pages/projects/client";
 import { ProjectBillStagePanel } from "../pages/billstages/ProjectBillStagePanel";
 import { ProjectAllocationPanel } from "../pages/allocations/ProjectAllocationPanel";
@@ -203,6 +209,17 @@ function ProjectsScreen({
     refresh: () => Promise<unknown>;
   } | null>(null);
   const [message, setMessage] = useState("");
+  const [phaseDialog, setPhaseDialog] = useState<Omit<
+    Parameters<typeof ProjectPhaseDialog>[0],
+    "onCancel" | "onSaved"
+  > | null>(null);
+  const mobile = useDeveloperReadOnly();
+  useEffect(() => {
+    if (mobile)
+      setPhaseDialog((current) =>
+        current?.action.kind === "period" ? null : current,
+      );
+  }, [mobile]);
   return (
     <>
       <UI01Screen
@@ -218,6 +235,11 @@ function ProjectsScreen({
           />
         )}
         detailTabs={[
+          ...projectProgressTabs({
+            phase: (project) => (row, kind, reload) =>
+              setPhaseDialog({ project, action: { row, kind }, reload }),
+          }).filter((tab) => tab.key === "progress"),
+          issueDetailTab,
           {
             key: "bill-stages",
             label: "청구 단계",
@@ -295,23 +317,54 @@ function ProjectsScreen({
           },
         ]}
         dialogs={
-          partChange && (
-            <ProjectPartChangeDialog
-              project={partChange.project}
-              reload={partChange.refresh}
-              onCancel={() => setPartChange(null)}
-              onSaved={(text) => {
-                setPartChange(null);
-                setMessage(text);
-              }}
-            />
-          )
+          <>
+            {phaseDialog && (
+              <ProjectPhaseDialog
+                {...phaseDialog}
+                onCancel={() => setPhaseDialog(null)}
+                onSaved={() => {
+                  setPhaseDialog(null);
+                  setMessage("단계 변경을 저장했습니다.");
+                }}
+              />
+            )}
+            {partChange && (
+              <ProjectPartChangeDialog
+                project={partChange.project}
+                reload={partChange.refresh}
+                onCancel={() => setPartChange(null)}
+                onSaved={(text) => {
+                  setPartChange(null);
+                  setMessage(text);
+                }}
+              />
+            )}
+          </>
         }
       />
       {message && (
         <SuccessToast message={message} onDismiss={() => setMessage("")} />
       )}
     </>
+  );
+}
+
+function ProjectBoardScreen(bindings: BusinessScreenBindings) {
+  const [version, setVersion] = useState(0);
+  const [openCount, setOpenCount] = useState<number>();
+  const refresh = useCallback(async () => {
+    setVersion((value) => value + 1);
+  }, []);
+  return (
+    <UI31Screen
+      {...bindings}
+      refreshVersion={version}
+      onDownload={downloadProjectBoard}
+      issueOpenCount={openCount}
+      issuesPanel={
+        <IssueListPanel onChanged={refresh} onOpenCount={setOpenCount} />
+      }
+    />
   );
 }
 
@@ -329,6 +382,8 @@ export function AppRouter() {
                 <DevelopersScreen {...bindings} />
               ) : id === "UI-01" ? (
                 <ProjectsScreen {...bindings} />
+              ) : id === "UI-31" ? (
+                <ProjectBoardScreen {...bindings} />
               ) : id === "UI-27" ? (
                 <CommonCodesScreen {...bindings} />
               ) : null

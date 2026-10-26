@@ -306,7 +306,11 @@ export function ProjectPartChangeDialog({
               >
                 <option value="">선택해 주세요</option>
                 {choices.data?.parts.map((part) => (
-                  <option value={part.id} key={part.id}>
+                  <option
+                    data-testid={`project-part-option-${part.id}`}
+                    value={part.id}
+                    key={part.id}
+                  >
                     {part.hq ? "본사(직접 영업)" : part.name}
                   </option>
                 ))}

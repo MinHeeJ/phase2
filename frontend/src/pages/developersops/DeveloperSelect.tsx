@@ -49,7 +49,11 @@ export function DeveloperSelect({
             >
               <option value="">선택</option>
               {state.data?.map((row) => (
-                <option key={row.id} value={row.id}>
+                <option
+                  data-testid={`developer-option-${row.id}`}
+                  key={row.id}
+                  value={row.id}
+                >
                   {row.name} · {row.mngNo} · {row.mainJob}
                 </option>
               ))}

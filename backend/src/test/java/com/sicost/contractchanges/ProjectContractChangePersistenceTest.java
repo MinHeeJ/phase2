@@ -167,6 +167,29 @@ class ProjectContractChangePersistenceTest {
         assertThat(mapper.project(1)).isEqualTo(project);
         assertThat(value("SELECT free_sprt_yn FROM prj.prj WHERE prj_id=1")).isEqualTo("N");
     }
+    @Test void termPostPutConfirmSideEffectsPreservePhasesAndSetReallocationFlag() throws Exception {
+        String phases=value("SELECT json_agg(p ORDER BY phs_id)::text FROM prj.phs p");
+        var planned=new ChangeInput("TERM","PLAN",LocalDate.of(2026,10,22),null,null,LocalDate.of(2027,2,28),null,"기간 변경 예정");
+        var response=mvc.perform(post("/api/projects/1/contract-changes").contentType(MediaType.APPLICATION_JSON)
+            .content(json.writeValueAsString(planned))).andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.cntrct_chg_ty_cd").value("TERM"))
+            .andExpect(jsonPath("$.data.cntrct_chg_stts_cd").value("PLAN")).andReturn();
+        long id=json.readTree(response.getResponse().getContentAsByteArray()).path("data").path("chgId").asLong();
+        assertThat(mapper.project(1).cur_end_dt()).isEqualTo(LocalDate.of(2026,12,31));
+        var revised=new ChangeInput("TERM","PLAN",LocalDate.of(2026,10,22),null,null,LocalDate.of(2027,3,31),null,"기간 변경 수정");
+        mvc.perform(put("/api/projects/1/contract-changes/{chgId}",id).contentType(MediaType.APPLICATION_JSON)
+            .content(json.writeValueAsString(revised))).andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.cntrct_chg_ty_cd").value("TERM"))
+            .andExpect(jsonPath("$.data.aft_end_dt").value("2027-03-31"));
+        assertThat(mapper.project(1).cur_end_dt()).isEqualTo(LocalDate.of(2026,12,31));
+        mvc.perform(post("/api/projects/1/contract-changes/{chgId}/confirm",id)).andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.cntrct_chg_ty_cd").value("TERM"))
+            .andExpect(jsonPath("$.data.cnfrm_at").isNotEmpty())
+            .andExpect(jsonPath("$.data.realoc_need_yn").value("Y"));
+        assertThat(mapper.project(1).cur_end_dt()).isEqualTo(LocalDate.of(2027,3,31));
+        assertThat(value("SELECT count(*) FROM sys.data_chg_hist WHERE tbl_nm='prj.cntrct_chg_hist' AND obj_rec_id='1'")).isEqualTo("3");
+        assertThat(value("SELECT json_agg(p ORDER BY phs_id)::text FROM prj.phs p")).isEqualTo(phases);
+    }
     @ParameterizedTest @ValueSource(strings={"CREATE","UPDATE","CONFIRM","DELETE"})
     void auditFailureRollsBackWholeMutation(String operation) throws Exception {
         var row=operation.equals("CREATE")?null:service.create(1,input("ADD","PLAN",100));
