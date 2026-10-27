@@ -189,7 +189,12 @@ export function ProjectProgressPanel({
                         "상태",
                         "동작",
                       ].map((h) => (
-                        <th key={h}>{h}</th>
+                        <th
+                          key={h}
+                          data-testid={`project-phase-column-${["단계", "비중", "예정 기간", "완료일", "상태", "동작"].indexOf(h)}`}
+                        >
+                          {h}
+                        </th>
                       ))}
                     </tr>
                   </thead>

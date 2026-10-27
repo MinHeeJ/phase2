@@ -45,7 +45,12 @@ function ProjectCollection<T>({
               <thead>
                 <tr>
                   {headings.map((h) => (
-                    <th key={h}>{h}</th>
+                    <th
+                      key={h}
+                      data-testid={`project-${title === "변경 이력" ? "history" : "assignment"}-column-${headings.indexOf(h)}`}
+                    >
+                      {h}
+                    </th>
                   ))}
                 </tr>
               </thead>
@@ -56,7 +61,12 @@ function ProjectCollection<T>({
                     data-testid={`project-${title === "변경 이력" ? "history" : "assignment"}-row-${index}`}
                   >
                     {cells(row).map((cell, n) => (
-                      <td key={n}>{cell}</td>
+                      <td
+                        key={n}
+                        data-testid={`project-${title === "변경 이력" ? "history" : "assignment"}-cell-${index}-${n}`}
+                      >
+                        {cell}
+                      </td>
                     ))}
                   </tr>
                 ))}

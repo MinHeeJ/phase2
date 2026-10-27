@@ -252,6 +252,7 @@ export default function UI01Screen({
           </div>
         )}
         <form
+          data-testid="project-search-form"
           className={styles.search}
           onSubmit={(e) => {
             e.preventDefault();
@@ -277,7 +278,11 @@ export default function UI01Screen({
             >
               <option value="">전체</option>
               {types.codes.map((c) => (
-                <option key={c.code} value={c.code}>
+                <option
+                  key={c.code}
+                  value={c.code}
+                  data-testid={`project-type-option-${c.code.toLowerCase().replaceAll("_", "-")}`}
+                >
                   {c.name}
                 </option>
               ))}
@@ -295,7 +300,11 @@ export default function UI01Screen({
             >
               <option value="">전체</option>
               {statuses.codes.map((c) => (
-                <option key={c.code} value={c.code}>
+                <option
+                  key={c.code}
+                  value={c.code}
+                  data-testid={`project-status-option-${c.code.toLowerCase().replaceAll("_", "-")}`}
+                >
                   {c.name}
                 </option>
               ))}
@@ -313,7 +322,11 @@ export default function UI01Screen({
             >
               <option value="">전체</option>
               {parts.data?.map((p) => (
-                <option key={p.id} value={p.id}>
+                <option
+                  key={p.id}
+                  value={p.id}
+                  data-testid={`project-part-option-${p.id}`}
+                >
                   {p.hq ? "본사(직접 영업)" : p.name}
                 </option>
               ))}
@@ -369,6 +382,7 @@ export default function UI01Screen({
                   {columns.map(([key, label]) => (
                     <th
                       key={key}
+                      data-testid={`project-column-${key.toLowerCase().replaceAll("_", "-")}`}
                       aria-sort={
                         filters.sort === `${key},asc`
                           ? "ascending"

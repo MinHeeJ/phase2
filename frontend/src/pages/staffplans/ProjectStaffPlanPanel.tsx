@@ -350,9 +350,6 @@ function StaffPlanEditor({
         state.data &&
         (!editing ? (
           <>
-            {state.data.items.length === 0 && (
-              <p className={styles.empty}>인원 계획이 없습니다.</p>
-            )}
             <div className={styles.tableScroll}>
               <table className={styles.table}>
                 <thead>
@@ -411,6 +408,9 @@ function StaffPlanEditor({
                 </tbody>
               </table>
             </div>
+            {state.data.items.length === 0 && (
+              <p className={styles.empty}>인원 계획이 없습니다.</p>
+            )}
           </>
         ) : (
           <form

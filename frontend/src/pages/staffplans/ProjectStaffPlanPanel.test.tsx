@@ -152,11 +152,38 @@ describe("project staff plans", () => {
     await ready();
     expect(screen.getByText("맞음").className).toContain("success");
   });
-  it("keeps empty-plan message visible alongside actual-only summary", async () => {
+  it("shows empty results below all summary headers when plans and actuals are empty", async () => {
+    data.items = [];
+    data.actual = [];
+    panel();
+    await ready();
+    const table = screen.getByRole("table");
+    const headers = within(table).getAllByRole("columnheader");
+    expect(headers.map((header) => header.textContent)).toEqual([
+      "직무",
+      "등급",
+      "계획 MM",
+      "실제 MM",
+      "차이",
+    ]);
+    const empty = screen.getByText("인원 계획이 없습니다.");
+    expect(empty).toBeVisible();
+    expect(
+      table.compareDocumentPosition(empty) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(within(table).getAllByRole("row")).toHaveLength(1);
+    expect(writes()).toHaveLength(0);
+  });
+  it("keeps empty-plan message below headers alongside actual-only summary", async () => {
     data.items = [];
     panel();
     await ready();
-    expect(screen.getByText("인원 계획이 없습니다.")).toBeVisible();
+    const empty = screen.getByText("인원 계획이 없습니다.");
+    expect(empty).toBeVisible();
+    expect(
+      screen.getByRole("table").compareDocumentPosition(empty) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
     expect(screen.getByText("초과 3.50")).toBeVisible();
   });
   it("loads then handles failed read and retries without misleading empty state", async () => {
