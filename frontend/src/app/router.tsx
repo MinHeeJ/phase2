@@ -5,6 +5,20 @@ import UI15Screen from "../pages/partners/UI15Screen";
 import SalesPartManagement from "../pages/salespartsops/SalesPartManagement";
 import UI02Screen from "../pages/developers/UI02Screen";
 import UI01Screen from "../pages/projects/UI01Screen";
+import UI12Screen, {
+  type AssignmentScreenContext,
+} from "../pages/assignments/UI12Screen";
+import type { AssignmentDetail } from "../pages/assignments/client";
+import { AssignmentActions } from "../pages/assignmentsops/AssignmentActions";
+import { UI12MonthsPanel } from "../pages/months/UI12MonthsPanel";
+import { UI12ChangesPanel } from "../pages/changes/UI12ChangesPanel";
+import { AssignmentChangeForm } from "../pages/changes/AssignmentChangeForms";
+import { changeNames } from "../pages/changes/client";
+import { ProjectAssignmentMonthsPanel } from "../pages/projectsops/ProjectAssignmentMonthsPanel";
+import { getProject } from "../pages/projects/client";
+import { useAdminRead } from "../pages/admin/useAdminResource";
+import { Button, Skeleton } from "../shared/Controls";
+import { Can } from "../shared/Can";
 import UI31Screen from "../pages/apiops/UI31Screen";
 import { IssueListPanel } from "../pages/issues/UI31Screen";
 import { issueDetailTab } from "../pages/issues/ProjectIssuePanel";
@@ -349,6 +363,198 @@ function ProjectsScreen({
   );
 }
 
+function AssignmentDetailSections({
+  row,
+  context,
+  onChange,
+}: {
+  row: AssignmentDetail;
+  context: AssignmentScreenContext;
+  onChange: (
+    row: AssignmentDetail,
+    project: ProjectDetail,
+    context: AssignmentScreenContext,
+  ) => void;
+}) {
+  const project = useAdminRead(
+    useCallback(() => getProject(row.prj_id), [row.prj_id]),
+  );
+  const [tab, setTab] = useState("info");
+  const [dirty, setDirty] = useState(false);
+  const mobile = useDeveloperReadOnly();
+  const readOnly =
+    context.readOnly ||
+    mobile ||
+    ["CANCELLED", "ENDED"].includes(row.asgn_stts_cd);
+  const writable =
+    !!project.data &&
+    project.data.use_yn === "Y" &&
+    ["PLAN", "RUN", "HOLD"].includes(project.data.prj_stts_cd);
+  const reportDirty = (value: boolean) => {
+    setDirty(value);
+    context.onDirtyChange(value);
+  };
+  return (
+    <section data-testid="assignment-detail-sections">
+      <ErrorBanner
+        error={project.error}
+        onRetry={() => void project.reload().catch(() => {})}
+      />
+      {project.loading ? (
+        <Skeleton />
+      ) : (
+        project.data &&
+        !project.error && (
+          <>
+            {!readOnly &&
+              writable &&
+              (row.asgn_stts_cd !== "REPLACED" ||
+                ["MO", "DP"].includes(project.data.cntrct_ty_cd)) && (
+                <Can perm="UI-12.update">
+                  <Button
+                    data-testid="assignment-record-change"
+                    onClick={() => onChange(row, project.data!, context)}
+                  >
+                    + 변경 기록
+                  </Button>
+                </Can>
+              )}
+            <div role="tablist" aria-label="투입 상세 영역">
+              <Button
+                role="tab"
+                data-testid="assignment-info-tab"
+                aria-selected={tab === "info"}
+                disabled={dirty}
+                onClick={() => setTab("info")}
+              >
+                투입 정보
+              </Button>
+              <Button
+                role="tab"
+                data-testid="assignment-changes-tab"
+                aria-selected={tab === "changes"}
+                disabled={dirty}
+                onClick={() => setTab("changes")}
+              >
+                변경 이력
+              </Button>
+            </div>
+            {tab === "info" ? (
+              <UI12MonthsPanel
+                assignmentId={row.asgn_id}
+                assignmentStatus={row.asgn_stts_cd}
+                projectStatus={project.data.prj_stts_cd}
+                useYn={project.data.use_yn}
+                readOnly={readOnly}
+                onChanged={context.refresh}
+                onDirtyChange={reportDirty}
+              />
+            ) : (
+              <UI12ChangesPanel
+                assignment={row}
+                contractType={project.data.cntrct_ty_cd}
+                readOnly={readOnly}
+                projectWritable={writable}
+                onChanged={context.refresh}
+              />
+            )}
+          </>
+        )
+      )}
+    </section>
+  );
+}
+
+function AssignmentsScreen({
+  onDirtyChange,
+  ...bindings
+}: BusinessScreenBindings) {
+  const notify = useRef(onDirtyChange);
+  notify.current = onDirtyChange;
+  const reportDirty = useCallback(
+    (dirty: boolean) => notify.current(dirty),
+    [],
+  );
+  const [change, setChange] = useState<{
+    row: AssignmentDetail;
+    project: ProjectDetail;
+    context: AssignmentScreenContext;
+  } | null>(null);
+  const [message, setMessage] = useState("");
+  const today = new Intl.DateTimeFormat("sv-SE", {
+    timeZone: "Asia/Seoul",
+  }).format(new Date());
+  return (
+    <>
+      <UI12Screen
+        {...bindings}
+        onDirtyChange={reportDirty}
+        selectionActions={(rows, reload, context) => (
+          <AssignmentActions
+            selected={rows}
+            filter={context.filters}
+            today={today}
+            readonly={context.readOnly}
+            reload={reload}
+            onOpenAssignment={context.openAssignment}
+            onDirty={reportDirty}
+          />
+        )}
+        detailActions={(row, context) => (
+          <AssignmentActions
+            selected={[]}
+            assignment={row}
+            filter={context.filters}
+            today={today}
+            readonly={context.readOnly}
+            reload={context.refresh}
+            onOpenAssignment={context.openAssignment}
+            onDirty={context.onDirtyChange}
+          />
+        )}
+        detailPanels={(row, context) => (
+          <AssignmentDetailSections
+            key={row.asgn_id}
+            row={row}
+            context={context}
+            onChange={(assignment, project, controls) =>
+              setChange({ row: assignment, project, context: controls })
+            }
+          />
+        )}
+        projectPanel={(projectId, year) => (
+          <ProjectAssignmentMonthsPanel projectId={projectId} year={year} />
+        )}
+        dialogs={
+          change && (
+            <AssignmentChangeForm
+              assignment={change.row}
+              contractType={change.project.cntrct_ty_cd}
+              readOnly={change.context.readOnly}
+              projectWritable={
+                change.project.use_yn === "Y" &&
+                ["PLAN", "RUN", "HOLD"].includes(change.project.prj_stts_cd)
+              }
+              reload={change.context.refresh}
+              today={today}
+              onCancel={() => setChange(null)}
+              onSaved={(result) => {
+                setChange(null);
+                setMessage(
+                  `변경 이력에 '${changeNames[result.change.asgn_chg_ty_cd]}' 기록을 남겼습니다.`,
+                );
+              }}
+            />
+          )
+        }
+      />
+      {message && (
+        <SuccessToast message={message} onDismiss={() => setMessage("")} />
+      )}
+    </>
+  );
+}
+
 function ProjectBoardScreen(bindings: BusinessScreenBindings) {
   const [version, setVersion] = useState(0);
   const [openCount, setOpenCount] = useState<number>();
@@ -382,6 +588,8 @@ export function AppRouter() {
                 <DevelopersScreen {...bindings} />
               ) : id === "UI-01" ? (
                 <ProjectsScreen {...bindings} />
+              ) : id === "UI-12" ? (
+                <AssignmentsScreen {...bindings} />
               ) : id === "UI-31" ? (
                 <ProjectBoardScreen {...bindings} />
               ) : id === "UI-27" ? (

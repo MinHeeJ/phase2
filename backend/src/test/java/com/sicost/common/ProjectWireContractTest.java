@@ -113,16 +113,21 @@ class ProjectWireContractTest {
             for (String method : List.of("get", "post", "put", "delete")) {
                 if (!(methods.get(method) instanceof Map<?, ?> operation)) continue;
                 String id = operation.get("operationId").toString();
-                String key = ProjectActions.key(id);
+                // Project URLs can expose assignment-owned operations (UI-12).
+                boolean assignment = "getProjectAssignmentMonths".equals(id);
+                String key = assignment ? AssignmentActions.key(id) : ProjectActions.key(id);
                 assertThat((List<?>) operation.get("security")).isNullOrEmpty();
                 assertThat(operation.get("x-roles")).isNull();
-                assertThat(PermissionService.AUTH_COLUMNS).containsKey(key.substring("UI-01.".length()));
-                assertThat(ProjectActions.can(permissions, id, false)).isTrue();
+                assertThat(PermissionService.AUTH_COLUMNS).containsKey(key.substring(key.indexOf('.') + 1));
+                assertThat(assignment ? AssignmentActions.can(permissions, id)
+                    : ProjectActions.can(permissions, id, false)).isTrue();
+                assertThat(key).startsWith(assignment ? "UI-12." : "UI-01.");
                 checked.add(id);
             }
         }
         assertThat(checked).contains("createUploadValidation", "getUploadResult", "listUploadIssues",
-            "listUploadRows", "createUploadRevalidation", "saveUploadApplication", "getUploadTemplate", "getUploadErrorFile");
+            "listUploadRows", "createUploadRevalidation", "saveUploadApplication", "getUploadTemplate", "getUploadErrorFile",
+            "getProjectAssignmentMonths");
         assertThat(new CurrentUser().userId()).isNull();
         assertThat(new CurrentUser().name()).isEqualTo("기본 사용자");
     }

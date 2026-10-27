@@ -63,6 +63,7 @@ export interface ProjectPage {
   unassignedCount: number;
 }
 export interface ProjectAssignment {
+  asgn_id: number;
   name: string;
   job: string;
   beginDate: string;

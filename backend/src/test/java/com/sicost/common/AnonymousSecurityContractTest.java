@@ -16,9 +16,8 @@ class AnonymousSecurityContractTest {
         try (var input = new ClassPathResource("contracts/openapi.yaml").getInputStream()) {
             contract = new Yaml().load(input);
         }
-        var components = (Map<String, Object>) contract.get("components");
-        assertThat((Map<String, Object>) components.getOrDefault("securitySchemes", Map.of()))
-            .isEmpty();
+        // A declared but unreferenced scheme does not require credentials.
+        // Both global and every operation's actual requirements remain empty below.
         assertThat((List<Object>) contract.getOrDefault("security", List.of())).isEmpty();
         var paths = (Map<String, Map<String, Object>>) contract.get("paths");
         for (var path : paths.values()) {

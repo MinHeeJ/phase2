@@ -507,7 +507,10 @@ export function ProjectForm({
                 .filter((c) => !skills.codes.some((s) => s.code === c))
                 .map((code) => ({ code, name: code })),
             ].map((c) => (
-              <label key={c.code}>
+              <label
+                data-testid={`project-skill-label-${c.code.toLowerCase().replaceAll("_", "-")}`}
+                key={c.code}
+              >
                 <input
                   data-testid={`project-skill-${c.code.toLowerCase()}`}
                   type="checkbox"

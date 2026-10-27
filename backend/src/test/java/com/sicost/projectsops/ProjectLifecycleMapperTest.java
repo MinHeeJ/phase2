@@ -33,7 +33,7 @@ class ProjectLifecycleMapperTest {
     }
     @Test void assignmentConstructorHasExactlyContractProjection()throws Exception{
         var c=configuration();var map=c.getResultMap(ProjectLifecycleMapper.class.getName()+".assignmentRow");
-        assertThat(map.getConstructorResultMappings()).extracting(p->p.getColumn()).containsExactly("name","job","beginDate","endDate","assignmentRate","status");
+        assertThat(map.getConstructorResultMappings()).extracting(p->p.getColumn()).containsExactly("name","job","beginDate","endDate","assignmentRate","status","asgn_id");
     }
     @Test void optionsWithoutQDoNotBindNull()throws Exception{
         var sql=configuration().getMappedStatement(ProjectLifecycleMapper.class.getName()+".options").getBoundSql(Map.of());

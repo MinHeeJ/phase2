@@ -63,6 +63,8 @@ beforeEach(() => {
   fetcher = vi.fn(async (url: string) => {
     if (url === "/api/menus") return response(menus);
     if (url.startsWith("/api/month-close?")) return response([]);
+    if (url.startsWith("/api/assignments?"))
+      return response({ items: [], total: 0, page: 0, size: 50 });
     if (url.startsWith("/api/projects?"))
       return response({
         items: [],

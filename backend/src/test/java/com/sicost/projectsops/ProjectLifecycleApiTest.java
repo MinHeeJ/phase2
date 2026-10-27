@@ -72,10 +72,15 @@ class ProjectLifecycleApiTest {
         assertThat(states.get(1L).useYn()).isEqualTo("Y");untouched();
     }
     @Test void anonymousOptionsUsesUnpagedArrayAndQ()throws Exception{mvc.perform(get("/api/projects/options").param("q","프로젝트")).andExpect(status().isOk()).andExpect(jsonPath("$.success").value(true)).andExpect(jsonPath("$.data[0].type").value("TK"));verify(mapper).options("프로젝트");untouched();}
-    @Test void anonymousAssignmentsExposeExactlySixFields()throws Exception{
-        when(mapper.assignments(1)).thenReturn(List.of(new ProjectAssignment("개발자","백엔드",LocalDate.of(2026,1,1),LocalDate.of(2026,12,31),new BigDecimal("0.50"),"ACTIVE")));
+    @Test void anonymousAssignmentsPreserveDisplayFieldsAndExposeAssignmentIdentity()throws Exception{
+        when(mapper.assignments(1)).thenReturn(List.of(new ProjectAssignment("개발자","백엔드",LocalDate.of(2026,1,1),LocalDate.of(2026,12,31),new BigDecimal("0.50"),"ACTIVE",7)));
         var response=mvc.perform(get("/api/projects/1/assignments")).andExpect(status().isOk()).andExpect(jsonPath("$.success").value(true)).andExpect(jsonPath("$.data[0].beginDate").value("2026-01-01")).andExpect(jsonPath("$.data[0].assignmentRate").value(0.5)).andReturn();
-        var row=json.readTree(response.getResponse().getContentAsString()).path("data").get(0);assertThat(row.size()).isEqualTo(6);assertThat(row.has("salary")).isFalse();untouched();
+        var row=json.readTree(response.getResponse().getContentAsString()).path("data").get(0);
+        assertThat(row.size()).isEqualTo(7);
+        assertThat(row.path("asgn_id").asLong()).isEqualTo(7);
+        assertThat(row.has("salary")).isFalse();
+        assertThat(row.has("bill_untprc_amt")).isFalse();
+        untouched();
     }
     @ParameterizedTest @ValueSource(strings={"assignments","history"}) void readEmptyArrays(String operation)throws Exception{mvc.perform(get("/api/projects/1/"+operation)).andExpect(status().isOk()).andExpect(jsonPath("$.data").isEmpty());untouched();}
     @ParameterizedTest @ValueSource(strings={"assignments","history"}) void readMissing(String operation)throws Exception{mvc.perform(get("/api/projects/99/"+operation)).andExpect(status().isNotFound());untouched();}

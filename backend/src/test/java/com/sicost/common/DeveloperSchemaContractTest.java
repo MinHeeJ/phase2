@@ -31,7 +31,8 @@ class DeveloperSchemaContractTest {
             .doesNotContain("CREATE TABLE IF NOT EXISTS grd_cd", "CREATE TABLE IF NOT EXISTS use_yn");
         var resources = new PathMatchingResourcePatternResolver().getResources("classpath*:db/migration/V*__*.sql");
         assertThat(Arrays.stream(resources).map(resource -> resource.getFilename()))
-            .containsExactlyInAnyOrder("V1__schema.sql", "V2__seed_month_close.sql", "V3__seed_bank.sql");
+            .containsExactlyInAnyOrder("V1__schema.sql", "V2__seed_month_close.sql", "V3__seed_bank.sql",
+                "V4__asgn_chg_hist_ext.sql");
     }
 
     @Test void managementNumberRequiresFinalValueBeforeInsertAndIsUniqueNotTheName() throws Exception {

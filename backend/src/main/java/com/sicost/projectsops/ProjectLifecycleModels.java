@@ -8,7 +8,8 @@ public final class ProjectLifecycleModels {
     public record ProjectState(long id,String useYn) {}
     public record ProjectRead(long id,LocalDate today) {}
     public record ProjectOption(long id,String no,String name,String type,String custName) {}
-    public record ProjectAssignment(String name,String job,LocalDate beginDate,LocalDate endDate,BigDecimal assignmentRate,String status) {}
+    public record ProjectAssignment(String name,String job,LocalDate beginDate,LocalDate endDate,
+        BigDecimal assignmentRate,String status,long asgn_id) {}
     public record ProjectHistoryEntry(LocalDateTime changedAt,String field,String before,String after,String actor) {}
     public record ProjectUsage(long assignments,long billStages,long allocations,long expenses) {
         public boolean blocked(){return assignments>0||billStages>0||allocations>0||expenses>0;}

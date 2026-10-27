@@ -1,0 +1,217 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sicost.assignmentsops.AssignmentOperationMapper">
+  <resultMap id="assignmentOperationProject" type="com.sicost.assignmentsops.AssignmentOperationModels$Project">
+    <constructor>
+      <arg column="prj_id" javaType="_long"/>
+      <arg column="cntrct_ty_cd" javaType="java.lang.String"/>
+      <arg column="prj_stts_cd" javaType="java.lang.String"/>
+      <arg column="use_yn" javaType="java.lang.String"/>
+    </constructor>
+  </resultMap>
+  <resultMap id="assignmentOperationDeveloper" type="com.sicost.assignmentsops.AssignmentOperationModels$Developer">
+    <constructor>
+      <arg column="dev_id" javaType="_long"/>
+      <arg column="emp_se_cd" javaType="java.lang.String"/>
+      <arg column="use_yn" javaType="java.lang.String"/>
+    </constructor>
+  </resultMap>
+  <resultMap id="assignmentOperationRow" type="com.sicost.assignmentsops.AssignmentOperationModels$Row">
+    <constructor>
+      <arg column="asgn_id" javaType="_long"/>
+      <arg column="asgn_no" javaType="java.lang.String"/>
+      <arg column="prj_id" javaType="_long"/>
+      <arg column="prj_nm" javaType="java.lang.String"/>
+      <arg column="dev_id" javaType="_long"/>
+      <arg column="dev_nm" javaType="java.lang.String"/>
+      <arg column="mng_no" javaType="java.lang.String"/>
+      <arg column="job_cd" javaType="java.lang.String"/>
+      <arg column="bgn_dt" javaType="java.time.LocalDate"/>
+      <arg column="end_dt" javaType="java.time.LocalDate"/>
+      <arg column="plan_end_dt" javaType="java.time.LocalDate"/>
+      <arg column="asgn_rt" javaType="java.math.BigDecimal"/>
+      <arg column="asgn_se_cd" javaType="java.lang.String"/>
+      <arg column="untprc_base_cd" javaType="java.lang.String"/>
+      <arg column="ext_psblty_cd" javaType="java.lang.String"/>
+      <arg column="cntrct_dev_id" javaType="java.lang.Long"/>
+      <arg column="cntrct_dev_nm" javaType="java.lang.String"/>
+      <arg column="asgn_stts_cd" javaType="java.lang.String"/>
+      <arg column="rplc_asgn_id" javaType="java.lang.Long"/>
+      <arg column="bill_untprc_amt" javaType="java.lang.Long"/>
+      <arg column="current_month_mm_qty" javaType="java.math.BigDecimal"/>
+      <arg column="person_month_mm_qty" javaType="java.math.BigDecimal"/>
+      <arg column="year_mm_qty" javaType="java.math.BigDecimal"/>
+      <arg column="updated_at" javaType="java.time.LocalDateTime"/>
+      <arg column="rmrk_desc" javaType="java.lang.String"/>
+    </constructor>
+  </resultMap>
+  <resultMap id="assignmentOperationMonth" type="com.sicost.assignmentsops.AssignmentOperationModels$Month">
+    <constructor>
+      <arg column="work_ym" javaType="java.lang.String"/>
+      <arg column="auto_mm_qty" javaType="java.math.BigDecimal"/>
+      <arg column="mm_qty" javaType="java.math.BigDecimal"/>
+      <arg column="mnl_yn" javaType="java.lang.String"/>
+      <arg column="person_month_mm_qty" javaType="java.math.BigDecimal"/>
+      <arg column="closed_yn" javaType="java.lang.String"/>
+    </constructor>
+  </resultMap>
+  <resultMap id="assignmentOperationRate" type="com.sicost.assignmentsops.AssignmentOperationModels$Rate">
+    <constructor>
+      <arg column="aply_bgn_dt" javaType="java.time.LocalDate"/>
+      <arg column="bill_untprc_amt" javaType="java.lang.Long"/>
+    </constructor>
+  </resultMap>
+  <resultMap id="assignmentOperationChange" type="com.sicost.assignmentsops.AssignmentOperationModels$Change">
+    <constructor>
+      <arg column="asgn_chg_id" javaType="_long"/>
+      <arg column="asgn_id" javaType="_long"/>
+      <arg column="asgn_chg_ty_cd" javaType="java.lang.String"/>
+      <arg column="aply_dt" javaType="java.time.LocalDate"/>
+      <arg column="bfr_val" javaType="java.lang.String"/>
+      <arg column="aft_val" javaType="java.lang.String"/>
+      <arg column="new_asgn_id" javaType="java.lang.Long"/>
+      <arg column="rsn_cd" javaType="java.lang.String"/>
+      <arg column="rsn_nm" javaType="java.lang.String"/>
+      <arg column="rsn_desc" javaType="java.lang.String"/>
+      <arg column="retro_yn" javaType="java.lang.String"/>
+      <arg column="fixed_yn" javaType="java.lang.String"/>
+      <arg column="fix_trgt_chg_id" javaType="java.lang.Long"/>
+      <arg column="fix_trgt_aply_dt" javaType="java.time.LocalDate"/>
+      <arg column="fix_trgt_chg_ty_cd" javaType="java.lang.String"/>
+      <arg column="chg_user_id" javaType="java.lang.Long"/>
+      <arg column="chg_user_nm" javaType="java.lang.String"/>
+      <arg column="chg_at" javaType="java.time.LocalDateTime"/>
+    </constructor>
+  </resultMap>
+  <select id="project" resultMap="assignmentOperationProject">
+    SELECT p.prj_id,p.cntrct_ty_cd,p.prj_stts_cd,p.use_yn FROM prj.prj p WHERE p.prj_id=#{id}
+  </select>
+  <select id="developer" resultMap="assignmentOperationDeveloper">
+    SELECT d.dev_id,d.emp_se_cd,d.use_yn FROM mst.dev d WHERE d.dev_id=#{id}
+  </select>
+  <sql id="projection">
+    SELECT a.asgn_id,a.asgn_no,a.prj_id,p.prj_nm,a.dev_id,d.dev_nm,d.mng_no,a.job_cd,
+      a.bgn_dt,a.end_dt,COALESCE(a.plan_end_dt,a.end_dt) AS plan_end_dt,a.asgn_rt,a.asgn_se_cd,
+      CASE WHEN p.cntrct_ty_cd IN ('TK','IN') THEN NULL ELSE a.untprc_base_cd END AS untprc_base_cd,
+      a.ext_psblty_cd,a.cntrct_dev_id,c.dev_nm AS cntrct_dev_nm,a.asgn_stts_cd,a.rplc_asgn_id,
+      CASE WHEN p.cntrct_ty_cd IN ('TK','IN') THEN NULL ELSE
+        (SELECT r.bill_untprc_amt FROM asgn.untprc_hist r WHERE r.asgn_id=a.asgn_id
+          AND r.aply_bgn_dt &lt;= #{today} ORDER BY r.aply_bgn_dt DESC LIMIT 1) END AS bill_untprc_amt,
+      COALESCE((SELECT m.mm_qty FROM asgn.asgn_mth m WHERE m.asgn_id=a.asgn_id
+        AND m.work_ym=to_char(CAST(#{today} AS date),'YYYY-MM')),0) AS current_month_mm_qty,
+      COALESCE((SELECT SUM(m.mm_qty) FROM asgn.asgn_mth m JOIN asgn.asgn x ON x.asgn_id=m.asgn_id
+        WHERE x.dev_id=a.dev_id AND x.asgn_stts_cd!='CANCELLED'
+        AND m.work_ym=to_char(CAST(#{today} AS date),'YYYY-MM')),0) AS person_month_mm_qty,
+      COALESCE((SELECT SUM(m.mm_qty) FROM asgn.asgn_mth m WHERE m.asgn_id=a.asgn_id
+        AND left(m.work_ym,4)=CAST(#{year} AS text)),0) AS year_mm_qty,
+      COALESCE(a.updated_at,a.created_at) AS updated_at,a.rmrk_desc
+    FROM asgn.asgn a JOIN prj.prj p ON p.prj_id=a.prj_id JOIN mst.dev d ON d.dev_id=a.dev_id
+    LEFT JOIN mst.dev c ON c.dev_id=a.cntrct_dev_id
+  </sql>
+  <select id="row" resultMap="assignmentOperationRow">
+    <include refid="projection"/> WHERE a.asgn_id=#{id}
+  </select>
+  <select id="exportRows" resultMap="assignmentOperationRow">
+    <include refid="projection"/>
+    WHERE a.asgn_stts_cd!='CANCELLED' AND a.bgn_dt &lt;= #{last} AND a.end_dt &gt;= #{first}
+    <if test="projectId != null">AND a.prj_id=#{projectId}</if>
+    <if test="job != null">AND a.job_cd=#{job}</if>
+    <if test="q != null">AND (position(lower(#{q}) in lower(d.dev_nm))&gt;0 OR position(lower(#{q}) in lower(d.mng_no))&gt;0)</if>
+    ORDER BY a.asgn_id
+  </select>
+  <select id="months" resultMap="assignmentOperationMonth">
+    SELECT m.work_ym,COALESCE(m.auto_mm_qty,m.mm_qty) AS auto_mm_qty,m.mm_qty,m.mnl_yn,
+      COALESCE((SELECT SUM(t.mm_qty) FROM asgn.asgn_mth t JOIN asgn.asgn x ON x.asgn_id=t.asgn_id
+        WHERE x.dev_id=a.dev_id AND x.asgn_stts_cd!='CANCELLED' AND t.work_ym=m.work_ym),0) AS person_month_mm_qty,
+      CASE WHEN EXISTS(SELECT 1 FROM fin.mth_cls c WHERE c.cls_ym=m.work_ym AND c.cls_stts_cd='CLOSED') THEN 'Y' ELSE 'N' END AS closed_yn
+    FROM asgn.asgn_mth m JOIN asgn.asgn a ON a.asgn_id=m.asgn_id
+    WHERE m.asgn_id=#{id} ORDER BY m.work_ym
+  </select>
+  <select id="rates" resultMap="assignmentOperationRate">
+    SELECT r.aply_bgn_dt,r.bill_untprc_amt FROM asgn.untprc_hist r WHERE r.asgn_id=#{id} ORDER BY r.aply_bgn_dt
+  </select>
+  <select id="changes" resultMap="assignmentOperationChange">
+    SELECT h.*,c.cd_nm AS rsn_nm,t.aply_dt AS fix_trgt_aply_dt,t.asgn_chg_ty_cd AS fix_trgt_chg_ty_cd,
+      CASE WHEN h.chg_user_id IS NULL THEN NULL ELSE u.user_nm END AS chg_user_nm
+    FROM asgn.asgn_chg_hist h LEFT JOIN cmn.cd_dtl c ON c.cd_grp_id='ASGN_CHG_RSN' AND c.dtl_cd=h.rsn_cd
+    LEFT JOIN asgn.asgn_chg_hist t ON t.asgn_chg_id=h.fix_trgt_chg_id
+    LEFT JOIN sys.user_info u ON u.user_id=h.chg_user_id
+    WHERE h.asgn_id=#{id} ORDER BY h.aply_dt DESC,h.chg_at DESC,h.asgn_chg_id DESC
+  </select>
+  <select id="closedMonths" resultType="string">
+    SELECT c.cls_ym FROM fin.mth_cls c WHERE c.cls_stts_cd='CLOSED' ORDER BY c.cls_ym
+  </select>
+  <select id="onLeave" resultType="boolean">
+    SELECT EXISTS(SELECT 1 FROM mst.dev_work_stts_hist h WHERE h.dev_id=#{developer}
+      AND h.work_stts_cd IN ('VACATION','PARENTAL','UNPAID','LEAVE')
+      AND h.bgn_dt &lt;= #{end} AND (h.end_dt IS NULL OR h.end_dt &gt;= #{start}))
+  </select>
+  <select id="overlaps" resultType="boolean">
+    SELECT EXISTS(SELECT 1 FROM asgn.asgn a WHERE a.prj_id=#{project} AND a.dev_id=#{developer}
+      AND a.asgn_stts_cd!='CANCELLED' AND a.bgn_dt &lt;= #{end} AND a.end_dt &gt;= #{start}
+      <if test="excluded != null">AND a.asgn_id!=#{excluded}</if>)
+  </select>
+  <select id="personTotal" resultType="java.math.BigDecimal">
+    SELECT COALESCE(SUM(m.mm_qty),0) FROM asgn.asgn_mth m JOIN asgn.asgn a ON a.asgn_id=m.asgn_id
+    WHERE a.dev_id=#{developer} AND a.asgn_stts_cd!='CANCELLED' AND m.work_ym=#{month}
+  </select>
+  <select id="activeCode" resultType="boolean">
+    SELECT EXISTS(SELECT 1 FROM cmn.cd_dtl c JOIN cmn.cd_grp g ON g.cd_grp_id=c.cd_grp_id
+      WHERE c.cd_grp_id=#{group} AND c.dtl_cd=#{code} AND c.use_yn='Y' AND g.use_yn='Y')
+  </select>
+  <select id="codeName" resultType="string">
+    SELECT c.cd_nm FROM cmn.cd_dtl c WHERE c.cd_grp_id=#{group} AND c.dtl_cd=#{code}
+  </select>
+  <select id="inUse" resultType="string">
+    SELECT CASE WHEN EXISTS(SELECT 1 FROM asgn.asgn_mth m JOIN fin.mth_cls c ON c.cls_ym=m.work_ym
+      WHERE m.asgn_id=#{id} AND c.cls_stts_cd='CLOSED') THEN '마감된 월별 MM이 있습니다.'
+      WHEN EXISTS(SELECT 1 FROM bill.bill_dtl b WHERE b.asgn_id=#{id}) THEN '청구 상세 연결 이력이 있습니다.' END
+  </select>
+  <select id="extendCount" resultType="int">
+    SELECT count(*) FROM asgn.asgn_chg_hist h WHERE h.asgn_id=#{id} AND h.asgn_chg_ty_cd='EXTEND' AND h.fixed_yn='N'
+  </select>
+  <select id="nextId" resultType="long">SELECT nextval('asgn.seq_asgn_id')</select>
+  <update id="cancel">
+    UPDATE asgn.asgn SET asgn_stts_cd='CANCELLED',updated_by=#{actor} WHERE asgn_id=#{id}
+  </update>
+  <update id="chance">
+    UPDATE asgn.asgn SET ext_psblty_cd=#{value},updated_by=#{actor} WHERE asgn_id=#{id}
+  </update>
+  <update id="shorten">
+    UPDATE asgn.asgn SET end_dt=#{end},asgn_stts_cd='REPLACED',updated_by=#{actor} WHERE asgn_id=#{id}
+  </update>
+  <insert id="insertReplacement">
+    INSERT INTO asgn.asgn(asgn_id,asgn_no,prj_id,dev_id,cntrct_dev_id,job_cd,bgn_dt,end_dt,plan_end_dt,
+      asgn_rt,asgn_se_cd,untprc_base_cd,ext_psblty_cd,asgn_stts_cd,rplc_asgn_id,rmrk_desc,created_by,updated_at)
+    VALUES(#{id},#{number},#{original.prj_id},#{request.dev_id},COALESCE(#{original.cntrct_dev_id},#{original.dev_id}),
+      #{original.job_cd},#{request.aply_dt},#{original.end_dt},#{original.end_dt},#{original.asgn_rt},'SUB',
+      COALESCE(#{original.untprc_base_cd},'MONTH'),#{original.ext_psblty_cd},'ACTIVE',#{original.asgn_id},
+      #{original.rmrk_desc},#{actor},CURRENT_TIMESTAMP)
+  </insert>
+  <delete id="deleteOutsideOpen">
+    DELETE FROM asgn.asgn_mth m WHERE m.asgn_id=#{id} AND m.work_ym&gt;to_char(CAST(#{end} AS date),'YYYY-MM')
+      AND NOT EXISTS(SELECT 1 FROM fin.mth_cls c WHERE c.cls_ym=m.work_ym AND c.cls_stts_cd='CLOSED')
+  </delete>
+  <delete id="deleteOpen">
+    DELETE FROM asgn.asgn_mth m WHERE m.asgn_id=#{id}
+      AND NOT EXISTS(SELECT 1 FROM fin.mth_cls c WHERE c.cls_ym=m.work_ym AND c.cls_stts_cd='CLOSED')
+  </delete>
+  <insert id="saveMonth">
+    INSERT INTO asgn.asgn_mth(asgn_id,work_ym,auto_mm_qty,mm_qty,mnl_yn)
+    SELECT #{id},#{month},#{automatic},#{quantity},#{manual}
+    WHERE NOT EXISTS(SELECT 1 FROM fin.mth_cls c WHERE c.cls_ym=#{month} AND c.cls_stts_cd='CLOSED')
+    ON CONFLICT(asgn_id,work_ym) DO UPDATE SET auto_mm_qty=excluded.auto_mm_qty,
+      mm_qty=CASE WHEN asgn_mth.mnl_yn='Y' THEN asgn_mth.mm_qty ELSE excluded.mm_qty END
+  </insert>
+  <insert id="insertRate">
+    INSERT INTO asgn.untprc_hist(asgn_id,aply_bgn_dt,bill_untprc_amt,created_by)
+    VALUES(#{id},#{date},#{amount},#{actor})
+    ON CONFLICT(asgn_id,aply_bgn_dt) DO UPDATE SET bill_untprc_amt=excluded.bill_untprc_amt
+  </insert>
+  <select id="insertHistory" resultType="long" affectData="true" flushCache="true">
+    INSERT INTO asgn.asgn_chg_hist(asgn_id,asgn_chg_ty_cd,aply_dt,bfr_val,aft_val,new_asgn_id,
+      rsn_cd,rsn_desc,retro_yn,chg_user_id,created_by)
+    VALUES(#{id},#{type},#{date},#{before},#{after},#{linked},#{reason},#{description},#{retro},#{actor},#{actor})
+    RETURNING asgn_chg_id
+  </select>
+</mapper>

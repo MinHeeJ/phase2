@@ -28,6 +28,10 @@ import com.sicost.phases.*;
 import com.sicost.issues.*;
 import com.sicost.issuesops.*;
 import com.sicost.projectboardops.*;
+import com.sicost.assignments.*;
+import com.sicost.assignmentsops.*;
+import com.sicost.changes.*;
+import com.sicost.months.*;
 import java.util.*;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -47,10 +51,12 @@ import org.yaml.snakeyaml.Yaml;
     ProjectBillStageController.class, ProjectExpenseController.class, ProjectStaffPlanController.class,
     ProjectMemoController.class, ProjectPhaseController.class, ProjectProgressController.class,
     IssueController.class, IssueOwnerController.class, ProjectBoardController.class,
-    ProjectBoardExportController.class})
+    ProjectBoardExportController.class, AssignmentController.class, AssignmentOperationController.class,
+    AssignmentChangeController.class, AssignmentMonthsController.class, ProjectAssignmentMonthController.class})
 @Import(CurrentUser.class)
 class OpenApiHandlerContractTest {
     @Autowired RequestMappingHandlerMapping handlers;
+    @MockBean java.time.Clock clock;
     @MockBean AdminService admin;
     @MockBean SharedReadService shared;
     @MockBean PartnerService partners;
@@ -80,6 +86,12 @@ class OpenApiHandlerContractTest {
     @MockBean ProjectBoardService board;
     @MockBean ProgressParameterService parameters;
     @MockBean ProjectBoardExportService boardExports;
+    @MockBean AssignmentService assignments;
+    @MockBean AssignmentOperationService assignmentOperations;
+    @MockBean AssignmentExportService assignmentExports;
+    @MockBean AssignmentChangeService assignmentChanges;
+    @MockBean AssignmentMonthsService assignmentMonths;
+    @MockBean ProjectAssignmentMonthService projectAssignmentMonths;
 
     @Test void everyDurableOperationHasOneRegisteredLiteralHandler() throws Exception {
         Map<?,?> contract;

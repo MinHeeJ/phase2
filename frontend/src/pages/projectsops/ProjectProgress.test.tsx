@@ -6,6 +6,7 @@ import {
   within,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { MemoryRouter } from "react-router-dom";
 import { ProjectProgressPanel } from "./ProjectProgressPanel";
 import { ProjectIssuePanel, ProjectIssueTabLabel } from "./ProjectIssuePanel";
 import { projectProgressTabs } from "./ProjectProgressTabs";
@@ -334,12 +335,14 @@ describe("SCR-UI-01 progress", () => {
   });
   it("basic CTA and tab open identical panel with dynamic issue count", async () => {
     render(
-      <ProjectDrawer
-        id={8}
-        onClose={vi.fn()}
-        onSaved={changed}
-        tabs={projectProgressTabs()}
-      />,
+      <MemoryRouter>
+        <ProjectDrawer
+          id={8}
+          onClose={vi.fn()}
+          onSaved={changed}
+          tabs={projectProgressTabs()}
+        />
+      </MemoryRouter>,
     );
     fireEvent.click(await screen.findByTestId("project-progress-open"));
     expect(await screen.findByText("계획 50.5%")).toBeVisible();

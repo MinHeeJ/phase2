@@ -58,7 +58,7 @@ class SchemaMigrationTest {
         new SchemaValidator(source, new ObjectMapper()).validate();
         assertThat(scalar("SELECT count(*) FROM information_schema.schemata WHERE schema_name IN ('cmn','sys','mst','bsn','prj','asgn','hr','cst','bill','fin','ai')")).isEqualTo(11);
         assertThat(scalar("SELECT count(*) FROM information_schema.tables WHERE table_type='BASE TABLE' AND table_schema IN ('cmn','sys','mst','bsn','prj','asgn','hr','cst','bill','fin','ai')")).isEqualTo(80);
-        Map<String, Integer> counts = Map.of("cmn.cd_grp", 36, "cmn.cd_dtl", 199, "sys.role", 5, "sys.menu", 41, "sys.role_menu_auth", 155, "fin.mth_cls", 10);
+        Map<String, Integer> counts = Map.of("cmn.cd_grp", 37, "cmn.cd_dtl", 205, "sys.role", 5, "sys.menu", 41, "sys.role_menu_auth", 155, "fin.mth_cls", 10);
         for (var entry : counts.entrySet()) {
             String query = switch (entry.getKey()) {
                 case "cmn.cd_grp" -> "SELECT count(*) FROM cmn.cd_grp";
@@ -109,7 +109,7 @@ class SchemaMigrationTest {
             }
             assertThat(rows.next()).isFalse();
         }
-        assertThat(scalar("SELECT count(*) FROM cmn.cd_dtl WHERE cd_grp_id<>'BANK'")).isEqualTo(189);
+        assertThat(scalar("SELECT count(*) FROM cmn.cd_dtl WHERE cd_grp_id<>'BANK'")).isEqualTo(195);
         assertThat(scalar("SELECT count(*) FROM mst.ptnr")).isZero();
         assertThat(scalar("SELECT count(*) FROM mst.bsn_part")).isEqualTo(1);
         assertThat(scalar("SELECT count(*) FROM mst.bsn_part WHERE hq_yn='Y' AND use_yn='Y'")).isEqualTo(1);

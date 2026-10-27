@@ -1,0 +1,69 @@
+.tableScroll {
+  overflow: auto;
+  max-width: 100%;
+  border: 1px solid var(--divider);
+  border-radius: var(--radius-panel);
+}
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--table-size);
+  background: var(--surface);
+}
+.table th,
+.table td {
+  height: 40px;
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--divider);
+  text-align: left;
+  vertical-align: top;
+}
+.table th {
+  background: var(--header-bg);
+  font-weight: var(--table-heading-weight);
+  white-space: nowrap;
+}
+.table td {
+  overflow-wrap: anywhere;
+  min-width: 90px;
+}
+.table small {
+  display: block;
+  color: var(--text-sub);
+  margin-top: var(--space-1);
+}
+.fixed {
+  opacity: 0.5;
+}
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: var(--space-4) 0;
+}
+.chips [aria-pressed="true"] {
+  color: var(--primary);
+  background: var(--primary-bg);
+  border-color: var(--primary);
+}
+.empty {
+  text-align: center !important;
+  color: var(--text-sub);
+  padding: 48px 16px !important;
+}
+.form {
+  display: grid;
+  gap: var(--space-4);
+}
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+.warning {
+  padding: 10px 16px;
+  border-radius: var(--radius-panel);
+  color: var(--warning);
+  background: var(--warning-bg);
+  font-size: 13px;
+}

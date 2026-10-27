@@ -28,6 +28,7 @@ import {
   type ProjectDetail,
 } from "./client";
 import styles from "./Projects.module.css";
+import { useNavigate } from "react-router-dom";
 
 export interface ProjectDetailTab {
   key: string;
@@ -85,6 +86,7 @@ export function ProjectDrawer({
   actions?: (row: ProjectDetail, refresh: () => Promise<unknown>) => ReactNode;
   initialTab?: string;
 }) {
+  const navigate = useNavigate();
   const detail = useAdminRead(useCallback(() => getProject(id), [id]));
   const [editing, setEditing] = useState(false),
     [dirty, setDirty] = useState(false),
@@ -408,6 +410,23 @@ export function ProjectDrawer({
                   })}
                 {tab === "assignments" && (
                   <>
+                    {/* SCR-UI-01#assignment-create */}
+                    {!readOnly &&
+                      row.use_yn === "Y" &&
+                      ["PLAN", "RUN", "HOLD"].includes(row.prj_stts_cd) && (
+                        <Button
+                          data-testid="project-assignment-create"
+                          onClick={() =>
+                            requestLeave(() =>
+                              navigate("/UI-12", {
+                                state: { assignmentProjectId: row.prj_id },
+                              }),
+                            )
+                          }
+                        >
+                          + 배정
+                        </Button>
+                      )}
                     <ErrorBanner
                       error={assignments.error}
                       onRetry={() => void assignments.reload().catch(() => {})}
@@ -442,7 +461,22 @@ export function ProjectDrawer({
                                 data-testid={`project-assignment-${i}`}
                                 key={i}
                               >
-                                <td>{a.name}</td>
+                                <td>
+                                  {/* SCR-UI-01#assignment-detail */}
+                                  <Button
+                                    variant="text"
+                                    data-testid={`project-assignment-open-${a.asgn_id}`}
+                                    onClick={() =>
+                                      requestLeave(() =>
+                                        navigate("/UI-12", {
+                                          state: { assignmentId: a.asgn_id },
+                                        }),
+                                      )
+                                    }
+                                  >
+                                    {a.name}
+                                  </Button>
+                                </td>
                                 <td>{a.job}</td>
                                 <td>
                                   {a.beginDate} ~ {a.endDate ?? "–"}
