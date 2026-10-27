@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sicost.months.AssignmentMonthsMapper">
+  <resultMap id="assignmentMonthsState" type="com.sicost.months.AssignmentMonthsModels$AssignmentState">
+    <constructor>
+      <arg column="asgn_id" javaType="_long"/>
+      <arg column="prj_id" javaType="_long"/>
+      <arg column="dev_id" javaType="_long"/>
+      <arg column="bgn_dt" javaType="java.time.LocalDate"/>
+      <arg column="end_dt" javaType="java.time.LocalDate"/>
+      <arg column="asgn_rt" javaType="java.math.BigDecimal"/>
+      <arg column="asgn_stts_cd" javaType="java.lang.String"/>
+      <arg column="prj_stts_cd" javaType="java.lang.String"/>
+      <arg column="use_yn" javaType="java.lang.String"/>
+      <arg column="updated_at" javaType="java.time.LocalDateTime"/>
+    </constructor>
+  </resultMap>
+  <resultMap id="assignmentMonthRow" type="com.sicost.months.AssignmentMonthsModels$MonthRow">
+    <constructor>
+      <arg column="work_ym" javaType="java.lang.String"/>
+      <arg column="auto_mm_qty" javaType="java.math.BigDecimal"/>
+      <arg column="mm_qty" javaType="java.math.BigDecimal"/>
+      <arg column="mnl_yn" javaType="java.lang.String"/>
+      <arg column="person_month_mm_qty" javaType="java.math.BigDecimal"/>
+      <arg column="closed_yn" javaType="java.lang.String"/>
+    </constructor>
+  </resultMap>
+  <resultMap id="assignmentMonthWarning" type="com.sicost.months.AssignmentMonthsModels$Warning">
+    <constructor>
+      <arg column="code" javaType="java.lang.String"/>
+      <arg column="message" javaType="java.lang.String"/>
+      <arg column="work_ym" javaType="java.lang.String"/>
+    </constructor>
+  </resultMap>
+  <select id="assignment" resultMap="assignmentMonthsState">
+    SELECT a.asgn_id,a.prj_id,a.dev_id,a.bgn_dt,a.end_dt,a.asgn_rt,a.asgn_stts_cd,
+      p.prj_stts_cd,p.use_yn,COALESCE(a.updated_at,a.created_at) AS updated_at
+    FROM asgn.asgn a
+    JOIN prj.prj p ON p.prj_id=a.prj_id
+    WHERE a.asgn_id=#{id}
+  </select>
+  <select id="months" resultMap="assignmentMonthRow">
+    SELECT TO_CHAR(g.month,'YYYY-MM') AS work_ym,
+      COALESCE(m.auto_mm_qty,ROUND(
+        (LEAST(a.end_dt,(g.month + INTERVAL '1 month - 1 day')::date)
+          - GREATEST(a.bgn_dt,g.month::date) + 1)::numeric
+        / EXTRACT(DAY FROM g.month + INTERVAL '1 month - 1 day') * a.asgn_rt,2)) AS auto_mm_qty,
+      COALESCE(m.mm_qty,0) AS mm_qty,COALESCE(m.mnl_yn,'N') AS mnl_yn,
+      COALESCE((SELECT SUM(other.mm_qty)
+        FROM asgn.asgn_mth other
+        JOIN asgn.asgn owner ON owner.asgn_id=other.asgn_id
+        WHERE owner.dev_id=a.dev_id AND owner.asgn_stts_cd &lt;&gt; 'CANCELLED'
+          AND other.work_ym=TO_CHAR(g.month,'YYYY-MM')),0) AS person_month_mm_qty,
+      CASE WHEN c.cls_stts_cd='CLOSED' THEN 'Y' ELSE 'N' END AS closed_yn
+    FROM asgn.asgn a
+    CROSS JOIN LATERAL generate_series(DATE_TRUNC('month',a.bgn_dt::timestamp),
+      DATE_TRUNC('month',a.end_dt::timestamp),INTERVAL '1 month') AS g(month)
+    LEFT JOIN asgn.asgn_mth m ON m.asgn_id=a.asgn_id AND m.work_ym=TO_CHAR(g.month,'YYYY-MM')
+    LEFT JOIN fin.mth_cls c ON c.cls_ym=TO_CHAR(g.month,'YYYY-MM')
+    WHERE a.asgn_id=#{id}
+    ORDER BY g.month
+  </select>
+  <select id="warnings" resultMap="assignmentMonthWarning">
+    SELECT 'PRE_CONTRACT' AS code,'미계약 선투입' AS message,NULL::text AS work_ym
+    FROM asgn.asgn a JOIN prj.prj p ON p.prj_id=a.prj_id
+    WHERE a.asgn_id=#{id} AND a.asgn_stts_cd &lt;&gt; 'CANCELLED' AND p.prj_stts_cd='PLAN'
+    UNION ALL
+    SELECT 'ON_LEAVE','휴직 기간 배정',NULL::text
+    FROM asgn.asgn a
+    WHERE a.asgn_id=#{id} AND a.asgn_stts_cd &lt;&gt; 'CANCELLED' AND EXISTS (
+      SELECT 1 FROM mst.dev_work_stts_hist h
+      WHERE h.dev_id=a.dev_id AND h.work_stts_cd IN ('VACATION','PARENTAL','UNPAID','LEAVE')
+        AND h.bgn_dt &lt;= a.end_dt AND (h.end_dt IS NULL OR h.end_dt &gt;= a.bgn_dt))
+    UNION ALL
+    SELECT 'DISPATCH_NONREG','파견에 프리랜서·외주 배정',NULL::text
+    FROM asgn.asgn a JOIN prj.prj p ON p.prj_id=a.prj_id JOIN mst.dev d ON d.dev_id=a.dev_id
+    WHERE a.asgn_id=#{id} AND a.asgn_stts_cd &lt;&gt; 'CANCELLED'
+      AND p.cntrct_ty_cd='DP' AND d.emp_se_cd IN ('FL','OS')
+  </select>
+  <select id="overlaps" resultType="boolean">
+    SELECT EXISTS (SELECT 1 FROM asgn.asgn a JOIN asgn.asgn b
+      ON b.prj_id=a.prj_id AND b.dev_id=a.dev_id AND b.asgn_id &lt;&gt; a.asgn_id
+      AND b.asgn_stts_cd &lt;&gt; 'CANCELLED' AND b.bgn_dt &lt;= a.end_dt AND b.end_dt &gt;= a.bgn_dt
+      WHERE a.asgn_id=#{id})
+  </select>
+  <update id="update">
+    UPDATE asgn.asgn_mth m SET mm_qty=#{quantity},mnl_yn=#{manual},updated_by=#{actor}
+    WHERE m.asgn_id=#{id} AND m.work_ym=#{month}
+      AND NOT EXISTS (SELECT 1 FROM fin.mth_cls c WHERE c.cls_ym=m.work_ym AND c.cls_stts_cd='CLOSED')
+  </update>
+  <insert id="audit">
+    INSERT INTO sys.data_chg_hist(tbl_nm,obj_rec_id,data_chg_ty_cd,clmn_nm,bfr_val,aft_val,chg_user_id)
+    VALUES('asgn.asgn_mth',#{id},'UPDATE',#{month},#{before},#{after},#{actor})
+  </insert>
+</mapper>

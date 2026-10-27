@@ -8,6 +8,7 @@ export interface ProjectOption {
   custName: string | null;
 }
 export interface ProjectAssignment {
+  asgn_id: number;
   name: string;
   job: string;
   beginDate: string;

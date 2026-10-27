@@ -1,0 +1,62 @@
+.search {
+  composes: search from "../projects/Projects.module.css";
+}
+.toolbar {
+  composes: toolbar from "../projects/Projects.module.css";
+}
+.actions {
+  composes: actions from "../projects/Projects.module.css";
+}
+.tableScroll {
+  composes: tableScroll from "../projects/Projects.module.css";
+}
+.table {
+  composes: table from "../projects/Projects.module.css";
+}
+.textButton {
+  composes: textButton from "../projects/Projects.module.css";
+}
+.highlight {
+  composes: highlight from "../projects/Projects.module.css";
+}
+.form {
+  composes: form from "../projects/Projects.module.css";
+}
+.fields {
+  composes: fields from "../projects/Projects.module.css";
+}
+.scrim {
+  composes: scrim from "../projects/Projects.module.css";
+}
+.drawer {
+  composes: drawer from "../projects/Projects.module.css";
+  width: 720px;
+}
+.details {
+  composes: details from "../projects/Projects.module.css";
+}
+.empty {
+  composes: empty from "../projects/Projects.module.css";
+}
+.period {
+  composes: period from "../projects/Projects.module.css";
+}
+.warning {
+  composes: warning from "../projects/Projects.module.css";
+}
+.drawer h2 {
+  font-size: var(--title-size);
+}
+.drawer header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.number {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.table td {
+  height: 40px;
+}

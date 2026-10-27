@@ -220,6 +220,47 @@ export {
 } from "../pages/phases/client";
 export { saveProjectMemo, updateProjectMemo } from "../pages/memos/client";
 export {
+  listAssignments,
+  getAssignment,
+  createAssignment,
+  checkAssignments,
+} from "../pages/assignments/client";
+export type {
+  AssignmentInput,
+  AssignmentItem,
+  AssignmentDetail,
+  AssignmentFilters,
+  AssignmentPage,
+  AssignmentSave,
+  AssignmentWarning,
+} from "../pages/assignments/client";
+export {
+  getAssignmentMonths,
+  saveAssignmentMonths,
+} from "../pages/months/client";
+export type {
+  AssignmentMonth,
+  AssignmentMonthsRequest,
+  AssignmentMonthsResult,
+} from "../pages/months/client";
+export { getProjectAssignmentMonths } from "../pages/projectsops/assignmentMonthsClient";
+export type {
+  ProjectAssignmentMonthsResult,
+  ProjectAssignmentMonthRow,
+  ProjectMonthCell,
+} from "../pages/projectsops/assignmentMonthsClient";
+export {
+  listAssignmentChanges,
+  createAssignmentChange,
+  createAssignmentFix,
+} from "../pages/changes/client";
+export type {
+  AssignmentChange,
+  ChangeRequest,
+  FixRequest,
+  ChangeType,
+} from "../pages/changes/client";
+export {
   listIssues,
   listProjectIssues,
   createIssue,

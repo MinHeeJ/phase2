@@ -12,6 +12,7 @@
   </constructor></resultMap>
   <resultMap id="assignmentRow" type="com.sicost.projectsops.ProjectLifecycleModels$ProjectAssignment"><constructor>
     <arg column="name" javaType="java.lang.String"/><arg column="job" javaType="java.lang.String"/><arg column="beginDate" javaType="java.time.LocalDate"/><arg column="endDate" javaType="java.time.LocalDate"/><arg column="assignmentRate" javaType="java.math.BigDecimal"/><arg column="status" javaType="java.lang.String"/>
+    <arg column="asgn_id" javaType="_long"/>
   </constructor></resultMap>
   <resultMap id="historyRow" type="com.sicost.projectsops.ProjectLifecycleModels$ProjectHistoryEntry"><constructor>
     <arg column="changedAt" javaType="java.time.LocalDateTime"/><arg column="field" javaType="java.lang.String"/><arg column="before" javaType="java.lang.String"/><arg column="after" javaType="java.lang.String"/><arg column="actor" javaType="java.lang.String"/>
@@ -47,7 +48,7 @@
     ORDER BY p.prj_no,p.prj_id
   </select>
   <select id="assignments" resultMap="assignmentRow">
-    SELECT d.dev_nm AS name,coalesce(j.cd_nm,a.job_cd) AS job,a.bgn_dt AS "beginDate",a.end_dt AS "endDate",a.asgn_rt AS "assignmentRate",a.asgn_stts_cd AS status
+    SELECT d.dev_nm AS name,coalesce(j.cd_nm,a.job_cd) AS job,a.bgn_dt AS "beginDate",a.end_dt AS "endDate",a.asgn_rt AS "assignmentRate",a.asgn_stts_cd AS status,a.asgn_id
     FROM asgn.asgn a JOIN mst.dev d ON d.dev_id=a.dev_id LEFT JOIN cmn.cd_dtl j ON j.cd_grp_id='JOB' AND j.dtl_cd=a.job_cd
     WHERE a.prj_id=#{id} AND a.asgn_stts_cd!='CANCELLED' ORDER BY a.bgn_dt,a.asgn_id
   </select>

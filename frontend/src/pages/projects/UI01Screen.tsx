@@ -252,6 +252,7 @@ export default function UI01Screen({
           </div>
         )}
         <form
+          data-testid="project-search-form"
           className={styles.search}
           onSubmit={(e) => {
             e.preventDefault();
@@ -277,7 +278,11 @@ export default function UI01Screen({
             >
               <option value="">전체</option>
               {types.codes.map((c) => (
-                <option key={c.code} value={c.code}>
+                <option
+                  data-testid={`project-type-option-${c.code.toLowerCase().replaceAll("_", "-")}`}
+                  key={c.code}
+                  value={c.code}
+                >
                   {c.name}
                 </option>
               ))}

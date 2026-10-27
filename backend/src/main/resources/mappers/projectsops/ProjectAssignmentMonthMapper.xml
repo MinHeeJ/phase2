@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sicost.projectsops.ProjectAssignmentMonthMapper">
+  <resultMap id="projectAssignmentStoredMonth" type="com.sicost.projectsops.ProjectAssignmentMonthModels$StoredMonth">
+    <constructor>
+      <arg column="asgn_id" javaType="_long"/>
+      <arg column="dev_id" javaType="_long"/>
+      <arg column="dev_nm" javaType="java.lang.String"/>
+      <arg column="work_ym" javaType="java.lang.String"/>
+      <arg column="mm_qty" javaType="java.math.BigDecimal"/>
+    </constructor>
+  </resultMap>
+  <select id="projectExists" resultType="boolean">
+    SELECT EXISTS(SELECT 1 FROM prj.prj WHERE prj_id=#{id})
+  </select>
+  <select id="months" resultMap="projectAssignmentStoredMonth">
+    SELECT a.asgn_id,a.dev_id,d.dev_nm,calendar.work_ym,COALESCE(m.mm_qty,0::numeric) AS mm_qty
+    FROM asgn.asgn a
+    JOIN mst.dev d ON d.dev_id=a.dev_id
+    CROSS JOIN (
+      SELECT to_char(month_day,'YYYY-MM') AS work_ym
+      FROM generate_series(CAST(#{start} AS timestamp),CAST(#{end} AS timestamp),interval '1 month') month_day
+    ) calendar
+    LEFT JOIN asgn.asgn_mth m ON m.asgn_id=a.asgn_id AND m.work_ym=calendar.work_ym
+      AND m.work_ym BETWEEN #{firstMonth} AND #{lastMonth}
+    WHERE a.prj_id=#{id} AND a.asgn_stts_cd != 'CANCELLED'
+      AND a.bgn_dt &lt;= #{end} AND a.end_dt &gt;= #{start}
+    ORDER BY d.dev_nm,a.asgn_id,calendar.work_ym
+  </select>
+</mapper>

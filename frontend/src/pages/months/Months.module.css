@@ -1,0 +1,97 @@
+.panel {
+  width: 100%;
+  min-width: 0;
+}
+.panel h3 {
+  font-size: var(--section-size);
+  margin: var(--space-4) 0;
+}
+.tableScroll {
+  max-width: 100%;
+  overflow: auto;
+  border: 1px solid var(--divider);
+  border-radius: var(--radius-panel);
+}
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--surface);
+  font-size: var(--table-size);
+}
+.table th,
+.table td {
+  height: 40px;
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--divider);
+  text-align: left;
+  white-space: nowrap;
+}
+.table th {
+  background: var(--header-bg);
+  font-weight: var(--table-heading-weight);
+}
+.input {
+  width: 88px;
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  text-align: right;
+}
+.input[readonly],
+.input:disabled {
+  background: var(--header-bg);
+  color: var(--text-sub);
+}
+.input[aria-invalid="true"] {
+  border-color: var(--danger);
+}
+.error {
+  display: block;
+  color: var(--danger);
+  white-space: normal;
+  max-width: 240px;
+}
+.over,
+.warning {
+  color: var(--warning);
+  background: var(--warning-bg);
+}
+.warning {
+  padding: 10px 16px;
+  border-radius: var(--radius-panel);
+  margin-bottom: var(--space-3);
+}
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: var(--space-4);
+}
+.table .empty {
+  padding: 48px 16px;
+  color: var(--text-sub);
+  text-align: center;
+}
+.tabs {
+  display: flex;
+  gap: var(--space-4);
+  border-bottom: 1px solid var(--divider);
+  margin-bottom: var(--space-4);
+}
+.tabs button {
+  color: var(--text-sub);
+  font: inherit;
+  padding: 12px 4px;
+  background: transparent;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+}
+.tabs button[aria-selected="true"] {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+  font-weight: 600;
+}

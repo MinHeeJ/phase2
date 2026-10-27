@@ -240,7 +240,9 @@ async function valid() {
 }
 function drawer() {
   return render(
-    <ProjectDrawer id={1} onClose={() => {}} onSaved={async () => {}} />,
+    <MemoryRouter>
+      <ProjectDrawer id={1} onClose={() => {}} onSaved={async () => {}} />
+    </MemoryRouter>,
   );
 }
 
