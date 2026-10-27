@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sicost.projectcost.ProjectCostMapper">
+  <resultMap id="monthlyCost" type="com.sicost.projectcost.ProjectCostMapper$MonthlyCost"><constructor>
+    <arg column="month" javaType="java.lang.String"/><arg column="amount" javaType="java.lang.Long"/>
+  </constructor></resultMap>
+  <sql id="costSources">
+    WITH project_mm AS (
+      SELECT a.dev_id,m.work_ym,sum(m.mm_qty) AS mm
+      FROM asgn.asgn a JOIN asgn.asgn_mth m ON m.asgn_id=a.asgn_id
+      WHERE a.prj_id=#{projectId} AND a.asgn_stts_cd!='CANCELLED' AND m.work_ym &lt;= #{month}
+      GROUP BY a.dev_id,m.work_ym
+    ), closed AS (
+      SELECT c.cst_ym AS month,sum(c.lbr_cst_amt::numeric+c.drct_expns_amt) AS amount
+      FROM cst.cst_aloc c JOIN fin.mth_cls f ON f.cls_ym=c.cst_ym AND f.cls_stts_cd='CLOSED'
+      WHERE c.prj_id=#{projectId} AND c.cst_ym &lt;= #{month} GROUP BY c.cst_ym
+    )
+  </sql>
+  <select id="monthlyCosts" resultMap="monthlyCost">
+    <include refid="costSources"/>, person_mm AS (
+      SELECT a.dev_id,m.work_ym,sum(m.mm_qty) AS mm
+      FROM asgn.asgn a JOIN asgn.asgn_mth m ON m.asgn_id=a.asgn_id
+      WHERE a.asgn_stts_cd!='CANCELLED' AND m.work_ym &lt;= #{month} GROUP BY a.dev_id,m.work_ym
+    ), labor AS (
+      SELECT p.work_ym AS month,sum(floor(coalesce(s.indv_lbr_cst_amt,0)::numeric*p.mm/greatest(t.mm,1.00))) AS amount
+      FROM project_mm p JOIN person_mm t ON t.dev_id=p.dev_id AND t.work_ym=p.work_ym
+      LEFT JOIN cst.mth_cst s ON s.dev_id=p.dev_id AND s.cst_ym=p.work_ym GROUP BY p.work_ym
+    ), expenses AS (
+      SELECT expns_ym AS month,sum(expns_amt::numeric) AS amount FROM cst.drct_expns
+      WHERE prj_id=#{projectId} AND expns_ym &lt;= #{month} GROUP BY expns_ym
+    ), calculated AS (
+      SELECT month,sum(amount) AS amount FROM (
+        SELECT month,amount FROM labor UNION ALL SELECT month,amount FROM expenses
+      ) values_by_month GROUP BY month
+    )
+    SELECT coalesce(c.month,v.month) AS month,coalesce(c.amount,v.amount)::bigint AS amount
+    FROM closed c FULL JOIN calculated v ON v.month=c.month ORDER BY month
+  </select>
+  <select id="missingSalaryMonths" resultType="string">
+    <include refid="costSources"/>
+    SELECT DISTINCT p.work_ym FROM project_mm p
+    WHERE p.mm &gt; 0 AND NOT EXISTS (SELECT 1 FROM cst.mth_cst s WHERE s.dev_id=p.dev_id AND s.cst_ym=p.work_ym)
+      AND NOT EXISTS (SELECT 1 FROM closed c WHERE c.month=p.work_ym)
+    ORDER BY p.work_ym
+  </select>
+</mapper>

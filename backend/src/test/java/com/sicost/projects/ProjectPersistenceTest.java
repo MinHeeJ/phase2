@@ -2,6 +2,8 @@ package com.sicost.projects;
 
 import static org.assertj.core.api.Assertions.*;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sicost.common.api.*;
 import com.sicost.common.security.*;
@@ -25,6 +27,7 @@ class ProjectPersistenceTest {
     AnnotationConfigApplicationContext context;
     ProjectService service;
     ProjectMapper mapper;
+    org.springframework.test.web.servlet.MockMvc mvc;
     final ObjectMapper json = new ObjectMapper();
     Clock clock = Clock.fixed(Instant.parse("2026-10-22T00:00:00Z"),ZoneId.of("Asia/Seoul"));
     @BeforeEach void restoreIsolatedDatabase() throws Exception {
@@ -44,6 +47,8 @@ class ProjectPersistenceTest {
         context.registerBean(ProjectMapper.class,() -> mapper);
         context.registerBean(org.springframework.transaction.PlatformTransactionManager.class,() -> new DataSourceTransactionManager(source));
         context.registerBean(Clock.class,() -> clock); context.refresh(); service = context.getBean(ProjectService.class);
+        mvc=org.springframework.test.web.servlet.setup.MockMvcBuilders.standaloneSetup(new ProjectController(service,json))
+            .setControllerAdvice(new ApiExceptionHandler()).addFilters(new RequestIdFilter()).build();
         sql("INSERT INTO mst.ptnr(ptnr_id,ptnr_no,ptnr_se_cd,ptnr_nm,biz_reg_no) VALUES(1,'C-TEST','CUST','고객사','123-45-67890')");
         sql("INSERT INTO mst.dev(dev_id,mng_no,dev_nm,emp_se_cd) VALUES(1,'K-0001','개발자','FT'),(2,'K-0002','두번째','FT'),(3,'K-0003','세번째','FT')");
     }
@@ -65,11 +70,59 @@ class ProjectPersistenceTest {
     ProjectModels.ProjectDetail update(long id,Map<String,Object> b) { return service.update(id,input(b,true)); }
     String snapshot() throws Exception { return value("SELECT json_build_array((SELECT json_agg(p ORDER BY prj_id) FROM prj.prj p),(SELECT json_agg(s ORDER BY prj_id,skl_cd) FROM prj.prj_skl s),(SELECT json_agg(h ORDER BY part_hist_id) FROM prj.prj_part_hist h),(SELECT json_agg(p ORDER BY phs_id) FROM prj.phs p),(SELECT json_agg(h ORDER BY data_chg_hist_id) FROM sys.data_chg_hist h))::text"); }
     @Test void moGeneratedIdDetailChildrenAndAuditMaterialize() throws Exception {
-        var p=create(body());var read=service.get(p.row().prj_id());
+        mvc.perform(post("/api/projects").contentType("application/json").content(json.writeValueAsString(body())))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.data.prj_no").value("P-2601"));
+        var p=service.get("P-2601");var read=service.get(p.row().prj_id());
         assertThat(read.row().prj_no()).isEqualTo("P-2601");assertThat(read.row().cur_cntrct_amt()).isEqualTo(500000000L);
         assertThat(read.row().trgt_cst_amt()).isEqualTo(400000000L);assertThat(read.row().partName()).isEqualTo("본사(직접 영업)");assertThat(read.prj_skl()).containsExactly("JAVA");
         assertThat(value("SELECT aply_bgn_ym FROM prj.prj_part_hist")).isEqualTo("2026-03");assertThat(scalar("SELECT count(*) FROM prj.phs")).isEqualTo(5);
         assertThat(scalar("SELECT count(*) FROM sys.data_chg_hist WHERE tbl_nm='prj.prj' AND obj_rec_id=? AND data_chg_ty_cd='INSERT' AND chg_user_id IS NULL", Long.toString(p.row().prj_id()))).isEqualTo(1);
+        assertThat(scalar("SELECT count(*) FROM prj.prj WHERE cur_end_dt=cntrct_end_dt AND use_yn='Y'")).isEqualTo(1);
+    }
+    @Test void businessDuplicateNamesCreateDistinctPlanNumbers() throws Exception {
+        var b=body();b.put("prj_stts_cd","PLAN");
+        mvc.perform(post("/api/projects").contentType("application/json").content(json.writeValueAsString(b)))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.data.prj_no").value("P-2601"));
+        mvc.perform(post("/api/projects").contentType("application/json").content(json.writeValueAsString(b)))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.data.prj_no").value("P-2602"));
+        assertThat(scalar("SELECT count(DISTINCT prj_no) FROM prj.prj WHERE prj_nm='프로젝트' AND prj_stts_cd='PLAN'")).isEqualTo(2);
+    }
+    @Test void projectPostWaitsForAdvisoryNumberLockThenCommitsUniqueNumbers() throws Exception {
+        var executor=java.util.concurrent.Executors.newFixedThreadPool(2);
+        var started=new java.util.concurrent.CountDownLatch(2);
+        String payload=json.writeValueAsString(body());
+        try(var connection=source.getConnection();var statement=connection.createStatement()) {
+            connection.setAutoCommit(false);
+            statement.execute("SELECT pg_advisory_xact_lock(hashtext('prj.prj_no'))");
+            var first=executor.submit(() -> {
+                started.countDown();
+                return mvc.perform(post("/api/projects").contentType("application/json").content(payload))
+                    .andExpect(status().isOk()).andExpect(jsonPath("$.success").value(true)).andReturn();
+            });
+            var second=executor.submit(() -> {
+                started.countDown();
+                return mvc.perform(post("/api/projects").contentType("application/json").content(payload))
+                    .andExpect(status().isOk()).andExpect(jsonPath("$.success").value(true)).andReturn();
+            });
+            assertThat(started.await(5,java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+            assertThatThrownBy(() -> first.get(200,java.util.concurrent.TimeUnit.MILLISECONDS))
+                .isInstanceOf(java.util.concurrent.TimeoutException.class);
+            assertThat(scalar("SELECT count(*) FROM prj.prj")).isZero();
+            connection.commit();
+            first.get(10,java.util.concurrent.TimeUnit.SECONDS);second.get(10,java.util.concurrent.TimeUnit.SECONDS);
+            assertThat(scalar("SELECT count(DISTINCT prj_no) FROM prj.prj")).isEqualTo(2);
+            assertThat(scalar("SELECT count(*) FROM sys.data_chg_hist WHERE tbl_nm='prj.prj' AND data_chg_ty_cd='INSERT'")).isEqualTo(2);
+        } finally { executor.shutdownNow(); }
+    }
+    @Test void businessPlanToHoldUpdatesSkillsAndAuditsWithoutReplacingPhases() throws Exception {
+        var b=body();b.put("prj_stts_cd","PLAN");long id=create(b).row().prj_id();
+        String phase=value("SELECT json_agg(p ORDER BY phs_id)::text FROM prj.phs p");
+        b.put("prj_stts_cd","HOLD");b.put("prj_skl",List.of());
+        mvc.perform(put("/api/projects/{id}",id).contentType("application/json").content(json.writeValueAsString(b)))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.data.prj_stts_cd").value("HOLD"));
+        assertThat(scalar("SELECT count(*) FROM prj.prj_skl")).isZero();
+        assertThat(scalar("SELECT count(*) FROM sys.data_chg_hist WHERE data_chg_ty_cd='UPDATE' AND clmn_nm='prj_stts_cd' AND bfr_val='PLAN' AND aft_val='HOLD'")).isEqualTo(1);
+        assertThat(value("SELECT json_agg(p ORDER BY phs_id)::text FROM prj.phs p")).isEqualTo(phase);
     }
     @Test void internalNullHistoryAndSevenPhases() throws Exception { var b=body();b.put("cntrct_ty_cd","IN");var p=create(b).row();assertThat(p.cust_ptnr_id()).isNull();assertThat(p.bsn_part_id()).isNull();assertThat(p.cur_cntrct_amt()).isNull();assertThat(p.trgt_cst_amt()).isNull();assertThat(scalar("SELECT count(*) FROM prj.phs")).isEqualTo(7);assertThat(scalar("SELECT count(*) FROM prj.prj_part_hist WHERE bsn_part_id IS NULL")).isEqualTo(1); }
     @Test void phaseInclusiveHundredDaysHasFifteenAnalysisAndRemainderInLast() throws Exception { var b=body();b.put("cntrct_ty_cd","TK");b.put("cntrct_bgn_dt","2026-01-01");b.put("cntrct_end_dt","2026-04-10");create(b);assertThat(scalar("SELECT plan_end_dt-plan_bgn_dt+1 FROM prj.phs WHERE phs_nm='분석'")).isEqualTo(15);assertThat(value("SELECT max(plan_end_dt)::text FROM prj.phs")).isEqualTo("2026-04-10");assertThat(scalar("SELECT sum(plan_end_dt-plan_bgn_dt+1) FROM prj.phs")).isEqualTo(100); }

@@ -3,6 +3,8 @@ package com.sicost.developers;
 import static com.sicost.developers.DeveloperModels.*;
 import static org.assertj.core.api.Assertions.*;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 import java.sql.*;
 import java.time.*;
 import java.util.*;
@@ -25,6 +27,7 @@ class DeveloperPersistenceTest {
     AnnotationConfigApplicationContext context;
     DeveloperService service;
     DeveloperMapper mapper;
+    org.springframework.test.web.servlet.MockMvc mvc;
     ObjectMapper json=new ObjectMapper().findAndRegisterModules();
     @BeforeEach void restoreIsolatedDatabase()throws Exception {
         adminUrl=System.getenv("TEST_DATABASE_URL");assumeTrue(adminUrl!=null&&!adminUrl.isBlank(),"Real PostgreSQL integration requires TEST_DATABASE_URL");
@@ -38,6 +41,8 @@ class DeveloperPersistenceTest {
         context=new AnnotationConfigApplicationContext();context.register(Transactions.class,DeveloperService.class,CurrentUser.class,PermissionService.class);
         context.registerBean(DeveloperMapper.class,()->mapper);context.registerBean(org.springframework.transaction.PlatformTransactionManager.class,()->new DataSourceTransactionManager(source));
         context.registerBean(Clock.class,()->Clock.fixed(Instant.parse("2026-10-22T15:30:00Z"),ZoneOffset.UTC));context.refresh();service=context.getBean(DeveloperService.class);
+        mvc=org.springframework.test.web.servlet.setup.MockMvcBuilders.standaloneSetup(new DeveloperController(service,json))
+            .setControllerAdvice(new ApiExceptionHandler()).addFilters(new RequestIdFilter()).build();
     }
     @AfterEach void cleanup()throws Exception {if(context!=null)context.close();if(source==null)return;try(Connection c=DriverManager.getConnection(adminUrl,user,password);var s=c.createStatement()){s.execute("DROP DATABASE "+database+" WITH (FORCE)");}}
     void sql(String sql)throws Exception {try(var c=source.getConnection();var s=c.createStatement()){s.execute(sql);}}
@@ -50,7 +55,10 @@ class DeveloperPersistenceTest {
     PageResult<DeveloperListItem> list(String use,String status,String emp,String job,String q) {return service.list(new DeveloperPaging(0,50,null),new DeveloperQuery.Filters(emp,job,status,q,use));}
     @Test void createFinalNumberChildrenAndOneAuditAreReadable()throws Exception {
         ObjectNode n=json.valueToTree(input("등록"));n.set("sub_job",json.valueToTree(List.of("BE","FE","UX")));n.set("skill",json.valueToTree(List.of("JAVA","REACT")));
-        var created=service.create(DeveloperInput.parse(n,false));assertThat(created.item().dev_id()).isEqualTo(1);assertThat(created.item().mng_no()).isEqualTo("K-0001");assertThat(created.item().use_yn()).isEqualTo("Y");
+        mvc.perform(post("/api/developers").contentType("application/json").content(json.writeValueAsString(n)))
+            .andExpect(status().isCreated()).andExpect(jsonPath("$.success").value(true))
+            .andExpect(jsonPath("$.data.dev_id").value(1));
+        var created=service.get(1);assertThat(created.item().mng_no()).isEqualTo("K-0001");assertThat(created.item().use_yn()).isEqualTo("Y");
         assertThat(service.get(1)).isEqualTo(created);assertThat(scalar("SELECT count(*) FROM mst.dev_sub_job WHERE dev_id=1")).isEqualTo(2);assertThat(scalar("SELECT count(*) FROM mst.dev_skl WHERE dev_id=1")).isEqualTo(2);
         assertThat(scalar("SELECT count(*) FROM sys.data_chg_hist WHERE tbl_nm='mst.dev' AND obj_rec_id='1' AND data_chg_ty_cd='INSERT'")).isEqualTo(1);
     }
@@ -92,7 +100,12 @@ class DeveloperPersistenceTest {
     }
     @Test void updateOnlyGradeAuditsExactlyOneColumnAndPreservesMonthlySnapshot()throws Exception {
         service.create(input("수정"));sql("INSERT INTO cst.mth_cst(dev_id,cst_ym,emp_se_cd,slry_amt) VALUES(1,'2026-10','FT',4000000)");
-        assertThat(service.update(1,edit(1,"grd_cd","SR")).changed()).isTrue();assertThat(service.get(1).item().grd_cd()).isEqualTo("SR");assertThat(list(null,null,null,null,null).items().get(0).grade_name()).isEqualTo("고급");
+        mvc.perform(put("/api/developers/1").contentType("application/json")
+            .content(json.writeValueAsString(edit(1,"grd_cd","SR")))).andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.changed").value(true));
+        assertThat(service.get(1).item().grd_cd()).isEqualTo("SR");assertThat(list(null,null,null,null,null).items().get(0).grade_name()).isEqualTo("고급");
+        assertThat(value("SELECT use_yn FROM mst.dev WHERE dev_id=1")).isEqualTo("Y");
+        assertThat(value("SELECT rsgn_dt FROM mst.dev WHERE dev_id=1")).isNull();
         assertThat(scalar("SELECT count(*) FROM sys.data_chg_hist WHERE tbl_nm='mst.dev' AND obj_rec_id='1' AND data_chg_ty_cd='UPDATE' AND clmn_nm='grd_cd'")).isEqualTo(1);
         service.update(1,edit(1,"emp_se_cd","CT"));assertThat(value("SELECT emp_se_cd FROM cst.mth_cst WHERE dev_id=1")).isEqualTo("FT");
     }

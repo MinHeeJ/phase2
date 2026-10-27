@@ -212,3 +212,26 @@ export type {
   ProjectStaffPlan,
   ProjectStaffPlans,
 } from "../pages/staffplans/client";
+export { getProjectProgress } from "../pages/projectsops/progressClient";
+export {
+  updateProjectPhase,
+  updateProjectPhaseCompletion,
+  updateProjectPhaseUncompletion,
+} from "../pages/phases/client";
+export { saveProjectMemo, updateProjectMemo } from "../pages/memos/client";
+export {
+  listIssues,
+  listProjectIssues,
+  createIssue,
+  updateIssue,
+} from "../pages/issues/client";
+export { getIssueOwnerOptions } from "../pages/issuesops/client";
+export {
+  getProjectBoard,
+  getProgressParameters,
+  getProgressParameters as getParams,
+} from "../pages/apiops/boardClient";
+export {
+  downloadProjectBoard,
+  downloadProjectBoard as getProjectBoardExport,
+} from "../pages/projectboardops/client";

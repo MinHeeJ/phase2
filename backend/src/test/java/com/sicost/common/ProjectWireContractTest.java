@@ -15,11 +15,31 @@ import org.apache.poi.ss.usermodel.CellType;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.core.io.ClassPathResource;
 import org.yaml.snakeyaml.Yaml;
 
 class ProjectWireContractTest {
+    @Test void costServiceAdaptersHaveDistinctBeansAndShareTheBoardCalculation() {
+        var mapper = mock(com.sicost.apiops.ProjectBoardMapper.class);
+        var query = new com.sicost.apiops.ProjectBoardModels.CostQuery(1, "2026-10");
+        when(mapper.costs(query)).thenReturn(List.of(
+            new com.sicost.apiops.ProjectBoardModels.CostMonth("2026-10", new java.math.BigDecimal("123"), true)));
+        try (var context = new org.springframework.context.annotation.AnnotationConfigApplicationContext()) {
+            context.registerBean(com.sicost.apiops.ProjectBoardMapper.class, () -> mapper);
+            context.register(com.sicost.apiops.ProjectCostService.class, com.sicost.projectcost.ProjectCostService.class);
+            context.refresh();
+            assertThat(context.getBean(com.sicost.apiops.ProjectCostService.class)).isNotNull();
+            var exportCosts = context.getBean(com.sicost.projectcost.ProjectCostService.class);
+            var result = exportCosts.calculate(1, java.time.YearMonth.of(2026, 10));
+            assertThat(result.cumulativeCostAmount()).isEqualTo(123);
+            assertThat(result.missingSalaryMonths()).containsExactly("2026-10");
+            verify(mapper).costs(query);
+            verifyNoMoreInteractions(mapper);
+        }
+    }
+
     @Test void pagingDefaultsAreZeroBasedWithApprovedOrder() {
         var paging = ProjectPaging.defaults();
         assertThat(paging.page()).isZero();
@@ -124,5 +144,62 @@ class ProjectWireContractTest {
         assertThat(ProjectActions.key("createProject")).isEqualTo("UI-01.create");
         assertThat(ProjectActions.key("updateProjectContractChangeConfirmation")).isEqualTo("UI-01.confirm");
         assertThat(ProjectActions.key("getProjectExport")).isEqualTo("UI-01.download");
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+        "getProjectProgress,UI-01.read",
+        "updateProjectPhase,UI-01.update",
+        "updateProjectPhaseCompletion,UI-01.update",
+        "updateProjectPhaseUncompletion,UI-01.update",
+        "saveProjectMemo,UI-01.update",
+        "updateProjectMemo,UI-01.update",
+        "listProjectIssues,UI-01.read",
+        "createIssue,UI-01.update",
+        "updateIssue,UI-01.update",
+        "listIssues,UI-31.read",
+        "getProjectBoard,UI-31.read",
+        "getProjectBoardExport,UI-31.download",
+        "getIssueOwnerOptions,UI-01.read",
+        "getParams,UI-01.read"
+    })
+    void progressAndBoardOperationsBindKeysWithoutAuthentication(String operation, String expected) {
+        var permissions = spy(new PermissionService());
+        assertThat(ProjectActions.key(operation)).isEqualTo(expected);
+        assertThat(ProjectActions.can(permissions, operation, false)).isTrue();
+        verify(permissions).can(expected);
+        verifyNoMoreInteractions(permissions);
+    }
+
+    @Test void sharedIssueCreationKeepsDetailAndBoardOriginsSeparateAndAllowed() {
+        var permissions = spy(new PermissionService());
+        assertThat(ProjectActions.key("createIssue")).isEqualTo("UI-01.update");
+        assertThat(ProjectActions.key("createIssue", "UI-01")).isEqualTo("UI-01.update");
+        String boardKey = ProjectActions.key("createIssue", "UI-31");
+        assertThat(boardKey).isEqualTo("UI-31.create");
+        assertThat(permissions.can(boardKey)).isTrue();
+        verify(permissions).can("UI-31.create");
+        verifyNoMoreInteractions(permissions);
+    }
+
+    @ParameterizedTest
+    @CsvSource({"getProjectBoard,UI-31", "listIssues,UI-31", "getProjectBoardExport,UI-31",
+        "getProjectProgress,UI-01", "saveProjectMemo,UI-01", "updateIssue,UI-01"})
+    void explicitOriginKeepsCanonicalOperationBinding(String operation, String screen) {
+        assertThat(ProjectActions.key(operation, screen)).isEqualTo(ProjectActions.key(operation));
+    }
+
+    @ParameterizedTest
+    @CsvSource({"createIssue,UI-04", "getProjectProgress,UI-31", "getProjectBoard,UI-01",
+        "updateIssue,UI-31", "saveProjectMemo,UI-31"})
+    void originCannotReclassifyUnrelatedOperations(String operation, String screen) {
+        assertThatIllegalArgumentException().isThrownBy(() -> ProjectActions.key(operation, screen));
+    }
+
+    @ParameterizedTest @ValueSource(strings = {"unknown", "createProjectNotification", "saveProjectCostAllocation"})
+    void unregisteredOperationsDoNotGainPermissionBindings(String operation) {
+        var permissions = spy(new PermissionService());
+        assertThatIllegalArgumentException().isThrownBy(() -> ProjectActions.can(permissions, operation, false));
+        verifyNoInteractions(permissions);
     }
 }

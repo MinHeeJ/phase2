@@ -1,0 +1,157 @@
+.search {
+  composes: search from "../developers/Developers.module.css";
+}
+.toolbar {
+  composes: toolbar from "../developers/Developers.module.css";
+}
+.tableScroll {
+  composes: tableScroll from "../developers/Developers.module.css";
+}
+.table {
+  composes: table from "../developers/Developers.module.css";
+  min-width: 1180px;
+}
+.textButton {
+  composes: textButton from "../developers/Developers.module.css";
+  color: var(--primary);
+}
+.empty {
+  composes: empty from "../developers/Developers.module.css";
+}
+.tabs {
+  composes: tabs from "../projects/Projects.module.css";
+  margin-bottom: var(--space-4);
+}
+.tabs button {
+  background: none;
+  border: 0;
+  padding: var(--space-3) var(--space-4);
+  font: inherit;
+  cursor: pointer;
+}
+.tabs [aria-selected="true"] {
+  border-bottom: 2px solid var(--primary);
+}
+.summary {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: var(--space-4);
+  margin-bottom: var(--space-6);
+}
+.summaryCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  background: var(--surface);
+  border: 1px solid var(--divider);
+  border-radius: var(--radius-panel);
+  padding: var(--space-4);
+}
+.summaryLabel {
+  font-size: 13px;
+  color: var(--text-sub);
+}
+.summaryValue {
+  font-size: 24px;
+  line-height: 32px;
+  font-weight: 700;
+}
+.summaryDetail {
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--text-sub);
+}
+.danger .summaryValue {
+  color: var(--danger);
+}
+.warning .summaryValue {
+  color: var(--warning);
+}
+.warning {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 10px var(--space-4);
+  border-radius: var(--radius-panel);
+  background: var(--warning-bg);
+  color: var(--warning);
+  font-size: 13px;
+  margin-bottom: var(--space-4);
+}
+.warning button {
+  color: inherit;
+  text-decoration: underline;
+}
+.table td {
+  padding-top: var(--space-4);
+  padding-bottom: var(--space-4);
+}
+.table small {
+  display: block;
+  margin-top: var(--space-1);
+  color: var(--text-sub);
+  font-size: var(--caption-size);
+}
+.table .reasons {
+  white-space: normal;
+  min-width: 150px;
+  max-width: 220px;
+}
+.progress {
+  min-width: 160px;
+  display: grid;
+  gap: var(--space-2);
+  font-size: 12px;
+}
+.track {
+  height: 6px;
+  background: var(--header-bg);
+  border-radius: var(--radius-control);
+  overflow: hidden;
+  margin-top: var(--space-1);
+}
+.track i {
+  display: block;
+  height: 100%;
+}
+.planBar {
+  background: var(--text-disabled);
+}
+.actualBar {
+  background: var(--primary);
+}
+.riskBar {
+  background: var(--danger);
+}
+.explanation {
+  margin-top: var(--space-6);
+  background: var(--header-bg);
+  border: 1px solid var(--divider);
+  border-radius: var(--radius-panel);
+  padding: var(--space-4) var(--space-6);
+  color: var(--text-sub);
+  font-size: 13px;
+  line-height: 20px;
+}
+.explanation h3 {
+  color: var(--text);
+  font-size: 14px;
+}
+.explanation p {
+  margin: var(--space-2) 0;
+}
+@media (max-width: 1000px) {
+  .summary {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@media (max-width: 767px) {
+  .summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-2);
+  }
+  .summaryCard {
+    padding: var(--space-3);
+  }
+}

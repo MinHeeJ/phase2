@@ -467,6 +467,29 @@ describe("project list and drawer", () => {
 });
 
 describe("project registration and edit", () => {
+  it("enables saving only after the API budget default is applied", async () => {
+    let resolveBudget!: (value: Response) => void;
+    const budgetResponse = new Promise<Response>((resolve) => {
+      resolveBudget = resolve;
+    });
+    const fetcher = server.fetcher.getMockImplementation()!;
+    server.fetcher.mockImplementation((path, init) =>
+      path.startsWith("/api/params/BUDGET_RATE")
+        ? budgetResponse
+        : fetcher(path, init),
+    );
+    form();
+    await screen.findByRole("option", { name: "본사(직접 영업)" });
+    expect(screen.getByTestId("project-save")).toBeDisabled();
+    expect(screen.getByLabelText("목표 마진율")).toHaveValue(null);
+
+    resolveBudget(response({ num_val: 75 }));
+    await ready();
+    expect(screen.getByLabelText("목표 마진율")).toHaveValue(25);
+    change("목표 마진율", "");
+    expect(screen.getByTestId("project-save")).toBeEnabled();
+    expect(screen.getByLabelText("목표 마진율")).toHaveValue(null);
+  });
   it("renders all fields, limits and API-backed choices", async () => {
     form();
     await ready();

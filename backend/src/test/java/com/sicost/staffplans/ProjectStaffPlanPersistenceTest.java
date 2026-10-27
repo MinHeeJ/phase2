@@ -3,6 +3,8 @@ package com.sicost.staffplans;
 import static com.sicost.staffplans.ProjectStaffPlanModels.*;
 import static org.assertj.core.api.Assertions.*;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 import java.sql.*;
 import java.math.BigDecimal;
 import java.util.*;
@@ -23,6 +25,7 @@ class ProjectStaffPlanPersistenceTest {
     AnnotationConfigApplicationContext context;
     ProjectStaffPlanService service;
     ProjectStaffPlanMapper mapper;
+    org.springframework.test.web.servlet.MockMvc mvc;
     @BeforeEach void restoreIsolatedDatabase() throws Exception {
         adminUrl = System.getenv("TEST_DATABASE_URL");
         assumeTrue(adminUrl != null && !adminUrl.isBlank(), "Real PostgreSQL integration requires TEST_DATABASE_URL");
@@ -42,6 +45,10 @@ class ProjectStaffPlanPersistenceTest {
         context.registerBean(ProjectStaffPlanMapper.class, () -> mapper);
         context.registerBean(org.springframework.transaction.PlatformTransactionManager.class, () -> new DataSourceTransactionManager(source));
         context.refresh(); service = context.getBean(ProjectStaffPlanService.class);
+        mvc=org.springframework.test.web.servlet.setup.MockMvcBuilders.standaloneSetup(
+            new ProjectStaffPlanController(service,new com.fasterxml.jackson.databind.ObjectMapper()))
+            .setControllerAdvice(new com.sicost.common.api.ApiExceptionHandler())
+            .addFilters(new com.sicost.common.api.RequestIdFilter()).build();
         sql("INSERT INTO prj.prj(prj_id,prj_no,prj_nm,cntrct_ty_cd,cntrct_bgn_dt,cntrct_end_dt,trgt_cst_amt,trgt_mrgn_rt) VALUES(1,'P-2601','프로젝트','TK','2026-10-01','2026-11-30',8000000,20),(2,'P-2602','다른 프로젝트','IN','2026-10-01','2026-11-30',NULL,NULL)");
         sql("INSERT INTO mst.dev(dev_id,mng_no,dev_nm,emp_se_cd) VALUES(1,'K-0001','개발자','FT')");
         sql("INSERT INTO asgn.asgn(asgn_id,asgn_no,prj_id,dev_id,job_cd,bgn_dt,end_dt) VALUES(1,'A1',1,1,'BE','2026-10-01','2026-11-30'),(2,'A2',2,1,'BE','2026-10-01','2026-11-30')");
@@ -77,7 +84,12 @@ class ProjectStaffPlanPersistenceTest {
         sql("INSERT INTO bsn.oppt_need(need_id,oppt_id,job_cd,bgn_ym) VALUES(1,1,'FE','2026-10')");
         sql("INSERT INTO prj.psn_plan(prj_id,plan_ym,job_cd,grd_cd,need_mm_qty,need_psn_cnt,src_need_id) VALUES(1,'2026-10','FE','',1,1,1),(2,'2026-10','BE','',5,5,NULL)");
         String sourceRow = value("SELECT row_to_json(p)::text FROM prj.psn_plan p WHERE src_need_id=1");
-        service.saveProjectStaffPlans(1, List.of(cell("2026-10", "BE", "", "2.01"), cell("2026-11", "BE", "", "0")));
+        String actualBefore=value("SELECT json_agg(m ORDER BY asgn_id,work_ym)::text FROM asgn.asgn_mth m");
+        mvc.perform(put("/api/projects/1/staff-plans").contentType("application/json")
+            .content(new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(Map.of("items",
+                List.of(cell("2026-10", "BE", "", "2.01"), cell("2026-11", "BE", "", "0"))))))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.data.items").isArray());
+        assertThat(value("SELECT json_agg(m ORDER BY asgn_id,work_ym)::text FROM asgn.asgn_mth m")).isEqualTo(actualBefore);
         assertThat(value("SELECT need_psn_cnt FROM prj.psn_plan WHERE prj_id=1 AND job_cd='BE'")).isEqualTo("3.00");
         assertThat(value("SELECT count(*) FROM prj.psn_plan WHERE prj_id=1 AND need_mm_qty=0")).isEqualTo("0");
         service.saveProjectStaffPlans(1, List.of());

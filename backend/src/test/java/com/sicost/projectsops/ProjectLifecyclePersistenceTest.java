@@ -3,6 +3,8 @@ package com.sicost.projectsops;
 import static com.sicost.projectsops.ProjectLifecycleModels.*;
 import static org.assertj.core.api.Assertions.*;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 import com.sicost.common.api.*;
 import com.sicost.common.excel.ExcelExportService;
 import com.sicost.common.security.*;
@@ -29,6 +31,7 @@ class ProjectLifecyclePersistenceTest {
     AnnotationConfigApplicationContext context;
     ProjectLifecycleService service;
     ProjectLifecycleMapper mapper;
+    org.springframework.test.web.servlet.MockMvc mvc;
     Clock clock=Clock.fixed(Instant.parse("2026-10-22T15:01:00Z"),ZoneId.of("Asia/Seoul"));
     @BeforeEach void restoreIsolatedDatabase()throws Exception {
         adminUrl=System.getenv("TEST_DATABASE_URL");assumeTrue(adminUrl!=null&&!adminUrl.isBlank(),"Real PostgreSQL integration requires TEST_DATABASE_URL");
@@ -41,6 +44,8 @@ class ProjectLifecyclePersistenceTest {
         mapper=new SqlSessionTemplate(factory.getObject()).getMapper(ProjectLifecycleMapper.class);
         context=new AnnotationConfigApplicationContext();context.register(Transactions.class,ProjectLifecycleService.class,CurrentUser.class,PermissionService.class,ExcelExportService.class);
         context.registerBean(ProjectLifecycleMapper.class,()->mapper);context.registerBean(org.springframework.transaction.PlatformTransactionManager.class,()->new DataSourceTransactionManager(source));context.registerBean(Clock.class,()->clock);context.refresh();service=context.getBean(ProjectLifecycleService.class);
+        mvc=org.springframework.test.web.servlet.setup.MockMvcBuilders.standaloneSetup(new ProjectLifecycleController(service))
+            .setControllerAdvice(new ApiExceptionHandler()).addFilters(new RequestIdFilter()).build();
         sql("INSERT INTO prj.prj(prj_id,prj_no,prj_nm,cntrct_ty_cd,prj_stts_cd,cntrct_bgn_dt,cntrct_end_dt) VALUES(1,'P-2601','프로젝트','TK','RUN','2026-01-01','2026-12-31'),(2,'P-2602','종료','TK','END','2026-01-01','2026-12-31'),(3,'P-2603','실주','TK','LOST','2026-01-01','2026-12-31')");
         sql("INSERT INTO mst.dev(dev_id,mng_no,dev_nm,emp_se_cd) VALUES(1,'K-0001','개발자','FT')");
     }
@@ -51,10 +56,12 @@ class ProjectLifecyclePersistenceTest {
     void assignment(String status)throws Exception{sql("INSERT INTO asgn.asgn(asgn_no,prj_id,dev_id,job_cd,bgn_dt,end_dt,asgn_stts_cd) VALUES('A-0001',1,1,'BE','2025-01-01','2025-12-31',?)", status);}
     @Test void lifecyclePreservesBusinessRecordsAndNoopAndAudits()throws Exception{
         assignment("CANCELLED");String records=value("SELECT json_agg(a)::text FROM asgn.asgn a");
-        assertThat(service.disable(1).get("use_yn")).isEqualTo("N");assertThat(service.options(null)).isEmpty();
+        mvc.perform(post("/api/projects/1/disable")).andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.use_yn").value("N"));assertThat(service.options(null)).isEmpty();
         assertThat(service.history(1)).extracting(ProjectHistoryEntry::field).containsExactly("use_yn");
         assertThat(value("SELECT data_chg_ty_cd FROM sys.data_chg_hist")).isEqualTo("DISABLE");String after=snapshot();service.disable(1);assertThat(snapshot()).isEqualTo(after);
-        assertThat(service.enable(1).get("use_yn")).isEqualTo("Y");assertThat(service.options(null)).extracting(ProjectOption::id).containsExactly(1L);
+        mvc.perform(post("/api/projects/1/enable")).andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.use_yn").value("Y"));assertThat(service.options(null)).extracting(ProjectOption::id).containsExactly(1L);
         assertThat(value("SELECT json_agg(a)::text FROM asgn.asgn a")).isEqualTo(records);
         assertThat(value("SELECT count(*) FROM sys.data_chg_hist WHERE data_chg_ty_cd='UPDATE' AND clmn_nm='use_yn' AND bfr_val='N' AND aft_val='Y' AND chg_user_id IS NULL")).isEqualTo("1");
         after=snapshot();service.enable(1);assertThat(snapshot()).isEqualTo(after);

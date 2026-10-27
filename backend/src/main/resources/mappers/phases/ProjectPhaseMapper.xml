@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sicost.phases.ProjectPhaseMapper">
+  <resultMap id="project" type="com.sicost.phases.ProjectPhaseModels$PhaseProject">
+    <constructor>
+      <arg column="use_yn" javaType="java.lang.String"/>
+      <arg column="prj_stts_cd" javaType="java.lang.String"/>
+    </constructor>
+  </resultMap>
+  <resultMap id="phase" type="com.sicost.phases.ProjectPhaseModels$Phase">
+    <constructor>
+      <arg column="phs_id" javaType="_long"/>
+      <arg column="prj_id" javaType="_long"/>
+      <arg column="phs_seq" javaType="_int"/>
+      <arg column="phs_nm" javaType="java.lang.String"/>
+      <arg column="wght_rt" javaType="java.math.BigDecimal"/>
+      <arg column="plan_bgn_dt" javaType="java.time.LocalDate"/>
+      <arg column="plan_end_dt" javaType="java.time.LocalDate"/>
+      <arg column="cmpl_dt" javaType="java.time.LocalDate"/>
+      <arg column="status" javaType="java.lang.String"/>
+    </constructor>
+  </resultMap>
+  <select id="lockProject" resultMap="project" flushCache="true" useCache="false">
+    SELECT use_yn,prj_stts_cd FROM prj.prj WHERE prj_id=#{id} FOR UPDATE
+  </select>
+  <select id="row" resultMap="phase" useCache="false">
+    SELECT phs_id,prj_id,phs_seq,phs_nm,wght_rt,plan_bgn_dt,plan_end_dt,cmpl_dt,
+      CASE WHEN cmpl_dt IS NOT NULL THEN '완료'
+        WHEN plan_bgn_dt IS NULL OR plan_end_dt IS NULL THEN '예정'
+        WHEN plan_end_dt &lt; #{today} THEN '지연'
+        WHEN plan_bgn_dt &lt;= #{today} AND plan_end_dt &gt;= #{today} THEN '진행 중'
+        ELSE '예정' END AS status
+    FROM prj.phs WHERE prj_id=#{id} AND phs_id=#{phsId} FOR UPDATE
+  </select>
+  <update id="complete">
+    UPDATE prj.phs SET cmpl_dt=#{key.today},updated_at=CURRENT_TIMESTAMP,updated_by=#{actor}
+    WHERE prj_id=#{key.id} AND phs_id=#{key.phsId} AND cmpl_dt IS NULL
+  </update>
+  <update id="uncomplete">
+    UPDATE prj.phs SET cmpl_dt=NULL,updated_at=CURRENT_TIMESTAMP,updated_by=#{actor}
+    WHERE prj_id=#{key.id} AND phs_id=#{key.phsId} AND cmpl_dt IS NOT NULL
+  </update>
+  <update id="period">
+    UPDATE prj.phs SET plan_bgn_dt=#{period.plan_bgn_dt},plan_end_dt=#{period.plan_end_dt},
+      updated_at=CURRENT_TIMESTAMP,updated_by=#{actor}
+    WHERE prj_id=#{key.id} AND phs_id=#{key.phsId} AND cmpl_dt IS NULL
+  </update>
+  <insert id="audit">
+    INSERT INTO sys.data_chg_hist(tbl_nm,obj_rec_id,data_chg_ty_cd,clmn_nm,bfr_val,aft_val,chg_user_id)
+    VALUES('prj.phs',#{id},'UPDATE',#{column},#{before},#{after},#{actor})
+  </insert>
+</mapper>

@@ -16,6 +16,8 @@ import org.springframework.transaction.annotation.EnableTransactionManagement;
 import org.mybatis.spring.*;
 import static org.assertj.core.api.Assertions.*;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 import static com.sicost.expenses.ProjectExpenseModels.*;
 
 class ProjectExpensePersistenceTest {
@@ -25,6 +27,7 @@ class ProjectExpensePersistenceTest {
     AnnotationConfigApplicationContext context;
     ProjectExpenseService service;
     ProjectExpenseMapper mapper;
+    org.springframework.test.web.servlet.MockMvc mvc;
     ObjectMapper json=new ObjectMapper().findAndRegisterModules();
     @BeforeEach void restoreIsolatedDatabase()throws Exception {
         adminUrl=System.getenv("TEST_DATABASE_URL");
@@ -45,6 +48,9 @@ class ProjectExpensePersistenceTest {
         context.registerBean(ProjectExpenseMapper.class,()->mapper);
         context.registerBean(org.springframework.transaction.PlatformTransactionManager.class,()->new DataSourceTransactionManager(source));
         context.registerBean(ObjectMapper.class,()->json);context.refresh();service=context.getBean(ProjectExpenseService.class);
+        mvc=org.springframework.test.web.servlet.setup.MockMvcBuilders.standaloneSetup(new ProjectExpenseController(service,json))
+            .setControllerAdvice(new com.sicost.common.api.ApiExceptionHandler())
+            .addFilters(new com.sicost.common.api.RequestIdFilter()).build();
         sql("INSERT INTO prj.prj(prj_id,prj_no,prj_nm,cntrct_ty_cd) VALUES(1,'P-2601','내부','IN'),(2,'P-2602','다른 프로젝트','TK')");
         sql("INSERT INTO mst.dev(dev_id,mng_no,dev_nm,emp_se_cd) VALUES(1,'K-0001','개발자','FT')");
         sql("INSERT INTO cst.drct_expns(expns_id,prj_id,dev_id,expns_ym,expns_item_cd,expns_amt) VALUES(101,1,1,'2026-10','TEAM',50000),(102,2,NULL,'2026-10','TRIP',20000),(103,1,NULL,'2026-09','TRIP',10000)");
@@ -69,15 +75,25 @@ class ProjectExpensePersistenceTest {
     }
     @Test void internalProjectCrudMaterializesAndKeepsPeopleAndOtherProjects()throws Exception {
         String protectedBefore=protectedRows();long history=historyCount();
-        var created=service.create(1,input("2026-10",300000));
+        mvc.perform(post("/api/projects/1/expenses").contentType("application/json")
+            .content(json.writeValueAsString(input("2026-10",300000)))).andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.expns_amt").value(300000)).andExpect(jsonPath("$.data.vat_amt").value(30000));
+        var created=service.list(1).get(0);
         assertThat(created.vat_amt()).isEqualTo(30000);
         assertThat(value("SELECT dev_id IS NULL FROM cst.drct_expns WHERE expns_id=?", created.expns_id())).isEqualTo("t");
         assertThat(service.list(1)).extracting(ProjectExpense::expns_id).containsExactly(created.expns_id(),103L);
-        var changed=service.update(1,created.expns_id(),new ExpenseInput("2026-11","TRIP",400009,123,
-            java.time.LocalDate.of(2026,11,2),"수정"));
+        mvc.perform(put("/api/projects/1/expenses/{expnsId}",created.expns_id()).contentType("application/json")
+            .content(json.writeValueAsString(new ExpenseInput("2026-11","TRIP",400009,123,
+                java.time.LocalDate.of(2026,11,2),"수정")))).andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.expns_amt").value(400009));
+        var changed=service.list(1).get(0);
+        assertThat(value("SELECT prj_id FROM cst.drct_expns WHERE expns_id=?",created.expns_id())).isEqualTo("1");
+        assertThat(value("SELECT dev_id FROM cst.drct_expns WHERE expns_id=?",created.expns_id())).isNull();
         assertThat(changed.expns_id()).isEqualTo(created.expns_id());assertThat(changed.pay_dt()).hasToString("2026-11-02");
         assertThat(service.list(1).get(0)).isEqualTo(changed);
-        service.delete(1,created.expns_id());assertThat(service.list(1)).extracting(ProjectExpense::expns_id).containsExactly(103L);
+        mvc.perform(delete("/api/projects/1/expenses/{expnsId}",created.expns_id())).andExpect(status().isOk())
+            .andExpect(jsonPath("$.success").value(true));
+        assertThat(service.list(1)).extracting(ProjectExpense::expns_id).containsExactly(103L);
         assertThat(historyCount()).isEqualTo(history+3);
         assertThat(value("SELECT string_agg(data_chg_ty_cd,',' ORDER BY data_chg_hist_id) FROM sys.data_chg_hist WHERE tbl_nm='cst.drct_expns' AND obj_rec_id='1' AND chg_user_id IS NULL"))
             .isEqualTo("INSERT,UPDATE,DELETE");

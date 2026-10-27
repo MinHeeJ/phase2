@@ -1,0 +1,38 @@
+.tableScroll {
+  overflow: auto;
+  max-width: 100%;
+  border: 1px solid var(--divider);
+  border-radius: var(--radius-panel);
+}
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--table-size);
+  background: var(--surface);
+}
+.table th,
+.table td {
+  height: 40px;
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--divider);
+  text-align: left;
+  white-space: nowrap;
+}
+.table th {
+  background: var(--header-bg);
+  font-weight: var(--table-heading-weight);
+}
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+.empty {
+  padding: 48px 16px;
+  text-align: center;
+  color: var(--text-sub);
+}
+.form {
+  display: grid;
+  gap: var(--space-4);
+}

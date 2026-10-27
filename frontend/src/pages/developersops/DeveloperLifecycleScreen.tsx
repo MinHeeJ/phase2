@@ -475,7 +475,10 @@ export default function DeveloperLifecycleScreen({
                               row.dflt_untprc_amt?.toLocaleString("ko-KR"),
                             ],
                           ].map(([label, value]) => (
-                            <div key={label}>
+                            <div
+                              data-testid={`developer-detail-field-${["관리번호", "이름", "소속", "직원구분", "등급", "주 직무", "보조 직무", "스킬", "연락처", "이메일", "비고", "월 단가"].indexOf(label ?? "")}`}
+                              key={label}
+                            >
                               <dt>{label}</dt>
                               <dd>{value ?? "–"}</dd>
                             </div>

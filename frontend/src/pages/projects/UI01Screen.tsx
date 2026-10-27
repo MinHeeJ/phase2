@@ -475,8 +475,15 @@ export default function UI01Screen({
         />
         {selected != null && (
           <ProjectDrawer
-            key={selected}
+            key={`${selected}-${new URLSearchParams(location.search).get("tab") ?? "basic"}`}
             id={selected}
+            initialTab={
+              ["progress", "issues"].includes(
+                new URLSearchParams(location.search).get("tab") ?? "",
+              )
+                ? new URLSearchParams(location.search).get("tab")!
+                : "basic"
+            }
             onClose={() => {
               setSelected(null);
               if (location.search) navigate("/UI-01", { replace: true });

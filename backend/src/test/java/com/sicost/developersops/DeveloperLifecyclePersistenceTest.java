@@ -2,6 +2,8 @@ package com.sicost.developersops;
 
 import static org.assertj.core.api.Assertions.*;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 import static com.sicost.developersops.DeveloperLifecycleModels.*;
 import com.sicost.common.api.DeveloperPaging;
 import com.sicost.common.excel.ExcelExportService;
@@ -24,6 +26,7 @@ class DeveloperLifecyclePersistenceTest {
     AnnotationConfigApplicationContext context;
     DeveloperLifecycleService service;
     DeveloperLifecycleMapper mapper;
+    org.springframework.test.web.servlet.MockMvc mvc;
     @BeforeEach void restoreIsolatedDatabase()throws Exception{
         adminUrl=System.getenv("TEST_DATABASE_URL");assumeTrue(adminUrl!=null&&!adminUrl.isBlank(),"Real PostgreSQL integration requires TEST_DATABASE_URL");
         user=System.getenv("TEST_DATABASE_USER");password=System.getenv("TEST_DATABASE_PASSWORD");assumeTrue(user!=null&&password!=null,"Test database connection settings are absent");
@@ -36,6 +39,10 @@ class DeveloperLifecyclePersistenceTest {
         context=new AnnotationConfigApplicationContext();context.register(Transactions.class,DeveloperLifecycleService.class,CurrentUser.class,PermissionService.class,ExcelExportService.class);
         context.registerBean(DeveloperLifecycleMapper.class,()->mapper);context.registerBean(org.springframework.transaction.PlatformTransactionManager.class,()->new DataSourceTransactionManager(source));
         context.registerBean(Clock.class,()->Clock.fixed(Instant.parse("2026-10-22T00:00:00Z"),ZoneId.of("Asia/Seoul")));context.refresh();service=context.getBean(DeveloperLifecycleService.class);
+        mvc=org.springframework.test.web.servlet.setup.MockMvcBuilders.standaloneSetup(
+            new DeveloperLifecycleController(service,new com.fasterxml.jackson.databind.ObjectMapper()))
+            .setControllerAdvice(new com.sicost.common.api.ApiExceptionHandler())
+            .addFilters(new com.sicost.common.api.RequestIdFilter()).build();
         sql("INSERT INTO mst.dev(dev_id,mng_no,dev_nm,emp_se_cd,main_job_cd) VALUES(301,'K-0301','가 개발자','FT','BE'),(302,'K-0302','나 개발자','FT','BE'),(303,'K-0303','다 개발자','FT','BE')");
     }
     @AfterEach void cleanup()throws Exception{if(context!=null)context.close();if(source==null)return;try(var c=DriverManager.getConnection(adminUrl,user,password);var s=c.createStatement()){s.execute("DROP DATABASE "+database+" WITH (FORCE)");}}
@@ -48,7 +55,11 @@ class DeveloperLifecyclePersistenceTest {
         sql("INSERT INTO asgn.asgn_mth(asgn_id,work_ym,mm_qty) VALUES(401,'2026-10',0.50),(402,'2026-10',0.70)");
     }
     @Test void mixedLifecycleReadbackAndIdempotentAudit()throws Exception{
-        assignments();var result=service.disable(List.of(301L,302L,303L));assertThat(result.disabled_ids()).containsExactly(301L,302L);assertThat(result.blocked().get(0).current_assignment_count()).isEqualTo(2);
+        assignments();
+        mvc.perform(post("/api/developers/disable").contentType("application/json").content("{\"ids\":[301,302,303]}"))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.data.disabled_ids[0]").value(301))
+            .andExpect(jsonPath("$.data.disabled_ids[1]").value(302))
+            .andExpect(jsonPath("$.data.blocked[0].current_assignment_count").value(2));
         assertThat(scalar("SELECT count(*) FROM mst.dev WHERE dev_id IN(301,302) AND use_yn='N'")).isEqualTo(2);assertThat(scalar("SELECT count(*) FROM sys.data_chg_hist WHERE tbl_nm='mst.dev' AND data_chg_ty_cd='DISABLE'")).isEqualTo(2);
         assertThat(service.options(null)).extracting(DeveloperOption::id).doesNotContain(301L,302L);service.disable(List.of(301L,302L));assertThat(scalar("SELECT count(*) FROM sys.data_chg_hist WHERE data_chg_ty_cd='DISABLE'")).isEqualTo(2);
         service.enable(301);service.enable(301);assertThat(service.options("K-0301")).hasSize(1);assertThat(scalar("SELECT count(*) FROM sys.data_chg_hist WHERE obj_rec_id='301' AND clmn_nm='use_yn' AND data_chg_ty_cd='UPDATE'")).isEqualTo(1);
