@@ -488,13 +488,15 @@ export default function UI12Screen({
                           colSpan={readonly ? 12 : 13}
                           className={styles.empty}
                         >
-                          조건에 맞는 결과가 없습니다
-                          <Button
-                            data-testid="assignment-empty-reset"
-                            onClick={reset}
-                          >
-                            조건 초기화
-                          </Button>
+                          <div className={styles.emptyContent}>
+                            <span>조건에 맞는 결과가 없습니다</span>
+                            <Button
+                              data-testid="assignment-empty-reset"
+                              onClick={reset}
+                            >
+                              조건 초기화
+                            </Button>
+                          </div>
                         </td>
                       </tr>
                     )}

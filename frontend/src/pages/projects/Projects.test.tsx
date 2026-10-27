@@ -13,6 +13,7 @@ import { ProjectDrawer } from "./ProjectDrawer";
 import { ProjectForm } from "./ProjectForm";
 import { emptyProject, projectPayload, type ProjectDetail } from "./client";
 import { response, failure } from "../developers/DeveloperTestSupport";
+import styles from "./Projects.module.css";
 
 const fixture: ProjectDetail = {
   ...emptyProject,
@@ -247,6 +248,168 @@ function drawer() {
 }
 
 describe("project list and drawer", () => {
+  it("keeps the composed toolbar and action group next to the table for populated and empty results", async () => {
+    list();
+    await screen.findByTestId("project-row-1");
+    const actions = screen.getByTestId("project-export").parentElement!;
+    const toolbar = actions.parentElement!;
+    const tableRegion = screen.getByRole("table").parentElement!;
+    expect(actions).toHaveClass(styles.actions);
+    expect(toolbar).toHaveClass(styles.toolbar);
+    expect(toolbar).toHaveTextContent("총 1건");
+    expect(toolbar.nextElementSibling).toBe(tableRegion);
+    expect(tableRegion).toHaveClass(styles.tableScroll);
+    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByTestId("project-query-input"), {
+      target: { value: "일치하지 않는 검색" },
+    });
+    fireEvent.click(screen.getByTestId("project-query"));
+    await screen.findByText("조건에 맞는 결과가 없습니다.");
+    expect(toolbar).toHaveTextContent("총 0건");
+    expect(screen.getByTestId("project-export").parentElement).toBe(actions);
+    expect(toolbar.nextElementSibling).toBe(tableRegion);
+    fireEvent.click(screen.getByTestId("project-empty-reset"));
+    await screen.findByTestId("project-row-1");
+    expect(toolbar).toHaveTextContent("총 1건");
+    expect(toolbar.nextElementSibling).toBe(tableRegion);
+  });
+  it("keeps paging server-backed and reset restores the selected year and initial sort", async () => {
+    const fetcher = server.fetcher.getMockImplementation()!;
+    server.fetcher.mockImplementation((path, init) => {
+      if (path.startsWith("/api/projects?")) {
+        const query = new URLSearchParams(path.split("?")[1]);
+        return Promise.resolve(
+          response({
+            items: [{ ...fixture }],
+            total: 51,
+            page: Number(query.get("page")),
+            size: Number(query.get("size")),
+            unassignedCount: 0,
+          }),
+        );
+      }
+      return fetcher(path, init);
+    });
+    list();
+    await screen.findByTestId("project-row-1");
+    fireEvent.change(screen.getByLabelText("조회 연도"), {
+      target: { value: "2025" },
+    });
+    fireEvent.click(screen.getByTestId("project-sort-prj-nm"));
+    fireEvent.click(screen.getByRole("button", { name: "다음 페이지" }));
+    await waitFor(() =>
+      expect(
+        server.fetcher.mock.calls.some(([path]) => {
+          const query = new URLSearchParams(path.split("?")[1]);
+          return (
+            path.startsWith("/api/projects?") &&
+            query.get("page") === "1" &&
+            query.get("year") === "2025" &&
+            query.get("sort") === "prj_nm,asc"
+          );
+        }),
+      ).toBe(true),
+    );
+    fireEvent.click(screen.getByTestId("project-reset"));
+    await waitFor(() =>
+      expect(server.fetcher.mock.calls.at(-1)?.[0]).toContain(
+        "sort=cntrct_bgn_dt%2Cdesc",
+      ),
+    );
+    expect(screen.getByLabelText("조회 연도")).toHaveValue(2025);
+    expect(screen.getByRole("button", { name: "이전 페이지" })).toBeDisabled();
+  });
+  it("downloads the JSON artifact with applied filters and sort but without pagination", async () => {
+    const createObjectURL = vi.fn((_blob: Blob) => "blob:project-download");
+    const revokeObjectURL = vi.fn();
+    vi.stubGlobal(
+      "URL",
+      class extends URL {
+        static createObjectURL = createObjectURL;
+        static revokeObjectURL = revokeObjectURL;
+      },
+    );
+    const click = vi
+      .spyOn(HTMLAnchorElement.prototype, "click")
+      .mockImplementation(() => {});
+    const fetcher = server.fetcher.getMockImplementation()!;
+    server.fetcher.mockImplementation((path, init) =>
+      path.startsWith("/api/projects/export?")
+        ? Promise.resolve(
+            response({
+              file_name: "projects.xlsx",
+              media_type:
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+              content_base64: btoa("project export contract"),
+            }),
+          )
+        : fetcher(path, init),
+    );
+    list();
+    await screen.findByTestId("project-row-1");
+    fireEvent.change(screen.getByTestId("project-query-input"), {
+      target: { value: "신규" },
+    });
+    fireEvent.change(screen.getByTestId("project-type-filter"), {
+      target: { value: "MO" },
+    });
+    fireEvent.click(screen.getByTestId("project-query"));
+    fireEvent.click(screen.getByTestId("project-sort-prj-nm"));
+    fireEvent.click(screen.getByTestId("project-export"));
+    await waitFor(() => expect(click).toHaveBeenCalledOnce());
+    const path = server.fetcher.mock.calls.find(([url]) =>
+      url.startsWith("/api/projects/export?"),
+    )![0];
+    const query = new URLSearchParams(path.split("?")[1]);
+    expect(Object.fromEntries(query)).toEqual({
+      year: "2026",
+      type: "MO",
+      q: "신규",
+      sort: "prj_nm,asc",
+    });
+    expect(click.mock.instances[0]).toHaveAttribute(
+      "download",
+      "projects.xlsx",
+    );
+    const blob = createObjectURL.mock.calls[0][0] as Blob;
+    expect(blob.type).toBe(
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    );
+    const text = await new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.readAsText(blob);
+    });
+    expect(text).toBe("project export contract");
+    expect(revokeObjectURL).toHaveBeenCalledWith("blob:project-download");
+    expect(screen.getByTestId("project-export")).toBeEnabled();
+  });
+  it("keeps the action group available after export failure and retries without changing the list", async () => {
+    const fetcher = server.fetcher.getMockImplementation()!;
+    server.fetcher.mockImplementation((path, init) =>
+      path.startsWith("/api/projects/export?")
+        ? Promise.resolve(failure(null, 500))
+        : fetcher(path, init),
+    );
+    list();
+    await screen.findByTestId("project-row-1");
+    fireEvent.click(screen.getByTestId("project-export"));
+    await screen.findByText("입력 오류");
+    expect(screen.getByTestId("project-export")).toBeEnabled();
+    expect(screen.getByTestId("project-export").parentElement).toHaveClass(
+      styles.actions,
+    );
+    expect(screen.getByTestId("project-row-1")).toBeVisible();
+    fireEvent.click(screen.getByText("다시 시도"));
+    await waitFor(() =>
+      expect(
+        server.fetcher.mock.calls.filter(([path]) =>
+          path.startsWith("/api/projects/export?"),
+        ),
+      ).toHaveLength(2),
+    );
+  });
   it("renders exact nine columns, current values and distinct count", async () => {
     list();
     await screen.findByTestId("project-row-1");

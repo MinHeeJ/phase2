@@ -9,6 +9,7 @@ import {
 import { ErrorBanner } from "../../shared/ErrorBanner";
 import { useAdminRead } from "../admin/useAdminResource";
 import { useCodes } from "../shared/useCodes";
+import styles from "./DeveloperLifecycle.module.css";
 import {
   listDeveloperAssignments,
   listDeveloperMonthlyCosts,
@@ -87,43 +88,45 @@ export function DeveloperAssignments({ id }: { id: number }) {
     (page: number, size: number) => listDeveloperAssignments(id, page, size),
     [id],
   );
-  const codes = useCodes("ASSIGN_STATUS");
   return (
-    <DeveloperReadPanel<DeveloperAssignment>
-      label="투입 이력"
-      read={read}
-      empty="투입 이력이 없습니다."
-      rowKey={(r) => String(r.asgn_id)}
-      columns={[
-        { key: "prj_nm", label: "프로젝트", render: (r) => r.prj_nm },
-        {
-          key: "job_name",
-          label: "직무",
-          render: (r) => r.job_name ?? r.job_cd,
-        },
-        {
-          key: "bgn_dt",
-          label: "시작 ~ 철수",
-          render: (r) => `${r.bgn_dt} ~ ${r.end_dt}`,
-        },
-        {
-          key: "asgn_rt",
-          label: "투입률",
-          kind: "number",
-          render: (r) => `${(r.asgn_rt * 100).toLocaleString("ko-KR")}%`,
-        },
-        {
-          key: "asgn_stts_cd",
-          label: "상태",
-          render: (r) => (
-            <Badge tone={r.asgn_stts_cd === "ACTIVE" ? "info" : "locked"}>
-              {codes.codes.find((c) => c.code === r.asgn_stts_cd)?.name ??
-                r.asgn_stts_cd}
-            </Badge>
-          ),
-        },
-      ]}
-    />
+    <div className={styles.assignmentHistory} data-screen-id="SCR-UI-02">
+      <DeveloperReadPanel<DeveloperAssignment>
+        label="투입 이력"
+        read={read}
+        empty="투입 이력이 없습니다."
+        rowKey={(r) => String(r.asgn_id)}
+        columns={[
+          { key: "prj_nm", label: "프로젝트", render: (r) => r.prj_nm },
+          {
+            key: "job_name",
+            label: "직무",
+            render: (r) => r.job_name ?? r.job_cd,
+          },
+          {
+            key: "bgn_dt",
+            label: "시작 ~ 철수",
+            render: (r) => `${r.bgn_dt} ~ ${r.end_dt}`,
+          },
+          {
+            key: "asgn_rt",
+            label: "투입률",
+            kind: "number",
+            render: (r) => `${(r.asgn_rt * 100).toLocaleString("ko-KR")}%`,
+          },
+          {
+            key: "asgn_stts_cd",
+            label: "상태",
+            render: (r) => (
+              <span className={styles.assignmentStatus}>
+                <Badge tone={r.asgn_stts_cd === "ACTIVE" ? "info" : "locked"}>
+                  {r.asgn_stts_cd}
+                </Badge>
+              </span>
+            ),
+          },
+        ]}
+      />
+    </div>
   );
 }
 export function DeveloperMonthlyCosts({ id }: { id: number }) {

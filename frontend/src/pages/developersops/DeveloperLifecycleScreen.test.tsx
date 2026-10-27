@@ -254,6 +254,114 @@ describe("developer lifecycle /UI-02", () => {
 });
 
 describe("developer detail read panels", () => {
+  const assignment: client.DeveloperAssignment = {
+    asgn_id: 901,
+    prj_id: 801,
+    prj_nm: "긴 이름의 프로젝트 투입 이력",
+    job_cd: "BE",
+    job_name: "백엔드 개발",
+    bgn_dt: "2025-01-01",
+    end_dt: "2025-12-31",
+    asgn_rt: 0.75,
+    asgn_stts_cd: "ACTIVE",
+  };
+  it.each(["ACTIVE", "ENDED", "REPLACED", "CANCELLED"])(
+    "renders the complete %s response value with local containment and unchanged tone",
+    async (status) => {
+      fetcher.mockResolvedValue(
+        response(page([{ ...assignment, asgn_stts_cd: status }])),
+      );
+      render(<DeveloperAssignments id={301} />);
+      const badge = await screen.findByText(status);
+      expect(badge).toHaveTextContent(new RegExp(`^${status}$`));
+      expect(badge.className).toContain(
+        status === "ACTIVE" ? "info" : "locked",
+      );
+      expect(badge.parentElement?.className).toContain("assignmentStatus");
+      const panel = screen.getByTestId("developer-assignments");
+      expect(panel.parentElement?.className).toContain("assignmentHistory");
+      expect(panel.parentElement).toHaveAttribute(
+        "data-screen-id",
+        "SCR-UI-02",
+      );
+      expect(
+        screen.getAllByRole("columnheader").map((cell) => cell.textContent),
+      ).toEqual(["프로젝트", "직무", "시작 ~ 철수", "투입률", "상태"]);
+      expect(
+        within(badge.closest("tr")!)
+          .getAllByRole("cell")
+          .map((cell) => cell.textContent),
+      ).toEqual([
+        assignment.prj_nm,
+        assignment.job_name,
+        `${assignment.bgn_dt} ~ ${assignment.end_dt}`,
+        "75%",
+        status,
+      ]);
+      expect(fetcher).toHaveBeenCalledOnce();
+      expect(fetcher.mock.calls[0][0]).toBe(
+        "/api/developers/301/assignments?page=0&size=50",
+      );
+      expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+    },
+  );
+  it("keeps pending assignments separate from a successful empty response", async () => {
+    let resolve!: (value: Response) => void;
+    fetcher.mockImplementation(
+      () =>
+        new Promise<Response>((done) => {
+          resolve = done;
+        }),
+    );
+    render(<DeveloperAssignments id={301} />);
+    expect(screen.queryByText("투입 이력이 없습니다.")).not.toBeInTheDocument();
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+    resolve(response(page()));
+    expect(
+      await screen.findByText("투입 이력이 없습니다."),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("navigation", { name: "페이지" }),
+    ).not.toBeInTheDocument();
+  });
+  it("retries a failed assignment read without showing successful empty content", async () => {
+    fetcher
+      .mockResolvedValueOnce(failed())
+      .mockResolvedValueOnce(response(page([assignment])));
+    render(<DeveloperAssignments id={301} />);
+    expect(await screen.findByText("요청에 실패했습니다.")).toBeInTheDocument();
+    expect(screen.queryByText("투입 이력이 없습니다.")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "다시 시도" }));
+    expect(await screen.findByText("ACTIVE")).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(fetcher.mock.calls.map(([url]) => url)).toEqual([
+      "/api/developers/301/assignments?page=0&size=50",
+      "/api/developers/301/assignments?page=0&size=50",
+    ]);
+  });
+  it("preserves the selected developer while paging and resets page on size change", async () => {
+    fetcher.mockImplementation(async () =>
+      response({ ...page([assignment]), total: 101 }),
+    );
+    render(<DeveloperAssignments id={301} />);
+    await screen.findByText("ACTIVE");
+    fireEvent.click(screen.getByRole("button", { name: "다음 페이지" }));
+    await waitFor(() =>
+      expect(fetcher.mock.calls.at(-1)?.[0]).toBe(
+        "/api/developers/301/assignments?page=1&size=50",
+      ),
+    );
+    await screen.findByText("ACTIVE");
+    fireEvent.change(screen.getByLabelText("목록 건수"), {
+      target: { value: "20" },
+    });
+    await waitFor(() =>
+      expect(fetcher.mock.calls.at(-1)?.[0]).toBe(
+        "/api/developers/301/assignments?page=0&size=20",
+      ),
+    );
+    await screen.findByText("ACTIVE");
+  });
   it("shows past assignments with project, job, inclusive period, rate and status", async () => {
     fetcher.mockImplementation(async (p: string) =>
       p.includes("/codes/")
@@ -278,7 +386,7 @@ describe("developer detail read panels", () => {
     expect(await screen.findByText("과거 프로젝트")).toBeInTheDocument();
     expect(screen.getByText("2025-01-01 ~ 2025-12-31")).toBeInTheDocument();
     expect(screen.getByText("50%")).toBeInTheDocument();
-    expect(await screen.findByText("종료")).toBeInTheDocument();
+    expect(await screen.findByText("ENDED")).toBeInTheDocument();
   });
   it("renders eight unmasked salary columns including database-calculated amounts", async () => {
     fetcher.mockImplementation(async (p: string) =>
