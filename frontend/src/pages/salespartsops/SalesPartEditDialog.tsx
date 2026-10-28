@@ -172,7 +172,10 @@ export function SalesPartEditDialog({
     type = "text",
     maxLength?: number,
   ) => (
-    <div className={fields.field}>
+    <div
+      className={fields.field}
+      data-testid={`sales-part-edit-field-${key.replaceAll("_", "-")}`}
+    >
       <label htmlFor={`sales-part-edit-${key}`}>{label} *</label>
       <div className={fields.control}>
         <input

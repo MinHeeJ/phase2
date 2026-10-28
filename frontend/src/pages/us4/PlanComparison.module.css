@@ -1,0 +1,110 @@
+.screen {
+  min-width: 0;
+}
+.period,
+.filters {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+.period {
+  margin: var(--space-4) 0;
+}
+.filters {
+  padding: var(--space-4) 0;
+}
+.filters label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.filters select {
+  height: 36px;
+  min-width: 120px;
+  max-width: 260px;
+  padding: 0 10px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  font: inherit;
+}
+.tabs {
+  display: flex;
+  border-bottom: 1px solid var(--divider);
+  gap: var(--space-4);
+}
+.tabs button {
+  padding: 12px 4px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--text-sub);
+  font: inherit;
+  cursor: pointer;
+}
+.tabs button[aria-selected="true"] {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+  font-weight: 600;
+}
+.hint {
+  color: var(--text-sub);
+  font-size: var(--table-size);
+}
+.error {
+  color: var(--danger);
+}
+.tableScroll {
+  max-width: 100%;
+  overflow: auto;
+  border: 1px solid var(--divider);
+  border-radius: var(--radius-panel);
+}
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--surface);
+  font-size: var(--table-size);
+}
+.table th,
+.table td {
+  height: 40px;
+  padding: 0 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--divider);
+  white-space: nowrap;
+}
+.table th,
+.table tfoot {
+  background: var(--header-bg);
+  font-weight: 600;
+}
+.table th button {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.table .number {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.table a {
+  color: var(--primary);
+  text-decoration: none;
+}
+.table a:hover {
+  text-decoration: underline;
+}
+.empty {
+  padding: 48px 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  color: var(--text-sub);
+}

@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "purpose": "T017 execution and coverage ledger; coverage is not a claim of live acceptance success",
+  "command": "python3 /app/infra/hermes/runner/code_agent_detail/node/self_check.py .",
+  "execution": {
+    "status": "PASS; self-check exit code 0",
+    "backend_last_receipt": "PASS: WithdrawalApiTest, WithdrawalRulesTest",
+    "frontend_last_receipt": "PASS: apiClient.test.ts, WithdrawalPlanRoutes.test.tsx, router.test.tsx, AppShell.test.tsx, UI05Screen.test.tsx, UI11Screen.test.tsx",
+    "integration_repairs": "Await code options before mutation in tests; enable AppShell business renderers; preserve chance cells during mutation-triggered refresh so stale/success messages remain mounted",
+    "live_postgresql": "not executed in this integration; no migration changed",
+    "browser_e2e": "not executed or added: caller requires browserless component tests",
+    "build_typecheck": "not separately executed: only caller-owned self-check permitted",
+    "legacy_criteria_1_through_7": "Existing route, API-client, shell, UI05 and UI11 suites selected by self-check; complete historical acceptance execution remains runner-owned"
+  },
+  "acceptance_coverage": [
+    {"criteria":"FR-052 AC-01..07","tests":["WithdrawalRulesTest","WithdrawalApiTest","WithdrawalPersistenceTest","UI05Screen.test.tsx","WithdrawalPlanRoutes.test.tsx"],"live_status":"awaiting runner API/database verification"},
+    {"criteria":"FR-053 AC-01..05","tests":["WithdrawalChanceApiTest","WithdrawalChancePersistenceTest","WithdrawalChanceSelect.test.tsx","WithdrawalPlanRoutes.test.tsx"],"live_status":"awaiting runner database/history/rollback verification"},
+    {"criteria":"FR-054 AC-01,02,04,05","tests":["DispatchExpiryRulesTest","DispatchExpiryApiTest","DispatchExpiryPersistenceTest","DispatchExpiryExportTest","WithdrawalApiTest.dispatchTooltipUsesEffectiveDatabaseAlertsAndSharedDisplayRules","WithdrawalPlanRoutes.test.tsx"],"live_status":"awaiting runner verification; countdown requires end_dt <= expiry under D6"},
+    {"criteria":"FR-054 AC-03","tests":["DispatchExpiryRulesTest.leapDayUsesD5NotContradictoryOriginalAc03"],"live_status":"original expectation contradicted by D5; never reported passed"},
+    {"criteria":"FR-055 AC-01..06 and FR-037 AC-02","tests":["PlanComparisonApiTest","PlanComparisonPersistenceTest","MmGapBadge.test.tsx","ProjectStaffPlanPanel.test.tsx","UI11Screen.test.tsx","WithdrawalPlanRoutes.test.tsx"],"live_status":"awaiting runner database/export verification"},
+    {"criteria":"FR-056 AC-01..04","tests":["MonthlyShortageApiTest","MonthlyShortagePersistenceTest","MonthlyShortagesPanel.test.tsx","WithdrawalPlanRoutes.test.tsx"],"live_status":"awaiting runner monthly SQL/export verification"}
+  ],
+  "unit_boundaries": {
+    "remaining_days_and_period": "WithdrawalRulesTest: calendar dates, D-0, yesterday, rolling month end, year crossing, distinct-person summary and deterministic ties",
+    "expiry": "Shared DispatchExpiryRules and DispatchExpiryCalculator; D5 strict formula, D6 ended/date/overrun/countdown precedence; server DB alert days exposed without browser calculation",
+    "mm_difference": "Existing PlanComparisonApiTest and shared MmGapBadge tests cover tolerance boundaries; annual and monthly persistence suites remain runner-owned",
+    "navigation": "Real AppRouter + AppShell in MemoryRouter; UI05 row opens UI12 by state.assignmentId; annual and monthly links open UI01 staff-plans; other routes retained"
+  },
+  "reference": {
+    "desktop": "UI05 and UI11 measured through required ui_probe record; existing shell/tokens/styles retained",
+    "limitations": "Tablet/mobile menu clicks timed out. No built-output visual comparison executed."
+  },
+  "scope": "Other listed existing screens and modal IDs remain owned by existing features. UI-17/UI-28 business functionality is explicitly excluded by REQ-492; it was not recreated."
+}

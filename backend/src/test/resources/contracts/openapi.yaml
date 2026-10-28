@@ -7,6 +7,11 @@ info:
     x-design-decision의 승인 보류 제안이다. OQ-001 영속성 충돌, OQ-002 SQL 부재, OQ-004 이력 세부, OQ-005
     봉투와 OQ-010 입력/성공 세부가 미해결이므로 build-ready가 아니다. 생성 완료는 구현·실행·사용자 승인이 아니다.
 security: []
+x-withdrawal-change-open-questions:
+- 'OQ-WD-LEDGER: 신규 목록·다운로드 operation의 x-related-requirements에 쓸 canonical 원장 ID가 미확정이다. 해당 operation 추가를 보류하고 FR/CMN source ID나 추측한 REQ 번호로 대신하지 않는다.'
+- 'OQ-WD-FILTER: FR-054 파견 만료 60일 체크 조건이 DEC-1203 query에 없으므로 목록·다운로드 query 인코딩 확정 보류.'
+- 'OQ-WD-DISPATCH: 이미 철수한 초과 건의 날짜만 표시와 기간 초과 표시의 우선순위를 확인 전 확정하지 않는다.'
+- 'OQ-WD-EFFECTIVE: UI-05 EXT_CHANCE 적용일 오늘과 기존 투입일 이전 400 규칙이 미래 투입에서 충돌한다. 기존 검증을 유지하고 확인 전 예외를 만들지 않는다.'
 paths:
   /api/menus:
     get:
@@ -2527,20 +2532,6 @@ paths:
       - operationId: getCodeOptions
         usage: 공통코드 이름·선택지 재사용; 기존 operation 수정 없음.
   /api/developers/{id}/assignments:
-    x-ui-consumers:
-    - screen_id: SCR-UI-02
-      route: /UI-02
-      slice_id: SLICE-058
-      requirements:
-      - REQ-496
-      related_requirement_ids:
-      - REQ-497
-      - REQ-498
-      - REQ-499
-      - REQ-500
-      - REQ-505
-      contract_boundary: 개발자 상세 투입 이력의 asgn_stts_cd 전체 표시; 프로젝트·직무·기간·투입률 필드와 조회 동작 불변
-      implementation_owner: ui-design.md; 클라이언트 표시 계약이며 HTTP 데이터/보안/상태 전이 변경 없음
     get:
       operationId: listDeveloperAssignments
       summary: 개발자 투입 이력 조회
@@ -5330,19 +5321,6 @@ paths:
               schema:
                 $ref: '#/components/schemas/ApiResponse'
   /api/projects:
-    x-ui-consumers:
-    - screen_id: SCR-UI-01
-      route: /UI-01
-      slice_id: SLICE-059
-      requirements:
-      - REQ-501
-      related_requirement_ids:
-      - REQ-503
-      - REQ-504
-      - REQ-505
-      - REQ-506
-      contract_boundary: 프로젝트 작업 영역-표 간격은 변경 전 개발자 풀과 일치; 기존 검색·건수·다운로드 결과 불변
-      implementation_owner: ui-design.md; 클라이언트 표시 계약이며 HTTP 데이터/보안/상태 전이 변경 없음
     get:
       operationId: listProjects
       summary: 프로젝트 목록 조회
@@ -7674,7 +7652,7 @@ paths:
       x-business-rules:
       - 'REQ-325 (SPEC-REQUEST.md:316): 보기 표 — 직무, 등급(미지정 –), 계획 MM(그 직무·등급의 need_mm_qty
         합), 실제 MM(그 프로젝트 투입의 직무별 asgn_mth.mm_qty 합, 등급은 보지 않음 — 등급이 나뉜 직무는 직무 첫 줄에만),
-        차이 배지(실제 − 계획: 음수 "부족 n.nn", 양수 "초과 n.nn", 0 "맞음"). 계획이 없으면 "인원 계획이 없습니다."
+        차이 배지(실제 − 계획: 절댓값이 PLAN_GAP_TOLERANCE 이하이면 "맞음", 그보다 작은 음수는 "부족 n.nn", 큰 양수는 "초과 n.nn"). 계획이 없으면 "인원 계획이 없습니다."
         — prj.psn_plan, asgn.asgn_mth'
       x-aiops-query-role:
         entity: prj.psn_plan
@@ -8725,23 +8703,6 @@ paths:
               schema:
                 $ref: '#/components/schemas/ApiError'
   /api/assignments:
-    x-ui-consumers:
-    - screen_id: SCR-UI-12
-      route: /UI-12
-      slice_id: SLICE-057
-      requirements:
-      - REQ-491
-      - REQ-492
-      - REQ-493
-      - REQ-494
-      - REQ-502
-      related_requirement_ids:
-      - REQ-495
-      - REQ-503
-      - REQ-504
-      - REQ-506
-      contract_boundary: 빈 결과 안내·초기화 세로 중앙 배치 및 작업 영역-표 기준 간격; 서버 조회·초기화 소비 계약 불변
-      implementation_owner: ui-design.md; 클라이언트 표시 계약이며 HTTP 데이터/보안/상태 전이 변경 없음
     get:
       operationId: listAssignments
       summary: 투입 배정 목록 조회
@@ -9747,7 +9708,7 @@ paths:
       - 월별 자동MM=양끝 포함 그달 투입일수/그달 일수×asgn_rt, 둘째자리 반올림. 기간 밖 미마감월 삭제·신규월 생성·잔존 mnl_yn=N
         갱신/Y 보존; CLOSED월 어떤 쓰기도 없음.
       - 'EXTEND: aply_dt=현재end_dt+1 고정, 새end_dt>현재. 동일/이전400: 새 종료일은 현재 종료일(YYYY-MM-DD)보다
-        늦어야 합니다. DP최초투입일부터 DISPATCH_MAX_MONTHS(24) 초과면 파견 최대 기간(24개월)을 넘습니다. 경고만;
+        늦어야 합니다. DP의 같은 개발자·프로젝트 비취소 최초 투입일을 사용한 만료일보다 새 종료일이 늦으면 파견 최대 기간(24개월)을 넘습니다. 경고만; 이미 철수한 초과 건의 표시 우선순위는 OQ-WD-DISPATCH 확인 전 보류;
         퇴사뒤연장도 경고만.'
       - 'EARLY_END: bgn_dt≤aply_dt<현재end_dt, 사유필수; 같은 종료일400 현재 종료일과 같습니다. end_dt=aply_dt.'
       - 'RATE: TK400; work_ym은 투입기간안 달, aply_dt=그달1일(투입일 중간이면 투입일), 1원이상·그달현재단가와다름.
@@ -16680,54 +16641,6 @@ x-requirement-accounting:
   operationIds:
   - saveUploadApplication
   evidence: 확정 업무 API 투영만; UI 배치/문구·런타임 인수 완료 또는 OQ-ASGN 정책 승인을 뜻하지 않는다.
-- canonical_id: REQ-491
-  status: screen-only
-  evidence: SCR-UI-12 빈 결과 첫줄은 기존 items를 소비하는 클라이언트 문구 배치이며 T002의 렌더링·좌표 시험이 소유한다.
-- canonical_id: REQ-492
-  status: screen-only
-  evidence: SCR-UI-12 조건 초기화 버튼의 줄 위치만 T002에서 바꾸고 기존 A-12-RESET/listAssignments 호출은 T003에서 보존 검증한다.
-- canonical_id: REQ-493
-  status: screen-only
-  evidence: 문구와 버튼 각각의 가로 중심은 SCR-UI-12 CSS와 T002 좌표 시험의 결과로 HTTP 응답에 중심 필드를 추가하지 않는다.
-- canonical_id: REQ-494
-  status: screen-only
-  evidence: 빈 결과 컨테이너 중앙 배치는 SCR-UI-12 테이블 내부 CSS 계약이며 T002에서 부모·자식 좌표를 검사한다.
-- canonical_id: REQ-495
-  status: screen-only
-  evidence: 결과 행이 있을 때 기존 표를 유지하는 조건 렌더링은 T003이 검증하고 listAssignments의 기존 빈/비어있지 않은 items를 재사용한다.
-- canonical_id: REQ-496
-  status: screen-only
-  evidence: SCR-UI-02 상세 투입 상태 전체 표시는 기존 asgn_stts_cd를 바꾸지 않고 T004에서 셀의 가용 너비를 고친다.
-- canonical_id: REQ-497
-  status: screen-only
-  evidence: ACTIVE 전용 고정폭 금지는 T004의 상태값 독립 CSS 규칙으로 검증하며 새 상태 필터·서버 유효성 규칙이 아니다.
-- canonical_id: REQ-498
-  status: screen-only
-  evidence: 셀·배지·여백의 길이 수용은 T004의 상태 열 스타일이 소유하며 API는 기존 상태 문자열을 그대로 반환한다.
-- canonical_id: REQ-499
-  status: screen-only
-  evidence: 투입 이력 테이블의 인접 열 정렬 보존은 T005에서 실제 표 좌표를 비교하는 UI 구조 제약이다.
-- canonical_id: REQ-500
-  status: screen-only
-  evidence: 프로젝트·직무·기간·투입률 열의 잘림 점검은 T005의 브라우저 회귀이며 서버 조회/저장 동작을 신설하지 않는다.
-- canonical_id: REQ-501
-  status: screen-only
-  evidence: 프로젝트 작업줄과 표 간격은 SCR-UI-01 T006에서 개발자 풀 기준 계산 스타일을 소비하며 API 간격값을 만들지 않는다.
-- canonical_id: REQ-502
-  status: screen-only
-  evidence: 투입 배정 작업줄 간격은 SCR-UI-12 T007에서 기준 목록 좌표와 비교하는 화면 규칙으로 기존 목록 필터 결과를 유지한다.
-- canonical_id: REQ-503
-  status: screen-only
-  evidence: 각 화면의 기존 건수·선택·버튼·검색·페이지·다운로드 회귀는 T008에서 재실행하며 이미 존재하는 operation을 변경하지 않는다.
-- canonical_id: REQ-504
-  status: screen-only
-  evidence: 결과 유무·선택 수에 독립적인 외부 간격은 T006·T007·T008의 로컬 배치 시험으로 검증하며 서버 상태 전이가 아니다.
-- canonical_id: REQ-505
-  status: out-of-scope
-  evidence: 기준 개발자 풀 목록 배치·간격의 변경 제외 경계이며 T005·T008에서 전후 캡처 동일성을 검증한다.
-- canonical_id: REQ-506
-  status: non-functional
-  evidence: T001·T008의 공통 CSS/레이아웃 소비 경로 확인이라는 비기능 제약이며 HTTP operation을 생성하지 않는다.
 x-uncovered-requirements:
 - canonical_id: REQ-228
   status: out-of-scope
@@ -17300,54 +17213,6 @@ x-uncovered-requirements:
   owner: UI-12 투입 배정 오른쪽 창
   evidence: 오류 field를 칸아래 표시·입력보존·취소/이탈 CMN-402 확인은 로컬 draft/이탈확인. 서버400만으로 이 동작 완료
     주장 안함.
-- canonical_id: REQ-491
-  status: screen-only
-  evidence: SCR-UI-12 빈 결과 첫줄은 기존 items를 소비하는 클라이언트 문구 배치이며 T002의 렌더링·좌표 시험이 소유한다.
-- canonical_id: REQ-492
-  status: screen-only
-  evidence: SCR-UI-12 조건 초기화 버튼의 줄 위치만 T002에서 바꾸고 기존 A-12-RESET/listAssignments 호출은 T003에서 보존 검증한다.
-- canonical_id: REQ-493
-  status: screen-only
-  evidence: 문구와 버튼 각각의 가로 중심은 SCR-UI-12 CSS와 T002 좌표 시험의 결과로 HTTP 응답에 중심 필드를 추가하지 않는다.
-- canonical_id: REQ-494
-  status: screen-only
-  evidence: 빈 결과 컨테이너 중앙 배치는 SCR-UI-12 테이블 내부 CSS 계약이며 T002에서 부모·자식 좌표를 검사한다.
-- canonical_id: REQ-495
-  status: screen-only
-  evidence: 결과 행이 있을 때 기존 표를 유지하는 조건 렌더링은 T003이 검증하고 listAssignments의 기존 빈/비어있지 않은 items를 재사용한다.
-- canonical_id: REQ-496
-  status: screen-only
-  evidence: SCR-UI-02 상세 투입 상태 전체 표시는 기존 asgn_stts_cd를 바꾸지 않고 T004에서 셀의 가용 너비를 고친다.
-- canonical_id: REQ-497
-  status: screen-only
-  evidence: ACTIVE 전용 고정폭 금지는 T004의 상태값 독립 CSS 규칙으로 검증하며 새 상태 필터·서버 유효성 규칙이 아니다.
-- canonical_id: REQ-498
-  status: screen-only
-  evidence: 셀·배지·여백의 길이 수용은 T004의 상태 열 스타일이 소유하며 API는 기존 상태 문자열을 그대로 반환한다.
-- canonical_id: REQ-499
-  status: screen-only
-  evidence: 투입 이력 테이블의 인접 열 정렬 보존은 T005에서 실제 표 좌표를 비교하는 UI 구조 제약이다.
-- canonical_id: REQ-500
-  status: screen-only
-  evidence: 프로젝트·직무·기간·투입률 열의 잘림 점검은 T005의 브라우저 회귀이며 서버 조회/저장 동작을 신설하지 않는다.
-- canonical_id: REQ-501
-  status: screen-only
-  evidence: 프로젝트 작업줄과 표 간격은 SCR-UI-01 T006에서 개발자 풀 기준 계산 스타일을 소비하며 API 간격값을 만들지 않는다.
-- canonical_id: REQ-502
-  status: screen-only
-  evidence: 투입 배정 작업줄 간격은 SCR-UI-12 T007에서 기준 목록 좌표와 비교하는 화면 규칙으로 기존 목록 필터 결과를 유지한다.
-- canonical_id: REQ-503
-  status: screen-only
-  evidence: 각 화면의 기존 건수·선택·버튼·검색·페이지·다운로드 회귀는 T008에서 재실행하며 이미 존재하는 operation을 변경하지 않는다.
-- canonical_id: REQ-504
-  status: screen-only
-  evidence: 결과 유무·선택 수에 독립적인 외부 간격은 T006·T007·T008의 로컬 배치 시험으로 검증하며 서버 상태 전이가 아니다.
-- canonical_id: REQ-505
-  status: out-of-scope
-  evidence: 기준 개발자 풀 목록 배치·간격의 변경 제외 경계이며 T005·T008에서 전후 캡처 동일성을 검증한다.
-- canonical_id: REQ-506
-  status: non-functional
-  evidence: T001·T008의 공통 CSS/레이아웃 소비 경로 확인이라는 비기능 제약이며 HTTP operation을 생성하지 않는다.
 x-developer-upload-change-scope:
   source: SPEC-REQUEST.md 전체401행; requirement-registry.json REQ-130~REQ-226 97행.
   baseline_preservation: 기존16 operations·모든 기존schema·ApiResponse/ApiError·security·REQ-001~129

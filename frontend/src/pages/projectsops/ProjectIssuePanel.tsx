@@ -92,7 +92,12 @@ export function ProjectIssuePanel({
                     "상태",
                     "등록일",
                   ].map((h) => (
-                    <th key={h}>{h}</th>
+                    <th
+                      key={h}
+                      data-testid={`project-issue-column-${["중요도", "제목 · 조치 내용", "담당자", "기한", "상태", "등록일"].indexOf(h)}`}
+                    >
+                      {h}
+                    </th>
                   ))}
                 </tr>
               </thead>

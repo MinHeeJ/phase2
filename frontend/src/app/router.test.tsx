@@ -62,6 +62,24 @@ beforeEach(() => {
   });
   fetcher = vi.fn(async (url: string) => {
     if (url === "/api/menus") return response(menus);
+    if (url.startsWith("/api/withdrawals?"))
+      return response({
+        rows: [],
+        total: 0,
+        page: 0,
+        size: 50,
+        summary: { soonPeople: 0, noNextPeople: 0 },
+      });
+    if (url.startsWith("/api/plan-vs-actual?"))
+      return response({
+        rows: [],
+        total: 0,
+        page: 0,
+        size: 50,
+        totals: { planMm: 0, actualMm: 0 },
+      });
+    if (url === "/api/params")
+      return response([{ oprt_std_id: "PLAN_GAP_TOLERANCE", num_val: 0.1 }]);
     if (url.startsWith("/api/month-close?")) return response([]);
     if (url.startsWith("/api/assignments?"))
       return response({ items: [], total: 0, page: 0, size: 50 });

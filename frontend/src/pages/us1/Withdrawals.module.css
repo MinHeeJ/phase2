@@ -1,0 +1,61 @@
+.search {
+  composes: search from "../assignments/Assignments.module.css";
+}
+.period {
+  composes: period from "../assignments/Assignments.module.css";
+}
+.toolbar {
+  composes: toolbar from "../assignments/Assignments.module.css";
+}
+.tableScroll {
+  composes: tableScroll from "../assignments/Assignments.module.css";
+}
+.table {
+  composes: table from "../assignments/Assignments.module.css";
+}
+.textButton {
+  composes: textButton from "../assignments/Assignments.module.css";
+}
+.warning {
+  composes: warning from "../assignments/Assignments.module.css";
+}
+.empty {
+  composes: empty from "../assignments/Assignments.module.css";
+  flex-direction: column;
+}
+.info {
+  display: flex;
+  flex-wrap: wrap;
+  padding: 10px var(--space-4);
+  margin-bottom: var(--space-4);
+  border-radius: var(--radius-panel);
+  color: var(--info);
+  background: var(--info-bg);
+  font-size: var(--label-size);
+}
+.table {
+  min-width: 1200px;
+}
+.table td {
+  height: 40px;
+}
+.table small {
+  display: block;
+  color: var(--text-sub);
+  font-size: 12px;
+}
+.table th button {
+  background: transparent;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  padding: 0;
+}
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+}

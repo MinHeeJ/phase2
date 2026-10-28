@@ -5,6 +5,11 @@ import UI15Screen from "../pages/partners/UI15Screen";
 import SalesPartManagement from "../pages/salespartsops/SalesPartManagement";
 import UI02Screen from "../pages/developers/UI02Screen";
 import UI01Screen from "../pages/projects/UI01Screen";
+import UI05Screen from "../pages/us1/UI05Screen";
+import { WithdrawalChanceSelect } from "../pages/us2/WithdrawalChanceSelect";
+import { DispatchExpiryCell } from "../pages/us3/DispatchExpiry";
+import UI11Screen from "../pages/us4/UI11Screen";
+import { MonthlyShortagesPanel } from "../pages/us5/MonthlyShortagesPanel";
 import UI12Screen, {
   type AssignmentScreenContext,
 } from "../pages/assignments/UI12Screen";
@@ -588,6 +593,53 @@ export function AppRouter() {
                 <DevelopersScreen {...bindings} />
               ) : id === "UI-01" ? (
                 <ProjectsScreen {...bindings} />
+              ) : id === "UI-05" ? (
+                <UI05Screen
+                  {...bindings}
+                  renderChance={(row, context) => (
+                    <WithdrawalChanceSelect
+                      key={row.asgn_id}
+                      row={row}
+                      today={context.today}
+                      year={context.year}
+                      onChanged={context.refresh}
+                    />
+                  )}
+                  renderDispatch={(row) => (
+                    <DispatchExpiryCell
+                      assignmentId={row.asgn_id}
+                      value={row}
+                    />
+                  )}
+                />
+              ) : id === "UI-11" ? (
+                <UI11Screen
+                  {...bindings}
+                  renderShortages={({ filters, onChange, projects }) => (
+                    <MonthlyShortagesPanel
+                      filters={{
+                        year: filters.year,
+                        projectId: filters.projectId
+                          ? Number(filters.projectId)
+                          : undefined,
+                        job: filters.job || undefined,
+                      }}
+                      projects={projects}
+                      onFiltersChange={(next) =>
+                        onChange({
+                          ...filters,
+                          year: next.year,
+                          projectId:
+                            next.projectId === undefined
+                              ? ""
+                              : String(next.projectId),
+                          job: next.job ?? "",
+                          page: 0,
+                        })
+                      }
+                    />
+                  )}
+                />
               ) : id === "UI-12" ? (
                 <AssignmentsScreen {...bindings} />
               ) : id === "UI-31" ? (

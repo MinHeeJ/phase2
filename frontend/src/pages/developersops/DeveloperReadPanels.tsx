@@ -89,7 +89,11 @@ export function DeveloperAssignments({ id }: { id: number }) {
     [id],
   );
   return (
-    <div className={styles.assignmentHistory} data-screen-id="SCR-UI-02">
+    <div
+      className={styles.assignmentHistory}
+      data-screen-id="SCR-UI-02"
+      data-testid="developer-assignment-history"
+    >
       <DeveloperReadPanel<DeveloperAssignment>
         label="투입 이력"
         read={read}

@@ -262,7 +262,10 @@ export function SalesPartsTab({
                   onClick={() => setSelected(row.bsn_part_id)}
                 >
                   {renderExport && (
-                    <td onClick={(e) => e.stopPropagation()}>
+                    <td
+                      onClick={(e) => e.stopPropagation()}
+                      data-testid={`sales-part-select-cell-${row.bsn_part_id}`}
+                    >
                       <input
                         data-testid={`sales-part-select-${row.bsn_part_id}`}
                         type="checkbox"
@@ -301,7 +304,10 @@ export function SalesPartsTab({
                   <td>
                     {row.scheduledChanges.length
                       ? row.scheduledChanges.map((s) => (
-                          <div key={s.part_std_hist_id}>
+                          <div
+                            key={s.part_std_hist_id}
+                            data-testid={`sales-part-scheduled-change-${row.bsn_part_id}-${s.part_std_hist_id}`}
+                          >
                             <Badge tone="warning">
                               {s.aply_bgn_ym}부터 {s.prft_dstrb_rt}%
                             </Badge>
@@ -394,6 +400,7 @@ export function SalesPartDetailPanel({
   };
   return (
     <div
+      data-testid="sales-part-detail-backdrop"
       className={styles.detailBackdrop}
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();

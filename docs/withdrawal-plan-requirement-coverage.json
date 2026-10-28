@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "purpose": "T018 requirement reconciliation; input specifications are unchanged",
+  "requirements": [
+    {"id":"REQ-491","source":"spec-request.md:19","spec_lines":[33,45,71],"plan_lines":[31],"task":"T017/T018","evidence":"WithdrawalPlanRoutes.test.tsx anonymous route and no-auth assertions; WithdrawalApiTest anonymous MockMvc"},
+    {"id":"REQ-492","source":"spec-request.md:22","spec_lines":[34,46,72],"plan_lines":[31],"task":"T018","evidence":"No recommendation, temporary assignment, notification sender, UI-17/UI-28 business renderer, mobile cards or column configuration added"},
+    {"id":"REQ-493","source":"spec-request.md:25","spec_lines":[35,47,73],"plan_lines":[31],"task":"T002/T018","evidence":"No migration, schema or seed changed by this integration"},
+    {"id":"REQ-494","source":"spec-request.md:26","spec_lines":[36,48,74],"plan_lines":[31],"task":"T004/T017/T018","evidence":"AppShell and AppRouter reused; existing assignment drawer and project staff-plans tab reached by component integration tests"},
+    {"id":"REQ-495","source":"spec-request.md:140 FR-037","spec_lines":[32,49,75],"plan_lines":[31],"task":"T013/T014/T017/T018","evidence":"Existing shared MmGapBadge and ProjectStaffPlanPanel retained; annual and monthly links now open that panel"},
+    {"id":"REQ-496","source":"spec-request.md:146 FR-052","spec_lines":[11,12,27,50,76],"plan_lines":[31],"task":"T005/T006/T007/T017/T018","evidence":"UI05Screen route, WithdrawalChanceSelect and DispatchExpiryCell composition; existing WithdrawalRulesTest and WithdrawalApiTest"},
+    {"id":"REQ-497","source":"spec-request.md:175 FR-053","spec_lines":[13,14,15,28,51,77],"plan_lines":[31],"task":"T008/T009/T017/T018","evidence":"Registered chance control submits exact snake_case command, keeps microsecond version, refreshes summary, handles stale and disabled rows"},
+    {"id":"REQ-498","source":"spec-request.md:196 FR-054","spec_lines":[16,17,29,52,78],"plan_lines":[31],"task":"T010/T011/T017/T018","evidence":"WithdrawalRules delegates to DispatchExpiryRules; server alert-date array feeds existing tooltip; WithdrawalApiTest verifies dates and countdown"},
+    {"id":"REQ-499","source":"spec-request.md:216 FR-055","spec_lines":[18,19,30,53,79],"plan_lines":[31],"task":"T012/T013/T014/T017/T018","evidence":"UI11Screen registered with existing annual client and shared badge; existing feature tests plus route composition"},
+    {"id":"REQ-500","source":"spec-request.md:243 FR-056","spec_lines":[20,21,31,54,80],"plan_lines":[31],"task":"T015/T016/T017/T018","evidence":"MonthlyShortagesPanel receives API-backed projects and explicit year/project/job adapter; annual gap stays out of monthly wire"}
+  ],
+  "reconciliation": {
+    "missing_ids_in_spec_plan_tasks": [],
+    "canonical_ids": "REQ-491 through REQ-500; older REQ-501 through REQ-629 lists are historical, not extra current requirements",
+    "missing_anchor": "plan.md:17 identifies docs/speckit/contracts/spec.md as absent; no fabricated canonical anchor added",
+    "settled_questions": "D1-D16 govern historical stack, wire, authentication, scope and navigation questions",
+    "unresolved_contradiction": "FR-054 AC-03 says 2026-02-28; D5 literal expression yields 2026-02-27. Original AC is not marked passed.",
+    "contract_registration": "Protected backend/src/test/resources/contracts/openapi.yaml has no six new GET paths. It was not edited, as explicitly instructed; merger registration is required."
+  }
+}

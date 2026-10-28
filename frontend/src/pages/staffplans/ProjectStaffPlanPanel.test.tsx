@@ -56,6 +56,8 @@ beforeEach(() => {
   dirty.mockClear();
   basic.mockClear();
   fetcher = vi.fn(async (url: string, init?: RequestInit) => {
+    if (url === "/api/params")
+      return response([{ oprt_std_id: "PLAN_GAP_TOLERANCE", num_val: 0.1 }]);
     if (url === "/api/codes/JOB")
       return response([
         { code: "BE", name: "백엔드 개발" },
@@ -121,6 +123,27 @@ const change = (label: string, value: string) =>
 const save = () => fireEvent.click(screen.getByTestId("staff-plan-save"));
 
 describe("project staff plans", () => {
+  it("uses the shared tolerance on lifetime grade totals without changing the editor", async () => {
+    data.items = [plan("2025-10", 2, "JR"), plan("2027-11", 2, "SR")];
+    data.actual = [{ job_cd: "BE", mm_qty: 3.95 }];
+    panel();
+    await screen.findByText("맞음");
+    expect(screen.getAllByText("3.95")).toHaveLength(1);
+    expect(screen.getAllByText("맞음")).toHaveLength(1);
+    expect(screen.getByTestId("staff-plan-edit")).toBeEnabled();
+    expect(writes()).toHaveLength(0);
+  });
+  it("does not invent a badge if the effective tolerance is unavailable", async () => {
+    fetcher.mockImplementation(async (url: string) => {
+      if (url === "/api/params") return response([]);
+      if (url.startsWith("/api/codes/")) return response([]);
+      return response(data);
+    });
+    panel();
+    await screen.findByText("계획 대비 투입 기준값을 확인하세요.");
+    expect(screen.queryByText("부족 0.50")).not.toBeInTheDocument();
+    expect(screen.getByTestId("staff-plan-edit")).toBeEnabled();
+  });
   it("summarizes months and renders deficit red at 4.00 planned vs 3.50 actual", async () => {
     panel();
     await ready();

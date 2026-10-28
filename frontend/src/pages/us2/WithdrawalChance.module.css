@@ -1,0 +1,39 @@
+.cell {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 96px;
+}
+.cell select {
+  min-height: var(--small-control-height);
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  color: var(--text);
+  background: var(--surface);
+  font: inherit;
+}
+.cell select:disabled {
+  color: var(--text-sub);
+  background: var(--header-bg);
+  cursor: not-allowed;
+}
+.cell small {
+  font-size: var(--caption-size);
+  overflow-wrap: anywhere;
+}
+.reason {
+  color: var(--text-sub);
+}
+.cell [role="alert"] {
+  color: var(--danger);
+}
+.failure {
+  position: fixed;
+  top: var(--space-6);
+  right: var(--space-6);
+  padding: var(--space-4);
+  color: var(--danger);
+  background: var(--danger-bg);
+  box-shadow: var(--shadow-overlay);
+  z-index: 100;
+}

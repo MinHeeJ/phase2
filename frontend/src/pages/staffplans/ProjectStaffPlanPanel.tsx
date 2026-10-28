@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Badge, Button, Skeleton } from "../../shared/Controls";
+import { MmGapBadge } from "../../shared/MmGapBadge";
+import { getMmGapTolerance } from "../../shared/mmGapParameters";
 import { Can } from "../../shared/Can";
 import { ErrorBanner } from "../../shared/ErrorBanner";
 import { useAdminRead, useAdminWrite } from "../admin/useAdminResource";
@@ -87,6 +89,7 @@ function StaffPlanEditor({
 }: Props) {
   const read = useCallback(() => getProjectStaffPlans(projectId), [projectId]);
   const state = useAdminRead(read);
+  const tolerance = useAdminRead(getMmGapTolerance);
   const jobs = useCodes("JOB"),
     grades = useCodes("GRADE");
   const mobile = useDeveloperReadOnly();
@@ -332,6 +335,10 @@ function StaffPlanEditor({
         error={state.error}
         onRetry={() => void state.reload().catch(() => {})}
       />
+      <ErrorBanner
+        error={tolerance.error}
+        onRetry={() => void tolerance.reload().catch(() => {})}
+      />
       <ErrorBanner error={jobs.error} onRetry={jobs.retry} />
       <ErrorBanner error={grades.error} onRetry={grades.retry} />
       <ErrorBanner
@@ -374,7 +381,6 @@ function StaffPlanEditor({
                       (sum, value) => sum + value,
                       0,
                     );
-                    const diff = actual - planned;
                     return [...gradeRows].map(([grade, quantity], i) => (
                       <tr
                         key={`${job}:${grade}`}
@@ -387,20 +393,14 @@ function StaffPlanEditor({
                           {i === 0 ? mmText(actual) : "–"}
                         </td>
                         <td>
-                          {i === 0 ? (
-                            <Badge
-                              tone={
-                                diff < 0
-                                  ? "danger"
-                                  : diff > 0
-                                    ? "warning"
-                                    : "success"
-                              }
-                            >
-                              {diff === 0
-                                ? "맞음"
-                                : `${diff < 0 ? "부족" : "초과"} ${mmText(Math.abs(diff))}`}
-                            </Badge>
+                          {i === 0 &&
+                          tolerance.data != null &&
+                          !tolerance.error ? (
+                            <MmGapBadge
+                              planMm={planned / 100}
+                              actualMm={actual / 100}
+                              tolerance={tolerance.data}
+                            />
                           ) : (
                             "–"
                           )}

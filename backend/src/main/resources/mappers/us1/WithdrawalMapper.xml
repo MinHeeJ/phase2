@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sicost.us1.WithdrawalMapper">
+  <resultMap id="source" type="com.sicost.us1.WithdrawalModels$Source">
+    <constructor>
+      <arg column="asgn_id" javaType="_long"/>
+      <arg column="asgn_no" javaType="java.lang.String"/>
+      <arg column="dev_id" javaType="_long"/>
+      <arg column="dev_nm" javaType="java.lang.String"/>
+      <arg column="mng_no" javaType="java.lang.String"/>
+      <arg column="prj_id" javaType="_long"/>
+      <arg column="prj_nm" javaType="java.lang.String"/>
+      <arg column="job_cd" javaType="java.lang.String"/>
+      <arg column="job_nm" javaType="java.lang.String"/>
+      <arg column="bgn_dt" javaType="java.time.LocalDate"/>
+      <arg column="end_dt" javaType="java.time.LocalDate"/>
+      <arg column="plan_end_dt" javaType="java.time.LocalDate"/>
+      <arg column="ext_psblty_cd" javaType="java.lang.String"/>
+      <arg column="ext_psblty_nm" javaType="java.lang.String"/>
+      <arg column="asgn_stts_cd" javaType="java.lang.String"/>
+      <arg column="updated_at" javaType="java.time.LocalDateTime"/>
+      <arg column="extend_count" javaType="_int"/>
+      <arg column="early_end" javaType="_boolean"/>
+      <arg column="replacement_name" javaType="java.lang.String"/>
+      <arg column="cntrct_ty_cd" javaType="java.lang.String"/>
+      <arg column="prj_stts_cd" javaType="java.lang.String"/>
+      <arg column="use_yn" javaType="java.lang.String"/>
+      <arg column="dispatch_first_dt" javaType="java.time.LocalDate"/>
+      <arg column="next_asgn_id" javaType="java.lang.Long"/>
+      <arg column="next_prj_nm" javaType="java.lang.String"/>
+      <arg column="next_bgn_dt" javaType="java.time.LocalDate"/>
+    </constructor>
+  </resultMap>
+  <select id="sources" resultMap="source">
+    SELECT a.asgn_id,a.asgn_no,a.dev_id,d.dev_nm,d.mng_no,a.prj_id,p.prj_nm,
+      a.job_cd,coalesce(j.cd_nm,a.job_cd) AS job_nm,a.bgn_dt,a.end_dt,a.plan_end_dt,
+      a.ext_psblty_cd,coalesce(e.cd_nm,'미정') AS ext_psblty_nm,a.asgn_stts_cd,
+      coalesce(a.updated_at,a.created_at) AS updated_at,
+      (SELECT count(*)::integer FROM asgn.asgn_chg_hist h
+        WHERE h.asgn_id=a.asgn_id AND h.asgn_chg_ty_cd='EXTEND' AND h.fixed_yn='N') AS extend_count,
+      EXISTS(SELECT 1 FROM asgn.asgn_chg_hist h WHERE h.asgn_id=a.asgn_id
+        AND h.asgn_chg_ty_cd='EARLY_END' AND h.fixed_yn='N') AS early_end,
+      (SELECT rd.dev_nm FROM asgn.asgn_chg_hist h
+        JOIN asgn.asgn r ON r.asgn_id=h.new_asgn_id JOIN mst.dev rd ON rd.dev_id=r.dev_id
+        WHERE h.asgn_id=a.asgn_id AND h.asgn_chg_ty_cd='REPLACE' AND h.fixed_yn='N'
+        ORDER BY h.chg_at DESC,h.asgn_chg_id DESC LIMIT 1) AS replacement_name,
+      p.cntrct_ty_cd,p.prj_stts_cd,p.use_yn,
+      (SELECT min(x.bgn_dt) FROM asgn.asgn x WHERE x.dev_id=a.dev_id
+        AND x.prj_id=a.prj_id AND x.asgn_stts_cd!='CANCELLED') AS dispatch_first_dt,
+      n.asgn_id AS next_asgn_id,np.prj_nm AS next_prj_nm,n.bgn_dt AS next_bgn_dt
+    FROM asgn.asgn a
+      JOIN mst.dev d ON d.dev_id=a.dev_id
+      JOIN prj.prj p ON p.prj_id=a.prj_id
+      LEFT JOIN cmn.cd_dtl j ON j.cd_grp_id='JOB' AND j.dtl_cd=a.job_cd
+      LEFT JOIN cmn.cd_dtl e ON e.cd_grp_id='EXT_POSSIBILITY' AND e.dtl_cd=a.ext_psblty_cd
+      LEFT JOIN LATERAL (
+        SELECT x.asgn_id,x.prj_id,x.bgn_dt FROM asgn.asgn x
+        WHERE x.dev_id=a.dev_id AND x.asgn_id!=a.asgn_id
+          AND x.asgn_stts_cd!='CANCELLED' AND x.end_dt&gt;a.end_dt
+        ORDER BY x.bgn_dt,x.asgn_id LIMIT 1
+      ) n ON true
+      LEFT JOIN prj.prj np ON np.prj_id=n.prj_id
+    WHERE a.asgn_stts_cd IN ('ACTIVE','REPLACED')
+    ORDER BY a.asgn_id
+  </select>
+</mapper>

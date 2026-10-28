@@ -300,7 +300,11 @@ export default function UI01Screen({
             >
               <option value="">전체</option>
               {statuses.codes.map((c) => (
-                <option key={c.code} value={c.code}>
+                <option
+                  key={c.code}
+                  value={c.code}
+                  data-testid={`project-status-option-${c.code.toLowerCase().replaceAll("_", "-")}`}
+                >
                   {c.name}
                 </option>
               ))}
@@ -318,7 +322,11 @@ export default function UI01Screen({
             >
               <option value="">전체</option>
               {parts.data?.map((p) => (
-                <option key={p.id} value={p.id}>
+                <option
+                  key={p.id}
+                  value={p.id}
+                  data-testid={`project-part-option-${p.id}`}
+                >
                   {p.hq ? "본사(직접 영업)" : p.name}
                 </option>
               ))}
@@ -375,6 +383,7 @@ export default function UI01Screen({
                 <tr>
                   {columns.map(([key, label]) => (
                     <th
+                      data-testid={`project-column-${key.toLowerCase().replaceAll("_", "-")}`}
                       key={key}
                       aria-sort={
                         filters.sort === `${key},asc`
@@ -485,7 +494,7 @@ export default function UI01Screen({
             key={`${selected}-${new URLSearchParams(location.search).get("tab") ?? "basic"}`}
             id={selected}
             initialTab={
-              ["progress", "issues"].includes(
+              ["progress", "issues", "staff-plans"].includes(
                 new URLSearchParams(location.search).get("tab") ?? "",
               )
                 ? new URLSearchParams(location.search).get("tab")!

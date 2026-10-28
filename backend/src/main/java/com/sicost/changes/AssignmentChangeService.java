@@ -4,6 +4,7 @@ import com.sicost.common.api.ApiException;
 import com.sicost.common.persistence.AssignmentConcurrencyService;
 import com.sicost.common.security.*;
 import com.sicost.common.validation.AssignmentRules;
+import com.sicost.common.validation.DispatchExpiryCalculator;
 import com.sicost.common.validation.AssignmentRules.Period;
 import com.sicost.common.validation.AssignmentRules.Month;
 import com.sicost.common.validation.ProjectValues;
@@ -232,7 +233,7 @@ public class AssignmentChangeService {
         if (!"DP".equals(state.cntrct_ty_cd())) return;
         Integer max = mapper.dispatchMonths(YearMonth.from(end).toString());
         LocalDate first = mapper.firstStart(state.asgn_id());
-        if (max != null && first != null && !end.isBefore(first.plusMonths(max))) {
+        if (max != null && first != null && DispatchExpiryCalculator.exceeds(first, max, end)) {
             warnings.add(new Warning("DISPATCH_MAX_MONTHS", "파견 최대 기간(" + max + "개월)을 넘습니다.", null));
         }
     }

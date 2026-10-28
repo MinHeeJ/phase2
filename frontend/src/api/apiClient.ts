@@ -1,4 +1,28 @@
 export { api, readData, ApiFailure, retryRecovery } from "../shared/api";
+export { listWithdrawals, exportWithdrawals } from "../pages/us1/client";
+export type {
+  WithdrawalFilters,
+  WithdrawalRow,
+  WithdrawalPage,
+} from "../pages/us1/client";
+export {
+  listPlanComparison,
+  downloadPlanComparison,
+} from "../pages/us4/client";
+export type {
+  PlanComparisonFilters,
+  PlanComparisonRow,
+  PlanComparisonPage,
+} from "../pages/us4/client";
+export {
+  listMonthlyShortages,
+  downloadMonthlyShortages,
+} from "../pages/us5/client";
+export type {
+  MonthlyShortageFilters,
+  MonthlyShortageRow,
+  MonthlyShortagePage,
+} from "../pages/us5/client";
 export type { ApiError, ApiResponse, PageResult } from "../shared/types";
 export {
   getMenus,
