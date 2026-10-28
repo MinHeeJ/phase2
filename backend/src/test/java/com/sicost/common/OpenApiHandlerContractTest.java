@@ -52,7 +52,12 @@ import org.yaml.snakeyaml.Yaml;
     ProjectMemoController.class, ProjectPhaseController.class, ProjectProgressController.class,
     IssueController.class, IssueOwnerController.class, ProjectBoardController.class,
     ProjectBoardExportController.class, AssignmentController.class, AssignmentOperationController.class,
-    AssignmentChangeController.class, AssignmentMonthsController.class, ProjectAssignmentMonthController.class})
+    AssignmentChangeController.class, AssignmentMonthsController.class, ProjectAssignmentMonthController.class,
+    com.sicost.billings.BillingController.class, com.sicost.billingsops.BillingController.class,
+    com.sicost.billingsops.BillingExportController.class,
+    com.sicost.dispatchattendance.DispatchAttendanceController.class,
+    com.sicost.dispatchattendance2.DispatchAttendanceUploadController.class,
+    com.sicost.receipts.BillingReceiptController.class})
 @Import(CurrentUser.class)
 class OpenApiHandlerContractTest {
     @Autowired RequestMappingHandlerMapping handlers;
@@ -92,6 +97,16 @@ class OpenApiHandlerContractTest {
     @MockBean AssignmentChangeService assignmentChanges;
     @MockBean AssignmentMonthsService assignmentMonths;
     @MockBean ProjectAssignmentMonthService projectAssignmentMonths;
+    @MockBean com.sicost.billings.BillingService billings;
+    @MockBean com.sicost.billingsops.BillingService billingOperations;
+    @MockBean com.sicost.billingsops.BillingAmountService billingAmounts;
+    @MockBean com.sicost.billingsops.BillingGapService billingGaps;
+    @MockBean com.sicost.billingsops.BillingReceivableService billingReceivables;
+    @MockBean com.sicost.billingsops.BillingRevenueQuery billingRevenue;
+    @MockBean com.sicost.billingsops.BillingExportService billingExports;
+    @MockBean com.sicost.dispatchattendance.DispatchAttendanceService dispatchAttendance;
+    @MockBean com.sicost.dispatchattendance2.DispatchAttendanceUploadService attendanceUploads;
+    @MockBean com.sicost.receipts.BillingReceiptService billingReceipts;
 
     @Test void everyDurableOperationHasOneRegisteredLiteralHandler() throws Exception {
         Map<?,?> contract;

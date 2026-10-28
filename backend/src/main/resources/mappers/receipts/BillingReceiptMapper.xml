@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sicost.receipts.BillingReceiptMapper">
+  <resultMap id="receiptBillState" type="com.sicost.receipts.BillingReceiptModels$BillState">
+    <constructor>
+      <arg column="bill_id" javaType="_long"/>
+      <arg column="bill_stts_cd" javaType="java.lang.String"/>
+      <arg column="amnd_yn" javaType="java.lang.String"/>
+      <arg column="orgnl_bill_id" javaType="java.lang.Long"/>
+      <arg column="tot_amt" javaType="_long"/>
+    </constructor>
+  </resultMap>
+  <resultMap id="receiptRow" type="com.sicost.receipts.BillingReceiptModels$ReceiptRow">
+    <constructor>
+      <arg column="receipt_id" javaType="_long"/>
+      <arg column="rcpt_dt" javaType="java.time.LocalDate"/>
+      <arg column="rcpt_amt" javaType="_long"/>
+      <arg column="rmrk_desc" javaType="java.lang.String"/>
+    </constructor>
+  </resultMap>
+  <sql id="billState">SELECT bill_id,bill_stts_cd,amnd_yn,orgnl_bill_id,tot_amt FROM bill.bill WHERE bill_id=#{id}</sql>
+  <select id="bill" resultMap="receiptBillState"><include refid="billState"/></select>
+  <select id="lockBill" resultMap="receiptBillState" flushCache="true" useCache="false"><include refid="billState"/> FOR UPDATE</select>
+  <sql id="receiptProjection">SELECT rcpt_id AS receipt_id,rcpt_dt,rcpt_amt,rmrk_desc FROM bill.rcpt WHERE bill_id=#{id}</sql>
+  <select id="receipt" resultMap="receiptRow"><include refid="receiptProjection"/> AND rcpt_id=#{receiptId}</select>
+  <select id="receipts" resultMap="receiptRow"><include refid="receiptProjection"/> ORDER BY rcpt_dt,rcpt_id</select>
+  <select id="insert" resultType="long" affectData="true" flushCache="true">
+    INSERT INTO bill.rcpt(bill_id,rcpt_dt,rcpt_amt,rmrk_desc,created_by)
+    VALUES(#{id},#{input.rcpt_dt},#{input.rcpt_amt},#{input.rmrk_desc},#{actor}) RETURNING rcpt_id
+  </select>
+  <update id="update">
+    UPDATE bill.rcpt SET rcpt_dt=#{input.rcpt_dt},rcpt_amt=#{input.rcpt_amt},rmrk_desc=#{input.rmrk_desc}
+    WHERE bill_id=#{id} AND rcpt_id=#{receiptId}
+  </update>
+  <delete id="delete">DELETE FROM bill.rcpt WHERE bill_id=#{id} AND rcpt_id=#{receiptId}</delete>
+  <select id="amendmentTotal" resultType="long">
+    SELECT COALESCE(sum(tot_amt),0) FROM bill.bill WHERE orgnl_bill_id=#{id} AND amnd_yn='Y' AND bill_stts_cd='CONFIRM'
+  </select>
+  <select id="receivedExcluding" resultType="long">
+    SELECT COALESCE(sum(rcpt_amt),0) FROM bill.rcpt WHERE bill_id=#{id} AND rcpt_id != #{receiptId}
+  </select>
+  <select id="monthStatus" resultType="string">SELECT cls_stts_cd FROM fin.mth_cls WHERE cls_ym=#{month}</select>
+  <sql id="billingProjection">
+    SELECT json_build_object('bill_id',b.bill_id,'bill_stg_id',b.bill_stg_id,'virtual_plan',false,
+      'bill_no',b.bill_no,'prj_id',b.prj_id,'project_name',p.prj_nm,'customer_id',p.cust_ptnr_id,
+      'customer_name',c.ptnr_nm,'contract_type',p.cntrct_ty_cd,'atrb_ym',b.atrb_ym,'bill_dt',b.bill_dt,
+      'sply_amt',b.sply_amt,'vat_amt',b.vat_amt,'tot_amt',b.tot_amt,'bill_stts_cd',b.bill_stts_cd,
+      'txinv_no',b.txinv_no,'txinv_dt',b.txinv_dt,'rcpt_plan_dt',b.rcpt_plan_dt,
+      'received_amt',COALESCE(r.amount,0),'adjusted_total_amt',b.tot_amt+COALESCE(a.amount,0),
+      'receivable_amt',CASE WHEN b.bill_stts_cd='CONFIRM' THEN greatest(b.tot_amt+COALESCE(a.amount,0)-COALESCE(r.amount,0),0) ELSE 0 END,
+      'reminder_stage',CASE WHEN b.rcpt_plan_dt IS NULL OR b.bill_stts_cd!='CONFIRM' OR b.tot_amt+COALESCE(a.amount,0)-COALESCE(r.amount,0)&lt;=0 THEN NULL
+        WHEN (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Seoul')::date-b.rcpt_plan_dt &gt;=60 THEN 3
+        WHEN (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Seoul')::date-b.rcpt_plan_dt &gt;=30 THEN 2
+        WHEN (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Seoul')::date-b.rcpt_plan_dt &gt;=7 THEN 1 ELSE 0 END)::text
+    FROM bill.bill b JOIN prj.prj p ON p.prj_id=b.prj_id LEFT JOIN mst.ptnr c ON c.ptnr_id=p.cust_ptnr_id
+    LEFT JOIN (SELECT bill_id,sum(rcpt_amt) amount FROM bill.rcpt GROUP BY bill_id) r ON r.bill_id=b.bill_id
+    LEFT JOIN (SELECT orgnl_bill_id,sum(tot_amt) amount FROM bill.bill WHERE amnd_yn='Y' AND bill_stts_cd='CONFIRM' GROUP BY orgnl_bill_id) a ON a.orgnl_bill_id=b.bill_id
+  </sql>
+  <select id="billing" resultType="string"><include refid="billingProjection"/> WHERE b.bill_id=#{id}</select>
+  <select id="amendments" resultType="string"><include refid="billingProjection"/> WHERE b.orgnl_bill_id=#{id} ORDER BY b.bill_id</select>
+  <select id="details" resultType="string">
+    SELECT json_build_object('asgn_id',d.asgn_id,'dev_id',a.dev_id,'cntrct_dev_id',d.cntrct_dev_id,
+      'display_name',n.dev_nm,'work_ym',d.work_ym,'mm_qty',d.mm_qty,'source_mm_qty',m.mm_qty,
+      'untprc_amt',d.untprc_amt,'work_day_qty',d.work_day_qty,'work_tm_qty',d.work_tm_qty,
+      'ovtm_tm_qty',d.ovtm_tm_qty,'ovtm_amt',d.ovtm_amt,'bill_amt',d.bill_amt,'rmrk_desc',d.rmrk_desc)::text
+    FROM bill.bill_dtl d LEFT JOIN asgn.asgn a ON a.asgn_id=d.asgn_id
+    LEFT JOIN mst.dev n ON n.dev_id=COALESCE(d.cntrct_dev_id,a.dev_id)
+    LEFT JOIN asgn.asgn_mth m ON m.asgn_id=d.asgn_id AND m.work_ym=d.work_ym
+    WHERE d.bill_id=#{id} ORDER BY d.bill_dtl_id
+  </select>
+  <select id="history" resultType="string">
+    SELECT json_build_object('description',concat(h.data_chg_ty_cd,' ',h.bfr_val,' → ',h.aft_val),
+      'changed_at',h.chg_at,'user_id',h.chg_user_id::text)::text
+    FROM sys.data_chg_hist h
+    WHERE (h.tbl_nm='bill.bill' AND h.obj_rec_id=CAST(#{id} AS text))
+       OR (h.tbl_nm='bill.rcpt' AND h.rsn_desc=concat('청구 #',CAST(#{id} AS text),' 입금'))
+    ORDER BY h.chg_at,h.data_chg_hist_id
+  </select>
+  <insert id="audit">
+    INSERT INTO sys.data_chg_hist(tbl_nm,obj_rec_id,data_chg_ty_cd,bfr_val,aft_val,rsn_desc,chg_user_id)
+    VALUES('bill.rcpt',#{id},#{type},#{before},#{after},#{reason},#{actor})
+  </insert>
+  <select id="warnings" resultType="string">
+    SELECT '공급가액과 상세 합계가 다릅니다.' FROM bill.bill b
+    WHERE b.bill_id=#{id} AND b.amnd_yn='N'
+      AND EXISTS(SELECT 1 FROM bill.bill_dtl d WHERE d.bill_id=b.bill_id)
+      AND b.sply_amt != (SELECT sum(d.bill_amt) FROM bill.bill_dtl d WHERE d.bill_id=b.bill_id)
+  </select>
+</mapper>

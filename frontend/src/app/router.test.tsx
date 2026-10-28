@@ -8,6 +8,9 @@ import {
 import { MemoryRouter, useLocation } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AppRouter } from "./router";
+import * as apiClient from "../api/apiClient";
+import { seoulMonth } from "../pages/shared/PeriodBar";
+import type { BillingRow } from "../pages/billings/client";
 import { screenIds } from "../pages/shared/registry";
 import { useSharedPreferences } from "../pages/shared/preferences";
 import type { MenuNode } from "../pages/shared/api";
@@ -36,6 +39,39 @@ const menus: MenuNode[] = [
 const response = (data: unknown) =>
   new Response(JSON.stringify({ success: true, meta: {}, data }));
 let fetcher: ReturnType<typeof vi.fn>;
+const billingRow: BillingRow = {
+  bill_id: 81,
+  bill_stg_id: null,
+  virtual_plan: false,
+  bill_no: "B-TEST-81",
+  prj_id: 92,
+  project_name: "등록 연결 검증",
+  customer_id: null,
+  customer_name: null,
+  contract_type: "MO",
+  atrb_ym: seoulMonth(),
+  bill_dt: `${seoulMonth()}-01`,
+  sply_amt: 100,
+  vat_amt: 10,
+  tot_amt: 110,
+  bill_stts_cd: "CONFIRM",
+  txinv_no: null,
+  txinv_dt: null,
+  rcpt_plan_dt: null,
+  received_amt: 0,
+  adjusted_total_amt: 110,
+  receivable_amt: 110,
+  reminder_stage: null,
+};
+const billingDetail = () => ({
+  billing: billingRow,
+  details: [],
+  receipts: [],
+  amendments: [],
+  original_bill_id: null,
+  change_history: [],
+  warnings: [],
+});
 function Location() {
   return <output aria-label="현재 주소">{useLocation().pathname}</output>;
 }
@@ -53,6 +89,7 @@ beforeEach(() => {
     value: 1280,
   });
   localStorage.clear();
+  sessionStorage.clear();
   useSharedPreferences.setState({
     favorites: [],
     recent: [],
@@ -60,8 +97,40 @@ beforeEach(() => {
     pageSize: 50,
     dense: false,
   });
-  fetcher = vi.fn(async (url: string) => {
+  fetcher = vi.fn(async (url: string, _init?: RequestInit) => {
     if (url === "/api/menus") return response(menus);
+    if (url.startsWith("/api/billings/summary?"))
+      return response({
+        year: Number(seoulMonth().slice(0, 4)),
+        annual_confirmed_supply_amt: 100,
+        current_month_confirmed_supply_amt: 100,
+        confirmed_receivable_amt: 110,
+        overdue_amt: 0,
+        planned_supply_amt: 0,
+        draft_supply_amt: 0,
+      });
+    if (url.startsWith("/api/billings?"))
+      return response({ items: [billingRow], total: 1, page: 0, size: 50 });
+    if (url === "/api/billings/81" || url === "/api/billings/81/receipts")
+      return response(billingDetail());
+    if (url.startsWith("/api/billings/gaps?"))
+      return response({
+        month: seoulMonth(),
+        items: [],
+        total: 0,
+        page: 0,
+        size: 50,
+        total_difference_amt: 0,
+      });
+    if (url.startsWith("/api/billings/overdue?"))
+      return response({
+        items: [],
+        total: 0,
+        page: 0,
+        size: 50,
+        customer_totals: [],
+        stage_counts: [],
+      });
     if (url.startsWith("/api/withdrawals?"))
       return response({
         rows: [],
@@ -166,6 +235,138 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("application route registration", () => {
+  it("registers billing tabs and the receipt owner on the existing route", async () => {
+    mount("/UI-13");
+    await screen.findByTestId("billing-row-81");
+    fireEvent.click(screen.getByTestId("billing-tab-gaps"));
+    expect(await screen.findByTestId("billing-panel-gaps")).toBeVisible();
+    fireEvent.click(screen.getByTestId("billing-tab-overdue"));
+    expect(await screen.findByTestId("billing-panel-overdue")).toBeVisible();
+    fireEvent.click(screen.getByTestId("billing-tab-list"));
+    fireEvent.click(await screen.findByTestId("billing-open-81"));
+    expect(await screen.findByTestId("billing-receipts-panel")).toBeVisible();
+    fireEvent.click(await screen.findByTestId("billing-receipt-add"));
+    expect(screen.getAllByTestId("billing-receipt-add")).toHaveLength(1);
+    expect(screen.getByTestId("billing-receipt-dialog")).toBeVisible();
+    expect(screen.getByLabelText("현재 주소")).toHaveTextContent("/UI-13");
+    fireEvent.click(screen.getByTestId("billing-receipt-cancel"));
+    expect(
+      screen.queryByTestId("billing-receipt-dialog"),
+    ).not.toBeInTheDocument();
+  });
+  it("composes manual attendance and B.3 upload without registering modal routes", async () => {
+    mount("/UI-13");
+    fireEvent.click(await screen.findByTestId("billing-attendance"));
+    expect(
+      await screen.findByTestId("dispatch-attendance-dialog"),
+    ).toBeVisible();
+    fireEvent.click(await screen.findByTestId("A-13-UPLOAD"));
+    expect(await screen.findByTestId("attendance-upload-dialog")).toBeVisible();
+    expect(screen.getByLabelText("현재 주소")).toHaveTextContent("/UI-13");
+    fireEvent.click(screen.getByTestId("A-13-M2-CLOSE"));
+    expect(
+      screen.queryByTestId("attendance-upload-dialog"),
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("attendance-close"));
+    expect(
+      screen.queryByTestId("dispatch-attendance-dialog"),
+    ).not.toBeInTheDocument();
+    expect(
+      fetcher.mock.calls.some(
+        ([, init]) => init?.method && init.method !== "GET",
+      ),
+    ).toBe(false);
+  });
+  it("refreshes billing detail and summaries after the receipt owner's save", async () => {
+    mount("/UI-13");
+    fireEvent.click(await screen.findByTestId("billing-open-81"));
+    fireEvent.click(await screen.findByTestId("billing-receipt-add"));
+    fireEvent.change(screen.getByTestId("billing-receipt-date"), {
+      target: { value: `${seoulMonth()}-01` },
+    });
+    fireEvent.change(screen.getByTestId("billing-receipt-amount"), {
+      target: { value: "30" },
+    });
+    await waitFor(() =>
+      expect(screen.getByTestId("billing-receipt-save")).toBeEnabled(),
+    );
+    fireEvent.click(screen.getByTestId("billing-receipt-save"));
+    expect(
+      await screen.findByTestId("billing-receipt-success"),
+    ).toHaveTextContent("저장했습니다.");
+    expect(fetcher.mock.calls).toEqual(
+      expect.arrayContaining([
+        [
+          "/api/billings/81/receipts",
+          expect.objectContaining({
+            method: "POST",
+            body: JSON.stringify({
+              rcpt_dt: `${seoulMonth()}-01`,
+              rcpt_amt: 30,
+              rmrk_desc: null,
+            }),
+          }),
+        ],
+      ]),
+    );
+    await waitFor(() =>
+      expect(
+        fetcher.mock.calls.filter(([url]) =>
+          String(url).startsWith("/api/billings/summary?"),
+        ).length,
+      ).toBeGreaterThan(1),
+    );
+    expect(
+      fetcher.mock.calls.filter(([url]) => url === "/api/billings/81").length,
+    ).toBeGreaterThan(1);
+  });
+  it.each(["past", "mobile"])(
+    "keeps composed billing writes hidden for %s context",
+    async (mode) => {
+      if (mode === "past")
+        sessionStorage.setItem(
+          "UI-13.year",
+          String(Number(seoulMonth().slice(0, 4)) - 1),
+        );
+      else
+        Object.defineProperty(window, "innerWidth", {
+          configurable: true,
+          value: 767,
+        });
+      mount("/UI-13");
+      fireEvent.click(await screen.findByTestId("billing-open-81"));
+      await screen.findByTestId("billing-receipts-panel");
+      expect(
+        screen.queryByTestId("billing-attendance"),
+      ).not.toBeInTheDocument();
+      expect(screen.queryByTestId("billing-create")).not.toBeInTheDocument();
+      expect(
+        screen.queryByTestId("billing-receipt-add"),
+      ).not.toBeInTheDocument();
+      expect(screen.getByTestId("billing-export")).toBeVisible();
+    },
+  );
+  it("exposes billing clients without replacing the shared transport", async () => {
+    const result = await apiClient.getBilling(81);
+    expect(result.billing.bill_id).toBe(81);
+    await apiClient.createBillingReceipt(81, {
+      rcpt_dt: `${seoulMonth()}-01`,
+      rcpt_amt: 30,
+      rmrk_desc: null,
+    });
+    expect(fetcher.mock.calls).toEqual(
+      expect.arrayContaining([
+        [
+          "/api/billings/81/receipts",
+          expect.objectContaining({ method: "POST" }),
+        ],
+      ]),
+    );
+    expect(apiClient.confirmBilling).toBeTypeOf("function");
+    expect(apiClient.cancelBilling).toBeTypeOf("function");
+    expect(apiClient.createBillingAmendment).toBeTypeOf("function");
+    expect(apiClient.downloadBilling).toBeTypeOf("function");
+  });
   it.each([...screenIds, "UI-22"])(
     "renders /%s through the single shared shell",
     async (id) => {

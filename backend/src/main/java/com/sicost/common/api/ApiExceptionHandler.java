@@ -43,6 +43,9 @@ public class ApiExceptionHandler {
     }
     @ExceptionHandler(MaxUploadSizeExceededException.class)
     public ResponseEntity<ApiError> uploadSize(MaxUploadSizeExceededException ex, HttpServletRequest request) {
+        if (billingRequest(request)) {
+            return error(400, "VALIDATION_ERROR", "파일은 10MB 이하만 올릴 수 있습니다.", "file", request);
+        }
         return error(413, "INVALID_INPUT", "파일은 10MB 이하만 올릴 수 있습니다.", "file", request);
     }
     @ExceptionHandler(MissingServletRequestPartException.class)
@@ -70,7 +73,18 @@ public class ApiExceptionHandler {
         return error(500, "SERVER_ERROR", "서버 오류가 발생했습니다.", null, request);
     }
     private ResponseEntity<ApiError> error(int status, String code, String message, String field, HttpServletRequest request) {
+        if (status == 400 && "INVALID_INPUT".equals(code) && billingRequest(request)) {
+            code = "VALIDATION_ERROR";
+        }
         String id = (String) request.getAttribute(RequestIdFilter.ATTRIBUTE);
         return ResponseEntity.status(status).body(new ApiError(false, Map.of(), code, message, field, id));
+    }
+
+    private boolean billingRequest(HttpServletRequest request) {
+        String path = request.getRequestURI().substring(request.getContextPath().length());
+        return path.equals("/api/billings") || path.startsWith("/api/billings/")
+            || path.equals("/api/dispatch-attendance")
+            || path.equals("/api/uploads/dispatch-attendance/validate")
+            || path.equals("/api/uploads/dispatch-attendance/apply");
     }
 }
