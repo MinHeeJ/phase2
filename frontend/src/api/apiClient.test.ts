@@ -18,12 +18,31 @@ import * as expenses from "../pages/expenses/client";
 import * as partChanges from "../pages/partchanges/client";
 import * as contractChanges from "../pages/contractchanges/client";
 import * as staffPlans from "../pages/staffplans/client";
+import * as billings from "../pages/billings/client";
+import * as billingActions from "../pages/billingsops/client";
+import * as receipts from "../pages/receipts/client";
 
 const response = (data: unknown) =>
   new Response(JSON.stringify({ success: true, meta: {}, data }));
 afterEach(() => vi.unstubAllGlobals());
 describe("API client registration", () => {
   it.each([
+    ["listBillings", billings.listBillings],
+    ["getBilling", billings.getBilling],
+    ["createBilling", billings.createBilling],
+    ["updateBilling", billings.updateBilling],
+    ["previewBilling", billings.previewBilling],
+    ["getBillingSummary", billings.getBillingSummary],
+    ["confirmBilling", billingActions.confirmBilling],
+    ["cancelBilling", billingActions.cancelBilling],
+    ["createBillingAmendment", billingActions.createBillingAmendment],
+    ["listBillingGaps", billingActions.listBillingGaps],
+    ["listBillingOverdue", billingActions.listBillingOverdue],
+    ["downloadBilling", billingActions.downloadBilling],
+    ["listBillingReceipts", receipts.listBillingReceipts],
+    ["createBillingReceipt", receipts.createBillingReceipt],
+    ["updateBillingReceipt", receipts.updateBillingReceipt],
+    ["deleteBillingReceipt", receipts.deleteBillingReceipt],
     ["listProjects", projects.listProjects],
     ["getProject", projects.getProject],
     ["createProject", projects.createProject],

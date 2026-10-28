@@ -1,0 +1,22 @@
+.panel {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+}
+.panel td input {
+  width: 100px;
+  height: var(--control-height);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  padding: var(--space-2);
+  color: var(--text);
+  background: var(--surface);
+}
+.warning {
+  display: inline-block;
+  padding: 3px 6px;
+  border-radius: var(--radius-control);
+  color: var(--warn);
+  background: var(--warn-bg);
+  font-size: 12px;
+}

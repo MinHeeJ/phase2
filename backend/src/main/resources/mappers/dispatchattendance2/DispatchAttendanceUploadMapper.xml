@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sicost.dispatchattendance2.DispatchAttendanceUploadMapper">
+  <resultMap id="project" type="com.sicost.dispatchattendance2.DispatchAttendanceUploadModels$Project">
+    <constructor>
+      <arg column="prj_id" javaType="_long"/>
+      <arg column="prj_no" javaType="java.lang.String"/>
+      <arg column="cntrct_ty_cd" javaType="java.lang.String"/>
+      <arg column="stlm_mthd_cd" javaType="java.lang.String"/>
+      <arg column="use_yn" javaType="java.lang.String"/>
+    </constructor>
+  </resultMap>
+  <resultMap id="assignment" type="com.sicost.dispatchattendance2.DispatchAttendanceUploadModels$Assignment">
+    <constructor>
+      <arg column="asgn_id" javaType="_long"/>
+      <arg column="dev_id" javaType="_long"/>
+      <arg column="mng_no" javaType="java.lang.String"/>
+      <arg column="dev_nm" javaType="java.lang.String"/>
+      <arg column="assignment_mm" javaType="java.math.BigDecimal"/>
+      <arg column="bill_price" javaType="java.lang.Long"/>
+    </constructor>
+  </resultMap>
+  <resultMap id="attendance" type="com.sicost.dispatchattendance2.DispatchAttendanceUploadModels$Attendance">
+    <constructor>
+      <arg column="atnd_id" javaType="java.lang.Long"/>
+      <arg column="asgn_id" javaType="java.lang.Long"/>
+      <arg column="dev_id" javaType="_long"/>
+      <arg column="work_day_qty" javaType="java.math.BigDecimal"/>
+      <arg column="rglr_tm_qty" javaType="java.math.BigDecimal"/>
+      <arg column="ovtm_tm_qty" javaType="java.math.BigDecimal"/>
+      <arg column="mth_work_day_qty" javaType="java.math.BigDecimal"/>
+    </constructor>
+  </resultMap>
+  <sql id="projectProjection">
+    SELECT p.prj_id,p.prj_no,p.cntrct_ty_cd,p.stlm_mthd_cd,p.use_yn
+    FROM prj.prj p WHERE p.prj_id=#{id}
+  </sql>
+  <select id="project" resultMap="project"><include refid="projectProjection"/></select>
+  <select id="lockProject" resultMap="project" flushCache="true" useCache="false">
+    <include refid="projectProjection"/> FOR UPDATE
+  </select>
+  <select id="monthStatus" resultType="string" useCache="false">
+    SELECT c.cls_stts_cd FROM fin.mth_cls c WHERE c.cls_ym=#{month} FOR SHARE
+  </select>
+  <select id="confirmedUsage" resultType="boolean" useCache="false">
+    SELECT EXISTS (
+      SELECT 1 FROM bill.bill_dtl d
+      JOIN bill.bill b ON b.bill_id=d.bill_id
+      JOIN asgn.asgn a ON a.asgn_id=d.asgn_id
+      WHERE a.prj_id=#{projectId} AND d.work_ym=#{month} AND b.bill_stts_cd='CONFIRM'
+    )
+  </select>
+  <select id="assignments" resultMap="assignment" useCache="false">
+    SELECT a.asgn_id,a.dev_id,d.mng_no,d.dev_nm,m.mm_qty AS assignment_mm,
+      (SELECT h.bill_untprc_amt FROM asgn.untprc_hist h
+       WHERE h.asgn_id=a.asgn_id
+         AND h.aply_bgn_dt &lt;= greatest(a.bgn_dt,to_date(#{month}||'-01','YYYY-MM-DD'))
+       ORDER BY h.aply_bgn_dt DESC LIMIT 1) AS bill_price
+    FROM asgn.asgn a JOIN mst.dev d ON d.dev_id=a.dev_id
+    LEFT JOIN asgn.asgn_mth m ON m.asgn_id=a.asgn_id AND m.work_ym=#{month}
+    WHERE a.prj_id=#{projectId} AND a.asgn_stts_cd &lt;&gt; 'CANCELLED' AND d.use_yn='Y'
+      AND a.bgn_dt &lt; (to_date(#{month}||'-01','YYYY-MM-DD')+interval '1 month')
+      AND a.end_dt &gt;= to_date(#{month}||'-01','YYYY-MM-DD')
+    ORDER BY a.asgn_id
+  </select>
+  <select id="attendance" resultMap="attendance" useCache="false">
+    SELECT t.atnd_id,t.asgn_id,t.dev_id,t.work_day_qty,
+      t.rglr_tm_qty,t.ovtm_tm_qty,t.mth_work_day_qty
+    FROM bill.dspch_atnd t WHERE t.prj_id=#{projectId} AND t.work_ym=#{month}
+    ORDER BY t.atnd_id
+  </select>
+  <select id="nextUploadId" resultType="long">SELECT nextval('sys.seq_upld_id')</select>
+  <insert id="insertReview">
+    INSERT INTO sys.upld(upld_id,form_cd,scrn_id,obj_ym,obj_key_val,file_nm,file_path_addr,
+      tot_row_cnt,nrml_row_cnt,err_row_cnt,wrn_row_cnt,upld_stts_cd,ovwr_yn,upld_user_id)
+    VALUES(#{id},'B.3','UI-13',#{scope.month},#{scope.projectId}::text,#{name},#{path},
+      #{result.row_count},#{result.row_count}-#{result.error_count},#{result.error_count},
+      #{result.warning_count},#{status},'Y',NULL)
+  </insert>
+  <delete id="deleteAttendance">
+    DELETE FROM bill.dspch_atnd WHERE prj_id=#{projectId} AND work_ym=#{month}
+  </delete>
+  <select id="insertAttendance" resultType="long" affectData="true" flushCache="true">
+    INSERT INTO bill.dspch_atnd(work_ym,prj_id,dev_id,asgn_id,work_day_qty,rglr_tm_qty,
+      ovtm_tm_qty,mth_work_day_qty,upld_id,created_by)
+    VALUES(#{scope.month},#{scope.projectId},#{input.dev_id},#{input.asgn_id},#{input.work_day_qty},
+      #{input.rglr_tm_qty},#{input.ovtm_tm_qty},#{input.mth_work_day_qty},#{upload},NULL)
+    RETURNING atnd_id
+  </select>
+  <insert id="audit">
+    INSERT INTO sys.data_chg_hist(tbl_nm,obj_rec_id,data_chg_ty_cd,bfr_val,aft_val,chg_user_id)
+    VALUES('bill.dspch_atnd',#{id},#{type},#{before},#{after},NULL)
+  </insert>
+  <insert id="access">
+    INSERT INTO sys.acs_hist(user_id,acs_ty_cd,scrn_id,obj_desc,dtl_desc)
+    VALUES(#{actor},#{type},'UI-13',#{display},#{detail})
+  </insert>
+</mapper>

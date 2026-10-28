@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sicost.dispatchattendance.DispatchAttendanceMapper">
+  <resultMap id="project" type="com.sicost.dispatchattendance.DispatchAttendanceModels$Project">
+    <constructor>
+      <arg column="cntrct_ty_cd" javaType="java.lang.String"/>
+      <arg column="stlm_mthd_cd" javaType="java.lang.String"/>
+      <arg column="use_yn" javaType="java.lang.String"/>
+    </constructor>
+  </resultMap>
+  <resultMap id="source" type="com.sicost.dispatchattendance.DispatchAttendanceModels$Source">
+    <constructor>
+      <arg column="asgn_id" javaType="java.lang.Long"/>
+      <arg column="dev_id" javaType="java.lang.Long"/>
+      <arg column="assignment_mm" javaType="java.math.BigDecimal"/>
+      <arg column="price_available" javaType="java.lang.Boolean"/>
+      <arg column="work_day_qty" javaType="java.math.BigDecimal"/>
+      <arg column="rglr_tm_qty" javaType="java.math.BigDecimal"/>
+      <arg column="ovtm_tm_qty" javaType="java.math.BigDecimal"/>
+      <arg column="mth_work_day_qty" javaType="java.math.BigDecimal"/>
+    </constructor>
+  </resultMap>
+  <resultMap id="input" type="com.sicost.dispatchattendance.DispatchAttendanceModels$Input">
+    <constructor>
+      <arg column="asgn_id" javaType="java.lang.Long"/>
+      <arg column="dev_id" javaType="java.lang.Long"/>
+      <arg column="work_day_qty" javaType="java.math.BigDecimal"/>
+      <arg column="rglr_tm_qty" javaType="java.math.BigDecimal"/>
+      <arg column="ovtm_tm_qty" javaType="java.math.BigDecimal"/>
+      <arg column="mth_work_day_qty" javaType="java.math.BigDecimal"/>
+    </constructor>
+  </resultMap>
+  <sql id="projectQuery">
+    SELECT p.cntrct_ty_cd,p.stlm_mthd_cd,p.use_yn FROM prj.prj p WHERE p.prj_id=#{projectId}
+  </sql>
+  <select id="project" resultMap="project"><include refid="projectQuery"/></select>
+  <select id="lockProject" resultMap="project" flushCache="true" useCache="false">
+    <include refid="projectQuery"/> FOR UPDATE
+  </select>
+  <select id="monthStatus" resultType="string">
+    SELECT c.cls_stts_cd FROM fin.mth_cls c WHERE c.cls_ym=#{month}
+  </select>
+  <select id="sources" resultMap="source">
+    SELECT a.asgn_id,a.dev_id,m.mm_qty AS assignment_mm,
+      (price.bill_untprc_amt IS NOT NULL) AS price_available,
+      t.work_day_qty,t.rglr_tm_qty,t.ovtm_tm_qty,t.mth_work_day_qty
+    FROM asgn.asgn a
+    LEFT JOIN asgn.asgn_mth m ON m.asgn_id=a.asgn_id AND m.work_ym=#{month}
+    LEFT JOIN bill.dspch_atnd t ON t.asgn_id=a.asgn_id AND t.prj_id=a.prj_id
+      AND t.dev_id=a.dev_id AND t.work_ym=#{month}
+    LEFT JOIN LATERAL (
+      SELECT h.bill_untprc_amt FROM asgn.untprc_hist h
+      WHERE h.asgn_id=a.asgn_id AND h.aply_bgn_dt &lt;= GREATEST(a.bgn_dt,#{first})
+      ORDER BY h.aply_bgn_dt DESC LIMIT 1
+    ) price ON TRUE
+    WHERE a.prj_id=#{projectId} AND a.asgn_stts_cd != 'CANCELLED'
+      AND a.bgn_dt &lt;= #{last} AND a.end_dt &gt;= #{first}
+    ORDER BY a.dev_id,a.asgn_id
+  </select>
+  <select id="existing" resultMap="input">
+    SELECT t.asgn_id,t.dev_id,t.work_day_qty,t.rglr_tm_qty,t.ovtm_tm_qty,t.mth_work_day_qty
+    FROM bill.dspch_atnd t
+    WHERE t.work_ym=#{scope.month} AND t.prj_id=#{scope.projectId} AND t.dev_id=#{item.dev_id}
+  </select>
+  <select id="billed" resultType="boolean">
+    SELECT EXISTS (
+      SELECT 1 FROM bill.bill_dtl d
+      JOIN bill.bill b ON b.bill_id=d.bill_id
+      JOIN asgn.asgn a ON a.asgn_id=d.asgn_id
+      WHERE b.bill_stts_cd='CONFIRM' AND d.work_ym=#{scope.month}
+        AND a.prj_id=#{scope.projectId} AND a.dev_id=#{item.dev_id}
+    )
+  </select>
+  <select id="upsert" resultType="long" affectData="true" flushCache="true">
+    INSERT INTO bill.dspch_atnd(work_ym,prj_id,dev_id,asgn_id,work_day_qty,rglr_tm_qty,
+      ovtm_tm_qty,mth_work_day_qty,created_by)
+    VALUES(#{scope.month},#{scope.projectId},#{item.dev_id},#{item.asgn_id},#{item.work_day_qty},
+      #{item.rglr_tm_qty},#{item.ovtm_tm_qty},#{item.mth_work_day_qty},#{actor})
+    ON CONFLICT (work_ym,prj_id,dev_id) DO UPDATE SET
+      asgn_id=EXCLUDED.asgn_id,work_day_qty=EXCLUDED.work_day_qty,
+      rglr_tm_qty=EXCLUDED.rglr_tm_qty,ovtm_tm_qty=EXCLUDED.ovtm_tm_qty,
+      mth_work_day_qty=EXCLUDED.mth_work_day_qty,upld_id=NULL,
+      updated_at=CURRENT_TIMESTAMP,updated_by=#{actor}
+    RETURNING atnd_id
+  </select>
+  <insert id="audit">
+    INSERT INTO sys.data_chg_hist(tbl_nm,obj_rec_id,data_chg_ty_cd,bfr_val,aft_val,chg_user_id)
+    VALUES('bill.dspch_atnd',#{id},#{type},#{before},#{after},#{actor})
+  </insert>
+</mapper>

@@ -1,4 +1,44 @@
 export { api, readData, ApiFailure, retryRecovery } from "../shared/api";
+export {
+  listBillings,
+  getBilling,
+  createBilling,
+  updateBilling,
+  previewBilling,
+  getBillingSummary,
+} from "../pages/billings/client";
+export type {
+  BillingRow,
+  BillingDetail,
+  BillingDetailLine,
+  BillingCreate,
+  BillingUpdate,
+  BillingFilters,
+  BillingPage,
+  BillingPreview,
+  BillingSummary,
+} from "../pages/billings/client";
+export {
+  confirmBilling,
+  cancelBilling,
+  createBillingAmendment,
+  listBillingGaps,
+  listBillingOverdue,
+  downloadBilling,
+} from "../pages/billingsops/client";
+export {
+  listBillingReceipts,
+  createBillingReceipt,
+  updateBillingReceipt,
+  deleteBillingReceipt,
+} from "../pages/receipts/client";
+export type {
+  BillingReceipt,
+  BillingReceiptInput,
+  BillingReceiptDetail,
+  ReceiptBillingRow,
+} from "../pages/receipts/client";
+
 export { listWithdrawals, exportWithdrawals } from "../pages/us1/client";
 export type {
   WithdrawalFilters,

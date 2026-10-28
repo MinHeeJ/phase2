@@ -27,6 +27,8 @@ public class UploadService {
     private final TransactionTemplate transaction;
     private final Map<String,Validation> validations=new HashMap<>();
     @org.springframework.beans.factory.annotation.Autowired(required=false) private PersonnelUploadService personnel;
+    @org.springframework.beans.factory.annotation.Autowired(required=false)
+    private List<UploadReviewProvider> reviewProviders = List.of();
     @Value("${sicost.upload-directory:${java.io.tmpdir}/sicost/uploads}") private String directory;
     public UploadService(UploadMapper mapper,CurrentUser user,Clock clock,UploadWorkbookWriter writer,PartnerUploadForm form,PlatformTransactionManager manager) {
         this.mapper=mapper;this.user=user;this.clock=clock;this.writer=writer;this.form=form;this.transaction=new TransactionTemplate(manager);
@@ -121,6 +123,7 @@ public class UploadService {
         catch(JsonProcessingException ex){throw new IllegalStateException("접근 기록 생성 실패",ex);}
     }
     public UploadFile template(String requestedForm) {
+        for (var provider : reviewProviders) if (provider.formType().equals(requestedForm)) return provider.template();
         if("B.8".equals(requestedForm)||"B.1".equals(requestedForm))return personnel().template(requestedForm);
         requireForm(requestedForm);
         try {byte[] bytes=writer.template(mapper.codes());String name="거래처_업로드양식.xlsx";access("DOWNLOAD",name,Map.of("form","B.7"));return new UploadFile(name,bytes);}

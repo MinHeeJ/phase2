@@ -43,13 +43,20 @@ public class UploadWorkbookWriter {
         return errorFile(input,issues,"B.7");
     }
     public byte[] errorFile(InputStream input,List<UploadIssue> issues,String form)throws IOException {
+        return errorFile(input, issues, form, null);
+    }
+    public byte[] errorFile(InputStream input,List<UploadIssue> issues,List<String> headers)throws IOException {
+        return errorFile(input, issues, null, headers);
+    }
+    private byte[] errorFile(InputStream input,List<UploadIssue> issues,String form,List<String> custom)throws IOException {
         try(XSSFWorkbook book=new XSSFWorkbook(input);ByteArrayOutputStream out=new ByteArrayOutputStream()) {
             Sheet original=book.getSheetAt(0);while(book.getNumberOfSheets()>1)book.removeSheetAt(1);
-            FormulaEvaluator evaluator=book.getCreationHelper().createFormulaEvaluator();Row header="B.7".equals(form)?PartnerUploadForm.header(original,evaluator):PersonnelUploadForm.title(original,form);
-            List<String> headings="B.7".equals(form)?PartnerUploadForm.HEADERS:PersonnelUploadForm.headers(form);
+            FormulaEvaluator evaluator=book.getCreationHelper().createFormulaEvaluator();
+            Row header=custom==null?("B.7".equals(form)?PartnerUploadForm.header(original,evaluator):PersonnelUploadForm.title(original,form)):customHeader(original,custom);
+            List<String> headings=custom==null?("B.7".equals(form)?PartnerUploadForm.HEADERS:PersonnelUploadForm.headers(form)):custom;
             Map<Integer,Integer> columns=new HashMap<>();
             if("B.7".equals(form))columns.putAll(PartnerUploadForm.columns(header,evaluator));
-            else for(Cell cell:header)if(cell.getCellType()==CellType.STRING){int index=headings.indexOf(PersonnelUploadForm.label(cell.getStringCellValue(),form));if(index>=0)columns.put(index,cell.getColumnIndex());}
+            else for(Cell cell:header)if(cell.getCellType()==CellType.STRING){int index=headings.indexOf(custom==null?PersonnelUploadForm.label(cell.getStringCellValue(),form):cell.getStringCellValue().replace("*","").trim());if(index>=0)columns.put(index,cell.getColumnIndex());}
             int end=0;for(Row row:original)end=Math.max(end,row.getLastCellNum());
             Cell heading=header.getCell(end,Row.MissingCellPolicy.CREATE_NULL_AS_BLANK);heading.setCellValue("오류 사유");original.setColumnWidth(end,60*256);
             Map<Integer,List<String>> reasons=new LinkedHashMap<>();Map<Short,CellStyle> styles=new HashMap<>();
@@ -80,6 +87,27 @@ public class UploadWorkbookWriter {
             for(var entry:groups.entrySet()){var options=codes.stream().filter(c->c.group().equals(entry.getKey())).toList();if(lists.getRow(0)==null)lists.createRow(0);lists.getRow(0).createCell(col).setCellValue(entry.getKey());for(int i=0;i<options.size();i++){Row r=lists.getRow(i+1);if(r==null)r=lists.createRow(i+1);r.createCell(col).setCellValue(options.get(i).name());}
                 if(!options.isEmpty()){Name range=book.createName();range.setNameName("Personnel_"+entry.getKey());String letter=org.apache.poi.ss.util.CellReference.convertNumToColString(col);range.setRefersToFormula("'목록'!$"+letter+"$2:$"+letter+"$"+(options.size()+1));var helper=sheet.getDataValidationHelper();int target=headers.indexOf(entry.getValue());var validation=helper.createValidation(helper.createFormulaListConstraint(range.getNameName()),new CellRangeAddressList(5,10004,target,target));validation.setShowErrorBox(true);sheet.addValidationData(validation);}col++;}
             lists.protectSheet(UUID.randomUUID().toString());book.write(out);return out.toByteArray();
+        }
+    }
+    private Row customHeader(Sheet sheet,List<String> headings) {
+        for(int i=0;i<20;i++) {
+            Row row=sheet.getRow(i);
+            if(row!=null)for(Cell cell:row)if(cell.getCellType()==CellType.STRING
+                    && cell.getStringCellValue().replace("*", "").trim().equals(headings.get(0)))return row;
+        }
+        throw PartnerUploadForm.fileError("HEADER_NOT_FOUND","제목 줄을 찾을 수 없습니다.");
+    }
+    public byte[] template(List<String> headings,String title)throws IOException {
+        try(var book=new XSSFWorkbook();var out=new ByteArrayOutputStream()) {
+            Sheet sheet=book.createSheet(title);
+            sheet.createRow(0).createCell(0).setCellValue("4행 제목을 유지하세요. 오류가 있으면 파일 전체를 반영하지 않습니다.");
+            Row header=sheet.createRow(3);
+            CellStyle text=book.createCellStyle();text.setDataFormat(book.createDataFormat().getFormat("@"));
+            for(int i=0;i<headings.size();i++) {
+                header.createCell(i).setCellValue(headings.get(i));sheet.setColumnWidth(i,24*256);
+                if(Set.of("관리번호","연월","프로젝트ID").contains(headings.get(i)))sheet.setDefaultColumnStyle(i,text);
+            }
+            sheet.createFreezePane(0,4);book.write(out);return out.toByteArray();
         }
     }
 }

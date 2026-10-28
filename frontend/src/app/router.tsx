@@ -4,6 +4,10 @@ import UI27Screen from "../pages/admin/UI27Screen";
 import UI15Screen from "../pages/partners/UI15Screen";
 import SalesPartManagement from "../pages/salespartsops/SalesPartManagement";
 import UI02Screen from "../pages/developers/UI02Screen";
+import UI13Screen from "../pages/billingsops/UI13Screen";
+import { DispatchAttendanceDialog } from "../pages/dispatchattendance/DispatchAttendancePanel";
+import { DispatchAttendanceUploadActions } from "../pages/dispatchattendance2/DispatchAttendanceUploadDialog";
+import { BillingReceiptsPanel } from "../pages/receipts/BillingReceiptsPanel";
 import UI01Screen from "../pages/projects/UI01Screen";
 import UI05Screen from "../pages/us1/UI05Screen";
 import { WithdrawalChanceSelect } from "../pages/us2/WithdrawalChanceSelect";
@@ -560,6 +564,45 @@ function AssignmentsScreen({
   );
 }
 
+function BillingsScreen(bindings: BusinessScreenBindings) {
+  const [attendance, setAttendance] = useState(false);
+  const [attendanceVersion, setAttendanceVersion] = useState(0);
+  return (
+    <UI13Screen
+      {...bindings}
+      onAttendance={() => setAttendance(true)}
+      renderAttendance={(refresh, readOnly) =>
+        !readOnly &&
+        attendance && (
+          <DispatchAttendanceDialog
+            key={attendanceVersion}
+            onClose={() => setAttendance(false)}
+            onChanged={refresh}
+            upload={
+              <DispatchAttendanceUploadActions
+                onApplied={async () => {
+                  await refresh();
+                  setAttendanceVersion((value) => value + 1);
+                }}
+              />
+            }
+          />
+        )
+      }
+      renderReceipts={(detail, refresh, year) =>
+        detail.billing.bill_id != null && (
+          <BillingReceiptsPanel
+            key={detail.billing.bill_id}
+            billId={detail.billing.bill_id}
+            selectedYear={year}
+            onChanged={refresh}
+          />
+        )
+      }
+    />
+  );
+}
+
 function ProjectBoardScreen(bindings: BusinessScreenBindings) {
   const [version, setVersion] = useState(0);
   const [openCount, setOpenCount] = useState<number>();
@@ -642,6 +685,8 @@ export function AppRouter() {
                 />
               ) : id === "UI-12" ? (
                 <AssignmentsScreen {...bindings} />
+              ) : id === "UI-13" ? (
+                <BillingsScreen {...bindings} />
               ) : id === "UI-31" ? (
                 <ProjectBoardScreen {...bindings} />
               ) : id === "UI-27" ? (

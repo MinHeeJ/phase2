@@ -1,0 +1,119 @@
+.period {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  margin: var(--space-6) 0;
+}
+.period strong {
+  font-size: 18px;
+}
+.period span {
+  color: var(--text-sub);
+  font-size: var(--caption-size);
+}
+.tabs {
+  display: flex;
+  gap: var(--space-4);
+  border-bottom: 1px solid var(--divider);
+  margin-bottom: var(--space-4);
+}
+.tabs button {
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--text-sub);
+  padding: var(--space-3);
+  cursor: pointer;
+  font: inherit;
+}
+.tabs button[aria-selected="true"] {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+  font-weight: 600;
+}
+.cards {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-4);
+  margin: var(--space-4) 0;
+}
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: 20px;
+  background: var(--surface);
+  border: 1px solid var(--divider);
+  border-radius: var(--radius-panel);
+  min-width: 0;
+}
+.card strong {
+  font-size: 24px;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.card span,
+.card small {
+  color: var(--text-sub);
+  font-size: var(--caption-size);
+}
+.separate {
+  grid-column: 1/-1;
+  color: var(--text-sub);
+  font-size: var(--caption-size);
+  margin: 0;
+}
+.empty {
+  text-align: center !important;
+  color: var(--text-sub);
+  padding: 48px 16px !important;
+}
+.readOnly {
+  padding: var(--space-3);
+  border-radius: var(--radius-panel);
+  background: var(--header-bg);
+  color: var(--text-sub);
+}
+.error {
+  padding: var(--space-4);
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  color: var(--bad);
+  background: var(--bad-bg);
+  border-radius: var(--radius-panel);
+}
+.drawer {
+  position: fixed;
+  z-index: 30;
+  right: 0;
+  top: 56px;
+  bottom: 0;
+  width: min(860px, calc(100vw - 24px));
+  overflow: auto;
+  background: var(--surface);
+  border-left: 1px solid var(--divider);
+  padding: var(--space-6);
+  box-shadow: var(--shadow-lg);
+}
+@media (max-width: 767px) {
+  .cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .card {
+    padding: var(--space-3);
+  }
+  .card strong {
+    font-size: 18px;
+  }
+  .period {
+    gap: var(--space-2);
+    flex-wrap: wrap;
+  }
+  .tabs {
+    gap: 0;
+  }
+  .tabs button {
+    padding: var(--space-2);
+  }
+}
