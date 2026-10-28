@@ -485,7 +485,7 @@ export default function UI01Screen({
             key={`${selected}-${new URLSearchParams(location.search).get("tab") ?? "basic"}`}
             id={selected}
             initialTab={
-              ["progress", "issues"].includes(
+              ["progress", "issues", "staff-plans"].includes(
                 new URLSearchParams(location.search).get("tab") ?? "",
               )
                 ? new URLSearchParams(location.search).get("tab")!

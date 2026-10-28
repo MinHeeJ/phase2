@@ -276,3 +276,8 @@ export {
   downloadProjectBoard,
   downloadProjectBoard as getProjectBoardExport,
 } from "../pages/projectboardops/client";
+export {
+  listPlanComparison,
+  downloadPlanComparison,
+} from "../pages/us4/client";
+export { listShortages, downloadShortages } from "../pages/us5/client";

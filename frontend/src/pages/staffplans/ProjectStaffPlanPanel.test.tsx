@@ -56,6 +56,8 @@ beforeEach(() => {
   dirty.mockClear();
   basic.mockClear();
   fetcher = vi.fn(async (url: string, init?: RequestInit) => {
+    if (url.startsWith("/api/params/PLAN_GAP_TOLERANCE?"))
+      return response({ num_val: 0.1 });
     if (url === "/api/codes/JOB")
       return response([
         { code: "BE", name: "백엔드 개발" },
@@ -121,6 +123,14 @@ const change = (label: string, value: string) =>
 const save = () => fireEvent.click(screen.getByTestId("staff-plan-save"));
 
 describe("project staff plans", () => {
+  it.each([3.9, 3.95, 4.1])(
+    "uses configured tolerance for %s actual",
+    async (actual) => {
+      data.actual[0].mm_qty = actual;
+      panel();
+      expect(await screen.findByText("맞음")).toBeVisible();
+    },
+  );
   it("summarizes months and renders deficit red at 4.00 planned vs 3.50 actual", async () => {
     panel();
     await ready();

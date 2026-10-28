@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Badge, Button, Skeleton } from "../../shared/Controls";
+import { MmGapBadge } from "../../shared/MmGapBadge";
+import { getEffectiveParam } from "../shared/api";
+import { seoulMonth } from "../shared/PeriodBar";
 import { Can } from "../../shared/Can";
 import { ErrorBanner } from "../../shared/ErrorBanner";
 import { useAdminRead, useAdminWrite } from "../admin/useAdminResource";
@@ -87,6 +90,12 @@ function StaffPlanEditor({
 }: Props) {
   const read = useCallback(() => getProjectStaffPlans(projectId), [projectId]);
   const state = useAdminRead(read);
+  const parameter = useAdminRead(
+    useCallback(
+      () => getEffectiveParam("PLAN_GAP_TOLERANCE", seoulMonth()),
+      [],
+    ),
+  );
   const jobs = useCodes("JOB"),
     grades = useCodes("GRADE");
   const mobile = useDeveloperReadOnly();
@@ -335,6 +344,10 @@ function StaffPlanEditor({
       <ErrorBanner error={jobs.error} onRetry={jobs.retry} />
       <ErrorBanner error={grades.error} onRetry={grades.retry} />
       <ErrorBanner
+        error={parameter.error}
+        onRetry={() => void parameter.reload().catch(() => {})}
+      />
+      <ErrorBanner
         error={write.error}
         pending={write.pending}
         onRetry={() => void write.recover()}
@@ -374,7 +387,7 @@ function StaffPlanEditor({
                       (sum, value) => sum + value,
                       0,
                     );
-                    const diff = actual - planned;
+
                     return [...gradeRows].map(([grade, quantity], i) => (
                       <tr
                         key={`${job}:${grade}`}
@@ -388,19 +401,15 @@ function StaffPlanEditor({
                         </td>
                         <td>
                           {i === 0 ? (
-                            <Badge
-                              tone={
-                                diff < 0
-                                  ? "danger"
-                                  : diff > 0
-                                    ? "warning"
-                                    : "success"
-                              }
-                            >
-                              {diff === 0
-                                ? "맞음"
-                                : `${diff < 0 ? "부족" : "초과"} ${mmText(Math.abs(diff))}`}
-                            </Badge>
+                            parameter.data?.num_val != null ? (
+                              <MmGapBadge
+                                plan={planned / 100}
+                                actual={actual / 100}
+                                tolerance={parameter.data.num_val}
+                              />
+                            ) : (
+                              "–"
+                            )
                           ) : (
                             "–"
                           )}

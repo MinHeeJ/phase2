@@ -345,6 +345,7 @@ export function AppShell({
                     tab.id === "UI-15" ||
                     tab.id === "UI-01" ||
                     tab.id === "UI-12" ||
+                    tab.id === "UI-11" ||
                     tab.id === "UI-31" ||
                     tab.id === "UI-02" ? (
                       <SharedMobileGuard

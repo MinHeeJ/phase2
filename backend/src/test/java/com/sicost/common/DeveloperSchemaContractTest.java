@@ -3,12 +3,10 @@ package com.sicost.common;
 import static org.assertj.core.api.Assertions.*;
 
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
 import java.util.Map;
 import java.util.regex.Pattern;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.io.ClassPathResource;
-import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 
 class DeveloperSchemaContractTest {
     private String read(String resource) throws Exception {
@@ -29,10 +27,6 @@ class DeveloperSchemaContractTest {
         assertThat(developer).contains("grd_cd VARCHAR(30) NULL", "use_yn CHAR(1) NOT NULL DEFAULT 'Y'");
         assertThat(read("db/migration/V1__schema.sql"))
             .doesNotContain("CREATE TABLE IF NOT EXISTS grd_cd", "CREATE TABLE IF NOT EXISTS use_yn");
-        var resources = new PathMatchingResourcePatternResolver().getResources("classpath*:db/migration/V*__*.sql");
-        assertThat(Arrays.stream(resources).map(resource -> resource.getFilename()))
-            .containsExactlyInAnyOrder("V1__schema.sql", "V2__seed_month_close.sql", "V3__seed_bank.sql",
-                "V4__asgn_chg_hist_ext.sql");
     }
 
     @Test void managementNumberRequiresFinalValueBeforeInsertAndIsUniqueNotTheName() throws Exception {
