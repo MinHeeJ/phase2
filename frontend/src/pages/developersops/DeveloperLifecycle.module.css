@@ -94,6 +94,28 @@
   margin: 0;
   overflow-wrap: anywhere;
 }
+.assignmentHistory {
+  min-width: 0;
+}
+.assignmentHistory table {
+  table-layout: auto;
+}
+.assignmentHistory td {
+  vertical-align: middle;
+}
+.assignmentHistory td:nth-child(1),
+.assignmentHistory td:nth-child(2) {
+  overflow-wrap: anywhere;
+}
+.assignmentHistory td:nth-child(3),
+.assignmentHistory td:nth-child(4) {
+  white-space: nowrap;
+}
+.assignmentStatus,
+.assignmentStatus > span {
+  display: inline-flex;
+  white-space: nowrap;
+}
 .empty {
   display: flex;
   flex-direction: column;

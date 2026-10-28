@@ -11,6 +11,9 @@ import UI12Screen from "./UI12Screen";
 import { UI12M1 } from "./UI12M1";
 import { UI12DetailPanel } from "./UI12DetailPanel";
 import type { AssignmentDetail } from "./client";
+import { assignmentDefaults } from "./client";
+import styles from "./Assignments.module.css";
+import { AssignmentActions } from "../assignmentsops/AssignmentActions";
 
 const response = (data: unknown) =>
   new Response(JSON.stringify({ success: true, meta: {}, data }), {
@@ -22,6 +25,7 @@ let fetcher: ReturnType<typeof vi.fn>,
   failWrite: boolean,
   empty: boolean;
 let row: AssignmentDetail;
+let total: number;
 const saved = vi.fn(),
   cancelled = vi.fn(),
   reload = vi.fn().mockResolvedValue(undefined);
@@ -54,6 +58,7 @@ beforeEach(() => {
   failRead = false;
   failWrite = false;
   empty = false;
+  total = 1;
   saved.mockClear();
   cancelled.mockClear();
   reload.mockClear();
@@ -149,7 +154,7 @@ beforeEach(() => {
     if (url.startsWith("/api/assignments?"))
       return response({
         items: empty ? [] : [row],
-        total: empty ? 0 : 1,
+        total: empty ? 0 : total,
         page: 0,
         size: 50,
       });
@@ -245,18 +250,154 @@ describe("assignment list", () => {
     expect(screen.queryByTestId("assignment-check-7")).not.toBeInTheDocument();
     expect(screen.getByText("읽기 전용")).toBeInTheDocument();
   });
-  it("renders empty results and resets filters", async () => {
+  it.each([2026, 2025])(
+    "keeps the empty content in two centered lines inside the %i table cell",
+    async (year) => {
+      empty = true;
+      sessionStorage.setItem("UI-12.year", String(year));
+      render(
+        <MemoryRouter>
+          <UI12Screen />
+        </MemoryRouter>,
+      );
+      const message = await screen.findByText("조건에 맞는 결과가 없습니다");
+      const button = screen.getByRole("button", { name: "조건 초기화" });
+      const content = message.parentElement!;
+      expect(content).toHaveClass(styles.emptyContent);
+      expect(Array.from(content.children)).toEqual([message, button]);
+      const cell = content.parentElement!;
+      expect(cell.tagName).toBe("TD");
+      expect(cell).toHaveAttribute("colspan", year === 2025 ? "12" : "13");
+      expect(cell).not.toHaveClass(styles.emptyContent);
+      expect(screen.queryByTestId("assignment-row-7")).not.toBeInTheDocument();
+      fireEvent.click(screen.getByTestId("assignment-empty-reset"));
+      expect(writes()).toHaveLength(0);
+    },
+  );
+  it("searches an unmatched name then resets to the selected year's original rows and defaults", async () => {
+    sessionStorage.setItem("UI-12.year", "2025");
+    const transport = fetcher.getMockImplementation()!;
+    fetcher.mockImplementation((url: string, init?: RequestInit) => {
+      if (url.startsWith("/api/assignments?")) {
+        const query = new URL(url, "https://test.invalid").searchParams;
+        return Promise.resolve(
+          response({
+            items: query.has("q") ? [] : [row],
+            total: query.has("q") ? 0 : 1,
+            page: Number(query.get("page")),
+            size: Number(query.get("size")),
+          }),
+        );
+      }
+      return transport(url, init);
+    });
+    render(
+      <MemoryRouter>
+        <UI12Screen />
+      </MemoryRouter>,
+    );
+    const original = await screen.findByTestId("assignment-row-7");
+    const cells = within(original)
+      .getAllByRole("cell")
+      .map((cell) => cell.textContent);
+    const headers = screen
+      .getAllByRole("columnheader")
+      .map((cell) => cell.textContent);
+    fireEvent.click(screen.getByTestId("assignment-sort-bill-untprc-amt"));
+    fireEvent.change(screen.getByTestId("assignment-filter-project"), {
+      target: { value: "3" },
+    });
+    fireEvent.change(screen.getByTestId("assignment-filter-job"), {
+      target: { value: "BE" },
+    });
+    fireEvent.change(screen.getByTestId("assignment-filter-warning"), {
+      target: { value: "OVER_MM" },
+    });
+    fireEvent.change(screen.getByTestId("assignment-filter-name"), {
+      target: { value: "없는이름" },
+    });
+    fireEvent.click(screen.getByTestId("assignment-search"));
+    await screen.findByRole("button", { name: "조건 초기화" });
+    expect(screen.queryByTestId("assignment-row-7")).not.toBeInTheDocument();
+    expect(screen.getByText("총 0건")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("assignment-empty-reset"));
+    const restored = await screen.findByTestId("assignment-row-7");
+    expect(
+      within(restored)
+        .getAllByRole("cell")
+        .map((cell) => cell.textContent),
+    ).toEqual(cells);
+    expect(
+      screen.getAllByRole("columnheader").map((cell) => cell.textContent),
+    ).toEqual(headers);
+    expect(
+      screen.queryByTestId("assignment-empty-reset"),
+    ).not.toBeInTheDocument();
+    for (const field of ["project", "job", "warning", "name"]) {
+      expect(screen.getByTestId(`assignment-filter-${field}`)).toHaveValue("");
+    }
+    const calls = fetcher.mock.calls.filter(([url]) =>
+      url.startsWith("/api/assignments?"),
+    );
+    const query = new URL(calls.at(-1)![0], "https://test.invalid")
+      .searchParams;
+    const defaults = assignmentDefaults(2025);
+    expect(Object.fromEntries(query)).toEqual({
+      year: String(defaults.year),
+      page: String(defaults.page),
+      size: String(defaults.size),
+      sort: defaults.sort,
+    });
+    expect(sessionStorage.getItem("UI-12.year")).toBe("2025");
+    expect(writes()).toHaveLength(0);
+  });
+  it("hides a previous empty result while the next list request is pending", async () => {
     empty = true;
     render(
       <MemoryRouter>
         <UI12Screen />
       </MemoryRouter>,
     );
+    await screen.findByTestId("assignment-empty-reset");
+    const transport = fetcher.getMockImplementation()!;
+    let complete!: (value: Response) => void;
+    fetcher.mockImplementation((url: string, init?: RequestInit) =>
+      url.startsWith("/api/assignments?")
+        ? new Promise<Response>((resolve) => {
+            complete = resolve;
+          })
+        : transport(url, init),
+    );
+    fireEvent.click(screen.getByTestId("assignment-search"));
     expect(
-      await screen.findByText("조건에 맞는 결과가 없습니다"),
-    ).toBeInTheDocument();
-    fireEvent.click(screen.getByTestId("assignment-empty-reset"));
-    expect(writes()).toHaveLength(0);
+      screen.queryByTestId("assignment-empty-reset"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("조건에 맞는 결과가 없습니다"),
+    ).not.toBeInTheDocument();
+    complete(response({ items: [row], total: 1, page: 0, size: 50 }));
+    await screen.findByTestId("assignment-row-7");
+    expect(
+      screen.queryByTestId("assignment-empty-reset"),
+    ).not.toBeInTheDocument();
+  });
+  it("does not reuse a previous empty result when a subsequent request fails", async () => {
+    empty = true;
+    render(
+      <MemoryRouter>
+        <UI12Screen />
+      </MemoryRouter>,
+    );
+    await screen.findByTestId("assignment-empty-reset");
+    failRead = true;
+    fireEvent.click(screen.getByTestId("assignment-search"));
+    await screen.findAllByText("서버에 연결할 수 없습니다.");
+    expect(
+      screen.queryByTestId("assignment-empty-reset"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("조건에 맞는 결과가 없습니다"),
+    ).not.toBeInTheDocument();
   });
   it("shows failed read instead of a fabricated list", async () => {
     failRead = true;
@@ -270,6 +411,221 @@ describe("assignment list", () => {
     ).toBeGreaterThan(0);
     expect(screen.queryByTestId("assignment-row-7")).not.toBeInTheDocument();
   });
+});
+describe("SCR-UI-12 list toolbar regression", () => {
+  const mountList = () =>
+    render(
+      <MemoryRouter>
+        <UI12Screen
+          selectionActions={(rows, refresh, context) => (
+            <AssignmentActions
+              selected={rows}
+              filter={context.filters}
+              today="2026-10-14"
+              readonly={context.readOnly}
+              reload={refresh}
+              onOpenAssignment={context.openAssignment}
+            />
+          )}
+        />
+      </MemoryRouter>,
+    );
+  const listQuery = () =>
+    new URL(
+      fetcher.mock.calls
+        .filter(([url]) => url.startsWith("/api/assignments?"))
+        .at(-1)![0],
+      "https://test.invalid",
+    ).searchParams;
+  const toolbar = () => screen.getByText(/^총 \d+건$/).parentElement!;
+  const expectListStructure = (bar: HTMLElement) => {
+    expect(toolbar()).toBe(bar);
+    expect(bar).toHaveClass(styles.toolbar);
+    expect(bar.nextElementSibling).toHaveClass(styles.tableScroll);
+    expect(bar.nextElementSibling?.querySelector("table")).toHaveClass(
+      styles.table,
+    );
+  };
+
+  it("keeps the composed toolbar/table boundary through select, deselect, empty search and reset", async () => {
+    mountList();
+    await screen.findByTestId("assignment-row-7");
+    const bar = toolbar();
+    expectListStructure(bar);
+    expect(screen.getByTestId("assignment-open-chance")).toBeDisabled();
+    expect(screen.getByTestId("assignment-open-cancel")).toBeDisabled();
+    fireEvent.click(screen.getByTestId("assignment-check-7"));
+    expect(screen.getByTestId("assignment-actions")).toHaveTextContent(
+      "1건 선택",
+    );
+    expect(screen.getByTestId("assignment-open-chance")).toBeEnabled();
+    expect(screen.getByTestId("assignment-open-cancel")).toBeEnabled();
+    expectListStructure(bar);
+    fireEvent.click(screen.getByTestId("assignment-check-7"));
+    expect(screen.getByTestId("assignment-actions")).toHaveTextContent(
+      "0건 선택",
+    );
+    expect(screen.getByTestId("assignment-open-chance")).toBeDisabled();
+    expectListStructure(bar);
+    empty = true;
+    fireEvent.change(screen.getByTestId("assignment-filter-name"), {
+      target: { value: "일치하지 않는 이름" },
+    });
+    fireEvent.click(screen.getByTestId("assignment-search"));
+    await screen.findByTestId("assignment-empty-reset");
+    expect(listQuery().get("q")).toBe("일치하지 않는 이름");
+    expect(bar).toHaveTextContent("총 0건");
+    expectListStructure(bar);
+    empty = false;
+    fireEvent.click(screen.getByTestId("assignment-empty-reset"));
+    await screen.findByTestId("assignment-row-7");
+    expect(listQuery().get("q")).toBeNull();
+    expect(screen.getByTestId("assignment-filter-name")).toHaveValue("");
+    expect(bar).toHaveTextContent("총 1건");
+    expectListStructure(bar);
+    expect(writes()).toHaveLength(0);
+  });
+
+  it("clears selected rows on a new query and keeps batch dialogs connected to the selection", async () => {
+    mountList();
+    fireEvent.click(await screen.findByTestId("assignment-check-7"));
+    fireEvent.click(screen.getByTestId("assignment-open-chance"));
+    const dialog = await screen.findByRole("dialog");
+    expect(dialog).toHaveTextContent("1건 선택");
+    fireEvent.click(within(dialog).getByRole("button", { name: "취소" }));
+    fireEvent.change(screen.getByTestId("assignment-filter-project"), {
+      target: { value: "3" },
+    });
+    fireEvent.click(screen.getByTestId("assignment-search"));
+    await waitFor(() => expect(listQuery().get("projectId")).toBe("3"));
+    expect(await screen.findByTestId("assignment-check-7")).not.toBeChecked();
+    expect(screen.getByTestId("assignment-open-chance")).toBeDisabled();
+    expect(screen.getByTestId("assignment-open-cancel")).toBeDisabled();
+    expect(writes()).toHaveLength(0);
+  });
+
+  it("preserves pagination and sorting without replacing the toolbar", async () => {
+    total = 51;
+    mountList();
+    await screen.findByTestId("assignment-row-7");
+    const bar = toolbar();
+    expect(bar).toHaveTextContent("총 51건");
+    fireEvent.click(screen.getByRole("button", { name: "다음 페이지" }));
+    await waitFor(() => expect(listQuery().get("page")).toBe("1"));
+    await screen.findByTestId("assignment-row-7");
+    expectListStructure(bar);
+    fireEvent.change(screen.getByRole("combobox", { name: "목록 건수" }), {
+      target: { value: "20" },
+    });
+    await waitFor(() => expect(listQuery().get("size")).toBe("20"));
+    expect(listQuery().get("page")).toBe("0");
+    await screen.findByTestId("assignment-row-7");
+    fireEvent.click(screen.getByTestId("assignment-sort-dev-nm"));
+    await waitFor(() => expect(listQuery().get("sort")).toBe("dev_nm,asc"));
+    await screen.findByTestId("assignment-row-7");
+    expectListStructure(bar);
+  });
+
+  it("preserves the selected year and export while prior-year mutation controls stay hidden", async () => {
+    sessionStorage.setItem("UI-12.year", "2025");
+    empty = true;
+    mountList();
+    await screen.findByTestId("assignment-empty-reset");
+    fireEvent.click(screen.getByTestId("assignment-empty-reset"));
+    await waitFor(() => expect(listQuery().get("year")).toBe("2025"));
+    expect(sessionStorage.getItem("UI-12.year")).toBe("2025");
+    expect(screen.queryByTestId("assignment-check-7")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("assignment-add")).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("assignment-open-chance"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("assignment-open-cancel"),
+    ).not.toBeInTheDocument();
+    expect(screen.getByTestId("assignment-export")).toBeEnabled();
+  });
+
+  it.each([false, true])(
+    "exports applied filters from the list (empty=%s), not pagination or selection",
+    async (noResults) => {
+      const create = vi.fn(() => "blob:assignment-list"),
+        revoke = vi.fn();
+      const NativeURL = URL;
+      vi.stubGlobal(
+        "URL",
+        class extends NativeURL {
+          static createObjectURL = create;
+          static revokeObjectURL = revoke;
+        },
+      );
+      let clickedAnchor: HTMLAnchorElement | undefined;
+      vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(
+        function (this: HTMLAnchorElement) {
+          clickedAnchor = this;
+        },
+      );
+      const read = fetcher.getMockImplementation()!;
+      fetcher.mockImplementation(async (url: string, init?: RequestInit) => {
+        if (url.startsWith("/api/assignments/export?"))
+          return {
+            ok: true,
+            status: 200,
+            headers: new Headers({
+              "Content-Type":
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+              "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent("투입배정_2026_20261014.xlsx")}`,
+            }),
+            blob: async () => ({
+              slice: () => ({
+                arrayBuffer: async () => new Uint8Array([80, 75]).buffer,
+              }),
+            }),
+          };
+        return read(url, init);
+      });
+      mountList();
+      await screen.findByTestId("assignment-row-7");
+      empty = noResults;
+      fireEvent.change(screen.getByTestId("assignment-filter-project"), {
+        target: { value: "3" },
+      });
+      fireEvent.change(screen.getByTestId("assignment-filter-job"), {
+        target: { value: "BE" },
+      });
+      fireEvent.change(screen.getByTestId("assignment-filter-warning"), {
+        target: { value: "OVER_MM" },
+      });
+      fireEvent.change(screen.getByTestId("assignment-filter-name"), {
+        target: { value: "검색 이름" },
+      });
+      fireEvent.click(screen.getByTestId("assignment-search"));
+      await waitFor(() => expect(listQuery().get("q")).toBe("검색 이름"));
+      if (noResults) await screen.findByTestId("assignment-empty-reset");
+      else {
+        fireEvent.click(await screen.findByTestId("assignment-check-7"));
+        expect(screen.getByTestId("assignment-check-7")).toBeChecked();
+      }
+      fireEvent.click(screen.getByTestId("assignment-export"));
+      await screen.findByText("엑셀 파일을 내려받았습니다.");
+      const call = fetcher.mock.calls.find(([url]) =>
+        url.startsWith("/api/assignments/export?"),
+      )!;
+      const query = new URL(call[0], "https://test.invalid").searchParams;
+      expect(Object.fromEntries(query)).toEqual({
+        year: "2026",
+        projectId: "3",
+        job: "BE",
+        warning: "OVER_MM",
+        q: "검색 이름",
+        sort: "prj_nm,asc;bgn_dt,asc",
+      });
+      expect(call).toHaveLength(1);
+      expect(clickedAnchor?.download).toBe("투입배정_2026_20261014.xlsx");
+      expect(create).toHaveBeenCalledOnce();
+      expect(revoke).toHaveBeenCalledWith("blob:assignment-list");
+      expect(writes()).toHaveLength(0);
+    },
+  );
 });
 describe("assignment create", () => {
   it("uses developer job code, previews warnings, saves and returns to list", async () => {

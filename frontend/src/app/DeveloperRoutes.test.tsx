@@ -172,6 +172,60 @@ const uploadFile = () =>
   });
 
 describe("developer route composition", () => {
+  it("keeps the routed list intact while assignment statuses survive detail tab changes", async () => {
+    const fallback = fetcher.getMockImplementation()!;
+    fetcher.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url.startsWith("/api/developers/1/assignments?"))
+        return response({
+          items: ["ACTIVE", "ENDED", "REPLACED", "CANCELLED"].map(
+            (status, index) => ({
+              asgn_id: 901 + index,
+              prj_id: 801 + index,
+              prj_nm: `상세 이력 프로젝트 ${index + 1}`,
+              job_cd: "BE",
+              job_name: "백엔드",
+              bgn_dt: "2025-01-01",
+              end_dt: "2025-12-31",
+              asgn_rt: 0.5,
+              asgn_stts_cd: status,
+            }),
+          ),
+          total: 4,
+          page: 0,
+          size: 50,
+        });
+      return fallback(url, init);
+    });
+    mount();
+    await screen.findByTestId("developer-row-1");
+    const listRow = screen.getByTestId("developer-row-1");
+    const listText = listRow.textContent;
+    const listClass = listRow.closest("table")!.className;
+    fireEvent.change(screen.getByLabelText("이름·관리번호"), {
+      target: { value: "보존할 조회 초안" },
+    });
+    fireEvent.click(screen.getByTestId("developer-open-1"));
+    await screen.findByTestId("developer-edit");
+    fireEvent.click(screen.getByRole("tab", { name: "투입 이력" }));
+    const panel = await screen.findByTestId("developer-assignments");
+    for (const status of ["ACTIVE", "ENDED", "REPLACED", "CANCELLED"])
+      expect(await within(panel).findByText(status)).toBeInTheDocument();
+    expect(within(panel).getAllByRole("columnheader")).toHaveLength(5);
+    fireEvent.click(screen.getByRole("tab", { name: "기본 정보" }));
+    expect(
+      screen.queryByTestId("developer-assignments"),
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("tab", { name: "투입 이력" }));
+    expect(await screen.findByText("CANCELLED")).toBeInTheDocument();
+    expect(screen.getByTestId("developer-row-1").textContent).toBe(listText);
+    expect(
+      screen.getByTestId("developer-row-1").closest("table")!.className,
+    ).toBe(listClass);
+    expect(screen.getByLabelText("이름·관리번호")).toHaveValue(
+      "보존할 조회 초안",
+    );
+    expect(screen.getByLabelText("현재 주소")).toHaveTextContent("/UI-02");
+  });
   it("preserves list and registration drafts under one developer tab", async () => {
     mount();
     await screen.findByTestId("developer-row-1");

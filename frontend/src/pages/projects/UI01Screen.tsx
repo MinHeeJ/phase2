@@ -354,15 +354,17 @@ export default function UI01Screen({
         <ErrorBanner error={downloadError} onRetry={() => void download()} />
         <div className={styles.toolbar}>
           <span>총 {list.data?.total.toLocaleString("ko-KR") ?? 0}건</span>
-          <Can perm="UI-01.download">
-            <Button
-              data-testid="project-export"
-              pending={downloading}
-              onClick={() => void download()}
-            >
-              엑셀 다운로드
-            </Button>
-          </Can>
+          <div className={styles.actions}>
+            <Can perm="UI-01.download">
+              <Button
+                data-testid="project-export"
+                pending={downloading}
+                onClick={() => void download()}
+              >
+                엑셀 다운로드
+              </Button>
+            </Can>
+          </div>
         </div>
         {list.loading && !list.data ? (
           <Skeleton />
