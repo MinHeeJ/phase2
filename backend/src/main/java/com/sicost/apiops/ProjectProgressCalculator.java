@@ -7,6 +7,9 @@ import java.util.*;
 import static com.sicost.apiops.ProjectBoardModels.*;
 
 public final class ProjectProgressCalculator {
+    private static final Set<String> BOARD_PARAMETER_KEYS = Set.of(
+        "SIG_DELAY_WARN", "SIG_DELAY_RISK", "SIG_COST_WARN", "SIG_COST_RISK",
+        "SIG_STALE_DAYS", "BUDGET_RATE");
     private ProjectProgressCalculator() {}
     public static BigDecimal rounded(BigDecimal value) { return value.setScale(1, RoundingMode.HALF_UP); }
     public static Phase phase(Phase p, LocalDate today) {
@@ -18,7 +21,8 @@ public final class ProjectProgressCalculator {
     public static BoardRow calculate(BoardSource p, List<Phase> phases, ProjectCost cost,
             List<OperatingParam> parameters, LocalDate today) {
         var values = new HashMap<String, BigDecimal>();
-        parameters.forEach(v -> values.put(v.oprt_std_id(), v.numeric()));
+        parameters.stream().filter(v -> BOARD_PARAMETER_KEYS.contains(v.oprt_std_id()))
+            .forEach(v -> values.put(v.oprt_std_id(), v.numeric()));
         BigDecimal planned = BigDecimal.ZERO;
         for (var phase : phases) {
             var start = phase.plan_bgn_dt(); var end = phase.plan_end_dt();

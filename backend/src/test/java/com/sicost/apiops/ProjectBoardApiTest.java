@@ -68,6 +68,19 @@ class ProjectBoardApiTest {
             .andExpect(jsonPath("$.data.items[0].currentPhase.status").value("지연"));
         verify(mapper).projects(TODAY); verify(mapper).params("2026-10");
     }
+    @Test void dispatchAlertListDoesNotBreakBoardOrDisappearFromSharedParams() throws Exception {
+        var rows = new ArrayList<>(params());
+        rows.add(new OperatingParam("DISPATCH_MAX_MONTHS", "2026-01", "파견 최대 기간", n("24"), null, "개월", null));
+        rows.add(new OperatingParam("DISPATCH_ALERT_DAYS", "2026-01", "파견 만료 알림", null, "60,30", "일", null));
+        rows.add(new OperatingParam("PLAN_GAP_TOLERANCE", "2026-01", "계획 대비 허용 범위", n("0.1"), null, "MM", null));
+        when(mapper.params(anyString())).thenReturn(rows);
+        mvc.perform(get("/api/project-board")).andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.items[0].cost_use_rt").value(57.5))
+            .andExpect(jsonPath("$.data.items[0].light").value("위험"));
+        mvc.perform(get("/api/params")).andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.length()").value(9))
+            .andExpect(jsonPath("$.data[7].txt_val").value("60,30"));
+    }
     @Test void anonymousParamsDefaultsToSeoulMonth() throws Exception {
         mvc.perform(get("/api/params")).andExpect(status().isOk()).andExpect(jsonPath("$.data.length()").value(6))
             .andExpect(jsonPath("$.data[0].oprt_std_id").value("SIG_DELAY_WARN"));
