@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Route, Routes } from "react-router-dom";
+import { Route, Routes, useNavigate } from "react-router-dom";
+import UI11Screen from "../pages/us4/UI11Screen";
 import UI27Screen from "../pages/admin/UI27Screen";
 import UI15Screen from "../pages/partners/UI15Screen";
 import SalesPartManagement from "../pages/salespartsops/SalesPartManagement";
@@ -575,6 +576,7 @@ function ProjectBoardScreen(bindings: BusinessScreenBindings) {
 }
 
 export function AppRouter() {
+  const navigate = useNavigate();
   return (
     <Routes>
       <Route
@@ -590,6 +592,13 @@ export function AppRouter() {
                 <ProjectsScreen {...bindings} />
               ) : id === "UI-12" ? (
                 <AssignmentsScreen {...bindings} />
+              ) : id === "UI-11" ? (
+                <UI11Screen
+                  {...bindings}
+                  openProject={(projectId) =>
+                    navigate(`/UI-01?open=${projectId}&tab=staff-plans`)
+                  }
+                />
               ) : id === "UI-31" ? (
                 <ProjectBoardScreen {...bindings} />
               ) : id === "UI-27" ? (

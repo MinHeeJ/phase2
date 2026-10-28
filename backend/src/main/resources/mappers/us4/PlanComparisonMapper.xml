@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sicost.us4.PlanComparisonMapper">
+  <resultMap id="source" type="com.sicost.us4.PlanComparisonModels$Source">
+    <constructor>
+      <arg column="project_id" javaType="_long"/><arg column="project_name" javaType="java.lang.String"/>
+      <arg column="job" javaType="java.lang.String"/><arg column="job_name" javaType="java.lang.String"/>
+      <arg column="plan_mm" javaType="java.math.BigDecimal"/><arg column="actual_mm" javaType="java.math.BigDecimal"/>
+    </constructor>
+  </resultMap>
+  <select id="tolerance" resultType="java.math.BigDecimal">
+    SELECT num_val FROM cmn.oprt_std WHERE oprt_std_id='PLAN_GAP_TOLERANCE' AND aply_bgn_ym &lt;= #{month} ORDER BY aply_bgn_ym DESC LIMIT 1
+  </select>
+  <select id="annual" resultMap="source">
+    WITH plans AS (
+      SELECT prj_id,job_cd,SUM(need_mm_qty) AS mm FROM prj.psn_plan
+      WHERE plan_ym BETWEEN CONCAT(#{year},'-01') AND CONCAT(#{year},'-12') GROUP BY prj_id,job_cd
+    ), actuals AS (
+      SELECT a.prj_id,a.job_cd,SUM(m.mm_qty) AS mm FROM asgn.asgn a JOIN asgn.asgn_mth m ON m.asgn_id=a.asgn_id
+      WHERE a.asgn_stts_cd != 'CANCELLED' AND m.work_ym BETWEEN CONCAT(#{year},'-01') AND CONCAT(#{year},'-12') GROUP BY a.prj_id,a.job_cd
+    ), combined AS (
+      SELECT COALESCE(p.prj_id,a.prj_id) AS prj_id,COALESCE(p.job_cd,a.job_cd) AS job_cd,
+             COALESCE(p.mm,0) AS plan_mm, COALESCE(a.mm,0) AS actual_mm
+      FROM plans p FULL OUTER JOIN actuals a ON a.prj_id=p.prj_id AND a.job_cd=p.job_cd
+    )
+    SELECT p.prj_id AS project_id,p.prj_nm AS project_name,c.job_cd AS job,
+           COALESCE(d.cd_nm,c.job_cd) AS job_name,c.plan_mm,c.actual_mm
+    FROM combined c JOIN prj.prj p ON p.prj_id=c.prj_id
+    LEFT JOIN cmn.cd_dtl d ON d.cd_grp_id='JOB' AND d.dtl_cd=c.job_cd
+    WHERE p.use_yn='Y' AND p.prj_stts_cd != 'LOST'
+      AND p.prfm_bgn_dt &lt;= make_date(#{year},12,31) AND p.cur_end_dt &gt;= make_date(#{year},1,1)
+      AND (c.plan_mm != 0 OR c.actual_mm != 0)
+    <if test="projectId != null">AND p.prj_id=#{projectId}</if>
+    <if test="job != null">AND c.job_cd=#{job}</if>
+  </select>
+</mapper>

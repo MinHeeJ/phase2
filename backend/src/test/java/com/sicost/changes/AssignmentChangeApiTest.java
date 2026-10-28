@@ -150,6 +150,25 @@ class AssignmentChangeApiTest {
         for (String month : List.of("2027-01","2027-02","2027-03")) verify(mapper).month(argThat(m -> month.equals(m.month())));
         verify(mapper, never()).month(argThat(m -> m.month().equals("2026-09")));
     }
+    @ParameterizedTest @CsvSource({"2026-02-28,false", "2026-03-01,true"})
+    void leapDayDispatchExpiryControlsExtensionWarning(String end, boolean warned) throws Exception {
+        state = new State(1, 2, 3, LocalDate.parse("2024-02-29"), LocalDate.parse("2026-02-27"),
+            BigDecimal.ONE, "NEW", null, null, "M", "ACTIVE", "DP", "Y", "RUN", "FT", null);
+        when(mapper.firstStart(1)).thenReturn(LocalDate.parse("2024-02-29"));
+        when(mapper.dispatchMonths(anyString())).thenReturn(24);
+        var body = input("EXTEND");
+        body.put("aply_dt", "2026-02-28");
+        body.put("end_dt", end);
+        body.put("rsn_cd", "CUST");
+        var result = postBody(BASE, body).andExpect(status().isOk())
+            .andExpect(jsonPath("$.success").value(true)).andReturn();
+        var warnings = json.readTree(result.getResponse().getContentAsString())
+            .path("data").path("assignment").path("warnings");
+        boolean present = false;
+        for (var warning : warnings) present |= "DISPATCH_MAX_MONTHS".equals(warning.path("code").asText());
+        assertThat(present).isEqualTo(warned);
+        verify(mapper).insert(any());
+    }
     @Test void earlyEndUsesDateWithoutInferredStatusTransition() throws Exception {
         postBody(BASE,input("EARLY_END")).andExpect(status().isOk()).andExpect(jsonPath("$.data.assignment.end_dt").value("2026-11-15"))
             .andExpect(jsonPath("$.data.assignment.asgn_stts_cd").value("ACTIVE"));
