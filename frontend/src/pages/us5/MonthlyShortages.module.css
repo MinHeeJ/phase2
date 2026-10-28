@@ -1,0 +1,35 @@
+.search {
+  composes: search from "../projects/Projects.module.css";
+}
+.toolbar {
+  composes: toolbar from "../projects/Projects.module.css";
+}
+.tableScroll {
+  composes: tableScroll from "../projects/Projects.module.css";
+}
+.table {
+  composes: table from "../projects/Projects.module.css";
+}
+.empty {
+  composes: empty from "../projects/Projects.module.css";
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: 48px 16px;
+}
+.number {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.pager {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4);
+}
+.table td {
+  height: 40px;
+}
+.table a {
+  color: var(--primary);
+}

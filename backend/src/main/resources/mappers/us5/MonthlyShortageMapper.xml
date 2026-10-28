@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sicost.us5.MonthlyShortageMapper">
+  <resultMap id="monthlyShortageRow" type="com.sicost.us5.MonthlyShortageModels$Row"><constructor>
+    <arg column="prj_id" javaType="_long"/>
+    <arg column="prj_nm" javaType="java.lang.String"/>
+    <arg column="job_cd" javaType="java.lang.String"/>
+    <arg column="job_nm" javaType="java.lang.String"/>
+    <arg column="plan_ym" javaType="java.lang.String"/>
+    <arg column="plan_mm" javaType="java.math.BigDecimal"/>
+    <arg column="actual_mm" javaType="java.math.BigDecimal"/>
+    <arg column="shortage_mm" javaType="java.math.BigDecimal"/>
+  </constructor></resultMap>
+  <select id="months" resultMap="monthlyShortageRow">
+    WITH eligible AS (
+      SELECT p.prj_id,p.prj_nm FROM prj.prj p
+      WHERE p.use_yn='Y' AND p.prj_stts_cd!='LOST'
+        AND coalesce(p.prfm_bgn_dt,p.cntrct_bgn_dt)&lt;=#{lastDay}
+        AND coalesce(p.cur_end_dt,p.cntrct_end_dt)&gt;=#{firstDay}
+      <if test="projectId != null">AND p.prj_id=#{projectId}</if>
+    ), plans AS (
+      SELECT n.prj_id,n.job_cd,n.plan_ym,sum(n.need_mm_qty) AS mm
+      FROM prj.psn_plan n JOIN eligible e ON e.prj_id=n.prj_id
+      WHERE n.plan_ym BETWEEN #{firstMonth} AND #{lastMonth}
+      <if test="job != null">AND n.job_cd=#{job}</if>
+      GROUP BY n.prj_id,n.job_cd,n.plan_ym
+    ), actual AS (
+      SELECT a.prj_id,a.job_cd,m.work_ym AS plan_ym,sum(m.mm_qty) AS mm
+      FROM asgn.asgn a JOIN asgn.asgn_mth m ON m.asgn_id=a.asgn_id
+        JOIN eligible e ON e.prj_id=a.prj_id
+      WHERE a.asgn_stts_cd!='CANCELLED' AND m.work_ym BETWEEN #{firstMonth} AND #{lastMonth}
+      <if test="job != null">AND a.job_cd=#{job}</if>
+      GROUP BY a.prj_id,a.job_cd,m.work_ym
+    ), combined AS (
+      SELECT coalesce(p.prj_id,a.prj_id) AS prj_id,coalesce(p.job_cd,a.job_cd) AS job_cd,
+        coalesce(p.plan_ym,a.plan_ym) AS plan_ym,coalesce(p.mm,0) AS plan_mm,coalesce(a.mm,0) AS actual_mm
+      FROM plans p FULL OUTER JOIN actual a ON a.prj_id=p.prj_id AND a.job_cd=p.job_cd AND a.plan_ym=p.plan_ym
+    )
+    SELECT c.prj_id,e.prj_nm,c.job_cd,coalesce(d.cd_nm,c.job_cd) AS job_nm,c.plan_ym,
+      c.plan_mm,c.actual_mm,c.plan_mm-c.actual_mm AS shortage_mm
+    FROM combined c JOIN eligible e ON e.prj_id=c.prj_id
+      LEFT JOIN cmn.cd_dtl d ON d.cd_grp_id='JOB' AND d.dtl_cd=c.job_cd
+  </select>
+  <select id="tolerance" resultType="java.math.BigDecimal">
+    SELECT num_val FROM cmn.oprt_std WHERE oprt_std_id='PLAN_GAP_TOLERANCE'
+      AND aply_bgn_ym&lt;=#{month} ORDER BY aply_bgn_ym DESC LIMIT 1
+  </select>
+</mapper>

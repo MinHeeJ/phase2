@@ -46,7 +46,8 @@
   <select id="params" resultMap="parameter">
     SELECT DISTINCT ON (oprt_std_id) oprt_std_id,aply_bgn_ym,oprt_std_nm,num_val,txt_val,unit_nm,use_plc_desc
     FROM cmn.oprt_std WHERE aply_bgn_ym &lt;= #{month}
-      AND oprt_std_id IN ('SIG_DELAY_WARN','SIG_DELAY_RISK','SIG_COST_WARN','SIG_COST_RISK','SIG_STALE_DAYS','BUDGET_RATE')
+      AND oprt_std_id IN ('SIG_DELAY_WARN','SIG_DELAY_RISK','SIG_COST_WARN','SIG_COST_RISK','SIG_STALE_DAYS','BUDGET_RATE',
+        'DISPATCH_MAX_MONTHS','DISPATCH_ALERT_DAYS','PLAN_GAP_TOLERANCE')
     ORDER BY oprt_std_id,aply_bgn_ym DESC
   </select>
   <select id="projects" resultMap="source">

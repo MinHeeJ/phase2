@@ -1,0 +1,29 @@
+.cell {
+  white-space: nowrap;
+  font-size: var(--table-size);
+  line-height: var(--table-line);
+}
+.cell:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: var(--space-1);
+  border-radius: var(--radius-control);
+}
+.filter {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: var(--body-size);
+}
+.filter label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--control-height);
+}
+.filter input {
+  accent-color: var(--primary);
+}
+.filter [role="alert"] {
+  color: var(--danger);
+  font-size: var(--caption-size);
+}

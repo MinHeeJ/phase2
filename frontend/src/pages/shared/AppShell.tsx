@@ -241,6 +241,7 @@ export function AppShell({
           <label>
             목록 건수{" "}
             <select
+              data-testid="app-shell-page-size"
               value={preferences.pageSize}
               onChange={(event) =>
                 preferences.configure({
@@ -249,7 +250,11 @@ export function AppShell({
               }
             >
               {[20, 50, 100].map((size) => (
-                <option value={size} key={size}>
+                <option
+                  value={size}
+                  key={size}
+                  data-testid={`app-shell-page-size-option-${size}`}
+                >
                   {size}건
                 </option>
               ))}
@@ -257,6 +262,7 @@ export function AppShell({
           </label>
           <label>
             <input
+              data-testid="app-shell-dense-toggle"
               type="checkbox"
               checked={preferences.dense}
               onChange={(event) =>
@@ -302,6 +308,7 @@ export function AppShell({
           <nav className={styles.screenTabs} aria-label="열린 화면">
             {tabs.map((tab) => (
               <div
+                data-testid={`app-shell-tab-${tab.id.toLowerCase()}`}
                 key={tab.id}
                 className={tab.id === id ? styles.activeTab : ""}
               >
@@ -344,6 +351,8 @@ export function AppShell({
                     tab.id === "UI-27" ||
                     tab.id === "UI-15" ||
                     tab.id === "UI-01" ||
+                    tab.id === "UI-05" ||
+                    tab.id === "UI-11" ||
                     tab.id === "UI-12" ||
                     tab.id === "UI-31" ||
                     tab.id === "UI-02" ? (

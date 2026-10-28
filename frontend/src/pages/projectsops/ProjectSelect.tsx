@@ -63,7 +63,11 @@ export function ProjectSelect({
         >
           <option value="">선택해 주세요</option>
           {state.data?.map((row) => (
-            <option key={row.id} value={row.id}>
+            <option
+              key={row.id}
+              value={row.id}
+              data-testid={`project-option-${row.id}`}
+            >
               {row.no} · {row.name}
               {row.custName ? ` · ${row.custName}` : ""}
             </option>

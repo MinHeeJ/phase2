@@ -63,7 +63,11 @@ function ProjectAssignmentMonthsTable({
                 <tr>
                   <th scope="col">사람(투입)</th>
                   {state.data.month_totals.map((cell) => (
-                    <th scope="col" key={cell.work_ym}>
+                    <th
+                      scope="col"
+                      key={cell.work_ym}
+                      data-testid={`project-months-column-${cell.work_ym}`}
+                    >
                       {Number(cell.work_ym.slice(5))}월
                     </th>
                   ))}
@@ -78,7 +82,12 @@ function ProjectAssignmentMonthsTable({
                   >
                     <th scope="row">{row.dev_nm}</th>
                     {row.months.map((cell) => (
-                      <td key={cell.work_ym}>{cell.mm_qty.toFixed(2)}</td>
+                      <td
+                        key={cell.work_ym}
+                        data-testid={`project-months-cell-${row.asgn_id}-${cell.work_ym}`}
+                      >
+                        {cell.mm_qty.toFixed(2)}
+                      </td>
                     ))}
                     <td>{row.total_mm_qty.toFixed(2)}</td>
                   </tr>
@@ -88,7 +97,12 @@ function ProjectAssignmentMonthsTable({
                 <tr data-testid="project-months-totals">
                   <th scope="row">월별 합계</th>
                   {state.data.month_totals.map((cell) => (
-                    <td key={cell.work_ym}>{cell.mm_qty.toFixed(2)}</td>
+                    <td
+                      key={cell.work_ym}
+                      data-testid={`project-months-total-${cell.work_ym}`}
+                    >
+                      {cell.mm_qty.toFixed(2)}
+                    </td>
                   ))}
                   <td>
                     {state.data.month_totals

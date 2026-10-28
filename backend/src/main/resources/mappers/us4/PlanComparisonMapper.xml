@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sicost.us4.PlanComparisonMapper">
+  <resultMap id="annualRow" type="com.sicost.us4.PlanComparisonModels$Source">
+    <constructor>
+      <arg column="prj_id" javaType="_long"/>
+      <arg column="prj_no" javaType="java.lang.String"/>
+      <arg column="prj_nm" javaType="java.lang.String"/>
+      <arg column="job_cd" javaType="java.lang.String"/>
+      <arg column="job_nm" javaType="java.lang.String"/>
+      <arg column="job_order" javaType="_int"/>
+      <arg column="plan_mm" javaType="java.math.BigDecimal"/>
+      <arg column="actual_mm" javaType="java.math.BigDecimal"/>
+    </constructor>
+  </resultMap>
+  <resultMap id="projectOption" type="com.sicost.us4.PlanComparisonModels$ProjectOption">
+    <constructor>
+      <arg column="prj_id" javaType="_long"/>
+      <arg column="prj_no" javaType="java.lang.String"/>
+      <arg column="prj_nm" javaType="java.lang.String"/>
+    </constructor>
+  </resultMap>
+  <sql id="eligible">
+    p.use_yn='Y' AND p.prj_stts_cd!='LOST'
+    AND COALESCE(p.prfm_bgn_dt,p.cntrct_bgn_dt)&lt;=#{end}
+    AND COALESCE(p.cur_end_dt,p.cntrct_end_dt)&gt;=#{start}
+  </sql>
+  <select id="annual" resultMap="annualRow">
+    WITH eligible AS (
+      SELECT p.prj_id,p.prj_no,p.prj_nm FROM prj.prj p WHERE <include refid="eligible"/>
+      <if test="projectId != null">AND p.prj_id=#{projectId}</if>
+    ), plans AS (
+      SELECT s.prj_id,s.job_cd,SUM(s.need_mm_qty) AS plan_mm
+      FROM prj.psn_plan s JOIN eligible p ON p.prj_id=s.prj_id
+      WHERE s.plan_ym BETWEEN #{fromMonth} AND #{toMonth}
+      <if test="job != null">AND s.job_cd=#{job}</if>
+      GROUP BY s.prj_id,s.job_cd
+    ), actuals AS (
+      SELECT a.prj_id,a.job_cd,SUM(m.mm_qty) AS actual_mm
+      FROM asgn.asgn a JOIN asgn.asgn_mth m ON m.asgn_id=a.asgn_id
+      JOIN eligible p ON p.prj_id=a.prj_id
+      WHERE a.asgn_stts_cd!='CANCELLED' AND m.work_ym BETWEEN #{fromMonth} AND #{toMonth}
+      <if test="job != null">AND a.job_cd=#{job}</if>
+      GROUP BY a.prj_id,a.job_cd
+    ), combined AS (
+      SELECT COALESCE(s.prj_id,a.prj_id) AS prj_id,COALESCE(s.job_cd,a.job_cd) AS job_cd,
+        COALESCE(s.plan_mm,0) AS plan_mm,COALESCE(a.actual_mm,0) AS actual_mm
+      FROM plans s FULL OUTER JOIN actuals a ON a.prj_id=s.prj_id AND a.job_cd=s.job_cd
+    )
+    SELECT p.prj_id,p.prj_no,p.prj_nm,c.job_cd,COALESCE(j.cd_nm,c.job_cd) AS job_nm,
+      COALESCE(j.sort_seq,2147483647) AS job_order,c.plan_mm,c.actual_mm
+    FROM combined c JOIN eligible p ON p.prj_id=c.prj_id
+    LEFT JOIN cmn.cd_dtl j ON j.cd_grp_id='JOB' AND j.dtl_cd=c.job_cd
+    WHERE c.plan_mm!=0 OR c.actual_mm!=0
+  </select>
+  <select id="projects" resultMap="projectOption">
+    SELECT p.prj_id,p.prj_no,p.prj_nm FROM prj.prj p WHERE <include refid="eligible"/>
+    ORDER BY p.prj_nm,p.prj_id
+  </select>
+  <select id="tolerance" resultType="java.math.BigDecimal">
+    SELECT o.num_val FROM cmn.oprt_std o
+    WHERE o.oprt_std_id='PLAN_GAP_TOLERANCE' AND o.aply_bgn_ym&lt;=#{month}
+    ORDER BY o.aply_bgn_ym DESC LIMIT 1
+  </select>
+</mapper>
