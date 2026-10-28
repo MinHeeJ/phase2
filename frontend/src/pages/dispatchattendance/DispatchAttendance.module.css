@@ -1,0 +1,26 @@
+.content {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+}
+.quantity {
+  width: 6rem;
+  height: var(--control-height);
+  padding: var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  text-align: right;
+}
+.quantity[readonly] {
+  background: var(--header-bg);
+}
+.warning {
+  color: var(--warn);
+  font-size: var(--caption-size);
+  white-space: normal;
+  min-width: 12rem;
+  margin: var(--space-1) 0;
+}

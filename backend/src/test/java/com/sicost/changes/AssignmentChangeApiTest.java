@@ -132,14 +132,17 @@ class AssignmentChangeApiTest {
         noBusinessWrites();
     }
     @Test void invalidFilterIsFieldError() throws Exception {
-        mvc.perform(get(BASE).param("type","INVALID")).andExpect(status().isBadRequest()).andExpect(jsonPath("$.field").value("type")); noBusinessWrites();
+        mvc.perform(get("/api/assignments/1/changes").param("type","INVALID"))
+            .andExpect(status().isBadRequest()).andExpect(jsonPath("$.success").value(false))
+            .andExpect(jsonPath("$.field").value("type")); noBusinessWrites();
     }
     @Test void unknownAssignmentIsNotFound() throws Exception {
         mvc.perform(get("/api/assignments/99/changes")).andExpect(status().isNotFound()); noBusinessWrites();
     }
     @ParameterizedTest @ValueSource(strings={"EXTEND","EARLY_END","RATE","EXT_CHANCE","PERIOD"})
     void anonymousSuccessfulTypedChangeHasConcreteResponse(String type) throws Exception {
-        postBody(BASE,input(type)).andExpect(status().isOk()).andExpect(jsonPath("$.success").value(true))
+        mvc.perform(post("/api/assignments/1/changes").contentType("application/json").content(json.writeValueAsBytes(input(type))))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.success").value(true))
             .andExpect(jsonPath("$.data.assignment.asgn_id").value(1)).andExpect(jsonPath("$.data.assignment.updated_at").isString())
             .andExpect(jsonPath("$.data.change.asgn_chg_ty_cd").value(type));
         verify(mapper).insert(argThat(w -> type.equals(w.type())));
@@ -158,7 +161,9 @@ class AssignmentChangeApiTest {
     @ParameterizedTest @ValueSource(strings={"2026-12-31","2026-12-30"})
     void nonLaterExtensionReportsExactMessageAndNoBusinessWrites(String date) throws Exception {
         var n = input("EXTEND"); n.put("end_dt",date);
-        postBody(BASE,n).andExpect(status().isBadRequest()).andExpect(jsonPath("$.field").value("end_dt"))
+        mvc.perform(post("/api/assignments/1/changes").contentType("application/json").content(json.writeValueAsBytes(n)))
+            .andExpect(status().isBadRequest()).andExpect(jsonPath("$.success").value(false))
+            .andExpect(jsonPath("$.field").value("end_dt"))
             .andExpect(jsonPath("$.message").value("새 종료일은 현재 종료일(2026-12-31)보다 늦어야 합니다.")); noBusinessWrites();
     }
     @Test void earlyEndSameDateHasExactError() throws Exception {
@@ -207,7 +212,9 @@ class AssignmentChangeApiTest {
     }
     @Test void overlapConflictPreventsAllBusinessWrites() throws Exception {
         when(mapper.overlap(any())).thenReturn(1);
-        postBody(BASE,input("EXTEND")).andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("OVERLAP_ASSIGNMENT")); noBusinessWrites();
+        mvc.perform(post("/api/assignments/1/changes").contentType("application/json").content(json.writeValueAsBytes(input("EXTEND"))))
+            .andExpect(status().isConflict()).andExpect(jsonPath("$.success").value(false))
+            .andExpect(jsonPath("$.code").value("OVERLAP_ASSIGNMENT")); noBusinessWrites();
     }
     @ParameterizedTest @ValueSource(strings={"END","LOST"})
     void closedProjectRejectsChanges(String status) throws Exception {

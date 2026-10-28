@@ -15,12 +15,12 @@ public class UploadInspectionContexts {
                              int errorCount, int warningCount, boolean canApply,
                              boolean normalizedRowsAvailable) {
         public Inspection {
-            if (uploadId < 1 || !Set.of("B.8", "B.1").contains(formType)
+            if (uploadId < 1 || !Set.of("B.8", "B.1", "B.3").contains(formType)
                     || rowCount < 0 || errorCount < 0 || warningCount < 0
                     || errorCount > rowCount || warningCount > rowCount) {
                 throw new IllegalArgumentException("올바른 검사 요약이 필요합니다.");
             }
-            if (("B.1".equals(formType) && (month == null || !month.matches("[0-9]{4}-(0[1-9]|1[0-2])")))
+            if ((("B.1".equals(formType) || "B.3".equals(formType)) && (month == null || !month.matches("[0-9]{4}-(0[1-9]|1[0-2])")))
                     || ("B.8".equals(formType) && month != null)) {
                 throw new IllegalArgumentException("검사 대상 연월을 확인하세요.");
             }

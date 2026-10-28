@@ -26,7 +26,9 @@ public class UploadResultService {
         long existing = "B.1".equals(inspection.formType()) ? mapper.existingSalaryCount(inspection.month()) : 0;
         String notice = existing > 0
                 ? inspection.month() + " 급여 " + existing + "명분이 이미 있습니다. 반영하면 새 파일로 모두 바뀝니다."
-                : null;
+                : "B.3".equals(inspection.formType())
+                    ? inspection.month() + " 선택 프로젝트의 미확정 근태 전체를 새 파일로 바꿉니다. 연결 DRAFT는 다시 계산 전까지 유지됩니다."
+                    : null;
         return new UploadResult(uploadId, inspection.formType(), inspection.month(), inspection.rowCount(),
                 inspection.errorCount(), inspection.warningCount(), inspection.canApply(), existing, notice,
                 "/api/uploads/" + uploadId + "/issues", inspection.normalizedRowsAvailable());

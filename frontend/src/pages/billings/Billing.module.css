@@ -1,0 +1,77 @@
+.actions,
+.tabs {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: var(--space-4) 0;
+}
+.actions {
+  justify-content: flex-end;
+}
+.tabs {
+  border-bottom: 1px solid var(--divider);
+  padding-bottom: var(--space-2);
+}
+.tabs [aria-selected="true"] {
+  color: var(--primary);
+  border-color: var(--primary);
+  background: var(--primary-bg);
+}
+.summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-4);
+  margin: var(--space-4) 0;
+}
+.summary > div {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  border: 1px solid var(--divider);
+  border-radius: var(--radius-panel);
+  padding: var(--space-4);
+  background: var(--surface);
+}
+.summary span {
+  color: var(--text-sub);
+  font-size: var(--caption-size);
+}
+.form {
+  display: grid;
+  gap: var(--space-4);
+}
+.fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+.fields dt {
+  color: var(--text-sub);
+}
+.fields dd {
+  margin: var(--space-2) 0;
+  overflow-wrap: anywhere;
+}
+.drawer {
+  position: fixed;
+  z-index: 30;
+  top: 56px;
+  right: 0;
+  bottom: 0;
+  width: min(760px, 100vw);
+  padding: var(--space-6);
+  border-left: 1px solid var(--divider);
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+  overflow: auto;
+}
+.drawer li {
+  overflow-wrap: anywhere;
+}
+@media (max-width: 767px) {
+  .summary,
+  .fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

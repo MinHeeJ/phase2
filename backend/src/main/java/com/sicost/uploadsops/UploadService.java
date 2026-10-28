@@ -36,7 +36,7 @@ public class UploadService {
         Validation(UploadContext context,Instant expires){this.context=context;this.expires=expires;}
     }
     static void requireForm(String form){if(!"B.7".equals(form))throw ApiException.notFound("업로드 양식이 없습니다.");}
-    static String filename(String original) {
+    public static String filename(String original) {
         if(original==null||original.isBlank())throw ApiException.badRequest("파일을 선택해 주세요.","file");
         String name=original.replace('\\','/');name=name.substring(name.lastIndexOf('/')+1);
         if(name.length()>255)throw ApiException.badRequest("파일명은 255자 이하로 입력해 주세요.","file");
@@ -54,7 +54,7 @@ public class UploadService {
         else if(month!=null)throw ApiException.badRequest("개발자 업로드에는 연월을 입력하지 않습니다.","month");
         String name=filename(file.getOriginalFilename());return personnel().validate(requestedForm,month,name,store(file,name));
     }
-    private Path store(MultipartFile file,String name) {
+    public Path store(MultipartFile file,String name) {
         if(file.getSize()>10L*1024*1024)throw new ApiException(413,"INVALID_INPUT","파일은 10MB 이하만 올릴 수 있습니다.","file");
         if(!name.toLowerCase(Locale.ROOT).endsWith(".xlsx"))throw PartnerUploadForm.fileError("UNSUPPORTED_FILE_TYPE","xlsx 파일만 올릴 수 있습니다.");
         if(file.isEmpty())throw PartnerUploadForm.fileError("EMPTY_FILE","검사할 데이터가 없습니다.");

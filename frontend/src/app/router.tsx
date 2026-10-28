@@ -9,6 +9,7 @@ import UI05Screen from "../pages/us1/UI05Screen";
 import { WithdrawalChanceSelect } from "../pages/us2/WithdrawalChanceSelect";
 import { DispatchExpiryCell } from "../pages/us3/DispatchExpiry";
 import UI11Screen from "../pages/us4/UI11Screen";
+import UI13Screen from "../pages/billingsops/UI13Screen";
 import { MonthlyShortagesPanel } from "../pages/us5/MonthlyShortagesPanel";
 import UI12Screen, {
   type AssignmentScreenContext,
@@ -642,6 +643,8 @@ export function AppRouter() {
                 />
               ) : id === "UI-12" ? (
                 <AssignmentsScreen {...bindings} />
+              ) : id === "UI-13" ? (
+                <UI13Screen {...bindings} />
               ) : id === "UI-31" ? (
                 <ProjectBoardScreen {...bindings} />
               ) : id === "UI-27" ? (

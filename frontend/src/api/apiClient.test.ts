@@ -18,12 +18,52 @@ import * as expenses from "../pages/expenses/client";
 import * as partChanges from "../pages/partchanges/client";
 import * as contractChanges from "../pages/contractchanges/client";
 import * as staffPlans from "../pages/staffplans/client";
+import * as billings from "../pages/billings/client";
+import * as billingOperations from "../pages/billingsops/client";
+import * as attendance from "../pages/dispatchattendance/client";
+import * as attendanceUploads from "../pages/dispatchattendance2/client";
+import * as receipts from "../pages/receipts/client";
 
 const response = (data: unknown) =>
   new Response(JSON.stringify({ success: true, meta: {}, data }));
 afterEach(() => vi.unstubAllGlobals());
 describe("API client registration", () => {
   it.each([
+    ["listBillings", billings.listBillings],
+    ["getBilling", billings.getBilling],
+    ["createBilling", billings.createBilling],
+    ["updateBilling", billings.updateBilling],
+    ["previewBilling", billings.previewBilling],
+    ["getBillingSummary", billings.getBillingSummary],
+    ["listBillingGaps", billingOperations.listBillingGaps],
+    ["listBillingOverdue", billingOperations.listBillingOverdue],
+    ["confirmBilling", billingOperations.confirmBilling],
+    ["cancelBilling", billingOperations.cancelBilling],
+    ["createBillingAmendment", billingOperations.createBillingAmendment],
+    ["downloadBilling", billingOperations.downloadBilling],
+    ["getDispatchAttendance", attendance.getDispatchAttendance],
+    ["saveDispatchAttendance", attendance.saveDispatchAttendance],
+    [
+      "validateDispatchAttendanceUpload",
+      attendanceUploads.validateDispatchAttendanceUpload,
+    ],
+    [
+      "applyDispatchAttendanceUpload",
+      attendanceUploads.applyDispatchAttendanceUpload,
+    ],
+    [
+      "revalidateDispatchAttendanceUpload",
+      attendanceUploads.revalidateDispatchAttendanceUpload,
+    ],
+    ["listAttendanceUploadRows", attendanceUploads.listAttendanceUploadRows],
+    [
+      "listAttendanceUploadIssues",
+      attendanceUploads.listAttendanceUploadIssues,
+    ],
+    ["listBillingReceipts", receipts.listBillingReceipts],
+    ["createBillingReceipt", receipts.createBillingReceipt],
+    ["updateBillingReceipt", receipts.updateBillingReceipt],
+    ["deleteBillingReceipt", receipts.deleteBillingReceipt],
     ["listProjects", projects.listProjects],
     ["getProject", projects.getProject],
     ["createProject", projects.createProject],
