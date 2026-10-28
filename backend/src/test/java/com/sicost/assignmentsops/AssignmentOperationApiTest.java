@@ -41,6 +41,9 @@ class AssignmentOperationApiTest {
     @MockBean PlatformTransactionManager manager;
     static final LocalDateTime VERSION = LocalDateTime.parse("2026-10-01T00:00:00.123456");
     Row row;
+    @BeforeAll static void durableContractDeclaresReplacement() throws Exception {
+        com.sicost.support.OpenApiFixture.assertOperation("/api/assignments/{id}/replace", "post", "createAssignmentReplacement");
+    }
     @BeforeEach void setup() {
         when(manager.getTransaction(any())).thenReturn(new SimpleTransactionStatus());
         row = row(1, "M", "ACTIVE");
@@ -87,7 +90,8 @@ class AssignmentOperationApiTest {
         return mvc.perform(post(path).contentType("application/json").content(json.writeValueAsString(value)));
     }
     @Test void previewAnonymousFourWarningsAndHalfMonthWithoutBusinessWrites() throws Exception {
-        postBody("/api/assignments/check", proposal()).andExpect(status().isOk())
+        mvc.perform(post("/api/assignments/check").contentType("application/json").content(json.writeValueAsString(proposal())))
+            .andExpect(status().isOk())
             .andExpect(jsonPath("$.success").value(true)).andExpect(jsonPath("$.data.warnings.length()").value(4))
             .andExpect(jsonPath("$.data.months[0].auto_mm_qty").value(0.52))
             .andExpect(jsonPath("$.data.months[0].person_month_mm_qty").value(1.52));
@@ -98,7 +102,10 @@ class AssignmentOperationApiTest {
     @ParameterizedTest @ValueSource(strings={"0","1.01","-0.1"})
     void previewRejectsRate(String rate) throws Exception {
         var input=proposal(); input.put("asgn_rt",new BigDecimal(rate));
-        postBody("/api/assignments/check",input).andExpect(status().isBadRequest()).andExpect(jsonPath("$.field").value("asgn_rt"));
+        mvc.perform(post("/api/assignments/check").contentType("application/json").content(json.writeValueAsString(input)))
+            .andExpect(status().isBadRequest()).andExpect(jsonPath("$.success").value(false))
+            .andExpect(jsonPath("$.field").value("asgn_rt"));
+        verify(mapper, never()).insertReplacement(any()); verify(mapper, never()).insertHistory(any());
     }
     @Test void previewRejectsEndBeforeStart() throws Exception {
         var input=proposal(); input.put("end_dt","2026-10-15");
@@ -120,7 +127,8 @@ class AssignmentOperationApiTest {
             .andExpect(jsonPath("$.data.warnings.length()").value(3));
     }
     @Test void anonymousChanceWritesHistoryWithReadableNames() throws Exception {
-        postBody("/api/assignments/ext-chance",batch("H")).andExpect(status().isOk())
+        mvc.perform(post("/api/assignments/ext-chance").contentType("application/json").content(json.writeValueAsString(batch("H"))))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.success").value(true))
             .andExpect(jsonPath("$.data.items[0].status").value("APPLIED"));
         verify(mapper).chance(any());
         verify(mapper).insertHistory(argThat(h -> h.type().equals("EXT_CHANCE") && h.before().equals("보통")
@@ -128,14 +136,17 @@ class AssignmentOperationApiTest {
     }
     @Test void equalChanceSkipsWithoutHistoryOrTimestamp() throws Exception {
         row=row(1,"H","ACTIVE");
-        postBody("/api/assignments/ext-chance",batch("H")).andExpect(status().isOk())
+        mvc.perform(post("/api/assignments/ext-chance").contentType("application/json").content(json.writeValueAsString(batch("H"))))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.success").value(true))
             .andExpect(jsonPath("$.data.items[0].status").value("SKIPPED"));
         verify(mapper,never()).chance(any()); verify(mapper,never()).insertHistory(any()); verify(concurrency,never()).advance(any());
     }
     @ParameterizedTest @ValueSource(strings={"X","", "HIGH"})
     void invalidChanceIsFieldError(String value) throws Exception {
-        postBody("/api/assignments/ext-chance",batch(value)).andExpect(status().isBadRequest())
+        mvc.perform(post("/api/assignments/ext-chance").contentType("application/json").content(json.writeValueAsString(batch(value))))
+            .andExpect(status().isBadRequest()).andExpect(jsonPath("$.success").value(false))
             .andExpect(jsonPath("$.field").value("value"));
+        verify(mapper, never()).chance(any()); verify(mapper, never()).insertHistory(any());
     }
     @Test void batchRequiresUniqueIdenticalVersionSet() throws Exception {
         var input=batch("H"); input.put("versions",List.of(Map.of("asgn_id",2,"updated_at",VERSION.toString())));
@@ -144,8 +155,11 @@ class AssignmentOperationApiTest {
         postBody("/api/assignments/cancel",input).andExpect(status().isBadRequest());
     }
     @Test void missingVersionsRejected() throws Exception {
-        postBody("/api/assignments/cancel",Map.of("ids",List.of(1))).andExpect(status().isBadRequest())
+        mvc.perform(post("/api/assignments/cancel").contentType("application/json")
+            .content(json.writeValueAsString(Map.of("ids", List.of(1)))))
+            .andExpect(status().isBadRequest()).andExpect(jsonPath("$.success").value(false))
             .andExpect(jsonPath("$.field").value("versions"));
+        verify(mapper, never()).cancel(any()); verify(mapper, never()).deleteOpen(anyLong());
     }
     @Test void chanceStaleExcludedNotPermissionDenied() throws Exception {
         when(concurrency.lockAndCompare(anyLong(),any())).thenThrow(com.sicost.common.validation.AssignmentRules.stale());
@@ -155,7 +169,8 @@ class AssignmentOperationApiTest {
         verify(mapper,never()).chance(any());
     }
     @Test void anonymousCancelDeletesOpenMonthsNeverHistory() throws Exception {
-        postBody("/api/assignments/cancel",batch(null)).andExpect(status().isOk())
+        mvc.perform(post("/api/assignments/cancel").contentType("application/json").content(json.writeValueAsString(batch(null))))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.success").value(true))
             .andExpect(jsonPath("$.data.items[0].status").value("APPLIED"));
         verify(mapper).cancel(any()); verify(mapper).deleteOpen(1);
         verify(mapper,never()).insertHistory(any());
@@ -192,11 +207,15 @@ class AssignmentOperationApiTest {
     }
     @Test void replacementMissingReasonRejected() throws Exception {
         var input=replacement(); input.remove("rsn_cd");
-        postBody("/api/assignments/1/replace",input).andExpect(status().isBadRequest()).andExpect(jsonPath("$.field").value("rsn_cd"));
+        mvc.perform(post("/api/assignments/1/replace").contentType("application/json").content(json.writeValueAsString(input)))
+            .andExpect(status().isBadRequest()).andExpect(jsonPath("$.success").value(false))
+            .andExpect(jsonPath("$.field").value("rsn_cd"));
+        verify(mapper, never()).shorten(any()); verify(mapper, never()).insertReplacement(any());
     }
     @Test void replacementOverlapNoWrites() throws Exception {
         when(mapper.overlaps(any())).thenReturn(true);
-        postBody("/api/assignments/1/replace",replacement()).andExpect(status().isConflict())
+        mvc.perform(post("/api/assignments/1/replace").contentType("application/json").content(json.writeValueAsString(replacement())))
+            .andExpect(status().isConflict()).andExpect(jsonPath("$.success").value(false))
             .andExpect(jsonPath("$.code").value("OVERLAP_ASSIGNMENT"));
         verify(mapper,never()).shorten(any()); verify(mapper,never()).nextId();
     }
@@ -207,11 +226,49 @@ class AssignmentOperationApiTest {
     }
     @Test void anonymousReplacementReturnsConcreteFlattenedDetail() throws Exception {
         when(mapper.nextId()).thenReturn(2L);
-        postBody("/api/assignments/1/replace",replacement()).andExpect(status().isOk())
-            .andExpect(jsonPath("$.data.new_assignment.asgn_id").value(1))
-            .andExpect(jsonPath("$.data.previous_assignment.updated_at").isString());
+        var incoming = new java.util.concurrent.atomic.AtomicReference<Row>();
+        when(mapper.row(any())).thenAnswer(i -> i.getArgument(0, ReadKey.class).id() == 2 ? incoming.get() : row);
+        when(mapper.rates(1)).thenReturn(List.of(new Rate(LocalDate.of(2026,10,1), 7000000L)));
+        doAnswer(i -> {
+            EndWrite w = i.getArgument(0);
+            row = replacementRow(1, 1, row.bgn_dt(), w.end(), "NEW", "REPLACED", null);
+            return null;
+        }).when(mapper).shorten(any());
+        doAnswer(i -> {
+            NewAssignment w = i.getArgument(0);
+            incoming.set(replacementRow(w.id(), w.request().dev_id(), w.request().aply_dt(),
+                w.original().end_dt(), "SUB", "ACTIVE", w.original().dev_id()));
+            return null;
+        }).when(mapper).insertReplacement(any());
+        mvc.perform(post("/api/assignments/1/replace").contentType("application/json").content(json.writeValueAsString(replacement())))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.success").value(true))
+            .andExpect(jsonPath("$.data.previous_assignment.asgn_stts_cd").value("REPLACED"))
+            .andExpect(jsonPath("$.data.previous_assignment.end_dt").value("2026-11-15"))
+            .andExpect(jsonPath("$.data.new_assignment.asgn_id").value(2))
+            .andExpect(jsonPath("$.data.new_assignment.dev_id").value(2))
+            .andExpect(jsonPath("$.data.new_assignment.asgn_stts_cd").value("ACTIVE"))
+            .andExpect(jsonPath("$.data.new_assignment.asgn_se_cd").value("SUB"))
+            .andExpect(jsonPath("$.data.new_assignment.cntrct_dev_id").value(1))
+            .andExpect(jsonPath("$.data.new_assignment.bgn_dt").value("2026-11-16"))
+            .andExpect(jsonPath("$.data.new_assignment.end_dt").value("2026-12-31"));
         verify(mapper).insertReplacement(argThat(w -> w.id()==2 && w.original().dev_id()==1));
-        verify(mapper,times(2)).insertHistory(any());
+        verify(mapper).insertRate(argThat(w -> w.id()==2 && w.amount()==7000000L
+            && w.date().equals(LocalDate.of(2026,11,16))));
+        verify(mapper).insertHistory(argThat(h -> h.id()==1 && h.type().equals("REPLACE") && h.linked()==2L
+            && h.before().equals("나가는 사람") && h.after().contains("2026-11-16~2026-12-31")));
+        verify(mapper).insertHistory(argThat(h -> h.id()==2 && h.type().equals("START")
+            && h.before()==null && h.after().equals("2026-11-16~2026-12-31")));
+        verify(mapper).saveMonth(argThat(w -> w.id()==2 && w.month().equals("2026-11")));
+        verify(mapper).saveMonth(argThat(w -> w.id()==2 && w.month().equals("2026-12")));
+        verify(mapper, never()).saveMonth(argThat(w -> w.month().equals("2026-09")));
+    }
+    static Row replacementRow(long id, long developer, LocalDate start, LocalDate end,
+            String kind, String state, Long contractDeveloper) {
+        return new Row(id, id == 1 ? "A-0001" : "A-0002", 1, "프로젝트", developer,
+            id == 1 ? "나가는 사람" : "들어오는 사람", id == 1 ? "K-0001" : "K-0002", "BE",
+            start, end, LocalDate.of(2026,12,31), BigDecimal.ONE, kind, "MONTH", "M",
+            contractDeveloper, null, state, null, 7000000L, BigDecimal.ONE, BigDecimal.ONE,
+            new BigDecimal("3.00"), VERSION.plusDays(1), null);
     }
     @Test void anonymousExportRealXlsxAndNoWrites() throws Exception {
         when(mapper.exportRows(any())).thenReturn(List.of(row));

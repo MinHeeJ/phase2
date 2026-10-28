@@ -81,6 +81,34 @@ beforeEach(() => {
     if (url === "/api/params")
       return response([{ oprt_std_id: "PLAN_GAP_TOLERANCE", num_val: 0.1 }]);
     if (url.startsWith("/api/month-close?")) return response([]);
+    if (url.startsWith("/api/billings/summary?"))
+      return response({
+        annual_confirmed_supply_amt: 0,
+        current_month_confirmed_supply_amt: 0,
+        confirmed_receivable_amt: 0,
+        overdue_amt: 0,
+        planned_supply_amt: 0,
+        draft_supply_amt: 0,
+      });
+    if (url.startsWith("/api/billings/gaps?"))
+      return response({
+        items: [],
+        total: 0,
+        page: 0,
+        size: 50,
+        total_difference_amt: 0,
+      });
+    if (url.startsWith("/api/billings/overdue?"))
+      return response({
+        items: [],
+        total: 0,
+        page: 0,
+        size: 50,
+        stage_counts: [],
+        customer_totals: [],
+      });
+    if (url.startsWith("/api/billings?"))
+      return response({ items: [], total: 0, page: 0, size: 50 });
     if (url.startsWith("/api/assignments?"))
       return response({ items: [], total: 0, page: 0, size: 50 });
     if (url.startsWith("/api/projects?"))
@@ -166,6 +194,54 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("application route registration", () => {
+  it("mounts billing tabs and attendance dialog within the existing UI-13 route", async () => {
+    mount("/UI-13");
+    const billing = await screen.findByTestId("billing-screen");
+    expect(billing).toHaveAttribute("data-screen-id", "SCR-UI-13");
+    await within(billing).findByText("조건에 맞는 결과가 없습니다");
+    expect(
+      within(billing).queryByText("이 화면은 다음 단계에서 만듭니다."),
+    ).not.toBeInTheDocument();
+    fireEvent.click(
+      within(billing).getByRole("tab", { name: "청구 누락 점검" }),
+    );
+    expect(await within(billing).findByText("총 차이 0원")).toBeInTheDocument();
+    fireEvent.click(within(billing).getByRole("tab", { name: "미수 알림" }));
+    expect(within(billing).getByTestId("billing-remind")).toBeDisabled();
+    await waitFor(() =>
+      expect(
+        fetcher.mock.calls.some(([url]) =>
+          String(url).startsWith("/api/billings/overdue?"),
+        ),
+      ).toBe(true),
+    );
+    fireEvent.click(within(billing).getByTestId("billing-upload"));
+    expect(
+      await screen.findByTestId("billing-attendance-dialog"),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("billing-attendance-close"));
+    expect(
+      screen.queryByTestId("billing-attendance-dialog"),
+    ).not.toBeInTheDocument();
+    expect(screen.getByLabelText("현재 주소")).toHaveTextContent("/UI-13");
+  });
+
+  it("keeps billing read-only on mobile while retaining the real route", async () => {
+    Object.defineProperty(window, "innerWidth", {
+      configurable: true,
+      value: 767,
+    });
+    mount("/UI-13");
+    const billing = await screen.findByTestId("billing-screen");
+    expect(
+      within(billing).queryByTestId("billing-create"),
+    ).not.toBeInTheDocument();
+    expect(
+      within(billing).queryByTestId("billing-upload"),
+    ).not.toBeInTheDocument();
+    expect(within(billing).getByTestId("billing-export")).toBeInTheDocument();
+  });
+
   it.each([...screenIds, "UI-22"])(
     "renders /%s through the single shared shell",
     async (id) => {

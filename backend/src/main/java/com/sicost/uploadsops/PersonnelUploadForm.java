@@ -23,9 +23,10 @@ public class PersonnelUploadForm {
     private final PersonnelUploadMapper mapper;
     private final SharedReadService shared;
     public PersonnelUploadForm(PersonnelUploadMapper mapper,SharedReadService shared){this.mapper=mapper;this.shared=shared;}
-    public static List<String> headers(String form){return "B.8".equals(form)?DEVELOPER_HEADERS:SALARY_HEADERS;}
-    static String label(String raw,String form){String key=PartnerUploadForm.normalize(raw);if("B.8".equals(form)&&key.equals("구분"))return "직원구분";for(String h:headers(form))if(!h.isBlank()&&PartnerUploadForm.normalize(h).equals(key))return h;return "B.8".equals(form)?ALIASES.getOrDefault(key,raw):raw;}
-    static Row title(Sheet sheet,String form){String marker="B.8".equals(form)?"이름":"관리번호";for(int i=0;i<20;i++){Row r=sheet.getRow(i);if(r!=null)for(Cell c:r)if(c.getCellType()==CellType.STRING&&label(c.getStringCellValue(),form).equals(marker))return r;}throw PartnerUploadForm.fileError("HEADER_NOT_FOUND","제목 줄을 찾을 수 없습니다. 양식의 제목을 확인해 주세요.");}
+    public static final List<String> ATTENDANCE_HEADERS=List.of("연월","프로젝트ID","관리번호","이름","근무일수","정규 근무시간","초과 근무시간","해당 월 근무일수");
+    public static List<String> headers(String form){return "B.3".equals(form)?ATTENDANCE_HEADERS:"B.8".equals(form)?DEVELOPER_HEADERS:SALARY_HEADERS;}
+    public static String label(String raw,String form){String key=PartnerUploadForm.normalize(raw);if("B.8".equals(form)&&key.equals("구분"))return "직원구분";for(String h:headers(form))if(!h.isBlank()&&PartnerUploadForm.normalize(h).equals(key))return h;return "B.8".equals(form)?ALIASES.getOrDefault(key,raw):raw;}
+    public static Row title(Sheet sheet,String form){String marker="B.8".equals(form)?"이름":"관리번호";for(int i=0;i<20;i++){Row r=sheet.getRow(i);if(r!=null)for(Cell c:r)if(c.getCellType()==CellType.STRING&&label(c.getStringCellValue(),form).equals(marker))return r;}throw PartnerUploadForm.fileError("HEADER_NOT_FOUND","제목 줄을 찾을 수 없습니다. 양식의 제목을 확인해 주세요.");}
     public Parsed parse(InputStream input,String form,String month)throws IOException {
         try(var book=new XSSFWorkbook(input)) {
             if(book.isMacroEnabled()||!book.getExternalLinksTable().isEmpty())throw PartnerUploadForm.fileError("UNSUPPORTED_FILE_TYPE","외부 연결 또는 매크로가 있는 파일은 올릴 수 없습니다.");

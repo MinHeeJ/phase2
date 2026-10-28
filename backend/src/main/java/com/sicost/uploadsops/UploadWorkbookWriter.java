@@ -66,6 +66,7 @@ public class UploadWorkbookWriter {
         }
     }
     public byte[] template(String form,List<UploadCode> codes)throws IOException {
+        if ("B.3".equals(form)) return attendanceTemplate();
         try(var book=new XSSFWorkbook();var out=new ByteArrayOutputStream()){
             boolean developer=form.equals("B.8");Sheet sheet=book.createSheet(developer?"개발자":"급여"),guide=book.createSheet("입력 방법"),lists=book.createSheet("목록");
             sheet.createRow(0).createCell(0).setCellValue("* 표시는 필수입니다. 4행 제목은 바꾸지 마세요.");
@@ -80,6 +81,26 @@ public class UploadWorkbookWriter {
             for(var entry:groups.entrySet()){var options=codes.stream().filter(c->c.group().equals(entry.getKey())).toList();if(lists.getRow(0)==null)lists.createRow(0);lists.getRow(0).createCell(col).setCellValue(entry.getKey());for(int i=0;i<options.size();i++){Row r=lists.getRow(i+1);if(r==null)r=lists.createRow(i+1);r.createCell(col).setCellValue(options.get(i).name());}
                 if(!options.isEmpty()){Name range=book.createName();range.setNameName("Personnel_"+entry.getKey());String letter=org.apache.poi.ss.util.CellReference.convertNumToColString(col);range.setRefersToFormula("'목록'!$"+letter+"$2:$"+letter+"$"+(options.size()+1));var helper=sheet.getDataValidationHelper();int target=headers.indexOf(entry.getValue());var validation=helper.createValidation(helper.createFormulaListConstraint(range.getNameName()),new CellRangeAddressList(5,10004,target,target));validation.setShowErrorBox(true);sheet.addValidationData(validation);}col++;}
             lists.protectSheet(UUID.randomUUID().toString());book.write(out);return out.toByteArray();
+        }
+    }
+    private byte[] attendanceTemplate() throws IOException {
+        try (var book = new XSSFWorkbook(); var out = new ByteArrayOutputStream()) {
+            Sheet sheet = book.createSheet("파견 근태");
+            sheet.createRow(0).createCell(0).setCellValue("DP DAY/HOUR 전용 · 선택 프로젝트와 연월이 같은 행만 입력하세요.");
+            sheet.createRow(1).createCell(0).setCellValue("해당 월 근무일수는 직접 입력합니다. 오류가 하나라도 있으면 전체 미반영합니다.");
+            Row title = sheet.createRow(3);
+            var headers = PersonnelUploadForm.ATTENDANCE_HEADERS;
+            CellStyle text = book.createCellStyle();
+            text.setDataFormat(book.createDataFormat().getFormat("@"));
+            for (int i = 0; i < headers.size(); i++) {
+                title.createCell(i).setCellValue(headers.get(i));
+                sheet.setColumnWidth(i, 24 * 256);
+            }
+            sheet.setDefaultColumnStyle(0, text);
+            sheet.setDefaultColumnStyle(2, text);
+            sheet.createFreezePane(0, 4);
+            book.write(out);
+            return out.toByteArray();
         }
     }
 }

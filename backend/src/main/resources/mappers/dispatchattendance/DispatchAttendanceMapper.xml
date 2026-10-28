@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sicost.dispatchattendance.DispatchAttendanceMapper">
+  <resultMap id="project" type="com.sicost.dispatchattendance.DispatchAttendanceModels$Project">
+    <constructor>
+      <arg column="cntrct_ty_cd" javaType="java.lang.String"/>
+      <arg column="stlm_mthd_cd" javaType="java.lang.String"/>
+      <arg column="use_yn" javaType="java.lang.String"/>
+    </constructor>
+  </resultMap>
+  <resultMap id="assignment" type="com.sicost.dispatchattendance.DispatchAttendanceModels$Assignment">
+    <constructor>
+      <arg column="asgn_id" javaType="_long"/>
+      <arg column="dev_id" javaType="_long"/>
+      <arg column="mm_qty" javaType="java.math.BigDecimal"/>
+      <arg column="price_available" javaType="_boolean"/>
+    </constructor>
+  </resultMap>
+  <resultMap id="stored" type="com.sicost.dispatchattendance.DispatchAttendanceModels$Stored">
+    <constructor>
+      <arg column="atnd_id" javaType="_long"/>
+      <arg column="asgn_id" javaType="java.lang.Long"/>
+      <arg column="dev_id" javaType="_long"/>
+      <arg column="work_day_qty" javaType="java.math.BigDecimal"/>
+      <arg column="rglr_tm_qty" javaType="java.math.BigDecimal"/>
+      <arg column="ovtm_tm_qty" javaType="java.math.BigDecimal"/>
+      <arg column="mth_work_day_qty" javaType="java.math.BigDecimal"/>
+    </constructor>
+  </resultMap>
+  <sql id="projectProjection">
+    SELECT p.cntrct_ty_cd,p.stlm_mthd_cd,p.use_yn FROM prj.prj p WHERE p.prj_id=#{id}
+  </sql>
+  <select id="project" resultMap="project"><include refid="projectProjection"/></select>
+  <select id="lockProject" resultMap="project" flushCache="true" useCache="false">
+    <include refid="projectProjection"/> FOR UPDATE
+  </select>
+  <select id="monthStatus" resultType="string" useCache="false">
+    SELECT c.cls_stts_cd FROM fin.mth_cls c WHERE c.cls_ym=#{month}
+  </select>
+  <select id="assignments" resultMap="assignment" useCache="false">
+    SELECT a.asgn_id,a.dev_id,m.mm_qty,
+      (SELECT h.bill_untprc_amt FROM asgn.untprc_hist h
+       WHERE h.asgn_id=a.asgn_id AND h.aply_bgn_dt &lt;= GREATEST(a.bgn_dt,#{first})
+       ORDER BY h.aply_bgn_dt DESC LIMIT 1) IS NOT NULL AS price_available
+    FROM asgn.asgn a
+    JOIN prj.prj p ON p.prj_id=a.prj_id
+    LEFT JOIN asgn.asgn_mth m ON m.asgn_id=a.asgn_id AND m.work_ym=#{month}
+    WHERE a.prj_id=#{projectId} AND p.cntrct_ty_cd='DP'
+      AND p.stlm_mthd_cd IN ('DAY','HOUR')
+      AND a.untprc_base_cd=p.stlm_mthd_cd AND a.asgn_stts_cd!='CANCELLED'
+      AND a.bgn_dt &lt;= #{last} AND a.end_dt &gt;= #{first}
+    ORDER BY a.dev_id,a.asgn_id
+  </select>
+  <sql id="attendanceProjection">
+    SELECT t.atnd_id,t.asgn_id,t.dev_id,t.work_day_qty,
+      t.rglr_tm_qty,t.ovtm_tm_qty,t.mth_work_day_qty
+    FROM bill.dspch_atnd t WHERE t.prj_id=#{projectId} AND t.work_ym=#{month}
+  </sql>
+  <select id="attendance" resultMap="stored" useCache="false">
+    <include refid="attendanceProjection"/> ORDER BY t.dev_id
+  </select>
+  <select id="lockAttendance" resultMap="stored" flushCache="true" useCache="false">
+    <include refid="attendanceProjection"/> ORDER BY t.dev_id FOR UPDATE
+  </select>
+  <select id="confirmedAssignments" resultType="long" useCache="false">
+    SELECT DISTINCT d.asgn_id FROM bill.bill_dtl d
+    JOIN bill.bill b ON b.bill_id=d.bill_id
+    WHERE b.prj_id=#{projectId} AND d.work_ym=#{month}
+      AND b.bill_stts_cd='CONFIRM' AND d.asgn_id IS NOT NULL
+  </select>
+  <select id="upsert" resultType="long" affectData="true" flushCache="true">
+    INSERT INTO bill.dspch_atnd(work_ym,prj_id,dev_id,asgn_id,work_day_qty,
+      rglr_tm_qty,ovtm_tm_qty,mth_work_day_qty,created_by)
+    VALUES(#{scope.month},#{scope.projectId},#{item.dev_id},#{item.asgn_id},
+      #{item.work_day_qty},#{item.rglr_tm_qty},#{item.ovtm_tm_qty},#{item.mth_work_day_qty},#{actor})
+    ON CONFLICT(work_ym,prj_id,dev_id) DO UPDATE SET asgn_id=EXCLUDED.asgn_id,
+      work_day_qty=EXCLUDED.work_day_qty,rglr_tm_qty=EXCLUDED.rglr_tm_qty,
+      ovtm_tm_qty=EXCLUDED.ovtm_tm_qty,mth_work_day_qty=EXCLUDED.mth_work_day_qty,
+      updated_by=#{actor}
+    RETURNING atnd_id
+  </select>
+  <insert id="audit">
+    INSERT INTO sys.data_chg_hist(tbl_nm,obj_rec_id,data_chg_ty_cd,bfr_val,aft_val,chg_user_id)
+    VALUES('bill.dspch_atnd',#{id},#{type},#{before},#{after},#{actor})
+  </insert>
+</mapper>

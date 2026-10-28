@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sicost.receipts.BillingReceiptMapper">
+  <resultMap id="receiptRoot" type="com.sicost.receipts.BillingReceiptModels$Root">
+    <constructor>
+      <arg column="bill_id" javaType="_long"/>
+      <arg column="prj_id" javaType="_long"/>
+      <arg column="bill_stts_cd" javaType="java.lang.String"/>
+      <arg column="amnd_yn" javaType="java.lang.String"/>
+      <arg column="orgnl_bill_id" javaType="java.lang.Long"/>
+    </constructor>
+  </resultMap>
+  <resultMap id="receiptRow" type="com.sicost.receipts.BillingReceiptModels$Receipt">
+    <constructor>
+      <arg column="receipt_id" javaType="java.lang.Long"/>
+      <arg column="rcpt_dt" javaType="java.time.LocalDate"/>
+      <arg column="rcpt_amt" javaType="_long"/>
+      <arg column="rmrk_desc" javaType="java.lang.String"/>
+    </constructor>
+  </resultMap>
+  <sql id="rootProjection">
+    SELECT b.bill_id,b.prj_id,b.bill_stts_cd,b.amnd_yn,b.orgnl_bill_id
+    FROM bill.bill b WHERE b.bill_id=#{id}
+  </sql>
+  <select id="root" resultMap="receiptRoot"><include refid="rootProjection"/></select>
+  <select id="lockProject" resultType="long" flushCache="true" useCache="false">
+    SELECT p.prj_id FROM prj.prj p WHERE p.prj_id=#{id} FOR UPDATE
+  </select>
+  <select id="lockRoot" resultMap="receiptRoot" flushCache="true" useCache="false">
+    <include refid="rootProjection"/> FOR UPDATE
+  </select>
+  <sql id="billingProjection">
+    SELECT b.bill_id,b.bill_stg_id,false AS virtual_plan,b.bill_no,b.prj_id,
+      p.prj_nm AS project_name,p.cust_ptnr_id AS customer_id,c.ptnr_nm AS customer_name,
+      p.cntrct_ty_cd AS contract_type,b.atrb_ym,b.bill_dt::text AS bill_dt,
+      b.sply_amt,b.vat_amt,b.tot_amt,b.bill_stts_cd,b.txinv_no,b.txinv_dt::text AS txinv_dt,
+      b.rcpt_plan_dt::text AS rcpt_plan_dt,
+      COALESCE((SELECT SUM(r.rcpt_amt) FROM bill.rcpt r WHERE r.bill_id=b.bill_id),0) AS received_amt,
+      b.tot_amt + COALESCE((SELECT SUM(a.tot_amt) FROM bill.bill a
+        WHERE a.orgnl_bill_id=b.bill_id AND a.amnd_yn='Y' AND a.bill_stts_cd='CONFIRM'),0) AS adjusted_total_amt,
+      CASE WHEN b.bill_stts_cd='CONFIRM' THEN b.tot_amt
+        + COALESCE((SELECT SUM(a.tot_amt) FROM bill.bill a WHERE a.orgnl_bill_id=b.bill_id
+          AND a.amnd_yn='Y' AND a.bill_stts_cd='CONFIRM'),0)
+        - COALESCE((SELECT SUM(r.rcpt_amt) FROM bill.rcpt r WHERE r.bill_id=b.bill_id),0)
+        ELSE 0 END AS receivable_amt
+    FROM bill.bill b JOIN prj.prj p ON p.prj_id=b.prj_id
+    LEFT JOIN mst.ptnr c ON c.ptnr_id=p.cust_ptnr_id
+  </sql>
+  <select id="billing" resultType="map">
+    <include refid="billingProjection"/> WHERE b.bill_id=#{id}
+  </select>
+  <select id="amendments" resultType="map">
+    <include refid="billingProjection"/> WHERE b.orgnl_bill_id=#{id}
+    ORDER BY b.bill_dt NULLS LAST,b.bill_id
+  </select>
+  <select id="details" resultType="map">
+    SELECT d.asgn_id,a.dev_id,d.cntrct_dev_id,v.dev_nm AS display_name,d.work_ym,
+      d.mm_qty,m.mm_qty AS source_mm_qty,d.untprc_amt,d.work_day_qty,d.work_tm_qty,
+      d.ovtm_tm_qty,d.ovtm_amt,d.bill_amt,d.rmrk_desc
+    FROM bill.bill_dtl d LEFT JOIN asgn.asgn a ON a.asgn_id=d.asgn_id
+    LEFT JOIN mst.dev v ON v.dev_id=COALESCE(d.cntrct_dev_id,a.dev_id)
+    LEFT JOIN asgn.asgn_mth m ON m.asgn_id=d.asgn_id AND m.work_ym=d.work_ym
+    WHERE d.bill_id=#{id} ORDER BY d.bill_dtl_id
+  </select>
+  <select id="history" resultType="map">
+    SELECT h.data_chg_ty_cd AS description,
+      to_char(h.chg_at,'YYYY-MM-DD"T"HH24:MI:SS.US') AS changed_at,h.chg_user_id::text AS user_id
+    FROM sys.data_chg_hist h
+    WHERE (h.tbl_nm='bill.bill' AND h.obj_rec_id=CAST(#{id} AS text))
+      OR (CASE WHEN h.tbl_nm='bill.rcpt'
+        THEN COALESCE(h.bfr_val,h.aft_val)::jsonb -&gt;&gt; 'bill_id' END = CAST(#{id} AS text))
+    ORDER BY h.chg_at DESC,h.data_chg_hist_id DESC
+  </select>
+  <sql id="receiptProjection">
+    SELECT r.rcpt_id AS receipt_id,r.rcpt_dt,r.rcpt_amt,r.rmrk_desc
+    FROM bill.rcpt r WHERE r.bill_id=#{id}
+  </sql>
+  <select id="receipts" resultMap="receiptRow">
+    <include refid="receiptProjection"/> ORDER BY r.rcpt_dt,r.rcpt_id
+  </select>
+  <select id="receipt" resultMap="receiptRow">
+    <include refid="receiptProjection"/> AND r.rcpt_id=#{receiptId}
+  </select>
+  <select id="monthStatus" resultType="string" flushCache="true" useCache="false">
+    SELECT c.cls_stts_cd FROM fin.mth_cls c WHERE c.cls_ym=#{month}
+  </select>
+  <select id="insert" resultType="long" affectData="true" flushCache="true">
+    INSERT INTO bill.rcpt(bill_id,rcpt_dt,rcpt_amt,rmrk_desc,created_by)
+    VALUES(#{id},#{row.rcpt_dt},#{row.rcpt_amt},#{row.rmrk_desc},#{actor}) RETURNING rcpt_id
+  </select>
+  <update id="update">
+    UPDATE bill.rcpt SET rcpt_dt=#{row.rcpt_dt},rcpt_amt=#{row.rcpt_amt},rmrk_desc=#{row.rmrk_desc}
+    WHERE bill_id=#{id} AND rcpt_id=#{row.receipt_id}
+  </update>
+  <delete id="delete">
+    DELETE FROM bill.rcpt WHERE bill_id=#{id} AND rcpt_id=#{receiptId}
+  </delete>
+  <insert id="audit">
+    INSERT INTO sys.data_chg_hist(tbl_nm,obj_rec_id,data_chg_ty_cd,bfr_val,aft_val,chg_user_id)
+    VALUES('bill.rcpt',#{id},#{type},#{before},#{after},#{actor})
+  </insert>
+</mapper>
