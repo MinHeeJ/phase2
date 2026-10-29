@@ -1,0 +1,32 @@
+.scrim {
+  composes: scrim from "../projects/Projects.module.css";
+}
+.drawer {
+  composes: drawer from "../projects/Projects.module.css";
+  width: min(1100px, 100vw);
+}
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.input {
+  width: 100px;
+  height: var(--control-height);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--text);
+  padding: var(--space-2);
+}
+.warning {
+  composes: warning from "../projects/Projects.module.css";
+  white-space: normal;
+  min-width: 180px;
+}
+.error {
+  color: var(--bad, #b91c1c);
+  white-space: normal;
+  display: block;
+}

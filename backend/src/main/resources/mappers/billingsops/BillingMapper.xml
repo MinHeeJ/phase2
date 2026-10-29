@@ -1,0 +1,167 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sicost.billingsops.BillingMapper">
+  <resultMap id="project" type="com.sicost.billingsops.BillingModels$Project"><constructor>
+    <arg column="project_id" javaType="_long"/><arg column="project_name" javaType="string"/>
+    <arg column="contract_type" javaType="string"/><arg column="basis" javaType="string"/>
+    <arg column="use_yn" javaType="string"/>
+  </constructor></resultMap>
+  <resultMap id="stage" type="com.sicost.billingsops.BillingModels$Stage"><constructor>
+    <arg column="bill_stg_id" javaType="_long"/><arg column="project_id" javaType="_long"/>
+    <arg column="sply_amt" javaType="_long"/><arg column="bill_plan_dt" javaType="java.time.LocalDate"/>
+  </constructor></resultMap>
+  <resultMap id="source" type="com.sicost.billingsops.BillingModels$Source"><constructor>
+    <arg column="asgn_id" javaType="_long"/><arg column="dev_id" javaType="_long"/>
+    <arg column="cntrct_dev_id" javaType="_long"/><arg column="display_name" javaType="string"/>
+    <arg column="management_number" javaType="string"/><arg column="kind" javaType="string"/>
+    <arg column="start_date" javaType="java.time.LocalDate"/><arg column="source_mm_qty" javaType="java.math.BigDecimal"/>
+    <arg column="price" javaType="java.lang.Long"/><arg column="atnd_id" javaType="java.lang.Long"/>
+    <arg column="work_day_qty" javaType="java.math.BigDecimal"/><arg column="work_tm_qty" javaType="java.math.BigDecimal"/>
+    <arg column="ovtm_tm_qty" javaType="java.math.BigDecimal"/><arg column="mth_work_day_qty" javaType="java.math.BigDecimal"/>
+  </constructor></resultMap>
+  <resultMap id="state" type="com.sicost.billingsops.BillingModels$State"><constructor>
+    <arg column="bill_id" javaType="_long"/><arg column="bill_no" javaType="string"/>
+    <arg column="prj_id" javaType="_long"/><arg column="bill_stg_id" javaType="java.lang.Long"/>
+    <arg column="atrb_ym" javaType="string"/><arg column="bill_dt" javaType="java.time.LocalDate"/>
+    <arg column="sply_amt" javaType="_long"/><arg column="vat_amt" javaType="_long"/>
+    <arg column="tot_amt" javaType="_long"/><arg column="bill_stts_cd" javaType="string"/>
+    <arg column="txinv_no" javaType="string"/><arg column="txinv_dt" javaType="java.time.LocalDate"/>
+    <arg column="rcpt_plan_dt" javaType="java.time.LocalDate"/><arg column="amnd_yn" javaType="string"/>
+    <arg column="orgnl_bill_id" javaType="java.lang.Long"/><arg column="rmrk_desc" javaType="string"/>
+    <arg column="stage_plan_dt" javaType="java.time.LocalDate"/><arg column="project_name" javaType="string"/>
+    <arg column="customer_id" javaType="java.lang.Long"/><arg column="customer_name" javaType="string"/>
+    <arg column="contract_type" javaType="string"/><arg column="sales_part" javaType="string"/>
+    <arg column="hq_yn" javaType="string"/><arg column="received_amt" javaType="_long"/>
+    <arg column="adjusted_total_amt" javaType="_long"/>
+  </constructor></resultMap>
+  <resultMap id="line" type="com.sicost.billingsops.BillingModels$Line"><constructor>
+    <arg column="asgn_id" javaType="java.lang.Long"/><arg column="dev_id" javaType="java.lang.Long"/>
+    <arg column="cntrct_dev_id" javaType="java.lang.Long"/><arg column="display_name" javaType="string"/>
+    <arg column="work_ym" javaType="string"/><arg column="mm_qty" javaType="java.math.BigDecimal"/>
+    <arg column="source_mm_qty" javaType="java.math.BigDecimal"/><arg column="untprc_amt" javaType="java.lang.Long"/>
+    <arg column="work_day_qty" javaType="java.math.BigDecimal"/><arg column="work_tm_qty" javaType="java.math.BigDecimal"/>
+    <arg column="ovtm_tm_qty" javaType="java.math.BigDecimal"/><arg column="ovtm_amt" javaType="_long"/>
+    <arg column="bill_amt" javaType="_long"/><arg column="rmrk_desc" javaType="string"/>
+  </constructor></resultMap>
+  <resultMap id="balance" type="com.sicost.billingsops.BillingModels$Balance"><constructor>
+    <arg column="supply" javaType="_long"/><arg column="total" javaType="_long"/><arg column="received" javaType="_long"/>
+  </constructor></resultMap>
+  <resultMap id="confirmed" type="com.sicost.billingsops.BillingModels$Confirmed"><constructor>
+    <arg column="bill_id" javaType="_long"/><arg column="sply_amt" javaType="_long"/>
+  </constructor></resultMap>
+  <resultMap id="receipt" type="com.sicost.billingsops.BillingModels$Receipt"><constructor>
+    <arg column="receipt_id" javaType="_long"/><arg column="rcpt_dt" javaType="java.time.LocalDate"/>
+    <arg column="rcpt_amt" javaType="_long"/><arg column="rmrk_desc" javaType="string"/>
+  </constructor></resultMap>
+  <resultMap id="history" type="com.sicost.billingsops.BillingModels$History"><constructor>
+    <arg column="description" javaType="string"/><arg column="changed_at" javaType="java.time.LocalDateTime"/>
+    <arg column="user_id" javaType="string"/>
+  </constructor></resultMap>
+  <resultMap id="sent" type="com.sicost.billingsops.BillingModels$Sent"><constructor>
+    <arg column="sent_at" javaType="java.time.LocalDateTime"/>
+  </constructor></resultMap>
+  <resultMap id="revenue" type="com.sicost.billingsops.BillingModels$Revenue"><constructor>
+    <arg column="month" javaType="string"/><arg column="confirmed_supply_amt" javaType="_long"/>
+  </constructor></resultMap>
+  <resultMap id="cash" type="com.sicost.billingsops.BillingModels$Cash"><constructor>
+    <arg column="rcpt_dt" javaType="java.time.LocalDate"/><arg column="rcpt_amt" javaType="_long"/>
+  </constructor></resultMap>
+  <sql id="projectColumns">p.prj_id AS project_id,p.prj_nm AS project_name,p.cntrct_ty_cd AS contract_type,
+    p.stlm_mthd_cd AS basis,p.use_yn</sql>
+  <select id="project" resultMap="project">SELECT <include refid="projectColumns"/> FROM prj.prj p WHERE p.prj_id=#{id}</select>
+  <select id="lockProject" resultType="long">SELECT p.prj_id FROM prj.prj p WHERE p.prj_id=#{id} FOR UPDATE</select>
+  <select id="lockBill" resultType="long">SELECT b.bill_id FROM bill.bill b WHERE b.bill_id=#{id} FOR UPDATE</select>
+  <select id="stage" resultMap="stage">SELECT s.bill_stg_id,s.prj_id AS project_id,s.sply_amt,s.bill_plan_dt FROM prj.bill_stg s WHERE s.bill_stg_id=#{id}</select>
+  <select id="sources" resultMap="source">
+    SELECT a.asgn_id,a.dev_id,coalesce(a.cntrct_dev_id,a.dev_id) AS cntrct_dev_id,
+      d.dev_nm AS display_name,actual.mng_no AS management_number,a.asgn_se_cd AS kind,a.bgn_dt AS start_date,
+      m.mm_qty AS source_mm_qty,u.bill_untprc_amt AS price,t.atnd_id,t.work_day_qty,
+      t.rglr_tm_qty AS work_tm_qty,t.ovtm_tm_qty,t.mth_work_day_qty
+    FROM asgn.asgn a JOIN mst.dev actual ON actual.dev_id=a.dev_id
+    JOIN mst.dev d ON d.dev_id=coalesce(a.cntrct_dev_id,a.dev_id)
+    LEFT JOIN asgn.asgn_mth m ON m.asgn_id=a.asgn_id AND m.work_ym=#{month}
+    LEFT JOIN LATERAL (SELECT h.bill_untprc_amt FROM asgn.untprc_hist h
+      WHERE h.asgn_id=a.asgn_id AND h.aply_bgn_dt &lt;= greatest(to_date(#{month},'YYYY-MM'),a.bgn_dt)
+      ORDER BY h.aply_bgn_dt DESC LIMIT 1) u ON true
+    LEFT JOIN bill.dspch_atnd t ON t.asgn_id=a.asgn_id AND t.prj_id=a.prj_id AND t.dev_id=a.dev_id AND t.work_ym=#{month}
+    WHERE a.prj_id=#{projectId} AND a.asgn_stts_cd!='CANCELLED'
+      AND a.bgn_dt &lt; (to_date(#{month},'YYYY-MM')+interval '1 month')
+      AND a.end_dt &gt;= to_date(#{month},'YYYY-MM') ORDER BY a.asgn_id
+  </select>
+  <select id="vatRate" resultType="java.math.BigDecimal">SELECT o.num_val FROM cmn.oprt_std o WHERE o.oprt_std_id='VAT_RATE' AND o.aply_bgn_ym &lt;=#{month} ORDER BY o.aply_bgn_ym DESC LIMIT 1</select>
+  <select id="lastClosedMonth" resultType="string">SELECT max(c.cls_ym) FROM fin.mth_cls c WHERE c.cls_stts_cd='CLOSED'</select>
+  <select id="monthStatus" resultType="string">SELECT c.cls_stts_cd FROM fin.mth_cls c WHERE c.cls_ym=#{month}</select>
+  <select id="gapProjects" resultMap="project">
+    SELECT <include refid="projectColumns"/> FROM prj.prj p
+    WHERE p.use_yn='Y' AND p.cntrct_ty_cd IN ('MO','DP') AND
+      (EXISTS(SELECT 1 FROM asgn.asgn a WHERE a.prj_id=p.prj_id AND a.asgn_stts_cd!='CANCELLED'
+        AND a.bgn_dt &lt; (to_date(#{month},'YYYY-MM')+interval '1 month') AND a.end_dt &gt;=to_date(#{month},'YYYY-MM'))
+       OR EXISTS(SELECT 1 FROM bill.bill b WHERE b.prj_id=p.prj_id AND b.atrb_ym=#{month} AND b.bill_stts_cd='CONFIRM'))
+    ORDER BY p.prj_nm,p.prj_id
+  </select>
+  <select id="confirmed" resultMap="confirmed">SELECT b.bill_id,b.sply_amt FROM bill.bill b WHERE b.prj_id=#{projectId} AND b.atrb_ym=#{month} AND b.bill_stts_cd='CONFIRM' ORDER BY b.bill_id</select>
+  <sql id="month">CASE WHEN p.cntrct_ty_cd='TK' THEN to_char(coalesce(b.bill_dt,s.bill_plan_dt),'YYYY-MM') ELSE b.atrb_ym END</sql>
+  <sql id="stateColumns">b.bill_id,b.bill_no,b.prj_id,b.bill_stg_id,b.atrb_ym,b.bill_dt,b.sply_amt,b.vat_amt,b.tot_amt,
+    b.bill_stts_cd,b.txinv_no,b.txinv_dt,b.rcpt_plan_dt,b.amnd_yn,b.orgnl_bill_id,b.rmrk_desc,
+    s.bill_plan_dt AS stage_plan_dt,p.prj_nm AS project_name,p.cust_ptnr_id AS customer_id,c.ptnr_nm AS customer_name,
+    p.cntrct_ty_cd AS contract_type,part.bsn_part_nm AS sales_part,part.hq_yn,
+    coalesce((SELECT sum(r.rcpt_amt) FROM bill.rcpt r WHERE r.bill_id=b.bill_id),0)::bigint AS received_amt,
+    (b.tot_amt+coalesce((SELECT sum(x.tot_amt) FROM bill.bill x WHERE x.orgnl_bill_id=b.bill_id AND x.amnd_yn='Y' AND x.bill_stts_cd='CONFIRM'),0))::bigint AS adjusted_total_amt</sql>
+  <sql id="stateFrom">FROM bill.bill b JOIN prj.prj p ON p.prj_id=b.prj_id
+    LEFT JOIN prj.bill_stg s ON s.bill_stg_id=b.bill_stg_id
+    LEFT JOIN mst.ptnr c ON c.ptnr_id=p.cust_ptnr_id
+    LEFT JOIN LATERAL (SELECT h.bsn_part_id FROM prj.prj_part_hist h WHERE h.prj_id=p.prj_id
+      AND h.aply_bgn_ym &lt;= <include refid="month"/> ORDER BY h.aply_bgn_ym DESC LIMIT 1) ph ON true
+    LEFT JOIN mst.bsn_part part ON part.bsn_part_id=ph.bsn_part_id</sql>
+  <select id="state" resultMap="state">SELECT <include refid="stateColumns"/> <include refid="stateFrom"/> WHERE b.bill_id=#{id}</select>
+  <select id="states" resultMap="state">SELECT <include refid="stateColumns"/> <include refid="stateFrom"/> WHERE left(<include refid="month"/>,4)=lpad(#{year}::text,4,'0') ORDER BY b.bill_id</select>
+  <select id="amendments" resultMap="state">SELECT <include refid="stateColumns"/> <include refid="stateFrom"/> WHERE b.orgnl_bill_id=#{id} ORDER BY b.bill_id</select>
+  <select id="balance" resultMap="balance">
+    SELECT (b.sply_amt+coalesce((SELECT sum(x.sply_amt) FROM bill.bill x WHERE x.orgnl_bill_id=b.bill_id AND x.amnd_yn='Y' AND x.bill_stts_cd='CONFIRM'),0))::bigint AS supply,
+      (b.tot_amt+coalesce((SELECT sum(x.tot_amt) FROM bill.bill x WHERE x.orgnl_bill_id=b.bill_id AND x.amnd_yn='Y' AND x.bill_stts_cd='CONFIRM'),0))::bigint AS total,
+      coalesce((SELECT sum(r.rcpt_amt) FROM bill.rcpt r WHERE r.bill_id=b.bill_id),0)::bigint AS received
+    FROM bill.bill b WHERE b.bill_id=#{id}
+  </select>
+  <select id="receiptCount" resultType="long">SELECT count(*) FROM bill.rcpt r WHERE r.bill_id=#{id}</select>
+  <select id="activeAmendments" resultType="long">SELECT count(*) FROM bill.bill b WHERE b.orgnl_bill_id=#{id} AND b.bill_stts_cd!='CANCEL'</select>
+  <select id="lines" resultMap="line">
+    SELECT d.asgn_id,a.dev_id,d.cntrct_dev_id,p.dev_nm AS display_name,d.work_ym,d.mm_qty,
+      m.mm_qty AS source_mm_qty,d.untprc_amt,d.work_day_qty,d.work_tm_qty,d.ovtm_tm_qty,d.ovtm_amt,d.bill_amt,d.rmrk_desc
+    FROM bill.bill_dtl d LEFT JOIN asgn.asgn a ON a.asgn_id=d.asgn_id
+    LEFT JOIN mst.dev p ON p.dev_id=d.cntrct_dev_id
+    LEFT JOIN asgn.asgn_mth m ON m.asgn_id=d.asgn_id AND m.work_ym=d.work_ym
+    WHERE d.bill_id=#{id} ORDER BY d.bill_dtl_id
+  </select>
+  <select id="receipts" resultMap="receipt">SELECT r.rcpt_id AS receipt_id,r.rcpt_dt,r.rcpt_amt,r.rmrk_desc FROM bill.rcpt r WHERE r.bill_id=#{id} ORDER BY r.rcpt_dt,r.rcpt_id</select>
+  <select id="history" resultMap="history">
+    SELECT coalesce(h.rsn_desc,h.clmn_nm,h.data_chg_ty_cd) AS description,
+      h.chg_at AS changed_at,h.chg_user_id::text AS user_id
+    FROM sys.data_chg_hist h
+    WHERE (h.tbl_nm='bill.bill' AND h.obj_rec_id=#{id}::text)
+      OR (h.tbl_nm='bill.rcpt' AND h.rsn_desc='bill_id=' || #{id}::text)
+    ORDER BY h.chg_at DESC,h.data_chg_hist_id DESC
+  </select>
+  <select id="sent" resultMap="sent">SELECT d.send_at AS sent_at FROM bill.dun_hist d WHERE d.bill_id=#{id} ORDER BY d.send_at DESC,d.dun_hist_id DESC</select>
+  <select id="revenue" resultMap="revenue">SELECT <include refid="month"/> AS month,sum(b.sply_amt)::bigint AS confirmed_supply_amt
+    FROM bill.bill b JOIN prj.prj p ON p.prj_id=b.prj_id LEFT JOIN prj.bill_stg s ON s.bill_stg_id=b.bill_stg_id
+    WHERE b.bill_stts_cd='CONFIRM' AND left(<include refid="month"/>,4)=lpad(#{year}::text,4,'0') GROUP BY <include refid="month"/> ORDER BY month</select>
+  <select id="cash" resultMap="cash">SELECT r.rcpt_dt,sum(r.rcpt_amt)::bigint AS rcpt_amt FROM bill.rcpt r WHERE extract(year FROM r.rcpt_dt)=#{year} GROUP BY r.rcpt_dt ORDER BY r.rcpt_dt</select>
+  <select id="planned" resultType="long">SELECT coalesce(sum(s.sply_amt),0)::bigint FROM prj.bill_stg s JOIN prj.prj p ON p.prj_id=s.prj_id WHERE p.cntrct_ty_cd='TK' AND extract(year FROM s.bill_plan_dt)=#{year} AND NOT EXISTS(SELECT 1 FROM bill.bill b WHERE b.bill_stg_id=s.bill_stg_id AND b.amnd_yn='N' AND b.bill_stts_cd!='CANCEL')</select>
+  <select id="lockNumber" resultType="string" flushCache="true" useCache="false">SELECT pg_advisory_xact_lock(hashtextextended('bill.bill:' || #{prefix},0))::text</select>
+  <select id="maximumNumber" resultType="long">SELECT coalesce(max(substring(b.bill_no FROM length(#{prefix})+1)::bigint),0) FROM bill.bill b WHERE b.bill_no LIKE (#{prefix} || '%') AND substring(b.bill_no FROM length(#{prefix})+1) ~ '^[0-9]+$'</select>
+  <select id="insertAmendment" resultType="long" affectData="true" flushCache="true">
+    INSERT INTO bill.bill(bill_no,prj_id,atrb_ym,bill_dt,sply_amt,vat_amt,bill_stts_cd,txinv_no,txinv_dt,
+      amnd_yn,orgnl_bill_id,rcpt_plan_dt,rmrk_desc,created_by)
+    VALUES(#{number},#{original.prj_id},#{original.atrb_ym},#{input.bill_dt},#{input.sply_amt},#{input.vat_amt},
+      'DRAFT',#{input.txinv_no},#{input.txinv_dt},'Y',#{original.bill_id},#{input.rcpt_plan_dt},#{input.reason},#{actor}) RETURNING bill_id
+  </select>
+  <update id="transition">UPDATE bill.bill SET bill_stts_cd=#{after},updated_by=#{actor},updated_at=CURRENT_TIMESTAMP,
+    cnfrm_user_id=CASE WHEN #{after}='CONFIRM' THEN #{actor} ELSE cnfrm_user_id END,
+    cnfrm_at=CASE WHEN #{after}='CONFIRM' THEN CURRENT_TIMESTAMP ELSE cnfrm_at END
+    WHERE bill_id=#{id} AND bill_stts_cd=#{before}
+  </update>
+  <insert id="audit">INSERT INTO sys.data_chg_hist(tbl_nm,obj_rec_id,data_chg_ty_cd,clmn_nm,bfr_val,aft_val,rsn_desc,chg_user_id)
+    VALUES('bill.bill',#{id},#{type},'청구',#{before},#{after},#{reason},#{actor})</insert>
+  <insert id="download">INSERT INTO sys.acs_hist(acs_ty_cd,scrn_id,user_id,obj_desc,dtl_desc)
+    VALUES('DOWNLOAD','UI-13',#{actor},#{name},#{description})</insert>
+</mapper>

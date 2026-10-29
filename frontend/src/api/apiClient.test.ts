@@ -18,12 +18,54 @@ import * as expenses from "../pages/expenses/client";
 import * as partChanges from "../pages/partchanges/client";
 import * as contractChanges from "../pages/contractchanges/client";
 import * as staffPlans from "../pages/staffplans/client";
+import * as billings from "../pages/billings/client";
+import * as billingOperations from "../pages/billingsops/client";
+import * as receipts from "../pages/receipts/client";
+import * as attendance from "../pages/dispatchattendance/client";
+import * as attendanceUpload from "../pages/dispatchattendance2/client";
 
 const response = (data: unknown) =>
   new Response(JSON.stringify({ success: true, meta: {}, data }));
 afterEach(() => vi.unstubAllGlobals());
 describe("API client registration", () => {
   it.each([
+    ["listBillings", billings.listBillings],
+    ["getBilling", billings.getBilling],
+    ["createBilling", billings.createBilling],
+    ["updateBilling", billings.updateBilling],
+    ["previewBilling", billings.previewBilling],
+    ["getBillingSummary", billings.getBillingSummary],
+    ["listBillingGaps", billingOperations.listBillingGaps],
+    ["listBillingOverdue", billingOperations.listBillingOverdue],
+    ["confirmBilling", billingOperations.confirmBilling],
+    ["cancelBilling", billingOperations.cancelBilling],
+    ["createBillingAmendment", billingOperations.createBillingAmendment],
+    ["listBillingReceipts", receipts.listBillingReceipts],
+    ["createBillingReceipt", receipts.createBillingReceipt],
+    ["updateBillingReceipt", receipts.updateBillingReceipt],
+    ["deleteBillingReceipt", receipts.deleteBillingReceipt],
+    ["getDispatchAttendance", attendance.getDispatchAttendance],
+    ["saveDispatchAttendance", attendance.saveDispatchAttendance],
+    [
+      "validateDispatchAttendanceUpload",
+      attendanceUpload.validateDispatchAttendanceUpload,
+    ],
+    [
+      "applyDispatchAttendanceUpload",
+      attendanceUpload.applyDispatchAttendanceUpload,
+    ],
+    [
+      "revalidateDispatchAttendanceUpload",
+      attendanceUpload.revalidateDispatchAttendanceUpload,
+    ],
+    [
+      "listDispatchAttendanceUploadRows",
+      attendanceUpload.listDispatchAttendanceUploadRows,
+    ],
+    [
+      "listDispatchAttendanceUploadIssues",
+      attendanceUpload.listDispatchAttendanceUploadIssues,
+    ],
     ["listProjects", projects.listProjects],
     ["getProject", projects.getProject],
     ["createProject", projects.createProject],
