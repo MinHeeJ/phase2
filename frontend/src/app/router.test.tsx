@@ -11,6 +11,8 @@ import { AppRouter } from "./router";
 import { screenIds } from "../pages/shared/registry";
 import { useSharedPreferences } from "../pages/shared/preferences";
 import type { MenuNode } from "../pages/shared/api";
+import type { BillingDetail } from "../pages/billings/client";
+process.env.DEBUG_PRINT_LIMIT = "300";
 import {
   developerFixture,
   codeFixtures,
@@ -36,6 +38,8 @@ const menus: MenuNode[] = [
 const response = (data: unknown) =>
   new Response(JSON.stringify({ success: true, meta: {}, data }));
 let fetcher: ReturnType<typeof vi.fn>;
+let billing: BillingDetail;
+let billingReadFails = false;
 function Location() {
   return <output aria-label="현재 주소">{useLocation().pathname}</output>;
 }
@@ -48,6 +52,42 @@ function mount(path: string) {
   );
 }
 beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date("2026-10-29T00:00:00Z"));
+  sessionStorage.clear();
+  billingReadFails = false;
+  billing = {
+    billing: {
+      bill_id: 7,
+      bill_stg_id: null,
+      virtual_plan: false,
+      bill_no: "B-2610-07",
+      prj_id: 9,
+      project_name: "청구 프로젝트",
+      customer_id: 2,
+      customer_name: "고객사",
+      contract_type: "DP",
+      atrb_ym: "2026-10",
+      bill_dt: "2026-10-01",
+      sply_amt: 100,
+      vat_amt: 10,
+      tot_amt: 110,
+      bill_stts_cd: "DRAFT",
+      txinv_no: null,
+      txinv_dt: null,
+      rcpt_plan_dt: null,
+      received_amt: 0,
+      adjusted_total_amt: 110,
+      receivable_amt: 110,
+      reminder_stage: null,
+    },
+    details: [],
+    receipts: [],
+    amendments: [],
+    original_bill_id: null,
+    change_history: [],
+    warnings: [],
+  };
   Object.defineProperty(window, "innerWidth", {
     configurable: true,
     value: 1280,
@@ -60,8 +100,103 @@ beforeEach(() => {
     pageSize: 50,
     dense: false,
   });
-  fetcher = vi.fn(async (url: string) => {
+  fetcher = vi.fn(async (url: string, init?: RequestInit) => {
     if (url === "/api/menus") return response(menus);
+    if (url === "/api/projects/options")
+      return response([
+        { id: 9, no: "P-2609", name: "청구 프로젝트", type: "DP" },
+      ]);
+    if (url === "/api/billings/7/confirm") {
+      billing.billing.bill_stts_cd = "CONFIRM";
+      return response(billing);
+    }
+    if (url === "/api/billings/7/receipts") return response(billing);
+    if (url === "/api/billings/7") {
+      if (init?.method === "PUT") {
+        Object.assign(billing.billing, JSON.parse(init.body as string));
+        billing.billing.tot_amt =
+          billing.billing.sply_amt + billing.billing.vat_amt;
+      }
+      return response(billing);
+    }
+    if (url === "/api/projects/9")
+      return response({
+        prj_id: 9,
+        prj_nm: "청구 프로젝트",
+        cntrct_ty_cd: "DP",
+        stlm_mthd_cd: "DAY",
+        use_yn: "Y",
+      });
+    if (url === "/api/projects/9/assignments") return response([]);
+    if (url.startsWith("/api/dispatch-attendance?"))
+      return response({
+        month: "2026-10",
+        project_id: 9,
+        items: [],
+        warnings: [],
+      });
+    if (url.startsWith("/api/billings/summary?"))
+      return response({
+        annual_confirmed_supply_amt: 100,
+        current_month_confirmed_supply_amt: 100,
+        confirmed_receivable_amt: 110,
+        overdue_amt: 0,
+        planned_supply_amt: 0,
+        draft_supply_amt: 100,
+      });
+    if (url.startsWith("/api/billings/gaps?"))
+      return response({
+        month: "2026-10",
+        total_difference_amt: 100,
+        items: [
+          {
+            project_id: 9,
+            project_name: "청구 프로젝트",
+            month: "2026-10",
+            basis_supply_amt: 100,
+            confirmed_supply_amt: 0,
+            difference_amt: 100,
+            tolerance: 10000,
+            judgment: "청구 없음",
+            explanation: "미청구",
+            attendance_missing: false,
+            suspected_people: [],
+            billing_ids: [],
+          },
+        ],
+        total: 1,
+        page: 0,
+        size: 50,
+      });
+    if (url.startsWith("/api/billings/overdue?"))
+      return response({
+        items: [
+          {
+            billing: billing.billing,
+            overdue_days: null,
+            stage: null,
+            due_status: "예정일 미입력",
+            recipient_roles: [],
+            next_notification_date: null,
+            sent_history: [],
+            sales_part: null,
+          },
+        ],
+        customer_totals: [],
+        stage_counts: [],
+        total: 1,
+        page: 0,
+        size: 50,
+      });
+    if (url.startsWith("/api/billings?")) {
+      if (billingReadFails) throw new Error("offline");
+      return response({
+        items: [billing.billing],
+        total: 1,
+        page: 0,
+        size: 50,
+      });
+    }
     if (url.startsWith("/api/withdrawals?"))
       return response({
         rows: [],
@@ -163,9 +298,101 @@ beforeEach(() => {
   });
   vi.stubGlobal("fetch", fetcher);
 });
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.useRealTimers();
+});
 
 describe("application route registration", () => {
+  it("composes billing tabs, the source-aware editor and attendance upload on UI-13", async () => {
+    mount("/UI-13");
+    await screen.findByTestId("billing-row-7");
+    fireEvent.click(screen.getByTestId("billing-tab-gaps"));
+    fireEvent.click(await screen.findByTestId("billing-gap-action-9"));
+    expect(await screen.findByLabelText(/프로젝트/)).toHaveValue("9");
+    expect(screen.getByLabelText(/귀속월/)).toHaveValue("2026-10");
+    fireEvent.click(screen.getByTestId("billing-editor-close"));
+    fireEvent.click(screen.getByTestId("billing-upload"));
+    fireEvent.change(await screen.findByTestId("attendance-project"), {
+      target: { value: "9" },
+    });
+    fireEvent.click(screen.getByTestId("attendance-query"));
+    expect(await screen.findByTestId("attendance-upload")).toHaveTextContent(
+      "B.3 파견 근태 업로드",
+    );
+    fireEvent.click(screen.getByTestId("attendance-close"));
+    expect(
+      screen.queryByTestId("dispatch-attendance-dialog"),
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("billing-upload"));
+    expect(
+      await screen.findByTestId("dispatch-attendance-dialog"),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("현재 주소")).toHaveTextContent("/UI-13");
+  });
+  it("connects confirmation without a body and reloads the receipt controls", async () => {
+    mount("/UI-13");
+    fireEvent.click(await screen.findByTestId("billing-open-0"));
+    fireEvent.click(await screen.findByTestId("billing-confirm"));
+    fireEvent.click(screen.getByRole("button", { name: "확정 확인" }));
+    expect(await screen.findByTestId("receipt-add")).toBeInTheDocument();
+    const confirm = fetcher.mock.calls.find(
+      ([url]) => url === "/api/billings/7/confirm",
+    );
+    expect(confirm?.[1]).toMatchObject({ method: "POST" });
+    expect(confirm?.[1]?.body).toBeUndefined();
+    fireEvent.click(screen.getByTestId("receipt-add"));
+    expect(await screen.findByTestId("receipt-modal")).toBeInTheDocument();
+  });
+  it("refreshes the composed detail after saving in the separate billing editor", async () => {
+    mount("/UI-13");
+    fireEvent.click(await screen.findByTestId("billing-open-0"));
+    fireEvent.click(await screen.findByTestId("billing-edit"));
+    const supply = await screen.findByLabelText(/공급가액/);
+    fireEvent.change(supply, { target: { value: "250" } });
+    await waitFor(() =>
+      expect(screen.getByTestId("billing-editor-save")).not.toBeDisabled(),
+    );
+    fireEvent.click(screen.getByTestId("billing-editor-save"));
+    await waitFor(() =>
+      expect(screen.queryByTestId("billing-editor")).not.toBeInTheDocument(),
+    );
+    expect(
+      await within(screen.getByTestId("billing-detail")).findByText("250"),
+    ).toBeInTheDocument();
+  });
+  it("retains read recovery and inert reminders through the registered billing route", async () => {
+    billingReadFails = true;
+    mount("/UI-13");
+    await screen.findByText("다시 시도");
+    billingReadFails = false;
+    fireEvent.click(await screen.findByText("다시 시도"));
+    await screen.findByTestId("billing-row-7");
+    fireEvent.click(screen.getByTestId("billing-tab-overdue"));
+    expect(await screen.findByText("보낸 알림 없음")).toBeInTheDocument();
+    expect(screen.getByTestId("billing-remind-7")).toBeDisabled();
+  });
+  it.each(["mobile", "past-year"])(
+    "hides composed billing writes in %s mode",
+    async (mode) => {
+      if (mode === "mobile")
+        Object.defineProperty(window, "innerWidth", {
+          configurable: true,
+          value: 375,
+        });
+      mount("/UI-13");
+      await screen.findByTestId("billing-row-7");
+      if (mode === "past-year")
+        fireEvent.click(screen.getByTestId("billing-year-prev"));
+      expect(screen.queryByTestId("billing-upload")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("billing-add")).not.toBeInTheDocument();
+      fireEvent.click(await screen.findByTestId("billing-open-0"));
+      await screen.findByTestId("billing-detail");
+      expect(screen.queryByTestId("billing-confirm")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("receipt-add")).not.toBeInTheDocument();
+      expect(screen.getByTestId("billing-export")).toBeInTheDocument();
+    },
+  );
   it.each([...screenIds, "UI-22"])(
     "renders /%s through the single shared shell",
     async (id) => {

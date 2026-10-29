@@ -1,5 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Route, Routes } from "react-router-dom";
+import { Route, Routes, useNavigate } from "react-router-dom";
+import UI13Screen from "../pages/billingsops/UI13Screen";
+import { UI13M1 } from "../pages/billings/UI13M1";
+import { UI13DetailPanel } from "../pages/billings/UI13DetailPanel";
+import type { BillingDetail } from "../pages/billings/client";
+import { confirmBilling } from "../pages/billingsops/client";
+import { UI13M3 } from "../pages/billingsops/UI13M3";
+import { UI13M4 } from "../pages/billingsops/UI13M4";
+import { UI13M2 } from "../pages/dispatchattendance/UI13M2";
+import { UI13M2Upload } from "../pages/dispatchattendance2/UI13M2Upload";
+import { BillingReceiptPanel } from "../pages/receipts/UI13M5";
+import { useAdminWrite } from "../pages/admin/useAdminResource";
+import { ConfirmDialog } from "../shared/Controls";
+import { seoulMonth } from "../pages/shared/PeriodBar";
 import UI27Screen from "../pages/admin/UI27Screen";
 import UI15Screen from "../pages/partners/UI15Screen";
 import SalesPartManagement from "../pages/salespartsops/SalesPartManagement";
@@ -560,6 +573,171 @@ function AssignmentsScreen({
   );
 }
 
+function BillingDetailActions({
+  detail,
+  reload,
+}: {
+  detail: BillingDetail;
+  reload: () => Promise<unknown>;
+}) {
+  const [dialog, setDialog] = useState<"confirm" | "cancel" | "amend" | null>(
+    null,
+  );
+  const write = useAdminWrite(reload);
+  const row = detail.billing;
+  const close = () => setDialog(null);
+  return (
+    <>
+      <ErrorBanner error={write.error} onRetry={() => void write.recover()} />
+      {row.bill_stts_cd === "DRAFT" && (
+        <Button
+          data-testid="billing-confirm"
+          onClick={() => setDialog("confirm")}
+        >
+          확정
+        </Button>
+      )}
+      {["DRAFT", "CONFIRM"].includes(row.bill_stts_cd) &&
+        row.received_amt === 0 && (
+          <Button
+            data-testid="billing-cancel"
+            onClick={() => setDialog("cancel")}
+          >
+            청구 취소
+          </Button>
+        )}
+      {row.bill_stts_cd === "CONFIRM" && !detail.original_bill_id && (
+        <Button data-testid="billing-amend" onClick={() => setDialog("amend")}>
+          수정 청구
+        </Button>
+      )}
+      {row.bill_id != null && (
+        <BillingReceiptPanel billId={row.bill_id} onChanged={reload} />
+      )}
+      {dialog === "confirm" && (
+        <ConfirmDialog
+          title="청구 확정 확인"
+          confirmLabel="확정 확인"
+          onCancel={close}
+          onConfirm={() => {
+            if (!write.pending && !write.uncertain && row.bill_id != null)
+              void write.save(() => confirmBilling(row.bill_id!), close);
+          }}
+        >
+          확정하면 상세 스냅샷과 금액을 직접 수정할 수 없습니다. 확정할까요?
+        </ConfirmDialog>
+      )}
+      {dialog === "cancel" && (
+        <UI13M3 billing={row} reload={reload} onClose={close} onSaved={close} />
+      )}
+      {dialog === "amend" && (
+        <UI13M4 billing={row} reload={reload} onClose={close} onSaved={close} />
+      )}
+    </>
+  );
+}
+
+function BillingAttendance({
+  month,
+  projectId,
+  onCancel,
+  onSaved,
+}: {
+  month: string;
+  projectId?: number;
+  onCancel: () => void;
+  onSaved: () => Promise<unknown>;
+}) {
+  return (
+    <UI13M2
+      month={month}
+      projectId={projectId}
+      onCancel={onCancel}
+      onSaved={onSaved}
+      renderUpload={({ readOnly, onApplied, ...scope }) => (
+        <UI13M2Upload
+          {...scope}
+          currentYear={Number(seoulMonth().slice(0, 4))}
+          closed={readOnly}
+          onApplied={onApplied}
+        />
+      )}
+    />
+  );
+}
+
+function BillingsScreen({
+  onDirtyChange,
+  ...bindings
+}: BusinessScreenBindings) {
+  const navigate = useNavigate();
+  const notify = useRef(onDirtyChange);
+  notify.current = onDirtyChange;
+  const reportDirty = useCallback(
+    (dirty: boolean) => notify.current(dirty),
+    [],
+  );
+  const [attendance, setAttendance] = useState<{
+    projectId: number;
+    month: string;
+    reload: () => Promise<unknown>;
+  } | null>(null);
+  const mobile = useDeveloperReadOnly();
+  useEffect(() => {
+    if (mobile) setAttendance(null);
+  }, [mobile]);
+  return (
+    <>
+      <UI13Screen
+        {...bindings}
+        attendance={(projectId, month, controls) =>
+          controls && (
+            <BillingAttendance
+              month={month}
+              projectId={projectId}
+              onCancel={controls.onClose}
+              onSaved={controls.reload}
+            />
+          )
+        }
+        renderEditor={({ existing, onSaved, ...props }) => (
+          <UI13M1
+            {...props}
+            existing={existing as BillingDetail | undefined}
+            onDirtyChange={reportDirty}
+            onSaved={() => onSaved()}
+            onAttendance={(projectId, month) =>
+              setAttendance({ projectId, month, reload: props.reload })
+            }
+          />
+        )}
+        renderDetail={({ onEdit, ...props }) => (
+          <UI13DetailPanel
+            {...props}
+            key={props.id}
+            onEdit={onEdit}
+            onProject={(id) => navigate(`/UI-01?open=${id}`)}
+            actions={(detail, reload) => (
+              <BillingDetailActions
+                key={detail.billing.bill_id}
+                detail={detail}
+                reload={reload}
+              />
+            )}
+          />
+        )}
+      />
+      {attendance && !mobile && (
+        <BillingAttendance
+          {...attendance}
+          onCancel={() => setAttendance(null)}
+          onSaved={attendance.reload}
+        />
+      )}
+    </>
+  );
+}
+
 function ProjectBoardScreen(bindings: BusinessScreenBindings) {
   const [version, setVersion] = useState(0);
   const [openCount, setOpenCount] = useState<number>();
@@ -642,6 +820,8 @@ export function AppRouter() {
                 />
               ) : id === "UI-12" ? (
                 <AssignmentsScreen {...bindings} />
+              ) : id === "UI-13" ? (
+                <BillingsScreen {...bindings} />
               ) : id === "UI-31" ? (
                 <ProjectBoardScreen {...bindings} />
               ) : id === "UI-27" ? (

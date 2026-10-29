@@ -58,12 +58,14 @@ export function UploadResultPanel({
       {result && (
         <>
           <h2>
-            {result.form_type === "B.1"
-              ? `엑셀 업로드 결과 · 급여 ${result.month}`
-              : "엑셀 업로드 결과 · 개발자"}
+            {result.form_type === "B.3"
+              ? `엑셀 업로드 결과 · 파견 근태 ${result.month}`
+              : result.form_type === "B.1"
+                ? `엑셀 업로드 결과 · 급여 ${result.month}`
+                : "엑셀 업로드 결과 · 개발자"}
           </h2>
-          {result.form_type === "B.1" &&
-            result.existing_salary_count > 0 &&
+          {(result.form_type === "B.3" ||
+            (result.form_type === "B.1" && result.existing_salary_count > 0)) &&
             result.overwrite_notice && (
               <p
                 role="note"

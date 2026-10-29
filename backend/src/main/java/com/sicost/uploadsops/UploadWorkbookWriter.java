@@ -43,13 +43,25 @@ public class UploadWorkbookWriter {
         return errorFile(input,issues,"B.7");
     }
     public byte[] errorFile(InputStream input,List<UploadIssue> issues,String form)throws IOException {
+        return errorFile(input,issues,form,null);
+    }
+    public byte[] errorFile(InputStream input,List<UploadIssue> issues,List<String> headings)throws IOException {
+        return errorFile(input,issues,null,headings);
+    }
+    private byte[] errorFile(InputStream input,List<UploadIssue> issues,String form,List<String> custom)throws IOException {
         try(XSSFWorkbook book=new XSSFWorkbook(input);ByteArrayOutputStream out=new ByteArrayOutputStream()) {
             Sheet original=book.getSheetAt(0);while(book.getNumberOfSheets()>1)book.removeSheetAt(1);
-            FormulaEvaluator evaluator=book.getCreationHelper().createFormulaEvaluator();Row header="B.7".equals(form)?PartnerUploadForm.header(original,evaluator):PersonnelUploadForm.title(original,form);
-            List<String> headings="B.7".equals(form)?PartnerUploadForm.HEADERS:PersonnelUploadForm.headers(form);
+            FormulaEvaluator evaluator=book.getCreationHelper().createFormulaEvaluator();
+            Row header=null;
+            if(custom!=null){
+                for(Row row:original){for(Cell cell:row)if(cell.getCellType()==CellType.STRING&&custom.contains(cell.getStringCellValue().replace("*","").trim()))header=row;if(header!=null)break;}
+                if(header==null)header=original.getRow(0)==null?original.createRow(0):original.getRow(0);
+                for(Row row:original)for(Cell cell:row)if(cell.getCellType()==CellType.FORMULA){String formula=cell.getCellFormula();cell.removeFormula();cell.setCellValue("수식: "+formula);}
+            }else header="B.7".equals(form)?PartnerUploadForm.header(original,evaluator):PersonnelUploadForm.title(original,form);
+            List<String> headings=custom!=null?custom:"B.7".equals(form)?PartnerUploadForm.HEADERS:PersonnelUploadForm.headers(form);
             Map<Integer,Integer> columns=new HashMap<>();
             if("B.7".equals(form))columns.putAll(PartnerUploadForm.columns(header,evaluator));
-            else for(Cell cell:header)if(cell.getCellType()==CellType.STRING){int index=headings.indexOf(PersonnelUploadForm.label(cell.getStringCellValue(),form));if(index>=0)columns.put(index,cell.getColumnIndex());}
+            else for(Cell cell:header)if(cell.getCellType()==CellType.STRING){int index=headings.indexOf(custom==null?PersonnelUploadForm.label(cell.getStringCellValue(),form):cell.getStringCellValue().replace("*","").trim());if(index>=0)columns.put(index,cell.getColumnIndex());}
             int end=0;for(Row row:original)end=Math.max(end,row.getLastCellNum());
             Cell heading=header.getCell(end,Row.MissingCellPolicy.CREATE_NULL_AS_BLANK);heading.setCellValue("오류 사유");original.setColumnWidth(end,60*256);
             Map<Integer,List<String>> reasons=new LinkedHashMap<>();Map<Short,CellStyle> styles=new HashMap<>();

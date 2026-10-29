@@ -2,7 +2,7 @@ import { ApiFailure, readData } from "../../shared/api";
 
 export interface UploadResult {
   upload_id: number;
-  form_type: "B.8" | "B.1";
+  form_type: "B.8" | "B.1" | "B.3";
   month: string | null;
   row_count: number;
   error_count: number;
