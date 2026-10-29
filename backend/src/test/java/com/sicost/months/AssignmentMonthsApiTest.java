@@ -74,7 +74,7 @@ class AssignmentMonthsApiTest {
             List.of(Map.of("work_ym", month, "mm_qty", value)));
     }
     ResultActions save(Map<String,Object> input) throws Exception {
-        return mvc.perform(put(PATH).contentType("application/json").content(json.writeValueAsString(input)));
+        return mvc.perform(put("/api/assignments/1/months").contentType("application/json").content(json.writeValueAsString(input)));
     }
     void unchanged() {
         verify(mapper, never()).update(any());
@@ -83,7 +83,7 @@ class AssignmentMonthsApiTest {
     }
     @Test void anonymousReadReturnsManualValuePersonTotalClosedFlagAndMicroseconds() throws Exception {
         months.set(1, new MonthRow("2026-10",number("0.52"),number("0.50"),"Y",number("0.50"),"N"));
-        mvc.perform(get(PATH)).andExpect(status().isOk()).andExpect(jsonPath("$.success").value(true))
+        mvc.perform(get("/api/assignments/1/months")).andExpect(status().isOk()).andExpect(jsonPath("$.success").value(true))
             .andExpect(jsonPath("$.data.asgn_id").value(1))
             .andExpect(jsonPath("$.data.updated_at").value(VERSION.toString()))
             .andExpect(jsonPath("$.data.items[1].auto_mm_qty").value(0.52))

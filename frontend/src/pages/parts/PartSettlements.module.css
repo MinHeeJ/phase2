@@ -1,0 +1,61 @@
+.screen {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+}
+.summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--space-4);
+}
+.summary dl {
+  margin: 0;
+  padding: var(--space-4);
+  border: 1px solid var(--divider);
+  border-radius: var(--radius-panel);
+  background: var(--surface);
+}
+.summary dt {
+  font-size: var(--caption-size);
+  color: var(--text-sub);
+}
+.summary dd {
+  margin: var(--space-2) 0 0;
+  font-size: var(--title-size);
+  font-weight: var(--section-weight);
+  font-variant-numeric: tabular-nums;
+}
+.warning {
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-control);
+  color: var(--warning);
+  background: var(--warning-bg);
+}
+.cardForm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--space-4);
+}
+.cardForm label {
+  display: grid;
+  gap: var(--space-2);
+}
+.cardForm input,
+.cardForm textarea {
+  min-height: var(--control-height);
+  padding: var(--space-2);
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+}
+.cardForm textarea {
+  min-width: 240px;
+  max-width: 100%;
+}
+@media (max-width: 767px) {
+  .cardForm {
+    display: none;
+  }
+}

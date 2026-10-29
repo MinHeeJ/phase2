@@ -102,7 +102,10 @@ class AssignmentApiTest {
         verify(mapper,never()).insert(any()); verify(mapper,never()).start(any());
     }
     @Test void anonymousCreateWritesParentRateOpenMmAndStart() throws Exception {
-        save(input()).andExpect(status().isOk()).andExpect(jsonPath("$.success").value(true)).andExpect(jsonPath("$.data.assignment.asgn_no").value("A-0001"));
+        mvc.perform(post("/api/assignments").contentType("application/json").content(json.writeValueAsBytes(input())))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.success").value(true))
+            .andExpect(jsonPath("$.data.assignment.asgn_no").value("A-0001"))
+            .andExpect(jsonPath("$.data.assignment.asgn_stts_cd").value("ACTIVE"));
         var order=inOrder(concurrency,mapper); order.verify(concurrency).lockProject(1); order.verify(mapper).project(1);
         verify(mapper).insert(argThat(w -> w.id()==1 && w.number().equals("A-0001")));
         verify(mapper).month(argThat(w -> w.month().equals("2026-10") && w.quantity().compareTo(new BigDecimal("0.52"))==0));

@@ -12,7 +12,7 @@ public final class ProjectBoardModels {
         public BigDecimal numeric() { return num_val != null ? num_val : new BigDecimal(txt_val); }
     }
     public record BoardSource(long prj_id, String prj_no, String prj_nm, String custName,
-        String cntrct_ty_cd, Long bsn_part_id, String pmName, Long cur_cntrct_amt,
+        String cntrct_ty_cd, Long bsn_part_id, String pmName, Long cur_cntrct_amt, Long trgt_cst_amt,
         LocalDate prfm_bgn_dt, LocalDate last_memo_dt, BigDecimal actl_prgs_rt,
         int open_issue_count, int high_open_issue_count, int overdue_issue_count, int high_overdue_count) {}
     public record Phase(long phs_id, long prj_id, int phs_seq, String phs_nm, BigDecimal wght_rt,

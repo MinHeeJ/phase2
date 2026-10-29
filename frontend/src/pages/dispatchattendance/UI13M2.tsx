@@ -105,7 +105,11 @@ export function UI13M2({
               {(projects.data ?? [])
                 .filter((p) => p.type === "DP")
                 .map((p) => (
-                  <option key={p.id} value={p.id}>
+                  <option
+                    key={p.id}
+                    value={p.id}
+                    data-testid={`attendance-project-option-${p.id}`}
+                  >
                     {p.no} · {p.name}
                   </option>
                 ))}
@@ -290,7 +294,11 @@ function AttendanceEditor({
               초과근무 배율은 자동 추정하지 않습니다.
             </p>
             {state.data.attendance.warnings.map((w, i) => (
-              <p key={i} className={styles.warning}>
+              <p
+                key={i}
+                className={styles.warning}
+                data-testid={`attendance-warning-${i}`}
+              >
                 {w}
               </p>
             ))}
@@ -300,7 +308,12 @@ function AttendanceEditor({
                   <tr>
                     <th>인력</th>
                     {quantities.map((q) => (
-                      <th key={q.key}>{q.label}</th>
+                      <th
+                        key={q.key}
+                        data-testid={`attendance-column-${q.key.replaceAll("_", "-")}`}
+                      >
+                        {q.label}
+                      </th>
                     ))}
                     <th>산출 MM</th>
                     <th>⑦ 투입 MM</th>

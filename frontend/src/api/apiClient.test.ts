@@ -23,12 +23,30 @@ import * as billingOperations from "../pages/billingsops/client";
 import * as receipts from "../pages/receipts/client";
 import * as attendance from "../pages/dispatchattendance/client";
 import * as attendanceUpload from "../pages/dispatchattendance2/client";
+import * as costs from "../pages/costprofit/client";
 
 const response = (data: unknown) =>
   new Response(JSON.stringify({ success: true, meta: {}, data }));
 afterEach(() => vi.unstubAllGlobals());
 describe("API client registration", () => {
   it.each([
+    ["getCostAllocation", costs.getCostAllocation],
+    ["listCostPeople", costs.listCostPeople],
+    ["getCostPersonBreakdown", costs.getCostPersonBreakdown],
+    ["downloadCostPeople", costs.downloadCostPeople],
+    ["listCostProjects", costs.listCostProjects],
+    ["getCostProject", costs.getCostProject],
+    ["getCostProjectCauses", costs.getCostProjectCauses],
+    ["simulateCostProject", costs.simulateCostProject],
+    ["downloadCostProjects", costs.downloadCostProjects],
+    ["listPartSettlements", costs.listPartSettlements],
+    ["getPartSettlement", costs.getPartSettlement],
+    ["savePartSettlementCard", costs.savePartSettlementCard],
+    ["confirmPartSettlement", costs.confirmPartSettlement],
+    ["cancelPartSettlement", costs.cancelPartSettlement],
+    ["downloadPartSettlements", costs.downloadPartSettlements],
+    ["listCostRenegotiations", costs.listCostRenegotiations],
+    ["downloadCostRenegotiations", costs.downloadCostRenegotiations],
     ["listBillings", billings.listBillings],
     ["getBilling", billings.getBilling],
     ["createBilling", billings.createBilling],

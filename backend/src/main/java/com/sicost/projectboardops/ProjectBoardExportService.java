@@ -71,9 +71,8 @@ public class ProjectBoardExportService {
         BigDecimal schedule=actual.subtract(plan);
         BigDecimal budget=null,costRate=null,costDifference=null;
         Long amount=null;
-        if ("TK".equals(source.cntrct_ty_cd()) && source.cur_cntrct_amt()!=null) {
-            BigDecimal candidate=BigDecimal.valueOf(source.cur_cntrct_amt()).multiply(params.get("BUDGET_RATE"))
-                .movePointLeft(2).setScale(0,RoundingMode.DOWN);
+        if ("TK".equals(source.cntrct_ty_cd()) && source.trgt_cst_amt()!=null) {
+            BigDecimal candidate=BigDecimal.valueOf(source.trgt_cst_amt());
             if (candidate.signum()>0) {
                 budget=candidate;
                 amount=costs.calculate(source.prj_id(),YearMonth.from(query.today())).cumulativeCostAmount();
@@ -88,7 +87,7 @@ public class ProjectBoardExportService {
             || source.highOverdueCount()>0;
         boolean warning=(source.phaseCount()>0 && schedule.compareTo(params.get("SIG_DELAY_WARN").negate())<=0)
             || (source.phaseCount()>0 && costDifference!=null && costDifference.compareTo(params.get("SIG_COST_WARN"))>=0)
-            || source.overdue_issue_count()>0
+            || source.overdue_issue_count()>0 || ("TK".equals(source.cntrct_ty_cd()) && budget==null)
             || (elapsed!=null && BigDecimal.valueOf(elapsed).compareTo(params.get("SIG_STALE_DAYS"))>0);
         return new BoardExportRow(source.prj_id(),risk?"위험":warning?"주의":"정상",source.prj_nm(),source.custName(),
             source.cntrct_ty_cd(),source.pmName(),source.currentPhase(),plan,actual,costRate,

@@ -35,7 +35,7 @@ export function BillingStatus({ row }: { row: BillingRow }) {
 }
 export function BillingLines({ lines }: { lines: BillingDetailLine[] }) {
   return (
-    <div className={tables.tableScroll}>
+    <div className={tables.tableScroll} data-testid="billing-lines-root">
       <table className={tables.table}>
         <thead>
           <tr>
@@ -147,30 +147,39 @@ export function UI13DetailPanel({
                 {row.customer_name} · {row.contract_type} · {row.bill_odr_no}차
               </p>
               <dl className={styles.fields}>
-                {[
-                  ["귀속월", row.atrb_ym],
-                  ["청구일", row.bill_dt],
-                  ["공급가액", row.sply_amt.toLocaleString("ko-KR")],
-                  ["부가세", row.vat_amt.toLocaleString("ko-KR")],
-                  ["합계", row.tot_amt.toLocaleString("ko-KR")],
-                  ["세금계산서 번호", row.txinv_no],
-                  ["작성일", row.txinv_dt],
-                  ["입금 예정일", row.rcpt_plan_dt],
-                  ["누적 입금", row.received_amt.toLocaleString("ko-KR")],
+                {(
                   [
-                    "조정 청구 총액",
-                    row.adjusted_total_amt.toLocaleString("ko-KR"),
-                  ],
-                  ["미수금", row.receivable_amt.toLocaleString("ko-KR")],
-                ].map(([label, value]) => (
-                  <div key={label}>
+                    ["귀속월", row.atrb_ym],
+                    ["청구일", row.bill_dt],
+                    ["공급가액", row.sply_amt.toLocaleString("ko-KR")],
+                    ["부가세", row.vat_amt.toLocaleString("ko-KR")],
+                    ["합계", row.tot_amt.toLocaleString("ko-KR")],
+                    ["세금계산서 번호", row.txinv_no],
+                    ["작성일", row.txinv_dt],
+                    ["입금 예정일", row.rcpt_plan_dt],
+                    ["누적 입금", row.received_amt.toLocaleString("ko-KR")],
+                    [
+                      "조정 청구 총액",
+                      row.adjusted_total_amt.toLocaleString("ko-KR"),
+                    ],
+                    ["미수금", row.receivable_amt.toLocaleString("ko-KR")],
+                  ] as const
+                ).map(([label, value]) => (
+                  <div
+                    key={label}
+                    data-testid={`billing-detail-field-${({ 귀속월: "month", 청구일: "billing-date", 공급가액: "supply-amount", 부가세: "vat", 합계: "total", "세금계산서 번호": "invoice-number", 작성일: "invoice-date", "입금 예정일": "receipt-plan-date", "누적 입금": "received-amount", "조정 청구 총액": "adjusted-total", 미수금: "receivable" } as Record<string, string>)[label]}`}
+                  >
                     <dt>{label}</dt>
                     <dd>{value ?? "–"}</dd>
                   </div>
                 ))}
               </dl>
               {d.warnings.map((w, i) => (
-                <p className={styles.warning} key={i}>
+                <p
+                  className={styles.warning}
+                  key={i}
+                  data-testid={`billing-detail-warning-${i}`}
+                >
                   {w}
                 </p>
               ))}

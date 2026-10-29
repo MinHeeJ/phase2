@@ -113,7 +113,8 @@ class ProjectStaffPlanApiTest {
         plans.add(plan("2026-10", "BE", "", "8", null));
         mvc.perform(put("/api/projects/1/staff-plans").contentType(MediaType.APPLICATION_JSON)
             .content("{\"items\":[" + item("2026-11", "BE", "", "2.01") + "]}"))
-            .andExpect(status().isOk()).andExpect(jsonPath("$.data.items.length()").value(2));
+            .andExpect(status().isOk()).andExpect(jsonPath("$.data.items.length()").value(2))
+            .andExpect(jsonPath("$.data.items[?(@.src_need_id == 7)].job_cd").value("FE"));
         assertThat(plans).hasSize(2).contains(sourced); assertThat(history).hasSize(1);
         verify(mapper).insert(argThat(w -> w.count().compareTo(new BigDecimal("3")) == 0));
     }

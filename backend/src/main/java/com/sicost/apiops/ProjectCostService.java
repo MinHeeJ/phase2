@@ -1,19 +1,17 @@
 package com.sicost.apiops;
 
-import java.math.BigDecimal;
+import com.sicost.common.costallocation.CostAllocationService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import static com.sicost.apiops.ProjectBoardModels.*;
 
 @Service
-@Transactional(readOnly = true)
+@Transactional(readOnly = true, isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
 public class ProjectCostService {
-    private final ProjectBoardMapper mapper;
-    public ProjectCostService(ProjectBoardMapper mapper) { this.mapper = mapper; }
+    private final CostAllocationService allocation;
+    public ProjectCostService(CostAllocationService allocation) { this.allocation = allocation; }
     public ProjectCost calculate(long id, String month) {
-        var rows = mapper.costs(new CostQuery(id, month));
-        long amount = rows.stream().map(CostMonth::amount).reduce(BigDecimal.ZERO, BigDecimal::add).longValueExact();
-        var missing = rows.stream().filter(CostMonth::missing_salary).map(CostMonth::month).distinct().sorted().toList();
-        return new ProjectCost(amount, missing);
+        var total = allocation.projectTotal(id, month);
+        return new ProjectCost(total.amount(), total.missing_salary_months());
     }
 }

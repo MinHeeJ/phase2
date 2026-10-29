@@ -54,6 +54,10 @@ import org.yaml.snakeyaml.Yaml;
     ProjectBoardExportController.class, AssignmentController.class, AssignmentOperationController.class,
     AssignmentChangeController.class, AssignmentMonthsController.class, ProjectAssignmentMonthController.class,
     com.sicost.billings.BillingController.class, com.sicost.billingsops.BillingController.class,
+    com.sicost.projects.CostProjectController.class,
+    com.sicost.people.CostPeopleController.class, com.sicost.parts.PartSettlementController.class,
+    com.sicost.costsops.RenegotiationController.class,
+    com.sicost.common.costallocation.CostAllocationController.class,
     com.sicost.receipts.BillingReceiptController.class,
     com.sicost.dispatchattendance.DispatchAttendanceController.class,
     com.sicost.dispatchattendance2.DispatchAttendanceUploadController.class})
@@ -75,6 +79,15 @@ class OpenApiHandlerContractTest {
     @MockBean WorkStatusService workStatuses;
     @MockBean UploadResultService uploadResults;
     @MockBean ProjectService projects;
+    @MockBean CostProjectService costProjects;
+    @MockBean CostProjectExportService costProjectExports;
+    @MockBean com.sicost.people.CostPeopleService costPeople;
+    @MockBean com.sicost.people.CostPeopleExportService costPeopleExports;
+    @MockBean com.sicost.parts.PartSettlementService partSettlements;
+    @MockBean com.sicost.parts.PartSettlementExportService partSettlementExports;
+    @MockBean com.sicost.costsops.RenegotiationService renegotiations;
+    @MockBean com.sicost.costsops.RenegotiationExportService renegotiationExports;
+    @MockBean com.sicost.common.costallocation.CostAllocationService costAllocation;
     @MockBean ProjectLifecycleService projectLifecycle;
     @MockBean PartChangeService partChanges;
     @MockBean ProjectContractChangeService contractChanges;
@@ -122,14 +135,23 @@ class OpenApiHandlerContractTest {
                 expected.add(method.toString().toUpperCase(Locale.ROOT)+" "+normalize(path.toString()));
             }
         }));
-        Map<String,String> actual=new TreeMap<>();
+        Map<String,Set<String>> actual=new TreeMap<>();
         handlers.getHandlerMethods().forEach((mapping,handler)->{
             if(mapping.getPatternValues().stream().anyMatch(path->path.startsWith("/api/"))) {
+                var declared=org.springframework.core.annotation.AnnotatedElementUtils.findMergedAnnotation(
+                    handler.getMethod(),org.springframework.web.bind.annotation.RequestMapping.class);
+                assertThat(declared).as("literal method-level mapping on %s",handler).isNotNull();
+                assertThat(declared.path()).as("one explicit path on %s",handler).hasSize(1);
+                assertThat(declared.path()[0]).isNotBlank();
                 assertThat(mapping.getPatternValues()).as("one path per operation").hasSize(1);
                 assertThat(mapping.getMethodsCondition().getMethods()).as("one method per operation").hasSize(1);
                 String path=mapping.getPatternValues().iterator().next();
                 String method=mapping.getMethodsCondition().getMethods().iterator().next().name();
-                assertThat(actual.put(method+" "+normalize(path),handler.getMethod().getName())).isNull();
+                // Media-type variants may serve one operation; distinct paths must never share a handler.
+                String key=method+" "+normalize(path);
+                String variant=mapping.getProducesCondition().toString()+mapping.getConsumesCondition();
+                assertThat(actual.computeIfAbsent(key,ignored->new HashSet<>()).add(variant))
+                    .as("unique handler for %s %s",key,variant).isTrue();
             }
         });
         // Existing phases expose additional APIs; they must not hide a missing contract operation.

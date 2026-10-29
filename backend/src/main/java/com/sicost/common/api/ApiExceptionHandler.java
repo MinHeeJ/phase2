@@ -4,6 +4,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
 import java.util.Map;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -71,6 +72,7 @@ public class ApiExceptionHandler {
     }
     private ResponseEntity<ApiError> error(int status, String code, String message, String field, HttpServletRequest request) {
         String id = (String) request.getAttribute(RequestIdFilter.ATTRIBUTE);
-        return ResponseEntity.status(status).body(new ApiError(false, Map.of(), code, message, field, id));
+        return ResponseEntity.status(status).contentType(MediaType.APPLICATION_JSON)
+            .body(new ApiError(false, Map.of(), code, message, field, id));
     }
 }

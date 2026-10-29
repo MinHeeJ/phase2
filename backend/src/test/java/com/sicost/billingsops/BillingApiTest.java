@@ -149,10 +149,38 @@ class BillingApiTest {
         mvc.perform(post("/api/billings/8/confirm")).andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("REFUND_REQUIRED"));
         var order=inOrder(mapper);order.verify(mapper).lockBill(7);order.verify(mapper).lockBill(8);
     }
-    @Test void allReadsAreAnonymousAndDoNotWrite()throws Exception {
-        for(String path:List.of("gaps","overdue","summary"))mvc.perform(get("/api/billings/"+path)).andExpect(status().isOk()).andExpect(jsonPath("$.success").value(true));
+    @Test void anonymousGapListHasResponseContractAndNoWrites()throws Exception {
+        mvc.perform(get("/api/billings/gaps")).andExpect(status().isOk())
+            .andExpect(jsonPath("$.success").value(true)).andExpect(jsonPath("$.data.items").isArray());
+        verify(mapper,never()).transition(any());verify(mapper,never()).audit(any());
+    }
+    @Test void anonymousOverdueListHasResponseContractAndNoWrites()throws Exception {
+        mvc.perform(get("/api/billings/overdue")).andExpect(status().isOk())
+            .andExpect(jsonPath("$.success").value(true)).andExpect(jsonPath("$.data.items").isArray());
+        verify(mapper,never()).transition(any());verify(mapper,never()).audit(any());
+    }
+    @Test void anonymousSummaryHasResponseContractAndNoWrites()throws Exception {
+        mvc.perform(get("/api/billings/summary")).andExpect(status().isOk())
+            .andExpect(jsonPath("$.success").value(true)).andExpect(jsonPath("$.data.year").value(2026))
+            .andExpect(jsonPath("$.data.monthly_revenue").isArray())
+            .andExpect(jsonPath("$.data.draft_supply_amt").value(100000));
+        verify(mapper,never()).transition(any());verify(mapper,never()).audit(any());
+    }
+    @Test void anonymousPreviewHasResponseContractAndNoWrites()throws Exception {
         mvc.perform(get("/api/billings/preview").param("projectId","1").param("month","2026-10"))
             .andExpect(status().isOk()).andExpect(jsonPath("$.data.details").isArray());
+        verify(mapper,never()).transition(any());verify(mapper,never()).audit(any());
+    }
+    @Test void invalidGapMonthReturnsFieldWithoutWriting() throws Exception {
+        mvc.perform(get("/api/billings/gaps").param("month","2026-13"))
+            .andExpect(status().isBadRequest()).andExpect(jsonPath("$.field").value("month"))
+            .andExpect(jsonPath("$.requestId").isNotEmpty());
+        verify(mapper,never()).transition(any());verify(mapper,never()).audit(any());
+    }
+    @Test void invalidSummaryYearReturnsFieldWithoutWriting() throws Exception {
+        mvc.perform(get("/api/billings/summary").param("year","invalid"))
+            .andExpect(status().isBadRequest()).andExpect(jsonPath("$.field").value("year"))
+            .andExpect(jsonPath("$.requestId").isNotEmpty());
         verify(mapper,never()).transition(any());verify(mapper,never()).audit(any());
     }
     @Test void missingPreviewProjectIsValidationError()throws Exception {

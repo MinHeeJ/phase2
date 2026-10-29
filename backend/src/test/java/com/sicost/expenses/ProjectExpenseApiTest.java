@@ -33,6 +33,7 @@ class ProjectExpenseApiTest {
         rows.clear();audits.clear();rows.put(7L,row(7,"2026-10",100));
         when(mapper.projectUse(1)).thenReturn("Y");
         when(mapper.activeCode("TRIP")).thenReturn(true);
+        when(mapper.monthStatus("2026-10")).thenReturn("OPEN");
         when(mapper.monthStatus("2026-09")).thenReturn("CLOSED");
         when(mapper.list(1)).thenAnswer(i->rows.values().stream()
             .sorted(Comparator.comparing(ProjectExpense::expns_ym).reversed()).toList());
@@ -87,6 +88,7 @@ class ProjectExpenseApiTest {
             .andExpect(jsonPath("$.data.expns_id").value(7));
         mvc.perform(get("/api/projects/1/expenses")).andExpect(status().isOk()).andExpect(jsonPath("$.data").isEmpty());
         verify(mapper).delete(new ExpenseKey(1, 7));
+        verify(mapper).monthStatus("2026-10");
         assertThat(audits).hasSize(1);
         assertThat(audits.get(0).type()).isEqualTo("DELETE");
         assertThat(audits.get(0).after()).isNull();
@@ -98,6 +100,7 @@ class ProjectExpenseApiTest {
             .andExpect(jsonPath("$.data.expns_amt").value(300000))
             .andExpect(jsonPath("$.data.vat_amt").value(30000));
         verify(mapper).insert(argThat(w -> w.projectId() == 1 && w.actor() == null));
+        verify(mapper).monthStatus("2026-10");
         assertThat(audits).hasSize(1); assertThat(audits.get(0).type()).isEqualTo("INSERT");
         assertThat(rows.get(7L).expns_amt()).isEqualTo(100);
     }

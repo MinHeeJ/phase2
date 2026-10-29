@@ -295,6 +295,44 @@ describe("청구 목록", () => {
   });
 });
 describe("청구 등록/수정", () => {
+  it("keeps detail field identifiers stable when optional values are null", async () => {
+    detail.billing.atrb_ym = null;
+    detail.billing.bill_dt = null;
+    detail.billing.rcpt_plan_dt = null;
+    render(
+      <UI13DetailPanel
+        id={7}
+        readOnly={true}
+        onClose={cancelled}
+        onEdit={vi.fn()}
+        onOpen={vi.fn()}
+        onProject={vi.fn()}
+        refresh={reload}
+      />,
+    );
+    const dialog = screen.getByRole("dialog", { name: "청구 상세" });
+    await within(dialog).findByText("입금 이력 (부가세 포함)");
+    for (const [id, label, value] of [
+      ["month", "귀속월", "–"],
+      ["billing-date", "청구일", "–"],
+      ["supply-amount", "공급가액", "1,000"],
+      ["vat", "부가세", "77"],
+      ["total", "합계", "1,077"],
+      ["invoice-number", "세금계산서 번호", "–"],
+      ["invoice-date", "작성일", "–"],
+      ["receipt-plan-date", "입금 예정일", "–"],
+      ["received-amount", "누적 입금", "0"],
+      ["adjusted-total", "조정 청구 총액", "1,077"],
+      ["receivable", "미수금", "0"],
+    ]) {
+      const field = within(dialog).getByTestId(`billing-detail-field-${id}`);
+      expect(within(field).getByRole("term")).toHaveTextContent(label);
+      expect(within(field).getByRole("definition")).toHaveTextContent(value);
+    }
+    expect(
+      within(dialog).queryByTestId("billing-edit"),
+    ).not.toBeInTheDocument();
+  });
   it("edit identities are readonly and PUT contains only BillingUpdate fields", async () => {
     renderEditor(true);
     await screen.findByLabelText("프로젝트");
