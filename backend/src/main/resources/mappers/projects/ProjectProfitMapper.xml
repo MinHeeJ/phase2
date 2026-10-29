@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sicost.projects.ProjectProfitMapper">
+  <resultMap id="source" type="com.sicost.projects.ProjectProfitModels$Source"><constructor>
+    <arg column="prj_id" javaType="_long"/><arg column="prj_no" javaType="string"/>
+    <arg column="prj_nm" javaType="string"/><arg column="cntrct_ty_cd" javaType="string"/>
+    <arg column="prj_stts_cd" javaType="string"/><arg column="bsn_part_id" javaType="java.lang.Long"/>
+    <arg column="part_name" javaType="string"/><arg column="pm_name" javaType="string"/>
+    <arg column="init_cntrct_amt" javaType="java.lang.Long"/><arg column="cur_cntrct_amt" javaType="java.lang.Long"/>
+    <arg column="trgt_cst_amt" javaType="java.lang.Long"/><arg column="trgt_mrgn_rt" javaType="java.math.BigDecimal"/>
+    <arg column="actl_prgs_rt" javaType="java.math.BigDecimal"/>
+    <arg column="bgn_dt" javaType="java.time.LocalDate"/><arg column="end_dt" javaType="java.time.LocalDate"/>
+  </constructor></resultMap>
+  <resultMap id="plan" type="com.sicost.projects.ProjectProfitModels$Plan"><constructor>
+    <arg column="month" javaType="string"/><arg column="mm_qty" javaType="java.math.BigDecimal"/>
+  </constructor></resultMap>
+  <resultMap id="forecast" type="com.sicost.projects.ProjectProfitModels$Forecast"><constructor>
+    <arg column="month" javaType="string"/><arg column="dev_id" javaType="java.lang.Long"/>
+    <arg column="mm_qty" javaType="java.math.BigDecimal"/><arg column="monthly_cost" javaType="java.lang.Long"/>
+  </constructor></resultMap>
+  <resultMap id="person" type="com.sicost.projects.ProjectProfitModels$Person"><constructor>
+    <arg column="dev_id" javaType="_long"/><arg column="dev_nm" javaType="string"/>
+  </constructor></resultMap>
+  <sql id="source">
+    SELECT p.prj_id,p.prj_no,p.prj_nm,p.cntrct_ty_cd,p.prj_stts_cd,p.bsn_part_id,
+      b.bsn_part_nm AS part_name,d.dev_nm AS pm_name,p.init_cntrct_amt,p.cur_cntrct_amt,
+      p.trgt_cst_amt,p.trgt_mrgn_rt,m.actl_prgs_rt,
+      coalesce(p.prfm_bgn_dt,p.cntrct_bgn_dt) AS bgn_dt,
+      coalesce(p.cur_end_dt,p.cntrct_end_dt) AS end_dt
+    FROM prj.prj p LEFT JOIN mst.bsn_part b ON b.bsn_part_id=p.bsn_part_id
+    LEFT JOIN mst.dev d ON d.dev_id=p.pm_dev_id
+    LEFT JOIN LATERAL (SELECT w.actl_prgs_rt FROM prj.wkly_memo w
+      WHERE w.prj_id=p.prj_id ORDER BY w.wrt_dt DESC,w.memo_id DESC LIMIT 1) m ON true
+  </sql>
+  <select id="list" resultMap="source">
+    <include refid="source"/>
+    WHERE p.use_yn='Y'
+      AND (coalesce(p.prfm_bgn_dt,p.cntrct_bgn_dt) IS NULL
+        OR coalesce(p.prfm_bgn_dt,p.cntrct_bgn_dt) &lt; make_date(#{year},12,31)+1)
+      AND (coalesce(p.cur_end_dt,p.cntrct_end_dt) IS NULL
+        OR coalesce(p.cur_end_dt,p.cntrct_end_dt) &gt;= make_date(#{year},1,1))
+    <if test="type != null">AND p.cntrct_ty_cd=#{type}</if>
+    <if test="partId != null">AND p.bsn_part_id=#{partId}</if>
+    <if test="status != null">AND p.prj_stts_cd=#{status}</if>
+    <if test="q != null">AND (p.prj_nm ILIKE '%' || #{q} || '%' OR p.prj_no ILIKE '%' || #{q} || '%')</if>
+    ORDER BY p.prj_id
+  </select>
+  <select id="project" resultMap="source">
+    <include refid="source"/> WHERE p.prj_id=#{id}
+  </select>
+  <select id="plans" resultMap="plan">
+    SELECT p.plan_ym AS month,sum(p.need_mm_qty) AS mm_qty FROM prj.psn_plan p
+    WHERE p.prj_id=#{id} AND p.plan_ym &gt;= #{from} AND p.plan_ym &lt;= #{through}
+    GROUP BY p.plan_ym ORDER BY p.plan_ym
+  </select>
+  <select id="forecast" resultMap="forecast">
+    WITH ranked AS (
+      SELECT l.dev_id,l.line_ty_cd,m.aloc_ym,m.mm_qty,
+        dense_rank() OVER (PARTITION BY m.aloc_ym ORDER BY CASE l.aloc_stg_cd
+          WHEN 'ACTUAL' THEN 1 WHEN 'FINAL' THEN 2 ELSE 3 END) AS priority
+      FROM prj.tk_aloc_line l JOIN prj.tk_aloc_mth m ON m.aloc_line_id=l.aloc_line_id
+      WHERE l.prj_id=#{id} AND m.aloc_ym &gt; #{through}
+    )
+    SELECT r.aloc_ym AS month,r.dev_id,r.mm_qty,s.indv_lbr_cst_amt AS monthly_cost
+    FROM ranked r LEFT JOIN LATERAL (
+      SELECT c.indv_lbr_cst_amt FROM cst.mth_cst c
+      WHERE c.dev_id=r.dev_id AND c.cst_ym &lt;= #{through}
+        AND c.cst_ym &gt;= to_char(to_date(#{through} || '-01','YYYY-MM-DD')-interval '2 months','YYYY-MM')
+      ORDER BY c.cst_ym DESC LIMIT 1
+    ) s ON true
+    WHERE r.priority=1 AND r.line_ty_cd='PERSON' ORDER BY r.aloc_ym,r.dev_id
+  </select>
+  <select id="people" resultMap="person">
+    SELECT DISTINCT d.dev_id,d.dev_nm FROM mst.dev d
+    WHERE EXISTS (SELECT 1 FROM asgn.asgn a WHERE a.prj_id=#{id} AND a.dev_id=d.dev_id)
+      OR EXISTS (SELECT 1 FROM cst.cst_aloc c WHERE c.prj_id=#{id} AND c.dev_id=d.dev_id)
+    ORDER BY d.dev_id
+  </select>
+  <insert id="download">
+    INSERT INTO sys.acs_hist(user_id,acs_ty_cd,scrn_id,obj_desc,dtl_desc)
+    VALUES(#{actor,jdbcType=BIGINT},'DOWNLOAD','UI-04',#{filename},#{detail})
+  </insert>
+</mapper>

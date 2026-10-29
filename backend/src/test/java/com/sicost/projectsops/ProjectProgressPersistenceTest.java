@@ -51,6 +51,7 @@ class ProjectProgressPersistenceTest {
         mvc=MockMvcBuilders.standaloneSetup(new ProjectProgressController(service)).setControllerAdvice(new ApiExceptionHandler()).addFilters(new RequestIdFilter()).build();
         for(var p:ProjectProgressApiTest.params()) sql("INSERT INTO cmn.oprt_std(oprt_std_id,aply_bgn_ym,oprt_std_nm,num_val) VALUES('"+p.oprt_std_id()+"','2026-10','시험',"+p.num_val()+") ON CONFLICT(oprt_std_id,aply_bgn_ym) DO UPDATE SET num_val=excluded.num_val");
         sql("INSERT INTO prj.prj(prj_id,prj_no,prj_nm,cntrct_ty_cd,prj_stts_cd,cur_cntrct_amt) VALUES(90001,'P-26901','진행 조회 시험','TK','RUN',500000000),(90002,'P-26902','다른 프로젝트','TK','END',500000000)");
+        sql("UPDATE prj.prj SET trgt_cst_amt=400000000 WHERE prj_id IN (90001,90002)");
         sql("INSERT INTO prj.phs(prj_id,phs_seq,phs_nm,wght_rt,plan_bgn_dt,plan_end_dt,cmpl_dt) VALUES(90001,1,'분석',40,'2026-01-01','2026-09-01','2026-09-01'),(90001,2,'개발',35,'2026-09-23','2026-12-31',NULL),(90001,3,'종료',25,NULL,NULL,NULL)");
         sql("INSERT INTO prj.wkly_memo(prj_id,wrt_dt,actl_prgs_rt,cmpl_work_desc,plan_work_desc) VALUES(90001,'2026-10-08',20,'지난 일','지난 계획'),(90001,'2026-10-23',42,'한 일','할 일')");
     }

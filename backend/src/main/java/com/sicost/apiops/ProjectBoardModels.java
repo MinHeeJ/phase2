@@ -14,7 +14,8 @@ public final class ProjectBoardModels {
     public record BoardSource(long prj_id, String prj_no, String prj_nm, String custName,
         String cntrct_ty_cd, Long bsn_part_id, String pmName, Long cur_cntrct_amt,
         LocalDate prfm_bgn_dt, LocalDate last_memo_dt, BigDecimal actl_prgs_rt,
-        int open_issue_count, int high_open_issue_count, int overdue_issue_count, int high_overdue_count) {}
+        int open_issue_count, int high_open_issue_count, int overdue_issue_count, int high_overdue_count,
+        Long trgt_cst_amt) {}
     public record Phase(long phs_id, long prj_id, int phs_seq, String phs_nm, BigDecimal wght_rt,
         LocalDate plan_bgn_dt, LocalDate plan_end_dt, LocalDate cmpl_dt, String status) {}
     public record BoardRow(long prj_id, String pmName, Phase currentPhase,

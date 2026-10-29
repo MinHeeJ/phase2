@@ -19,6 +19,12 @@ public class BillingRevenueQuery {
         this.mapper=mapper;this.receivables=receivables;this.clock=clock;this.permissions=permissions;
     }
     public List<Revenue> revenue(int year) {return mapper.revenue(BillingValues.year(year,clock));}
+    public List<ProjectRevenue> projectRevenue(long projectId, YearMonth from, YearMonth through) {
+        if (projectId < 1 || from == null || through == null || from.isAfter(through)) {
+            throw new com.sicost.common.api.ApiException(400, "VALIDATION_ERROR", "매출 조회 기간과 프로젝트를 확인하세요.", "projectId");
+        }
+        return mapper.projectRevenue(new RevenuePeriod(projectId, from.toString(), through.toString()));
+    }
     public List<Cash> cash(int year) {return mapper.cash(BillingValues.year(year,clock));}
     public Summary summary(Integer requested) {
         permissions.can(BillingActions.READ);

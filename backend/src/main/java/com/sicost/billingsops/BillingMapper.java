@@ -29,6 +29,7 @@ public interface BillingMapper {
     List<History> history(long id);
     List<Sent> sent(long id);
     List<Revenue> revenue(int year);
+    List<ProjectRevenue> projectRevenue(RevenuePeriod period);
     List<Cash> cash(int year);
     long planned(int year);
     void lockNumber(String prefix);

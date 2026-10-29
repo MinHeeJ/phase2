@@ -23,12 +23,25 @@ import * as billingOperations from "../pages/billingsops/client";
 import * as receipts from "../pages/receipts/client";
 import * as attendance from "../pages/dispatchattendance/client";
 import * as attendanceUpload from "../pages/dispatchattendance2/client";
+import * as peopleCosts from "../pages/people/client";
+import * as projectCosts from "../pages/projects/profitClient";
+import * as settlements from "../pages/parts/client";
+import * as renegotiations from "../pages/costsops/client";
 
 const response = (data: unknown) =>
   new Response(JSON.stringify({ success: true, meta: {}, data }));
 afterEach(() => vi.unstubAllGlobals());
 describe("API client registration", () => {
   it.each([
+    ["listCostPeople", peopleCosts.listCostPeople],
+    ["getCostPersonBreakdown", peopleCosts.getCostPersonBreakdown],
+    ["listCostProjects", projectCosts.listCostProjects],
+    ["getCostProject", projectCosts.getCostProject],
+    ["getCostProjectCauses", projectCosts.getCostProjectCauses],
+    ["listPartSettlements", settlements.listPartSettlements],
+    ["getPartSettlement", settlements.getPartSettlement],
+    ["listCostRenegotiations", renegotiations.listCostRenegotiations],
+    ["getCostAllocation", renegotiations.getCostAllocation],
     ["listBillings", billings.listBillings],
     ["getBilling", billings.getBilling],
     ["createBilling", billings.createBilling],

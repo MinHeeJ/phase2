@@ -102,6 +102,33 @@ beforeEach(() => {
   });
   fetcher = vi.fn(async (url: string, init?: RequestInit) => {
     if (url === "/api/menus") return response(menus);
+    if (url.startsWith("/api/costs/people?"))
+      return response({
+        items: [],
+        total: 0,
+        page: 0,
+        size: 50,
+        through: "2026-10",
+        summary: {},
+        contributions: [],
+        warnings: [],
+      });
+    if (url.startsWith("/api/costs/projects?"))
+      return response({
+        items: [],
+        total: 0,
+        page: 0,
+        size: 50,
+        through: "2026-10",
+        summary: {
+          revenue: 0,
+          profit: 0,
+          low_margin_count: 0,
+          budget_risk_count: 0,
+          rnd_cost: 0,
+        },
+      });
+    if (url.startsWith("/api/settlements/parts?")) return response([]);
     if (url === "/api/projects/options")
       return response([
         { id: 9, no: "P-2609", name: "청구 프로젝트", type: "DP" },
@@ -304,6 +331,55 @@ afterEach(() => {
 });
 
 describe("application route registration", () => {
+  it.each([
+    ["UI-03", "people-screen", "/api/costs/people?", "people-download"],
+    [
+      "UI-04",
+      "cost-projects-screen",
+      "/api/costs/projects?",
+      "cost-projects-download",
+    ],
+    [
+      "UI-19",
+      "part-settlement-screen",
+      "/api/settlements/parts?",
+      "part-download-button",
+    ],
+  ])(
+    "registers the real %s screen with its public read client",
+    async (id, testId, endpoint, download) => {
+      mount(`/${id}`);
+      const page = await screen.findByTestId(testId);
+      await waitFor(() =>
+        expect(
+          fetcher.mock.calls.some(([url]) => url.startsWith(endpoint)),
+        ).toBe(true),
+      );
+      expect(within(page).getByTestId(download)).toBeDisabled();
+      expect(
+        within(page).queryByText("이 화면은 다음 단계에서 만듭니다."),
+      ).not.toBeInTheDocument();
+      expect(screen.getAllByLabelText("조회 기간")).toHaveLength(1);
+      expect(fetcher.mock.calls.some(([url]) => url.includes("/auth/"))).toBe(
+        false,
+      );
+    },
+  );
+  it("connects the settlement query to the shared visible month", async () => {
+    mount("/UI-19");
+    await screen.findByTestId("part-settlement-screen");
+    fireEvent.change(screen.getByLabelText("조회월"), {
+      target: { value: "2026-08" },
+    });
+    await waitFor(() =>
+      expect(
+        fetcher.mock.calls.some(
+          ([url]) => url === "/api/settlements/parts?month=2026-08",
+        ),
+      ).toBe(true),
+    );
+    expect(screen.getByLabelText("조회월")).toHaveValue("2026-08");
+  });
   it("composes billing tabs, the source-aware editor and attendance upload on UI-13", async () => {
     mount("/UI-13");
     await screen.findByTestId("billing-row-7");

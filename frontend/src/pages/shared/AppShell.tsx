@@ -350,6 +350,9 @@ export function AppShell({
                   {location ? (
                     tab.id === "UI-27" ||
                     tab.id === "UI-15" ||
+                    tab.id === "UI-03" ||
+                    tab.id === "UI-04" ||
+                    tab.id === "UI-19" ||
                     tab.id === "UI-01" ||
                     tab.id === "UI-05" ||
                     tab.id === "UI-11" ||

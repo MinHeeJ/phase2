@@ -10,7 +10,8 @@ public final class ProjectBoardExportModels {
     public record BoardExportSource(long prj_id, String prj_nm, String custName, String cntrct_ty_cd,
         String pmName, String currentPhase, int phaseCount, BigDecimal plan_prgs_rt,
         BigDecimal memoProgress, LocalDate last_memo_dt, LocalDate prfm_bgn_dt,
-        Long cur_cntrct_amt, long open_issue_count, long overdue_issue_count, long highOverdueCount) {}
+        Long cur_cntrct_amt, long open_issue_count, long overdue_issue_count, long highOverdueCount,
+        Long trgt_cst_amt) {}
     public record BoardExportRow(long prj_id, String light, String prj_nm, String custName,
         String cntrct_ty_cd, String pmName, String currentPhase, BigDecimal plan_prgs_rt,
         BigDecimal actl_prgs_rt, BigDecimal cost_use_rt, long open_issue_count,

@@ -65,6 +65,8 @@ public final class BillingModels {
     public record Overdues(List<Overdue> items, List<CustomerTotal> customer_totals,
             List<StageCount> stage_counts, long total, int page, int size) {}
     public record Revenue(String month, long confirmed_supply_amt) {}
+    public record ProjectRevenue(long prj_id, String month, long confirmed_supply_amt) {}
+    public record RevenuePeriod(long projectId, String from, String through) {}
     public record Cash(LocalDate rcpt_dt, long rcpt_amt) {}
     public record Summary(int year, long annual_confirmed_supply_amt,
             long current_month_confirmed_supply_amt, long confirmed_receivable_amt,

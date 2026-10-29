@@ -37,11 +37,10 @@ public final class ProjectProgressCalculator {
         BigDecimal difference = rounded(actual.subtract(planned));
         Long budget = null, cumulative = null;
         BigDecimal use = null, costDifference = null;
-        if ("TK".equals(p.cntrct_ty_cd()) && p.cur_cntrct_amt() != null) {
-            long computed = BigDecimal.valueOf(p.cur_cntrct_amt()).multiply(values.get("BUDGET_RATE"))
-                .divide(BigDecimal.valueOf(100), 0, RoundingMode.DOWN).longValueExact();
-            if (computed > 0) {
-                budget = computed; cumulative = cost.cumulative_cost_amt();
+        if ("TK".equals(p.cntrct_ty_cd())) {
+            cumulative = cost.cumulative_cost_amt();
+            if (p.trgt_cst_amt() != null && p.trgt_cst_amt() > 0) {
+                budget = p.trgt_cst_amt();
                 use = BigDecimal.valueOf(cumulative).multiply(BigDecimal.valueOf(100))
                     .divide(BigDecimal.valueOf(budget), 1, RoundingMode.HALF_UP);
                 costDifference = rounded(use.subtract(actual));
@@ -57,6 +56,7 @@ public final class ProjectProgressCalculator {
         String light = scheduleRisk || costRisk || p.high_overdue_count() > 0 ? "위험"
             : scheduleWarn || costWarn || p.overdue_issue_count() > 0 || stale ? "주의" : "정상";
         var reasons = new ArrayList<String>();
+        if ("TK".equals(p.cntrct_ty_cd()) && budget == null) reasons.add("목표 원가(예산)가 없거나 0원으로 원가 사용률을 계산할 수 없습니다.");
         if (scheduleRisk || scheduleWarn) reasons.add("일정이 계획보다 " + difference.abs().toPlainString() + "%p 늦음");
         if (costRisk || costWarn) reasons.add("원가 사용률이 진척률보다 " + costDifference.toPlainString() + "%p 높음" + (costRisk ? " — 원가 초과 위험" : ""));
         if (p.high_overdue_count() > 0) reasons.add("기한 지난 중요(높음) 이슈 " + p.high_overdue_count() + "건");

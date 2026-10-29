@@ -45,7 +45,7 @@ class ProjectProgressApiTest {
     void project(String type,String status,String enabled,LocalDate start,LocalDate memo, String actual) {
         when(mapper.state(1)).thenReturn(new ProjectState(1,type,status,enabled));
         when(mapper.source(any())).thenReturn(new BoardSource(1,"P-2601","시험",null,type,null,"PM 미지정",500000000L,
-            start,memo,actual==null?null:n(actual),0,0,0,0));
+            start,memo,actual==null?null:n(actual),0,0,0,0,400000000L));
     }
     Phase phase(int seq,String weight,LocalDate start,LocalDate end,LocalDate completed) {
         return new Phase(seq,1,seq,"단계"+seq,n(weight),start,end,completed,null);

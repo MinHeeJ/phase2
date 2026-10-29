@@ -56,7 +56,11 @@ import org.yaml.snakeyaml.Yaml;
     com.sicost.billings.BillingController.class, com.sicost.billingsops.BillingController.class,
     com.sicost.receipts.BillingReceiptController.class,
     com.sicost.dispatchattendance.DispatchAttendanceController.class,
-    com.sicost.dispatchattendance2.DispatchAttendanceUploadController.class})
+    com.sicost.dispatchattendance2.DispatchAttendanceUploadController.class,
+    com.sicost.people.PeopleCostController.class, ProjectProfitController.class,
+    com.sicost.parts.PartSettlementController.class,
+    com.sicost.costsops.RenegotiationController.class,
+    com.sicost.common.costs.CostAllocationController.class})
 @Import(CurrentUser.class)
 class OpenApiHandlerContractTest {
     @Autowired RequestMappingHandlerMapping handlers;
@@ -105,6 +109,11 @@ class OpenApiHandlerContractTest {
     @MockBean com.sicost.receipts.BillingReceiptService billingReceipts;
     @MockBean com.sicost.dispatchattendance.DispatchAttendanceService dispatchAttendance;
     @MockBean com.sicost.dispatchattendance2.DispatchAttendanceUploadService dispatchAttendanceUploads;
+    @MockBean com.sicost.people.PeopleCostService peopleCosts;
+    @MockBean ProjectProfitService projectProfits;
+    @MockBean com.sicost.parts.PartSettlementService partSettlements;
+    @MockBean com.sicost.costsops.RenegotiationService renegotiations;
+    @MockBean ProjectCostService projectCosts;
 
     @Test void everyDurableOperationHasOneRegisteredLiteralHandler() throws Exception {
         Map<?,?> contract;

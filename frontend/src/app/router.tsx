@@ -12,7 +12,10 @@ import { UI13M2Upload } from "../pages/dispatchattendance2/UI13M2Upload";
 import { BillingReceiptPanel } from "../pages/receipts/UI13M5";
 import { useAdminWrite } from "../pages/admin/useAdminResource";
 import { ConfirmDialog } from "../shared/Controls";
-import { seoulMonth } from "../pages/shared/PeriodBar";
+import { PeriodBar, seoulMonth } from "../pages/shared/PeriodBar";
+import UI03Screen from "../pages/people/UI03Screen";
+import UI04Screen from "../pages/projects/UI04Screen";
+import UI19Screen from "../pages/parts/UI19Screen";
 import UI27Screen from "../pages/admin/UI27Screen";
 import UI15Screen from "../pages/partners/UI15Screen";
 import SalesPartManagement from "../pages/salespartsops/SalesPartManagement";
@@ -769,6 +772,15 @@ export function AppRouter() {
                 <PartnersScreen {...bindings} />
               ) : id === "UI-02" ? (
                 <DevelopersScreen {...bindings} />
+              ) : id === "UI-03" ? (
+                <UI03Screen {...bindings} />
+              ) : id === "UI-04" ? (
+                <UI04Screen {...bindings} />
+              ) : id === "UI-19" ? (
+                <>
+                  <PeriodBar screenId="UI-19" />
+                  <UI19Screen {...bindings} />
+                </>
               ) : id === "UI-01" ? (
                 <ProjectsScreen {...bindings} />
               ) : id === "UI-05" ? (

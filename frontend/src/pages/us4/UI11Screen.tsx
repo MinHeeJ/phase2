@@ -1,5 +1,5 @@
-import { useCallback, useState, type ReactNode } from "react";
-import { Link } from "react-router-dom";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { Link, useLocation } from "react-router-dom";
 import { Badge, Button, Skeleton } from "../../shared/Controls";
 import { ApiFailure } from "../../shared/api";
 import { ErrorBanner } from "../../shared/ErrorBanner";
@@ -33,6 +33,7 @@ export default function UI11Screen({
   groupName = "프로젝트·투입",
   renderShortages,
 }: PlanComparisonScreenProps) {
+  const location = useLocation();
   const [filters, setFilters] = useState(() => {
     const year = Number(sessionStorage.getItem("UI-11.year"));
     return planComparisonDefaults(
@@ -40,6 +41,21 @@ export default function UI11Screen({
     );
   });
   const [draft, setDraft] = useState(filters);
+  useEffect(() => {
+    if (location.pathname !== "/UI-11") return;
+    const query = new URLSearchParams(location.search);
+    const projectId = query.get("projectId");
+    const year = query.get("year");
+    if (!projectId || !/^[1-9][0-9]{0,18}$/.test(projectId)) return;
+    const apply = (old: typeof filters) => ({
+      ...old,
+      projectId,
+      page: 0,
+      year: year && /^(?!0000)[0-9]{4}$/.test(year) ? Number(year) : old.year,
+    });
+    setFilters(apply);
+    setDraft(apply);
+  }, [location.pathname, location.search]);
   const [tab, setTab] = useState("annual");
   const [downloadError, setDownloadError] = useState<ApiFailure | null>(null);
   const [downloading, setDownloading] = useState(false);
