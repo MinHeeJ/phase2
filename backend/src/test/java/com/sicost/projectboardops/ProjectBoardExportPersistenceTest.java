@@ -65,6 +65,7 @@ class ProjectBoardExportPersistenceTest {
             .setControllerAdvice(new ApiExceptionHandler()).addFilters(new RequestIdFilter()).build();
         sql("INSERT INTO prj.prj(prj_id,prj_no,prj_nm,cntrct_ty_cd,prj_stts_cd,cur_cntrct_amt,prfm_bgn_dt) VALUES(1,'P-2601','원가 대상','TK','RUN',10000000,'2026-10-01'),(2,'P-2602','다른 프로젝트','MO','END',10000000,'2026-10-01')");
         sql("INSERT INTO mst.dev(dev_id,mng_no,dev_nm,emp_se_cd) VALUES(1,'K-0001','개발자','FT')");
+        sql("UPDATE prj.prj SET trgt_cst_amt=8000000 WHERE prj_id IN (1,2)");
     }
     @AfterEach void removeDatabase() throws Exception {
         if(context!=null) context.close(); if(source==null) return;

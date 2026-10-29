@@ -35,7 +35,7 @@ export function BillingStatus({ row }: { row: BillingRow }) {
 }
 export function BillingLines({ lines }: { lines: BillingDetailLine[] }) {
   return (
-    <div className={tables.tableScroll}>
+    <div className={tables.tableScroll} data-testid="billing-lines-root">
       <table className={tables.table}>
         <thead>
           <tr>
@@ -163,14 +163,21 @@ export function UI13DetailPanel({
                   ],
                   ["미수금", row.receivable_amt.toLocaleString("ko-KR")],
                 ].map(([label, value]) => (
-                  <div key={label}>
+                  <div
+                    key={label}
+                    data-testid={`billing-detail-field-${["귀속월", "청구일", "공급가액", "부가세", "합계", "세금계산서 번호", "작성일", "입금 예정일", "누적 입금", "조정 청구 총액", "미수금"].indexOf(label as string)}`}
+                  >
                     <dt>{label}</dt>
                     <dd>{value ?? "–"}</dd>
                   </div>
                 ))}
               </dl>
               {d.warnings.map((w, i) => (
-                <p className={styles.warning} key={i}>
+                <p
+                  className={styles.warning}
+                  key={i}
+                  data-testid={`billing-detail-warning-${i}`}
+                >
                   {w}
                 </p>
               ))}

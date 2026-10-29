@@ -1,4 +1,42 @@
 export { api, readData, ApiFailure, retryRecovery } from "../shared/api";
+export { listCostPeople, getCostPersonBreakdown } from "../pages/people/client";
+export type {
+  PeopleFilters,
+  PeopleRow,
+  PeopleData,
+  PersonEvidence,
+  PersonBreakdown,
+} from "../pages/people/client";
+export {
+  listCostProjects,
+  getCostProject,
+  getCostProjectCauses,
+} from "../pages/projects/profitClient";
+export type {
+  CostProjectFilters,
+  CostProjectPage,
+  CostProjectRow,
+  CostProjectDetail,
+  CostProjectCauses,
+} from "../pages/projects/profitClient";
+export { listPartSettlements, getPartSettlement } from "../pages/parts/client";
+export type {
+  SettlementSummary,
+  SettlementDetail,
+  SettlementMonth,
+  SettlementPerson,
+  SettlementPart,
+} from "../pages/parts/client";
+export {
+  listCostRenegotiations,
+  getCostAllocation,
+} from "../pages/costsops/client";
+export type {
+  RenegotiationFilters,
+  RenegotiationRow,
+  RenegotiationData,
+  AllocationData,
+} from "../pages/costsops/client";
 export { listWithdrawals, exportWithdrawals } from "../pages/us1/client";
 export type {
   WithdrawalFilters,

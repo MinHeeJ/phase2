@@ -172,11 +172,13 @@ afterEach(() => {
 });
 const progress = (p = project, phase = vi.fn()) =>
   render(
-    <ProjectProgressPanel
-      project={p}
-      onChanged={changed}
-      onPhaseAction={phase}
-    />,
+    <MemoryRouter>
+      <ProjectProgressPanel
+        project={p}
+        onChanged={changed}
+        onPhaseAction={phase}
+      />
+    </MemoryRouter>,
   );
 
 describe("SCR-UI-01 progress", () => {
@@ -199,7 +201,10 @@ describe("SCR-UI-01 progress", () => {
     expect(screen.getByRole("tooltip")).toHaveTextContent(
       "예산 400,000,000원 · 누적 원가 230,000,000원",
     );
-    expect(screen.queryByText("원가 분석")).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "원가 분석" })).toHaveAttribute(
+      "href",
+      "/UI-04?open=8",
+    );
   });
   it.each(["정상", "주의"] as const)(
     "distinct light class %s",

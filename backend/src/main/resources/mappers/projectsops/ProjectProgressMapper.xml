@@ -23,7 +23,7 @@
   </select>
   <select id="source" resultMap="com.sicost.apiops.ProjectBoardMapper.source">
     SELECT p.prj_id,p.prj_no,p.prj_nm,c.ptnr_nm AS "custName",p.cntrct_ty_cd,p.bsn_part_id,
-      coalesce(d.dev_nm,'PM 미지정') AS "pmName",p.cur_cntrct_amt,p.prfm_bgn_dt,
+      coalesce(d.dev_nm,'PM 미지정') AS "pmName",p.cur_cntrct_amt,p.prfm_bgn_dt,p.trgt_cst_amt,
       m.wrt_dt AS last_memo_dt,m.actl_prgs_rt,
       (SELECT count(*) FROM prj.issue i WHERE i.prj_id=p.prj_id AND i.issue_stts_cd IN ('OPEN','DOING')) AS open_issue_count,
       (SELECT count(*) FROM prj.issue i WHERE i.prj_id=p.prj_id AND i.issue_stts_cd IN ('OPEN','DOING') AND i.svrt_cd='HIGH') AS high_open_issue_count,

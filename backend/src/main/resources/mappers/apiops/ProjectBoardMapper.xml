@@ -26,6 +26,7 @@
     <arg column="high_open_issue_count" javaType="_int"/>
     <arg column="overdue_issue_count" javaType="_int"/>
     <arg column="high_overdue_count" javaType="_int"/>
+    <arg column="trgt_cst_amt" javaType="java.lang.Long"/>
   </constructor></resultMap>
   <resultMap id="phase" type="com.sicost.apiops.ProjectBoardModels$Phase"><constructor>
     <arg column="phs_id" javaType="_long"/>
@@ -47,12 +48,13 @@
     SELECT DISTINCT ON (oprt_std_id) oprt_std_id,aply_bgn_ym,oprt_std_nm,num_val,txt_val,unit_nm,use_plc_desc
     FROM cmn.oprt_std WHERE aply_bgn_ym &lt;= #{month}
       AND oprt_std_id IN ('SIG_DELAY_WARN','SIG_DELAY_RISK','SIG_COST_WARN','SIG_COST_RISK','SIG_STALE_DAYS','BUDGET_RATE',
-        'DISPATCH_MAX_MONTHS','DISPATCH_ALERT_DAYS','PLAN_GAP_TOLERANCE')
+        'DISPATCH_MAX_MONTHS','DISPATCH_ALERT_DAYS','PLAN_GAP_TOLERANCE',
+        'RENEGO_COST_RATIO','TARGET_MARGIN_RATE','RENEGO_RAISE_RATE')
     ORDER BY oprt_std_id,aply_bgn_ym DESC
   </select>
   <select id="projects" resultMap="source">
     SELECT p.prj_id,p.prj_no,p.prj_nm,c.ptnr_nm AS "custName",p.cntrct_ty_cd,p.bsn_part_id,
-      coalesce(d.dev_nm,'PM 미지정') AS "pmName",p.cur_cntrct_amt,p.prfm_bgn_dt,
+      coalesce(d.dev_nm,'PM 미지정') AS "pmName",p.cur_cntrct_amt,p.prfm_bgn_dt,p.trgt_cst_amt,
       m.wrt_dt AS last_memo_dt,m.actl_prgs_rt,
       (SELECT count(*) FROM prj.issue i WHERE i.prj_id=p.prj_id AND i.issue_stts_cd IN ('OPEN','DOING')) AS open_issue_count,
       (SELECT count(*) FROM prj.issue i WHERE i.prj_id=p.prj_id AND i.issue_stts_cd IN ('OPEN','DOING') AND i.svrt_cd='HIGH') AS high_open_issue_count,
@@ -70,33 +72,85 @@
     SELECT phs_id,prj_id,phs_seq,phs_nm,wght_rt,plan_bgn_dt,plan_end_dt,cmpl_dt,NULL::text AS status
     FROM prj.phs WHERE prj_id=#{id} ORDER BY phs_seq,phs_id
   </select>
-  <select id="costs" resultMap="costMonth">
-    WITH project_mm AS (
-      SELECT a.dev_id,m.work_ym,sum(m.mm_qty) AS mm
-      FROM asgn.asgn a JOIN asgn.asgn_mth m ON m.asgn_id=a.asgn_id
-      WHERE a.prj_id=#{id} AND a.asgn_stts_cd!='CANCELLED' AND m.work_ym &lt;= #{month}
-      GROUP BY a.dev_id,m.work_ym
-    ), person_mm AS (
-      SELECT a.dev_id,m.work_ym,sum(m.mm_qty) AS mm
-      FROM asgn.asgn a JOIN asgn.asgn_mth m ON m.asgn_id=a.asgn_id
-      WHERE a.asgn_stts_cd!='CANCELLED' AND m.work_ym &lt;= #{month}
-      GROUP BY a.dev_id,m.work_ym
-    ), labor AS (
-      SELECT p.work_ym AS month,sum(floor(coalesce(s.indv_lbr_cst_amt,0)::numeric*p.mm/greatest(t.mm,1.00))) AS amount,
-        bool_or(s.mth_cst_id IS NULL AND p.mm&gt;0) AS missing_salary
-      FROM project_mm p JOIN person_mm t ON t.dev_id=p.dev_id AND t.work_ym=p.work_ym
-      LEFT JOIN cst.mth_cst s ON s.dev_id=p.dev_id AND s.cst_ym=p.work_ym GROUP BY p.work_ym
-    ), expenses AS (
-      SELECT expns_ym AS month,sum(expns_amt)::numeric AS amount FROM cst.drct_expns
-      WHERE prj_id=#{id} AND expns_ym &lt;= #{month} GROUP BY expns_ym
-    ), closed AS (
-      SELECT a.cst_ym AS month,sum(a.lbr_cst_amt::numeric+a.drct_expns_amt) AS amount
-      FROM cst.cst_aloc a JOIN fin.mth_cls f ON f.cls_ym=a.cst_ym AND f.cls_stts_cd='CLOSED'
-      WHERE a.prj_id=#{id} AND a.cst_ym &lt;= #{month} GROUP BY a.cst_ym
-    ), months AS (SELECT month FROM labor UNION SELECT month FROM expenses UNION SELECT month FROM closed)
-    SELECT m.month,CASE WHEN c.month IS NOT NULL THEN c.amount ELSE coalesce(l.amount,0)+coalesce(e.amount,0) END AS amount,
-      CASE WHEN c.month IS NOT NULL THEN false ELSE coalesce(l.missing_salary,false) END AS missing_salary
-    FROM months m LEFT JOIN labor l ON l.month=m.month LEFT JOIN expenses e ON e.month=m.month
-    LEFT JOIN closed c ON c.month=m.month ORDER BY m.month
+  <resultMap id="allocationSalary" type="com.sicost.common.costs.CostAllocationModels$Salary"><constructor>
+    <arg column="dev_id" javaType="_long"/><arg column="emp_se_cd" javaType="string"/>
+    <arg column="duty_se_cd" javaType="string"/><arg column="indv_lbr_cst_amt" javaType="java.lang.Long"/>
+  </constructor></resultMap>
+  <resultMap id="allocationAssignment" type="com.sicost.common.costs.CostAllocationModels$Assignment"><constructor>
+    <arg column="asgn_id" javaType="_long"/><arg column="dev_id" javaType="_long"/>
+    <arg column="prj_id" javaType="_long"/><arg column="mm_qty" javaType="java.math.BigDecimal"/>
+    <arg column="cntrct_ty_cd" javaType="string"/><arg column="prj_stts_cd" javaType="string"/>
+    <arg column="asgn_se_cd" javaType="string"/><arg column="bill_untprc_amt" javaType="java.lang.Long"/>
+  </constructor></resultMap>
+  <resultMap id="allocationExpense" type="com.sicost.common.costs.CostAllocationModels$Expense"><constructor>
+    <arg column="expns_id" javaType="_long"/><arg column="dev_id" javaType="java.lang.Long"/>
+    <arg column="prj_id" javaType="java.lang.Long"/><arg column="expns_amt" javaType="_long"/>
+    <arg column="cntrct_ty_cd" javaType="string"/>
+  </constructor></resultMap>
+  <resultMap id="allocationTurnkey" type="com.sicost.common.costs.CostAllocationModels$Turnkey"><constructor>
+    <arg column="prj_id" javaType="_long"/><arg column="dev_id" javaType="_long"/>
+    <arg column="sls_amt" javaType="_long"/>
+  </constructor></resultMap>
+  <resultMap id="allocationSnapshot" type="com.sicost.common.costs.CostAllocationModels$Allocation"><constructor>
+    <arg column="dev_id" javaType="java.lang.Long"/><arg column="prj_id" javaType="java.lang.Long"/>
+    <arg column="asgn_id" javaType="java.lang.Long"/><arg column="aloc_ty_cd" javaType="string"/>
+    <arg column="mm_qty" javaType="java.math.BigDecimal"/><arg column="tot_mm_qty" javaType="java.math.BigDecimal"/>
+    <arg column="aloc_rt" javaType="java.math.BigDecimal"/><arg column="lbr_cst_amt" javaType="_long"/>
+    <arg column="drct_expns_amt" javaType="_long"/><arg column="sls_amt" javaType="java.lang.Long"/>
+    <arg column="bill_untprc_amt" javaType="java.lang.Long"/><arg column="mm_ovr" javaType="_boolean"/>
+    <arg column="free_sprt" javaType="_boolean"/><arg column="pre_cntrct" javaType="_boolean"/>
+  </constructor></resultMap>
+  <select id="allocationProject" resultType="long">SELECT p.prj_id FROM prj.prj p WHERE p.prj_id=#{id}</select>
+  <select id="allocationMonthStatus" resultType="string">SELECT f.cls_stts_cd FROM fin.mth_cls f WHERE f.cls_ym=#{month}</select>
+  <select id="allocationMonths" resultType="string">
+    SELECT x.month FROM (
+      SELECT m.work_ym AS month FROM asgn.asgn a JOIN asgn.asgn_mth m ON m.asgn_id=a.asgn_id
+        WHERE a.prj_id=#{id} AND a.asgn_stts_cd!='CANCELLED'
+      UNION SELECT e.expns_ym FROM cst.drct_expns e WHERE e.prj_id=#{id}
+      UNION SELECT s.cst_ym FROM cst.cst_aloc s WHERE s.prj_id=#{id}
+    ) x WHERE x.month &lt;= #{month} ORDER BY x.month
+  </select>
+  <select id="allocationSalaries" resultMap="allocationSalary">
+    WITH people AS (
+      SELECT s.dev_id FROM cst.mth_cst s WHERE s.cst_ym=#{month}
+      UNION SELECT a.dev_id FROM asgn.asgn a JOIN asgn.asgn_mth m ON m.asgn_id=a.asgn_id
+        WHERE m.work_ym=#{month} AND a.asgn_stts_cd!='CANCELLED'
+      UNION SELECT e.dev_id FROM cst.drct_expns e WHERE e.expns_ym=#{month} AND e.dev_id IS NOT NULL
+    )
+    SELECT d.dev_id,coalesce(s.emp_se_cd,d.emp_se_cd) AS emp_se_cd,
+      coalesce(s.duty_se_cd,d.duty_se_cd) AS duty_se_cd,s.indv_lbr_cst_amt
+    FROM people x JOIN mst.dev d ON d.dev_id=x.dev_id
+    LEFT JOIN cst.mth_cst s ON s.dev_id=d.dev_id AND s.cst_ym=#{month} ORDER BY d.dev_id
+  </select>
+  <select id="allocationAssignments" resultMap="allocationAssignment">
+    SELECT a.asgn_id,a.dev_id,a.prj_id,m.mm_qty,p.cntrct_ty_cd,p.prj_stts_cd,
+      a.asgn_se_cd,u.bill_untprc_amt
+    FROM asgn.asgn a JOIN asgn.asgn_mth m ON m.asgn_id=a.asgn_id
+    JOIN prj.prj p ON p.prj_id=a.prj_id
+    LEFT JOIN LATERAL (SELECT h.bill_untprc_amt FROM asgn.untprc_hist h
+      WHERE h.asgn_id=a.asgn_id AND h.aply_bgn_dt &lt;= (#{month} || '-01')::date + INTERVAL '1 month - 1 day'
+      ORDER BY h.aply_bgn_dt DESC LIMIT 1) u ON true
+    WHERE m.work_ym=#{month} AND a.asgn_stts_cd!='CANCELLED' ORDER BY a.asgn_id
+  </select>
+  <select id="allocationExpenses" resultMap="allocationExpense">
+    SELECT e.expns_id,e.dev_id,e.prj_id,e.expns_amt,p.cntrct_ty_cd
+    FROM cst.drct_expns e LEFT JOIN prj.prj p ON p.prj_id=e.prj_id
+    WHERE e.expns_ym=#{month} ORDER BY e.expns_id
+  </select>
+  <select id="allocationTurnkey" resultMap="allocationTurnkey">
+    WITH ranked AS (
+      SELECT l.prj_id,l.dev_id,m.aloc_amt,
+        dense_rank() OVER (PARTITION BY l.prj_id ORDER BY CASE l.aloc_stg_cd
+          WHEN 'ACTUAL' THEN 1 WHEN 'FINAL' THEN 2 ELSE 3 END) AS priority
+      FROM prj.tk_aloc_line l JOIN prj.tk_aloc_mth m ON m.aloc_line_id=l.aloc_line_id
+      WHERE m.aloc_ym=#{month} AND l.line_ty_cd='PERSON' AND l.dev_id IS NOT NULL
+    ) SELECT r.prj_id,r.dev_id,sum(r.aloc_amt)::bigint AS sls_amt
+      FROM ranked r WHERE r.priority=1 AND r.aloc_amt IS NOT NULL GROUP BY r.prj_id,r.dev_id
+  </select>
+  <select id="allocationSnapshots" resultMap="allocationSnapshot">
+    SELECT s.dev_id,s.prj_id,s.asgn_id,s.aloc_ty_cd,s.mm_qty,s.tot_mm_qty,s.aloc_rt,
+      s.lbr_cst_amt,s.drct_expns_amt,s.sls_amt,s.bill_untprc_amt,
+      s.mm_ovr_yn='Y' AS mm_ovr,s.free_sprt_yn='Y' AS free_sprt,s.pre_cntrct_yn='Y' AS pre_cntrct
+    FROM cst.cst_aloc s WHERE s.cst_ym=#{month} ORDER BY s.cst_aloc_id
   </select>
 </mapper>

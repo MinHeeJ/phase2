@@ -43,7 +43,7 @@ class ProjectBoardApiTest {
     }
     static BoardSource source(long id, String type, String actual, LocalDate memo) {
         return new BoardSource(id, "P-26" + id, "프로젝트 " + id, null, type, id % 2 + 1, "PM 미지정", 500000000L,
-            null, memo, actual == null ? null : n(actual), 2, 1, 0, 0);
+            null, memo, actual == null ? null : n(actual), 2, 1, 0, 0,400000000L);
     }
     static Phase phase(long id, String weight, LocalDate start, LocalDate end, LocalDate complete) {
         return new Phase(id, 1, (int) id, "단계 " + id, n(weight), start, end, complete, null);
@@ -151,7 +151,7 @@ class ProjectBoardApiTest {
             .andExpect(jsonPath("$.data.items[0].light").value("정상"));
         var p = source(1, "TK", "0", null);
         when(mapper.projects(any())).thenReturn(List.of(new BoardSource(p.prj_id(), p.prj_no(), p.prj_nm(), null, "TK", 1L,
-            p.pmName(), p.cur_cntrct_amt(), null, null, p.actl_prgs_rt(), 1, 1, 1, 1)));
+            p.pmName(), p.cur_cntrct_amt(), null, null, p.actl_prgs_rt(), 1, 1, 1, 1,p.trgt_cst_amt())));
         mvc.perform(get("/api/project-board")).andExpect(status().isOk())
             .andExpect(jsonPath("$.data.items[0].light").value("위험"));
     }
@@ -169,11 +169,11 @@ class ProjectBoardApiTest {
             .andExpect(jsonPath("$.data.items[0].budget_amt").isEmpty());
         verify(mapper, never()).costs(any());
     }
-    @Test void zeroBudgetHidesAllCostFields() throws Exception {
-        var rows = new ArrayList<>(params()); rows.set(5, new OperatingParam("BUDGET_RATE", "2026-01", "예산", BigDecimal.ZERO, null, "%", null));
-        when(mapper.params(anyString())).thenReturn(rows);
+    @Test void zeroStoredBudgetHidesRateButPreservesKnownCost() throws Exception {
+        var p=source(1,"TK","42",TODAY);
+        when(mapper.projects(any())).thenReturn(List.of(new BoardSource(p.prj_id(),p.prj_no(),p.prj_nm(),p.custName(),p.cntrct_ty_cd(),p.bsn_part_id(),p.pmName(),p.cur_cntrct_amt(),p.prfm_bgn_dt(),p.last_memo_dt(),p.actl_prgs_rt(),p.open_issue_count(),p.high_open_issue_count(),p.overdue_issue_count(),p.high_overdue_count(),0L)));
         mvc.perform(get("/api/project-board")).andExpect(status().isOk()).andExpect(jsonPath("$.data.items[0].cost_use_rt").isEmpty())
-            .andExpect(jsonPath("$.data.items[0].cumulative_cost_amt").isEmpty());
+            .andExpect(jsonPath("$.data.items[0].cumulative_cost_amt").value(230000000));
     }
     @Test void fixedNoticeDoesNotFollowMutableStaleThreshold() throws Exception {
         var rows = new ArrayList<>(params()); rows.set(4, new OperatingParam("SIG_STALE_DAYS", "2026-01", "업데이트", n("30"), null, "일", null));

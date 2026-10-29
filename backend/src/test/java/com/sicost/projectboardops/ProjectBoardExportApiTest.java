@@ -52,7 +52,7 @@ class ProjectBoardExportApiTest {
     }
     BoardExportSource source(long id,String name,int phases,String plan,String actual,LocalDate memo,LocalDate start,long overdue,long high) {
         return new BoardExportSource(id,name,null,"TK","PM 미지정",null,phases,new BigDecimal(plan),new BigDecimal(actual),memo,start,
-            1000000L,overdue,overdue,high);
+            1000000L,overdue,overdue,high,800000L);
     }
     XSSFWorkbook workbook(Map<String,String> filters) throws Exception {
         var request=get("/api/project-board/export"); filters.forEach(request::param);
@@ -85,7 +85,7 @@ class ProjectBoardExportApiTest {
         when(mapper.sources(any())).thenReturn(List.of(new BoardExportSource(original.prj_id(),original.prj_nm(),
             original.custName(),original.cntrct_ty_cd(),original.pmName(),original.currentPhase(),original.phaseCount(),
             original.plan_prgs_rt(),original.memoProgress(),original.last_memo_dt(),original.prfm_bgn_dt(),
-            1000001L,original.open_issue_count(),original.overdue_issue_count(),original.highOverdueCount())));
+            1000001L,original.open_issue_count(),original.overdue_issue_count(),original.highOverdueCount(),800000L)));
         try (var book=workbook(Map.of())) {
             var row=book.getSheetAt(0).getRow(4);
             assertThat(row.getCell(7).getNumericCellValue()).isEqualTo(42.6);
@@ -135,10 +135,10 @@ class ProjectBoardExportApiTest {
         mvc.perform(get("/api/project-board/export")).andExpect(status().isBadRequest()).andExpect(jsonPath("$.field").value("month"));
         verify(mapper,never()).access(any());
     }
-    @Test void numericTextParameterUsesExistingValue() throws Exception {
+    @Test void legacyBudgetParameterDoesNotOverrideStoredBudget() throws Exception {
         var values=new ArrayList<>(params()); values.set(0,new BoardExportParam("BUDGET_RATE",null,"75"));
         when(mapper.parameters(anyString())).thenReturn(values);
-        try (var book=workbook(Map.of())) { assertThat(book.getSheetAt(0).getRow(4).getCell(13).getNumericCellValue()).isEqualTo(750000); }
+        try (var book=workbook(Map.of())) { assertThat(book.getSheetAt(0).getRow(4).getCell(13).getNumericCellValue()).isEqualTo(800000); }
     }
     @Test void noPhasesExcludesScheduleAndCostLightButKeepsCostCells() throws Exception {
         when(costs.calculate(anyLong(),any())).thenReturn(new ProjectCostService.ProjectCost(999999,List.of()));

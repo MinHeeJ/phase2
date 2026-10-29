@@ -71,12 +71,10 @@ public class ProjectBoardExportService {
         BigDecimal schedule=actual.subtract(plan);
         BigDecimal budget=null,costRate=null,costDifference=null;
         Long amount=null;
-        if ("TK".equals(source.cntrct_ty_cd()) && source.cur_cntrct_amt()!=null) {
-            BigDecimal candidate=BigDecimal.valueOf(source.cur_cntrct_amt()).multiply(params.get("BUDGET_RATE"))
-                .movePointLeft(2).setScale(0,RoundingMode.DOWN);
-            if (candidate.signum()>0) {
-                budget=candidate;
-                amount=costs.calculate(source.prj_id(),YearMonth.from(query.today())).cumulativeCostAmount();
+        if ("TK".equals(source.cntrct_ty_cd())) {
+            amount=costs.calculate(source.prj_id(),YearMonth.from(query.today())).cumulativeCostAmount();
+            if (source.trgt_cst_amt()!=null && source.trgt_cst_amt()>0) {
+                budget=BigDecimal.valueOf(source.trgt_cst_amt());
                 costRate=BigDecimal.valueOf(amount).multiply(BigDecimal.valueOf(100)).divide(budget,1,RoundingMode.HALF_UP);
                 costDifference=costRate.subtract(actual);
             }

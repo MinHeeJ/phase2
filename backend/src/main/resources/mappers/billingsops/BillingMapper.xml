@@ -66,6 +66,19 @@
   <resultMap id="cash" type="com.sicost.billingsops.BillingModels$Cash"><constructor>
     <arg column="rcpt_dt" javaType="java.time.LocalDate"/><arg column="rcpt_amt" javaType="_long"/>
   </constructor></resultMap>
+  <resultMap id="projectRevenue" type="com.sicost.billingsops.BillingModels$ProjectRevenue"><constructor>
+    <arg column="prj_id" javaType="_long"/><arg column="month" javaType="string"/>
+    <arg column="confirmed_supply_amt" javaType="_long"/>
+  </constructor></resultMap>
+  <select id="projectRevenue" resultMap="projectRevenue">
+    SELECT b.prj_id,<include refid="projectRevenueMonth"/> AS month,sum(b.sply_amt)::bigint AS confirmed_supply_amt
+    FROM bill.bill b JOIN prj.prj p ON p.prj_id=b.prj_id
+    LEFT JOIN prj.bill_stg s ON s.bill_stg_id=b.bill_stg_id
+    WHERE b.bill_stts_cd='CONFIRM' AND b.prj_id=#{projectId}
+      AND <include refid="projectRevenueMonth"/> &gt;= #{from} AND <include refid="projectRevenueMonth"/> &lt;= #{through}
+    GROUP BY b.prj_id,<include refid="projectRevenueMonth"/> ORDER BY month
+  </select>
+  <sql id="projectRevenueMonth">CASE WHEN p.cntrct_ty_cd='TK' THEN to_char(b.bill_dt,'YYYY-MM') ELSE b.atrb_ym END</sql>
   <sql id="projectColumns">p.prj_id AS project_id,p.prj_nm AS project_name,p.cntrct_ty_cd AS contract_type,
     p.stlm_mthd_cd AS basis,p.use_yn</sql>
   <select id="project" resultMap="project">SELECT <include refid="projectColumns"/> FROM prj.prj p WHERE p.prj_id=#{id}</select>

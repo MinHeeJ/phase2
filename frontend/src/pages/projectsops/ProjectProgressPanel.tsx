@@ -1,4 +1,5 @@
 import { useCallback } from "react";
+import { Link } from "react-router-dom";
 import { Badge, Button, LockedBanner, Skeleton } from "../../shared/Controls";
 import { Can } from "../../shared/Can";
 import { ErrorBanner } from "../../shared/ErrorBanner";
@@ -90,6 +91,12 @@ export function ProjectProgressPanel({
       aria-label="진행 현황"
     >
       <h3>진행 현황</h3>
+      <Link
+        data-testid="project-progress-cost-analysis"
+        to={`/UI-04?open=${project.prj_id}`}
+      >
+        원가 분석
+      </Link>
       <ErrorBanner
         error={state.error}
         onRetry={() => void state.reload().catch(() => {})}

@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sicost.people.PeopleCostMapper">
+  <resultMap id="personMonth" type="com.sicost.people.PeopleCostModels$PersonMonth"><constructor>
+    <arg column="dev_id" javaType="_long"/><arg column="month" javaType="string"/>
+    <arg column="dev_nm" javaType="string"/><arg column="affiliation" javaType="string"/>
+    <arg column="emp_se_cd" javaType="string"/><arg column="duty_se_cd" javaType="string"/>
+    <arg column="bsn_part_id" javaType="java.lang.Long"/><arg column="vendor_id" javaType="java.lang.Long"/>
+    <arg column="job" javaType="string"/><arg column="grade" javaType="string"/><arg column="position" javaType="string"/>
+    <arg column="on_leave" javaType="_boolean"/><arg column="salary" javaType="java.lang.Long"/>
+    <arg column="allowance" javaType="java.lang.Long"/><arg column="insurance" javaType="java.lang.Long"/>
+    <arg column="retirement" javaType="java.lang.Long"/><arg column="employee_insurance" javaType="java.lang.Long"/>
+    <arg column="withholding" javaType="java.lang.Long"/><arg column="real_pay" javaType="java.lang.Long"/>
+  </constructor></resultMap>
+  <resultMap id="assignmentInfo" type="com.sicost.people.PeopleCostModels$AssignmentInfo"><constructor>
+    <arg column="asgn_id" javaType="_long"/><arg column="prj_id" javaType="_long"/>
+    <arg column="project" javaType="string"/><arg column="contract_type" javaType="string"/><arg column="job" javaType="string"/>
+    <arg column="start" javaType="java.time.LocalDate"/><arg column="end" javaType="java.time.LocalDate"/>
+  </constructor></resultMap>
+  <select id="person" resultType="long">SELECT dev_id FROM mst.dev WHERE dev_id=#{id}</select>
+  <select id="population" resultMap="personMonth">
+    WITH months AS (SELECT to_char(x,'YYYY-MM') AS month,x::date AS first_day,
+      (x + interval '1 month - 1 day')::date AS last_day
+      FROM generate_series((#{from}||'-01')::date,(#{through}||'-01')::date,interval '1 month') x)
+    SELECT d.dev_id,m.month,d.dev_nm,coalesce(v.ptnr_nm,'자사') AS affiliation,
+      coalesce(s.emp_se_cd,d.emp_se_cd) AS emp_se_cd,coalesce(s.duty_se_cd,d.duty_se_cd) AS duty_se_cd,
+      coalesce(s.bsn_part_id,d.bsn_part_id) AS bsn_part_id,d.vndr_ptnr_id AS vendor_id,
+      d.main_job_cd AS job,d.grd_cd AS grade,d.pstn_cd AS position,
+      EXISTS(SELECT 1 FROM mst.dev_work_stts_hist h WHERE h.dev_id=d.dev_id
+        AND h.work_stts_cd IN ('PARENTAL','UNPAID','LEAVE') AND h.bgn_dt &lt;= m.last_day
+        AND (h.end_dt IS NULL OR h.end_dt &gt;= m.first_day)) AS on_leave,
+      s.slry_amt AS salary,s.alwnc_amt AS allowance,s.sins_cmpny_amt AS insurance,
+      s.rtrpay_acml_amt AS retirement,s.sins_emp_amt AS employee_insurance,
+      s.whtax_amt AS withholding,s.real_pay_amt AS real_pay
+    FROM mst.dev d CROSS JOIN months m
+    LEFT JOIN mst.ptnr v ON v.ptnr_id=d.vndr_ptnr_id
+    LEFT JOIN cst.mth_cst s ON s.dev_id=d.dev_id AND s.cst_ym=m.month
+    WHERE (d.hire_dt IS NULL OR d.hire_dt &lt;= m.last_day)
+      AND (d.rsgn_dt IS NULL OR d.rsgn_dt &gt;= m.first_day)
+      AND (d.use_yn='Y' OR s.dev_id IS NOT NULL OR EXISTS(
+        SELECT 1 FROM cst.cst_aloc c WHERE c.dev_id=d.dev_id AND c.cst_ym=m.month))
+    ORDER BY d.dev_id,m.month
+  </select>
+  <select id="assignments" resultMap="assignmentInfo">
+    SELECT a.asgn_id,a.prj_id,p.prj_nm AS project,p.cntrct_ty_cd AS contract_type,
+      a.job_cd AS job,a.bgn_dt AS start,a.end_dt AS end
+    FROM asgn.asgn a JOIN prj.prj p ON p.prj_id=a.prj_id
+    WHERE a.bgn_dt &lt;= (#{through}||'-01')::date + interval '1 month - 1 day'
+      AND a.end_dt &gt;= (#{from}||'-01')::date ORDER BY a.asgn_id
+  </select>
+  <insert id="access">
+    INSERT INTO sys.acs_hist(user_id,acs_ty_cd,scrn_id,obj_desc,dtl_desc)
+    VALUES(#{actor,jdbcType=BIGINT},'DOWNLOAD','UI-03',#{filename},#{detail})
+  </insert>
+</mapper>

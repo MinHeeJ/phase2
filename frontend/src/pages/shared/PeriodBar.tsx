@@ -5,28 +5,17 @@ import { ApiFailure } from "../../shared/api";
 import { getMonthClose, monthStatus, type MonthClose } from "./api";
 import { periodType } from "./registry";
 import styles from "./SharedScreens.module.css";
+import { useScreenPeriod } from "./useScreenPeriod";
+export { seoulMonth } from "./useScreenPeriod";
 
-const remembered = new Map<string, string>();
-export function seoulMonth(now = new Date()): string {
-  const parts = new Intl.DateTimeFormat("en", {
-    timeZone: "Asia/Seoul",
-    year: "numeric",
-    month: "2-digit",
-  }).formatToParts(now);
-  return `${parts.find((part) => part.type === "year")!.value}-${parts.find((part) => part.type === "month")!.value}`;
-}
 export function PeriodBar({ screenId }: { screenId: string }) {
   const type = periodType(screenId);
-  const [period, setPeriod] = useState(
-    () => remembered.get(screenId) ?? seoulMonth(),
-  );
+  const [period, setPeriod] = useScreenPeriod(screenId);
   const [rows, setRows] = useState<MonthClose[]>([]);
   const [error, setError] = useState<ApiFailure | null>(null);
   const [loading, setLoading] = useState(false);
   const [revision, setRevision] = useState(0);
-  useEffect(() => {
-    setPeriod(remembered.get(screenId) ?? seoulMonth());
-  }, [screenId]);
+
   useEffect(() => {
     if (type !== "MONTH") return;
     const controller = new AbortController();
@@ -47,7 +36,6 @@ export function PeriodBar({ screenId }: { screenId: string }) {
   }, [type, period, revision]);
   if (type === "NONE") return null;
   const update = (value: string) => {
-    remembered.set(screenId, value);
     setPeriod(value);
   };
   const year = Number(period.slice(0, 4));
