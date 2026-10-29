@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sicost.common.costallocation.CostAllocationMapper">
+  <resultMap id="person" type="com.sicost.common.costallocation.CostAllocationModels$Person"><constructor>
+    <arg column="dev_id" javaType="_long"/><arg column="emp_se_cd" javaType="string"/>
+    <arg column="duty_se_cd" javaType="string"/><arg column="indv_lbr_cst_amt" javaType="java.lang.Long"/>
+  </constructor></resultMap>
+  <resultMap id="assignment" type="com.sicost.common.costallocation.CostAllocationModels$Assignment"><constructor>
+    <arg column="asgn_id" javaType="_long"/><arg column="dev_id" javaType="_long"/>
+    <arg column="prj_id" javaType="_long"/><arg column="mm_qty" javaType="java.math.BigDecimal"/>
+    <arg column="asgn_stts_cd" javaType="string"/><arg column="cntrct_ty_cd" javaType="string"/>
+    <arg column="prj_stts_cd" javaType="string"/><arg column="asgn_se_cd" javaType="string"/>
+    <arg column="bill_untprc_amt" javaType="java.lang.Long"/><arg column="tk_sls_amt" javaType="java.lang.Long"/>
+  </constructor></resultMap>
+  <resultMap id="expense" type="com.sicost.common.costallocation.CostAllocationModels$Expense"><constructor>
+    <arg column="expns_id" javaType="_long"/><arg column="dev_id" javaType="java.lang.Long"/>
+    <arg column="prj_id" javaType="java.lang.Long"/><arg column="cntrct_ty_cd" javaType="string"/>
+    <arg column="prj_stts_cd" javaType="string"/><arg column="expns_amt" javaType="_long"/>
+  </constructor></resultMap>
+  <resultMap id="allocation" type="com.sicost.common.costallocation.CostAllocationModels$Allocation"><constructor>
+    <arg column="cst_ym" javaType="string"/><arg column="dev_id" javaType="_long"/>
+    <arg column="prj_id" javaType="java.lang.Long"/><arg column="asgn_id" javaType="java.lang.Long"/>
+    <arg column="aloc_ty_cd" javaType="string"/><arg column="mm_qty" javaType="java.math.BigDecimal"/>
+    <arg column="tot_mm_qty" javaType="java.math.BigDecimal"/><arg column="aloc_rt" javaType="java.math.BigDecimal"/>
+    <arg column="lbr_cst_amt" javaType="java.lang.Long"/><arg column="drct_expns_amt" javaType="_long"/>
+    <arg column="sls_amt" javaType="java.lang.Long"/><arg column="bill_untprc_amt" javaType="java.lang.Long"/>
+    <arg column="mm_ovr_yn" javaType="string"/><arg column="free_sprt_yn" javaType="string"/>
+    <arg column="pre_cntrct_yn" javaType="string"/>
+  </constructor></resultMap>
+  <select id="monthStatus" resultType="string">SELECT cls_stts_cd FROM fin.mth_cls WHERE cls_ym=#{month}</select>
+  <select id="project" resultType="long">SELECT prj_id FROM prj.prj WHERE prj_id=#{id}</select>
+  <sql id="activeMonth">
+    a.asgn_stts_cd!='CANCELLED' AND a.bgn_dt &lt; to_date(#{month},'YYYY-MM')+interval '1 month'
+    AND a.end_dt &gt;= to_date(#{month},'YYYY-MM')
+  </sql>
+  <select id="people" resultMap="person">
+    WITH relevant AS (
+      SELECT dev_id FROM cst.mth_cst WHERE cst_ym=#{month}
+      UNION SELECT a.dev_id FROM asgn.asgn a WHERE <include refid="activeMonth"/>
+      UNION SELECT dev_id FROM cst.drct_expns WHERE expns_ym=#{month} AND dev_id IS NOT NULL
+    )
+    SELECT d.dev_id,coalesce(s.emp_se_cd,d.emp_se_cd) AS emp_se_cd,
+      coalesce(s.duty_se_cd,d.duty_se_cd) AS duty_se_cd,s.indv_lbr_cst_amt
+    FROM relevant r JOIN mst.dev d ON d.dev_id=r.dev_id
+    LEFT JOIN cst.mth_cst s ON s.dev_id=d.dev_id AND s.cst_ym=#{month} ORDER BY d.dev_id
+  </select>
+  <select id="assignments" resultMap="assignment">
+    SELECT a.asgn_id,a.dev_id,a.prj_id,m.mm_qty,a.asgn_stts_cd,p.cntrct_ty_cd,p.prj_stts_cd,
+      a.asgn_se_cd,u.bill_untprc_amt,tk.tk_sls_amt
+    FROM asgn.asgn a JOIN prj.prj p ON p.prj_id=a.prj_id
+    LEFT JOIN asgn.asgn_mth m ON m.asgn_id=a.asgn_id AND m.work_ym=#{month}
+    LEFT JOIN LATERAL (SELECT h.bill_untprc_amt FROM asgn.untprc_hist h
+      WHERE h.asgn_id=a.asgn_id AND h.aply_bgn_dt &lt;= greatest(to_date(#{month},'YYYY-MM'),a.bgn_dt)
+      ORDER BY h.aply_bgn_dt DESC LIMIT 1) u ON true
+    LEFT JOIN LATERAL (
+      SELECT sum(t.aloc_amt)::bigint AS tk_sls_amt
+      FROM prj.tk_aloc_line l JOIN prj.tk_aloc_mth t ON t.aloc_line_id=l.aloc_line_id AND t.aloc_ym=#{month}
+      WHERE l.prj_id=a.prj_id AND l.dev_id=a.dev_id AND l.line_ty_cd='PERSON'
+      AND l.aloc_stg_cd=(SELECT x.aloc_stg_cd FROM prj.tk_aloc_line x WHERE x.prj_id=a.prj_id
+        ORDER BY CASE x.aloc_stg_cd WHEN 'ACTUAL' THEN 0 WHEN 'FINAL' THEN 1 ELSE 2 END LIMIT 1)
+    ) tk ON true
+    WHERE <include refid="activeMonth"/> ORDER BY a.asgn_id
+  </select>
+  <select id="expenses" resultMap="expense">
+    SELECT e.expns_id,e.dev_id,e.prj_id,p.cntrct_ty_cd,p.prj_stts_cd,e.expns_amt
+    FROM cst.drct_expns e LEFT JOIN prj.prj p ON p.prj_id=e.prj_id
+    WHERE e.expns_ym=#{month} ORDER BY e.expns_id
+  </select>
+  <select id="snapshots" resultMap="allocation">
+    SELECT cst_ym,dev_id,prj_id,asgn_id,aloc_ty_cd,mm_qty,tot_mm_qty,aloc_rt,lbr_cst_amt,
+      drct_expns_amt,sls_amt,bill_untprc_amt,mm_ovr_yn,free_sprt_yn,pre_cntrct_yn
+    FROM cst.cst_aloc WHERE cst_ym=#{month}
+    <if test="projectId != null">AND prj_id=#{projectId}</if>
+    ORDER BY dev_id,asgn_id NULLS LAST,cst_aloc_id
+  </select>
+  <select id="missingSnapshots" resultType="long">
+    WITH expected AS (
+      SELECT a.dev_id,a.prj_id,a.asgn_id FROM asgn.asgn a WHERE <include refid="activeMonth"/>
+      <if test="projectId != null">AND a.prj_id=#{projectId}</if>
+      UNION SELECT s.dev_id,NULL::bigint,NULL::bigint FROM cst.mth_cst s WHERE s.cst_ym=#{month}
+      <if test="projectId != null">AND EXISTS (SELECT 1 FROM asgn.asgn a WHERE a.dev_id=s.dev_id AND a.prj_id=#{projectId} AND <include refid="activeMonth"/>)</if>
+      UNION SELECT e.dev_id,CASE WHEN e.dev_id IS NULL THEN e.prj_id ELSE NULL END,NULL::bigint
+      FROM cst.drct_expns e WHERE e.expns_ym=#{month}
+      <if test="projectId != null">AND (e.prj_id=#{projectId} OR (e.dev_id IS NOT NULL AND EXISTS
+        (SELECT 1 FROM asgn.asgn a WHERE a.dev_id=e.dev_id AND a.prj_id=#{projectId} AND <include refid="activeMonth"/>)))</if>
+    )
+    SELECT count(*) FROM expected e WHERE NOT EXISTS (
+      SELECT 1 FROM cst.cst_aloc c WHERE c.cst_ym=#{month}
+      AND (e.dev_id IS NULL OR c.dev_id=e.dev_id)
+      AND (e.prj_id IS NULL OR c.prj_id=e.prj_id OR c.aloc_ty_cd='INDIRECT')
+
+    )
+  </select>
+  <select id="projectMonths" resultType="string">
+    SELECT month FROM (
+      SELECT m.work_ym AS month FROM asgn.asgn a JOIN asgn.asgn_mth m ON m.asgn_id=a.asgn_id
+        WHERE a.prj_id=#{projectId} AND a.asgn_stts_cd!='CANCELLED'
+      UNION SELECT s.cst_ym FROM cst.mth_cst s WHERE EXISTS (SELECT 1 FROM asgn.asgn a
+        WHERE a.prj_id=#{projectId} AND a.dev_id=s.dev_id AND a.asgn_stts_cd!='CANCELLED'
+        AND a.bgn_dt &lt; to_date(s.cst_ym,'YYYY-MM')+interval '1 month' AND a.end_dt &gt;=to_date(s.cst_ym,'YYYY-MM'))
+      UNION SELECT e.expns_ym FROM cst.drct_expns e WHERE e.prj_id=#{projectId}
+        OR EXISTS (SELECT 1 FROM asgn.asgn a WHERE a.prj_id=#{projectId} AND a.dev_id=e.dev_id
+          AND a.asgn_stts_cd!='CANCELLED' AND a.bgn_dt &lt; to_date(e.expns_ym,'YYYY-MM')+interval '1 month'
+          AND a.end_dt &gt;=to_date(e.expns_ym,'YYYY-MM'))
+      UNION SELECT cst_ym FROM cst.cst_aloc WHERE prj_id=#{projectId}
+    ) months WHERE month &lt;= #{month} ORDER BY month
+  </select>
+</mapper>

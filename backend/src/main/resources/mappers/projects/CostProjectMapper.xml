@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sicost.projects.CostProjectMapper">
+  <resultMap id="source" type="com.sicost.projects.CostProjectModels$Source"><constructor>
+    <arg column="prj_id" javaType="_long"/><arg column="prj_no" javaType="string"/>
+    <arg column="prj_nm" javaType="string"/><arg column="cntrct_ty_cd" javaType="string"/>
+    <arg column="prj_stts_cd" javaType="string"/><arg column="bsn_part_id" javaType="java.lang.Long"/>
+    <arg column="part_name" javaType="string"/><arg column="owner" javaType="string"/>
+    <arg column="init_cntrct_amt" javaType="java.lang.Long"/><arg column="cur_cntrct_amt" javaType="java.lang.Long"/>
+    <arg column="trgt_cst_amt" javaType="java.lang.Long"/><arg column="trgt_mrgn_rt" javaType="java.math.BigDecimal"/>
+    <arg column="plan_mm_qty" javaType="java.math.BigDecimal"/><arg column="remaining_mm_qty" javaType="java.math.BigDecimal"/>
+    <arg column="remaining_cost_amt" javaType="java.math.BigDecimal"/><arg column="actl_prgs_rt" javaType="java.math.BigDecimal"/>
+    <arg column="headcount" javaType="_long"/>
+  </constructor></resultMap>
+  <resultMap id="person" type="com.sicost.projects.CostProjectModels$PersonName"><constructor>
+    <arg column="dev_id" javaType="_long"/><arg column="dev_nm" javaType="string"/>
+  </constructor></resultMap>
+  <sql id="sourceColumns">
+    p.prj_id,p.prj_no,p.prj_nm,p.cntrct_ty_cd,p.prj_stts_cd,p.bsn_part_id,b.bsn_part_nm AS part_name,
+    coalesce(d.dev_nm,'PM 미지정') AS owner,p.init_cntrct_amt,p.cur_cntrct_amt,p.trgt_cst_amt,p.trgt_mrgn_rt,
+    (SELECT sum(s.need_mm_qty) FROM prj.psn_plan s WHERE s.prj_id=p.prj_id
+      AND s.plan_ym BETWEEN #{from} AND #{month}) AS plan_mm_qty,
+    CASE WHEN tk_remaining.row_count&gt;0 THEN tk_remaining.mm ELSE
+      (SELECT sum(s.need_mm_qty) FROM prj.psn_plan s WHERE s.prj_id=p.prj_id AND s.plan_ym &gt; #{month}) END AS remaining_mm_qty,
+    CASE WHEN tk_remaining.row_count&gt;0 THEN tk_remaining.amount ELSE
+      (SELECT CASE WHEN bool_or(s.expc_mth_cst_amt IS NULL) THEN NULL
+      ELSE sum(s.need_mm_qty*s.expc_mth_cst_amt) END FROM prj.psn_plan s
+      WHERE s.prj_id=p.prj_id AND s.plan_ym &gt; #{month}) END AS remaining_cost_amt,
+    (SELECT w.actl_prgs_rt FROM prj.wkly_memo w WHERE w.prj_id=p.prj_id
+      AND w.wrt_dt &lt; to_date(#{month},'YYYY-MM')+interval '1 month'
+      ORDER BY w.wrt_dt DESC,w.memo_id DESC LIMIT 1) AS actl_prgs_rt,
+    (SELECT count(DISTINCT a.dev_id) FROM asgn.asgn a WHERE a.prj_id=p.prj_id AND a.asgn_stts_cd!='CANCELLED'
+      AND a.bgn_dt &lt; to_date(#{month},'YYYY-MM')+interval '1 month'
+      AND a.end_dt &gt;= to_date(#{month},'YYYY-MM')) AS headcount
+  </sql>
+  <sql id="sourceFrom">
+    FROM prj.prj p LEFT JOIN mst.bsn_part b ON b.bsn_part_id=p.bsn_part_id
+    LEFT JOIN mst.dev d ON d.dev_id=p.pm_dev_id
+    LEFT JOIN LATERAL (
+      SELECT count(*) AS row_count,sum(t.mm_qty) AS mm,
+        CASE WHEN bool_or(t.mm_qty IS NULL OR salary.indv_lbr_cst_amt IS NULL) THEN NULL
+          ELSE sum(t.mm_qty*salary.indv_lbr_cst_amt) END AS amount
+      FROM prj.tk_aloc_line l JOIN prj.tk_aloc_mth t ON t.aloc_line_id=l.aloc_line_id
+      LEFT JOIN LATERAL (SELECT s.indv_lbr_cst_amt FROM cst.mth_cst s
+        WHERE s.dev_id=l.dev_id AND s.cst_ym &lt;= #{month} ORDER BY s.cst_ym DESC LIMIT 1) salary ON true
+      WHERE l.prj_id=p.prj_id AND l.line_ty_cd='PERSON' AND t.aloc_ym &gt; #{month}
+        AND l.aloc_stg_cd=(SELECT x.aloc_stg_cd FROM prj.tk_aloc_line x WHERE x.prj_id=p.prj_id
+          ORDER BY CASE x.aloc_stg_cd WHEN 'ACTUAL' THEN 0 WHEN 'FINAL' THEN 1 ELSE 2 END LIMIT 1)
+    ) tk_remaining ON true
+  </sql>
+  <select id="sources" resultMap="source">
+    SELECT <include refid="sourceColumns"/> <include refid="sourceFrom"/>
+    WHERE p.use_yn='Y'
+      AND coalesce(p.prfm_bgn_dt,p.cntrct_bgn_dt) &lt;= to_date(#{from},'YYYY-MM')+interval '1 year'-interval '1 day'
+      AND coalesce(p.cur_end_dt,p.cntrct_end_dt) &gt;= to_date(#{from},'YYYY-MM')
+    <if test="type != null">AND p.cntrct_ty_cd=#{type}</if>
+    <if test="partId != null">AND p.bsn_part_id=#{partId}</if>
+    <if test="status != null">AND p.prj_stts_cd=#{status}</if>
+    <if test="q != null">AND (strpos(lower(p.prj_nm),lower(#{q}))&gt;0 OR strpos(lower(p.prj_no),lower(#{q}))&gt;0)</if>
+    ORDER BY p.prj_id
+  </select>
+  <select id="source" resultMap="source">
+    SELECT <include refid="sourceColumns"/> <include refid="sourceFrom"/> WHERE p.prj_id=#{id}
+  </select>
+  <select id="people" resultMap="person">
+    SELECT DISTINCT d.dev_id,d.dev_nm FROM mst.dev d JOIN asgn.asgn a ON a.dev_id=d.dev_id
+    WHERE a.prj_id=#{id} ORDER BY d.dev_id
+  </select>
+  <select id="costRate" resultType="java.math.BigDecimal">
+    SELECT num_val FROM cmn.oprt_std WHERE oprt_std_id='RENEGO_COST_RATIO' AND aply_bgn_ym &lt;= #{month}
+    ORDER BY aply_bgn_ym DESC LIMIT 1
+  </select>
+  <select id="referenceRevenue" resultType="java.lang.Long">
+    SELECT sum(m.aloc_amt)::bigint FROM prj.tk_aloc_line l
+    JOIN prj.tk_aloc_mth m ON m.aloc_line_id=l.aloc_line_id
+    WHERE l.prj_id=#{id} AND m.aloc_ym BETWEEN #{from} AND #{month}
+      AND l.aloc_stg_cd=(SELECT x.aloc_stg_cd FROM prj.tk_aloc_line x WHERE x.prj_id=#{id}
+        ORDER BY CASE x.aloc_stg_cd WHEN 'ACTUAL' THEN 0 WHEN 'FINAL' THEN 1 ELSE 2 END LIMIT 1)
+  </select>
+  <insert id="access">
+    INSERT INTO sys.acs_hist(user_id,acs_ty_cd,scrn_id,obj_desc,dtl_desc)
+    VALUES(#{actor,jdbcType=BIGINT},'DOWNLOAD','UI-04',#{filename},#{detail})
+  </insert>
+</mapper>

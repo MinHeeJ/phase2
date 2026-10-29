@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sicost.people.CostPeopleMapper">
+  <resultMap id="person" type="com.sicost.people.CostPeopleModels$Person"><constructor>
+    <arg column="dev_id" javaType="_long"/><arg column="mng_no" javaType="string"/>
+    <arg column="dev_nm" javaType="string"/><arg column="affiliation_name" javaType="string"/>
+    <arg column="vendor_id" javaType="java.lang.Long"/><arg column="bsn_part_id" javaType="java.lang.Long"/>
+    <arg column="pstn_cd" javaType="string"/><arg column="emp_se_cd" javaType="string"/>
+    <arg column="duty_se_cd" javaType="string"/><arg column="job_cd" javaType="string"/>
+    <arg column="grd_cd" javaType="string"/><arg column="on_leave" javaType="_boolean"/>
+  </constructor></resultMap>
+  <resultMap id="payroll" type="com.sicost.people.CostPeopleModels$Payroll"><constructor>
+    <arg column="dev_id" javaType="_long"/><arg column="slry_amt" javaType="java.lang.Long"/>
+    <arg column="alwnc_amt" javaType="java.lang.Long"/><arg column="sins_cmpny_amt" javaType="java.lang.Long"/>
+    <arg column="sins_emp_amt" javaType="java.lang.Long"/><arg column="whtax_amt" javaType="java.lang.Long"/>
+    <arg column="rtrpay_acml_amt" javaType="java.lang.Long"/><arg column="real_pay_amt" javaType="java.lang.Long"/>
+    <arg column="indv_lbr_cst_amt" javaType="java.lang.Long"/><arg column="team_expns_amt" javaType="_long"/>
+    <arg column="project_expns_amt" javaType="_long"/>
+  </constructor></resultMap>
+  <resultMap id="project" type="com.sicost.people.CostPeopleModels$Project"><constructor>
+    <arg column="asgn_id" javaType="_long"/><arg column="dev_id" javaType="_long"/>
+    <arg column="prj_id" javaType="_long"/><arg column="prj_nm" javaType="string"/>
+    <arg column="cntrct_ty_cd" javaType="string"/><arg column="bgn_dt" javaType="java.time.LocalDate"/>
+    <arg column="end_dt" javaType="java.time.LocalDate"/>
+  </constructor></resultMap>
+  <select id="person" resultType="long">SELECT d.dev_id FROM mst.dev d WHERE d.dev_id=#{id}</select>
+  <select id="people" resultMap="person">
+    SELECT d.dev_id,d.mng_no,d.dev_nm,CASE WHEN d.vndr_ptnr_id IS NULL THEN '자사' ELSE v.ptnr_nm END AS affiliation_name,
+      d.vndr_ptnr_id AS vendor_id,coalesce(s.bsn_part_id,d.bsn_part_id) AS bsn_part_id,
+      coalesce(s.pstn_cd,d.pstn_cd) AS pstn_cd,coalesce(s.emp_se_cd,d.emp_se_cd) AS emp_se_cd,
+      coalesce(s.duty_se_cd,d.duty_se_cd) AS duty_se_cd,d.main_job_cd AS job_cd,d.grd_cd,
+      EXISTS(SELECT 1 FROM mst.dev_work_stts_hist h WHERE h.dev_id=d.dev_id
+        AND h.work_stts_cd IN ('PARENTAL','UNPAID','LEAVE')
+        AND h.bgn_dt &lt; to_date(#{month},'YYYY-MM')+interval '1 month'
+        AND (h.end_dt IS NULL OR h.end_dt &gt;=to_date(#{month},'YYYY-MM'))) AS on_leave
+    FROM mst.dev d LEFT JOIN mst.ptnr v ON v.ptnr_id=d.vndr_ptnr_id
+    LEFT JOIN cst.mth_cst s ON s.dev_id=d.dev_id AND s.cst_ym=#{month}
+    WHERE ((d.use_yn='Y' AND (d.hire_dt IS NULL OR d.hire_dt &lt;to_date(#{month},'YYYY-MM')+interval '1 month')
+      AND (d.rsgn_dt IS NULL OR d.rsgn_dt &gt;=to_date(#{month},'YYYY-MM')))
+      OR s.dev_id IS NOT NULL OR EXISTS(SELECT 1 FROM cst.cst_aloc c WHERE c.dev_id=d.dev_id AND c.cst_ym=#{month}))
+    ORDER BY d.dev_id
+  </select>
+  <select id="payroll" resultMap="payroll">
+    SELECT d.dev_id,s.slry_amt,s.alwnc_amt,s.sins_cmpny_amt,s.sins_emp_amt,s.whtax_amt,
+      s.rtrpay_acml_amt,s.real_pay_amt,s.indv_lbr_cst_amt,
+      coalesce(e.team_expns_amt,0)::bigint AS team_expns_amt,
+      coalesce(e.project_expns_amt,0)::bigint AS project_expns_amt
+    FROM mst.dev d LEFT JOIN cst.mth_cst s ON s.dev_id=d.dev_id AND s.cst_ym=#{month}
+    LEFT JOIN LATERAL (SELECT sum(x.expns_amt) FILTER(WHERE x.expns_item_cd='TEAM') AS team_expns_amt,
+      sum(x.expns_amt) FILTER(WHERE x.expns_item_cd!='TEAM') AS project_expns_amt
+      FROM cst.drct_expns x WHERE x.dev_id=d.dev_id AND x.expns_ym=#{month}) e ON true
+    ORDER BY d.dev_id
+  </select>
+  <select id="projects" resultMap="project">
+    SELECT a.asgn_id,a.dev_id,a.prj_id,p.prj_nm,p.cntrct_ty_cd,a.bgn_dt,a.end_dt
+    FROM asgn.asgn a JOIN prj.prj p ON p.prj_id=a.prj_id
+    WHERE a.asgn_stts_cd!='CANCELLED' AND a.bgn_dt &lt;to_date(#{month},'YYYY-MM')+interval '1 month'
+      AND a.end_dt &gt;=to_date(#{month},'YYYY-MM') ORDER BY a.asgn_id
+  </select>
+  <insert id="download">
+    INSERT INTO sys.acs_hist(acs_ty_cd,scrn_id,user_id,obj_desc,dtl_desc)
+    VALUES('DOWNLOAD','UI-03',#{actor},#{name},#{description})
+  </insert>
+</mapper>

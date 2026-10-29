@@ -102,6 +102,23 @@ beforeEach(() => {
   });
   fetcher = vi.fn(async (url: string, init?: RequestInit) => {
     if (url === "/api/menus") return response(menus);
+    if (
+      url.startsWith("/api/costs/people?") ||
+      url.startsWith("/api/costs/projects?") ||
+      url.startsWith("/api/settlements/parts?")
+    )
+      return response({
+        month: "2026-10",
+        status: "OPEN",
+        referenceMonth: "2026-10",
+        unit: "KRW",
+        warnings: [],
+        items: [],
+        total: 0,
+        page: 0,
+        size: 50,
+        summary: { contributions: [] },
+      });
     if (url === "/api/projects/options")
       return response([
         { id: 9, no: "P-2609", name: "청구 프로젝트", type: "DP" },
@@ -304,6 +321,41 @@ afterEach(() => {
 });
 
 describe("application route registration", () => {
+  it.each([
+    ["UI-03", "people-screen", "/api/costs/people?", "people-download"],
+    [
+      "UI-04",
+      "project-costs-screen",
+      "/api/costs/projects?",
+      "project-costs-download",
+    ],
+    [
+      "UI-19",
+      "part-settlements-screen",
+      "/api/settlements/parts?",
+      "settlement-download",
+    ],
+  ])(
+    "connects %s to its business screen and relative API",
+    async (id, root, endpoint, download) => {
+      mount(`/${id}`);
+      expect(await screen.findByTestId(root)).toBeInTheDocument();
+      await waitFor(() =>
+        expect(
+          fetcher.mock.calls.some(([url]) => url.startsWith(endpoint)),
+        ).toBe(true),
+      );
+      expect(screen.getByTestId(download)).toBeInTheDocument();
+      expect(
+        await screen.findByText(/조건에 맞는 결과가 없습니다/),
+      ).toBeInTheDocument();
+      expect(
+        fetcher.mock.calls.some(([url]) =>
+          url.startsWith("/api/costs/renegotiations"),
+        ),
+      ).toBe(false);
+    },
+  );
   it("composes billing tabs, the source-aware editor and attendance upload on UI-13", async () => {
     mount("/UI-13");
     await screen.findByTestId("billing-row-7");

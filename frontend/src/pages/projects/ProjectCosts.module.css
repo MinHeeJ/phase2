@@ -1,0 +1,67 @@
+.screen {
+  min-width: 0;
+}
+.period {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: var(--space-6) 0;
+}
+.cards {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: var(--space-4);
+  margin-bottom: var(--space-6);
+}
+.cards article {
+  padding: var(--space-5);
+  border: 1px solid var(--divider);
+  border-radius: var(--radius-panel);
+  background: var(--surface);
+}
+.cards article span {
+  display: block;
+  color: var(--text-sub);
+  font-size: var(--caption-size);
+  margin-bottom: var(--space-3);
+}
+.cards strong {
+  display: block;
+  font-size: var(--title-size);
+}
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: var(--space-4) 0;
+}
+.warning {
+  background: var(--warning-bg);
+  color: var(--warning);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-panel);
+}
+.simulation {
+  display: grid;
+  gap: var(--space-4);
+}
+.simulation label {
+  display: grid;
+  gap: var(--space-2);
+}
+.simulation input {
+  height: var(--control-height);
+  padding: var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+}
+@media (max-width: 1000px) {
+  .cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 767px) {
+  .cards {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

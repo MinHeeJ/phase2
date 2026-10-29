@@ -94,6 +94,8 @@ class AdminApiTest {
             .andExpect(jsonPath("$.meta").isMap()).andExpect(jsonPath("$.data").doesNotExist())
             .andExpect(header().exists("X-Request-Id"));
         verify(mapper).createGroup(argThat(w->w.input().cd_grp_id().equals("NEW_GROUP")&&w.actor()==null));verify(mapper).appendHistory(argThat(h->h.type().equals("ADD")&&h.code()==null&&h.actor()==null));
+        verify(mapper,times(1)).appendHistory(any());
+        verify(mapper,never()).insertCode(any());
     }
     @ParameterizedTest @CsvSource({"cd_grp_id,A1","cd_grp_id,lower","cd_grp_id,''","cd_grp_nm,''"})
     void invalidGroupFieldsDoNotWrite(String field,String value)throws Exception {
@@ -226,6 +228,7 @@ class AdminApiTest {
             .andExpect(status().isOk()).andExpect(jsonPath("$.success").value(true))
             .andExpect(jsonPath("$.meta").isMap()).andExpect(jsonPath("$.data").doesNotExist());
         verify(mapper).saveParam(argThat(w->w.source().equals(vat)&&w.month().equals("2026-11")&&w.actor()==null));
+        verify(mapper,times(1)).saveParam(any());
         verify(mapper).appendHistory(argThat(h->h.group().equals("PARAM")&&h.code().equals("VAT_RATE")&&h.item().equals("적용 시작월")&&h.after().equals("2026-11")));
         verify(mapper).appendHistory(argThat(h->h.item().equals("2026-11:num_val")&&h.after().equals("11")));
         verify(mapper, times(2)).appendHistory(argThat(h -> h.group().equals("PARAM")

@@ -86,7 +86,10 @@ class ProjectMemoPersistenceTest {
         return mvc.perform(request(HttpMethod.valueOf(method),path).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(body)));
     }
     @Test void anonymousTodayUpsertCommitsOneRowAndReadSourcesHaveZeroElapsedNoGenericHistory() throws Exception {
-        send("POST","/api/projects/1/memos",body(42,"첫 한 일")).andExpect(status().isOk()).andExpect(jsonPath("$.data.actl_prgs_rt").value(42));
+        mvc.perform(post("/api/projects/1/memos").contentType(MediaType.APPLICATION_JSON)
+            .content(json.writeValueAsString(body(42,"첫 한 일")))).andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.wrt_dt").value("2026-10-23"))
+            .andExpect(jsonPath("$.data.actl_prgs_rt").value(42));
         assertThat(value("SELECT count(*) FROM prj.wkly_memo WHERE prj_id=1 AND wrt_dt='2026-10-23' AND wrt_user_id IS NULL AND actl_prgs_rt=42")).isEqualTo("1");
         String key = value("SELECT memo_id FROM prj.wkly_memo WHERE prj_id=1");
         send("POST","/api/projects/1/memos",body(60,"두번째 내용")).andExpect(status().isOk());

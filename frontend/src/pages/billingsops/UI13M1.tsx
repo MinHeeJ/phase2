@@ -169,7 +169,11 @@ export function UI13M1({
                 {projects.data
                   ?.filter((p) => p.type !== "IN")
                   .map((p) => (
-                    <option key={p.id} value={p.id}>
+                    <option
+                      key={p.id}
+                      value={p.id}
+                      data-testid={`billing-editor-project-option-${p.id}`}
+                    >
                       {p.no} · {p.name}
                     </option>
                   ))}
@@ -190,7 +194,11 @@ export function UI13M1({
                   {stages.data?.items
                     .filter((s) => !s.billed)
                     .map((s) => (
-                      <option key={s.bill_stg_id} value={s.bill_stg_id}>
+                      <option
+                        key={s.bill_stg_id}
+                        value={s.bill_stg_id}
+                        data-testid={`billing-editor-stage-option-${s.bill_stg_id}`}
+                      >
                         {s.bill_stg_nm} · {s.bill_plan_dt}
                       </option>
                     ))}
@@ -256,7 +264,10 @@ export function UI13M1({
             ["rcpt_plan_dt", "입금 예정일"],
           ] as const
         ).map(([key, label]) => (
-          <label key={key}>
+          <label
+            key={key}
+            data-testid={`billing-editor-field-${key.replaceAll("_", "-")}`}
+          >
             {label}
             <input
               data-testid={`billing-editor-${key.replaceAll("_", "-")}`}

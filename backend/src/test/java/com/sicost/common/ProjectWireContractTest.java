@@ -22,12 +22,11 @@ import org.yaml.snakeyaml.Yaml;
 
 class ProjectWireContractTest {
     @Test void costServiceAdaptersHaveDistinctBeansAndShareTheBoardCalculation() {
-        var mapper = mock(com.sicost.apiops.ProjectBoardMapper.class);
-        var query = new com.sicost.apiops.ProjectBoardModels.CostQuery(1, "2026-10");
-        when(mapper.costs(query)).thenReturn(List.of(
-            new com.sicost.apiops.ProjectBoardModels.CostMonth("2026-10", new java.math.BigDecimal("123"), true)));
+        var allocation = mock(com.sicost.common.costallocation.CostAllocationService.class);
+        when(allocation.projectTotal(1, "2026-10")).thenReturn(
+            new com.sicost.common.costallocation.CostAllocationModels.ProjectTotal(123, List.of("2026-10")));
         try (var context = new org.springframework.context.annotation.AnnotationConfigApplicationContext()) {
-            context.registerBean(com.sicost.apiops.ProjectBoardMapper.class, () -> mapper);
+            context.registerBean(com.sicost.common.costallocation.CostAllocationService.class, () -> allocation);
             context.register(com.sicost.apiops.ProjectCostService.class, com.sicost.projectcost.ProjectCostService.class);
             context.refresh();
             assertThat(context.getBean(com.sicost.apiops.ProjectCostService.class)).isNotNull();
@@ -35,8 +34,8 @@ class ProjectWireContractTest {
             var result = exportCosts.calculate(1, java.time.YearMonth.of(2026, 10));
             assertThat(result.cumulativeCostAmount()).isEqualTo(123);
             assertThat(result.missingSalaryMonths()).containsExactly("2026-10");
-            verify(mapper).costs(query);
-            verifyNoMoreInteractions(mapper);
+            verify(allocation).projectTotal(1, "2026-10");
+            verifyNoMoreInteractions(allocation);
         }
     }
 

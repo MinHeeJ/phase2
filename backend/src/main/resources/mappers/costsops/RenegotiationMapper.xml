@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sicost.costsops.RenegotiationMapper">
+  <resultMap id="candidate" type="com.sicost.costsops.RenegotiationModels$Candidate"><constructor>
+    <arg column="asgn_id" javaType="_long"/>
+    <arg column="dev_id" javaType="_long"/>
+    <arg column="dev_nm" javaType="string"/>
+    <arg column="emp_se_cd" javaType="string"/>
+    <arg column="prj_id" javaType="_long"/>
+    <arg column="prj_nm" javaType="string"/>
+    <arg column="end_dt" javaType="java.time.LocalDate"/>
+    <arg column="bill_untprc_amt" javaType="java.lang.Long"/>
+  </constructor></resultMap>
+  <select id="candidates" resultMap="candidate">
+    SELECT a.asgn_id,a.dev_id,d.dev_nm,d.emp_se_cd,a.prj_id,p.prj_nm,a.end_dt,u.bill_untprc_amt
+    FROM asgn.asgn a
+    JOIN mst.dev d ON d.dev_id=a.dev_id
+    JOIN prj.prj p ON p.prj_id=a.prj_id
+    LEFT JOIN LATERAL (
+      SELECT h.bill_untprc_amt FROM asgn.untprc_hist h
+      WHERE h.asgn_id=a.asgn_id AND h.aply_bgn_dt &lt;= #{today}
+      ORDER BY h.aply_bgn_dt DESC LIMIT 1
+    ) u ON true
+    WHERE a.asgn_stts_cd='ACTIVE' AND a.asgn_se_cd!='FREE'
+      AND p.prj_stts_cd='RUN' AND p.cntrct_ty_cd IN ('MO','DP')
+      AND a.bgn_dt &lt;= #{today} AND a.end_dt &gt;= #{today} AND a.end_dt &lt;= #{through}
+    <if test="empType != null">AND d.emp_se_cd=#{empType}</if>
+    <if test="projectId != null">AND a.prj_id=#{projectId}</if>
+    ORDER BY a.asgn_id
+  </select>
+  <select id="project" resultType="long">SELECT p.prj_id FROM prj.prj p WHERE p.prj_id=#{id}</select>
+  <select id="monthStatus" resultType="string">SELECT c.cls_stts_cd FROM fin.mth_cls c WHERE c.cls_ym=#{month}</select>
+  <insert id="download">
+    INSERT INTO sys.acs_hist(acs_ty_cd,scrn_id,user_id,obj_desc,dtl_desc)
+    VALUES('DOWNLOAD','UI-32',#{actor},#{filename},#{detail})
+  </insert>
+</mapper>

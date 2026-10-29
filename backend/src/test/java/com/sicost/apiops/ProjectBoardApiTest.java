@@ -32,6 +32,7 @@ class ProjectBoardApiTest {
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper json;
     @MockBean ProjectBoardMapper mapper;
+    @MockBean ProjectCostService costs;
     static final LocalDate TODAY = LocalDate.of(2026, 10, 23);
     static BigDecimal n(String value) { return new BigDecimal(value); }
     static List<OperatingParam> params() {
@@ -42,7 +43,7 @@ class ProjectBoardApiTest {
         return rows;
     }
     static BoardSource source(long id, String type, String actual, LocalDate memo) {
-        return new BoardSource(id, "P-26" + id, "프로젝트 " + id, null, type, id % 2 + 1, "PM 미지정", 500000000L,
+        return new BoardSource(id, "P-26" + id, "프로젝트 " + id, null, type, id % 2 + 1, "PM 미지정", 500000000L, 400000000L,
             null, memo, actual == null ? null : n(actual), 2, 1, 0, 0);
     }
     static Phase phase(long id, String weight, LocalDate start, LocalDate end, LocalDate complete) {
@@ -52,7 +53,7 @@ class ProjectBoardApiTest {
         when(mapper.params(anyString())).thenReturn(params());
         when(mapper.projects(any())).thenReturn(List.of(source(1, "TK", "42", TODAY)));
         when(mapper.phases(anyLong())).thenReturn(List.of(phase(1, "50.5", TODAY.minusDays(2), TODAY.minusDays(1), null)));
-        when(mapper.costs(any())).thenReturn(List.of(new CostMonth("2026-10", n("230000000"), false)));
+        when(costs.calculate(anyLong(), anyString())).thenReturn(new ProjectCost(230000000, List.of()));
     }
     @Test void anonymousBoardReturnsExactEnvelopeAndCostExample() throws Exception {
         mvc.perform(get("/api/project-board")).andExpect(status().isOk())
@@ -151,7 +152,7 @@ class ProjectBoardApiTest {
             .andExpect(jsonPath("$.data.items[0].light").value("정상"));
         var p = source(1, "TK", "0", null);
         when(mapper.projects(any())).thenReturn(List.of(new BoardSource(p.prj_id(), p.prj_no(), p.prj_nm(), null, "TK", 1L,
-            p.pmName(), p.cur_cntrct_amt(), null, null, p.actl_prgs_rt(), 1, 1, 1, 1)));
+            p.pmName(), p.cur_cntrct_amt(), p.trgt_cst_amt(), null, null, p.actl_prgs_rt(), 1, 1, 1, 1)));
         mvc.perform(get("/api/project-board")).andExpect(status().isOk())
             .andExpect(jsonPath("$.data.items[0].light").value("위험"));
     }
@@ -167,13 +168,22 @@ class ProjectBoardApiTest {
         when(mapper.projects(any())).thenReturn(List.of(source(1, type, "42.5", TODAY)));
         mvc.perform(get("/api/project-board")).andExpect(status().isOk()).andExpect(jsonPath("$.data.items[0].cost_use_rt").isEmpty())
             .andExpect(jsonPath("$.data.items[0].budget_amt").isEmpty());
-        verify(mapper, never()).costs(any());
+        verify(costs, never()).calculate(anyLong(), anyString());
     }
     @Test void zeroBudgetHidesAllCostFields() throws Exception {
-        var rows = new ArrayList<>(params()); rows.set(5, new OperatingParam("BUDGET_RATE", "2026-01", "예산", BigDecimal.ZERO, null, "%", null));
-        when(mapper.params(anyString())).thenReturn(rows);
+        var p = source(1, "TK", "42", TODAY);
+        when(mapper.projects(any())).thenReturn(List.of(new BoardSource(p.prj_id(), p.prj_no(), p.prj_nm(), null,
+            "TK", 1L, p.pmName(), p.cur_cntrct_amt(), 0L, null, TODAY, p.actl_prgs_rt(), 0, 0, 0, 0)));
         mvc.perform(get("/api/project-board")).andExpect(status().isOk()).andExpect(jsonPath("$.data.items[0].cost_use_rt").isEmpty())
             .andExpect(jsonPath("$.data.items[0].cumulative_cost_amt").isEmpty());
+    }
+    @Test void storedTargetNotTwentyPercentOverridesBudgetRate() throws Exception {
+        var p = source(1, "TK", "42", TODAY);
+        when(mapper.projects(any())).thenReturn(List.of(new BoardSource(p.prj_id(), p.prj_no(), p.prj_nm(), null,
+            "TK", 1L, p.pmName(), 500000000L, 320000000L, null, TODAY, p.actl_prgs_rt(), 0, 0, 0, 0)));
+        mvc.perform(get("/api/project-board")).andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.items[0].budget_amt").value(320000000))
+            .andExpect(jsonPath("$.data.items[0].cost_use_rt").value(71.9));
     }
     @Test void fixedNoticeDoesNotFollowMutableStaleThreshold() throws Exception {
         var rows = new ArrayList<>(params()); rows.set(4, new OperatingParam("SIG_STALE_DAYS", "2026-01", "업데이트", n("30"), null, "일", null));

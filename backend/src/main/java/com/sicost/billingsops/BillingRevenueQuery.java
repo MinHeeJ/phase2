@@ -19,6 +19,19 @@ public class BillingRevenueQuery {
         this.mapper=mapper;this.receivables=receivables;this.clock=clock;this.permissions=permissions;
     }
     public List<Revenue> revenue(int year) {return mapper.revenue(BillingValues.year(year,clock));}
+    public record ProjectRevenue(String month, long confirmed_supply_amt, boolean missing_bill_date) {}
+    public List<ProjectRevenue> projectRevenue(long projectId, int year) {
+        if (projectId <= 0) throw BillingValues.invalid("projectId");
+        return mapper.strictProjectRevenue(new Scope(projectId, String.format("%04d", year), null));
+    }
+    public long revenue(long projectId, String month) {
+        if (projectId <= 0) throw BillingValues.invalid("projectId");
+        BillingValues.month(month, "month");
+        long supply = 0;
+        for (var row : mapper.projectRevenue(new Scope(projectId, month, null)))
+            supply = BillingValues.add(supply, row.confirmed_supply_amt(), "sply_amt");
+        return supply;
+    }
     public List<Cash> cash(int year) {return mapper.cash(BillingValues.year(year,clock));}
     public Summary summary(Integer requested) {
         permissions.can(BillingActions.READ);

@@ -19,6 +19,7 @@
     <arg column="bsn_part_id" javaType="java.lang.Long"/>
     <arg column="pmName" javaType="java.lang.String"/>
     <arg column="cur_cntrct_amt" javaType="java.lang.Long"/>
+    <arg column="trgt_cst_amt" javaType="java.lang.Long"/>
     <arg column="prfm_bgn_dt" javaType="java.time.LocalDate"/>
     <arg column="last_memo_dt" javaType="java.time.LocalDate"/>
     <arg column="actl_prgs_rt" javaType="java.math.BigDecimal"/>
@@ -52,7 +53,7 @@
   </select>
   <select id="projects" resultMap="source">
     SELECT p.prj_id,p.prj_no,p.prj_nm,c.ptnr_nm AS "custName",p.cntrct_ty_cd,p.bsn_part_id,
-      coalesce(d.dev_nm,'PM 미지정') AS "pmName",p.cur_cntrct_amt,p.prfm_bgn_dt,
+      coalesce(d.dev_nm,'PM 미지정') AS "pmName",p.cur_cntrct_amt,p.trgt_cst_amt,p.prfm_bgn_dt,
       m.wrt_dt AS last_memo_dt,m.actl_prgs_rt,
       (SELECT count(*) FROM prj.issue i WHERE i.prj_id=p.prj_id AND i.issue_stts_cd IN ('OPEN','DOING')) AS open_issue_count,
       (SELECT count(*) FROM prj.issue i WHERE i.prj_id=p.prj_id AND i.issue_stts_cd IN ('OPEN','DOING') AND i.svrt_cd='HIGH') AS high_open_issue_count,

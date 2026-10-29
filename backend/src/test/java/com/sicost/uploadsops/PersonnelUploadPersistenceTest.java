@@ -50,7 +50,16 @@ class PersonnelUploadPersistenceTest {
     Map<String,String> developer(String name){return new LinkedHashMap<>(Map.of("이름",name,"직원구분","FT","주 직무","BE","직위","TL"));}
     String businessSnapshot() throws Exception {
         try(var c=source.getConnection();var s=c.createStatement();var r=s.executeQuery(
-            "SELECT json_build_array((SELECT json_agg(d ORDER BY dev_id) FROM mst.dev d),(SELECT json_agg(m ORDER BY mth_cst_id) FROM cst.mth_cst m),(SELECT json_agg(e ORDER BY expns_id) FROM cst.drct_expns e),(SELECT json_agg(u ORDER BY upld_id) FROM sys.upld u),(SELECT json_agg(e ORDER BY upld_err_id) FROM sys.upld_err e),(SELECT json_agg(h ORDER BY data_chg_hist_id) FROM sys.data_chg_hist h))::text")) {
+            "SELECT json_build_array((SELECT json_agg(d ORDER BY dev_id) FROM mst.dev d),"
+            +"(SELECT json_agg(m ORDER BY mth_cst_id) FROM cst.mth_cst m),"
+            +"(SELECT json_agg(e ORDER BY expns_id) FROM cst.drct_expns e),"
+            +"(SELECT json_agg(u ORDER BY upld_id) FROM sys.upld u),"
+            +"(SELECT json_agg(e ORDER BY upld_err_id) FROM sys.upld_err e),"
+            +"(SELECT json_agg(h ORDER BY data_chg_hist_id) FROM sys.data_chg_hist h),"
+            +"(SELECT json_agg(a ORDER BY asgn_id) FROM asgn.asgn a),"
+            +"(SELECT json_agg(m ORDER BY asgn_id,work_ym) FROM asgn.asgn_mth m),"
+            +"(SELECT json_agg(p ORDER BY asgn_id,aply_bgn_dt) FROM asgn.untprc_hist p),"
+            +"(SELECT json_agg(h ORDER BY asgn_chg_id) FROM asgn.asgn_chg_hist h))::text")) {
             assertThat(r.next()).isTrue(); return r.getString(1);
         }
     }
@@ -79,6 +88,44 @@ class PersonnelUploadPersistenceTest {
         try(var c=source.getConnection();var s=c.createStatement();var rows=s.executeQuery("SELECT dev_id,mng_no,dev_nm FROM mst.dev WHERE upld_id="+review.upload_id()+" ORDER BY dev_id")){for(String name:List.of("첫째","둘째","셋째")){assertThat(rows.next()).isTrue();assertThat(rows.getString("dev_nm")).isEqualTo(name);assertThat(rows.getString("mng_no")).isEqualTo(com.sicost.common.validation.DeveloperManagementNumbers.allocated(rows.getLong("dev_id")));}}
         assertThat(scalar("SELECT count(*) FROM sys.data_chg_hist WHERE tbl_nm='mst.dev' AND rsn_desc='엑셀 업로드 #"+review.upload_id()+"'")).isEqualTo(3);assertThat(service.apply(review.upload_id())).isEqualTo(applied);
         assertThat(scalar("SELECT count(*) FROM sys.acs_hist WHERE acs_ty_cd='UPLOAD'")).isEqualTo(1);
+    }
+    @Test void rowsReadHasNoSalaryExpenseAssignmentOrHistorySideEffects() throws Exception {
+        long id=validate("B.8",List.of(developer("행 조회"))).upload_id();
+        String before=businessSnapshot();
+        mvc.perform(get("/api/uploads/{uploadId}/rows",id)).andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.total").value(1)).andExpect(jsonPath("$.data.items[0].row").value(5));
+        assertThat(businessSnapshot()).isEqualTo(before);
+    }
+    @Test void issuesReadHasNoSalaryExpenseAssignmentOrHistorySideEffects() throws Exception {
+        var invalid=developer("오류 조회"); invalid.put("주 직무","");
+        long id=validate("B.8",List.of(invalid)).upload_id();
+        String before=businessSnapshot();
+        mvc.perform(get("/api/uploads/{uploadId}/issues",id).param("severity","ERROR"))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.data.items[0].column").value("주 직무"))
+            .andExpect(jsonPath("$.data.items[0].message").isNotEmpty());
+        assertThat(businessSnapshot()).isEqualTo(before);
+    }
+    @Test void errorDownloadHasNoSalaryExpenseAssignmentOrHistorySideEffects() throws Exception {
+        var invalid=developer("오류 파일"); invalid.put("주 직무","");
+        long id=validate("B.8",List.of(invalid)).upload_id();
+        String before=businessSnapshot();
+        var response=mvc.perform(get("/api/uploads/{uploadId}/errors",id)).andExpect(status().isOk())
+            .andExpect(content().contentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+            .andReturn().getResponse();
+        try(var book=new org.apache.poi.xssf.usermodel.XSSFWorkbook(new java.io.ByteArrayInputStream(response.getContentAsByteArray()))) {
+            assertThat(book.getSheet("오류 목록").getRow(1).getCell(2).getStringCellValue()).isEqualTo("주 직무");
+        }
+        assertThat(businessSnapshot()).isEqualTo(before);
+    }
+    @Test void templateDownloadHasNoSalaryExpenseAssignmentOrHistorySideEffects() throws Exception {
+        String before=businessSnapshot();
+        var response=mvc.perform(get("/api/uploads/templates/B.8")).andExpect(status().isOk())
+            .andExpect(content().contentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+            .andReturn().getResponse();
+        try(var book=new org.apache.poi.xssf.usermodel.XSSFWorkbook(new java.io.ByteArrayInputStream(response.getContentAsByteArray()))) {
+            assertThat(book.getNumberOfSheets()).isEqualTo(3);
+        }
+        assertThat(businessSnapshot()).isEqualTo(before);
     }
     @Test void generatedCostsOverwriteProvenanceAndSnapshotAreDatabaseOwned()throws Exception {
         assertThat(scalar("SELECT count(*) FROM fin.mth_cls WHERE cls_ym='2026-10' AND cls_stts_cd='OPEN'")).isEqualTo(1);assertThat(scalar("SELECT CAST(attr1_val AS bigint) FROM cmn.cd_dtl WHERE cd_grp_id='POSITION' AND dtl_cd='TL'")).isEqualTo(200000);assertThat(scalar("SELECT num_val FROM cmn.oprt_std WHERE oprt_std_id='VAT_RATE' ORDER BY aply_bgn_ym DESC LIMIT 1")).isEqualTo(10);

@@ -61,11 +61,14 @@ class AssignmentMonthsPersistenceTest {
         factory.setDataSource(source);
         factory.setMapperLocations(new ClassPathResource("mappers/months/AssignmentMonthsMapper.xml"),
             new ClassPathResource("mappers/common/AssignmentConcurrencyMapper.xml"),
-            new ClassPathResource("mappers/apiops/ProjectBoardMapper.xml"));
+            new ClassPathResource("mappers/apiops/ProjectBoardMapper.xml"),
+            new ClassPathResource("mappers/costallocation/CostAllocationMapper.xml"));
         factory.afterPropertiesSet();
         var session=new SqlSessionTemplate(factory.getObject());
         mapper=session.getMapper(AssignmentMonthsMapper.class);
         context=new AnnotationConfigApplicationContext();
+        com.sicost.common.CostAllocationTestSupport.register(context, session);
+        context.registerBean(java.time.Clock.class, java.time.Clock::systemUTC);
         context.register(Transactions.class,AssignmentMonthsService.class,AssignmentConcurrencyService.class,
             CurrentUser.class,PermissionService.class,ProjectCostService.class);
         context.registerBean(AssignmentMonthsMapper.class,()->mapper);

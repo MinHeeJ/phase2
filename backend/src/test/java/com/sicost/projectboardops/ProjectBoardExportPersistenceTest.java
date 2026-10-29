@@ -49,11 +49,13 @@ class ProjectBoardExportPersistenceTest {
         var factory=new SqlSessionFactoryBean(); factory.setDataSource(source);
         factory.setMapperLocations(new ClassPathResource("mappers/projectboardops/ProjectBoardExportMapper.xml"),
             new ClassPathResource("mappers/projectcost/ProjectCostMapper.xml"),
-            new ClassPathResource("mappers/apiops/ProjectBoardMapper.xml"));
+            new ClassPathResource("mappers/apiops/ProjectBoardMapper.xml"),
+            new ClassPathResource("mappers/costallocation/CostAllocationMapper.xml"));
         factory.afterPropertiesSet(); var session=new SqlSessionTemplate(factory.getObject());
         mapper=session.getMapper(ProjectBoardExportMapper.class);
         var costMapper=session.getMapper(com.sicost.apiops.ProjectBoardMapper.class);
         context=new AnnotationConfigApplicationContext();
+        com.sicost.common.CostAllocationTestSupport.register(context, session);
         context.register(Transactions.class,ProjectBoardExportService.class,ProjectCostService.class,
             com.sicost.apiops.ProjectCostService.class,CurrentUser.class,PermissionService.class,ExcelExportService.class);
         context.registerBean(ProjectBoardExportMapper.class,()->mapper);
@@ -64,6 +66,7 @@ class ProjectBoardExportPersistenceTest {
         mvc=MockMvcBuilders.standaloneSetup(new ProjectBoardExportController(service))
             .setControllerAdvice(new ApiExceptionHandler()).addFilters(new RequestIdFilter()).build();
         sql("INSERT INTO prj.prj(prj_id,prj_no,prj_nm,cntrct_ty_cd,prj_stts_cd,cur_cntrct_amt,prfm_bgn_dt) VALUES(1,'P-2601','원가 대상','TK','RUN',10000000,'2026-10-01'),(2,'P-2602','다른 프로젝트','MO','END',10000000,'2026-10-01')");
+        sql("UPDATE prj.prj SET trgt_cst_amt=8000000 WHERE prj_id IN (1,2)");
         sql("INSERT INTO mst.dev(dev_id,mng_no,dev_nm,emp_se_cd) VALUES(1,'K-0001','개발자','FT')");
     }
     @AfterEach void removeDatabase() throws Exception {
@@ -120,11 +123,15 @@ class ProjectBoardExportPersistenceTest {
         var result=costs.calculate(1,YearMonth.of(2026,10));
         assertThat(result.cumulativeCostAmount()).isEqualTo(3350); assertThat(result.missingSalaryMonths()).isEmpty();
     }
-    @Test void closedWithoutAllocationAndOpenWithAllocationUseCalculatedSourcesWithNoLowerBound() {
+    @Test void closedWithoutAllocationFailsAndOpenIgnoresOldSnapshotWithNoLowerBound() {
         assignment(1,1,"ACTIVE","2020-01","0.50"); assignment(2,1,"ACTIVE","2026-10","0.50");
+        sql("UPDATE asgn.asgn SET bgn_dt='2020-01-01',end_dt='2020-01-31' WHERE asgn_id=1");
         sql("INSERT INTO fin.mth_cls(cls_ym,cls_stts_cd) VALUES('2020-01','CLOSED') ON CONFLICT(cls_ym) DO UPDATE SET cls_stts_cd='CLOSED'");
         sql("INSERT INTO cst.mth_cst(dev_id,cst_ym,emp_se_cd,slry_amt) VALUES(1,'2020-01','FT',1000),(1,'2026-10','FT',1000)");
         sql("INSERT INTO cst.cst_aloc(cst_ym,dev_id,prj_id,aloc_ty_cd,lbr_cst_amt) VALUES('2026-10',1,1,'PROJECT',999999)");
+        assertThatThrownBy(() -> costs.calculate(1,YearMonth.of(2026,10))).isInstanceOfSatisfying(ApiException.class,
+            ex -> assertThat(ex.code()).isEqualTo("CLOSED_MONTH"));
+        sql("UPDATE fin.mth_cls SET cls_stts_cd='OPEN' WHERE cls_ym='2020-01'");
         assertThat(costs.calculate(1,YearMonth.of(2026,10)).cumulativeCostAmount()).isEqualTo(1000);
     }
     @Test void missingSalaryZeroesOnlyLaborReportsDistinctSortedPositiveMonthsAndIgnoresFuture() {
@@ -132,6 +139,7 @@ class ProjectBoardExportPersistenceTest {
         assignment(3,1,"ACTIVE","2026-09","0.00"); assignment(4,1,"ACTIVE","2026-10","0.50");
         assignment(5,1,"ACTIVE","2026-11","0.50");
         sql("INSERT INTO cst.drct_expns(expns_ym,prj_id,expns_item_cd,expns_amt) VALUES('2026-08',1,'TRIP',123)");
+        sql("UPDATE fin.mth_cls SET cls_stts_cd='OPEN' WHERE cls_ym IN ('2026-08','2026-09')");
         var result=costs.calculate(1,YearMonth.of(2026,10));
         assertThat(result.cumulativeCostAmount()).isEqualTo(123);
         assertThat(result.missingSalaryMonths()).containsExactly("2026-08","2026-10");

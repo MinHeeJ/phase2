@@ -1,5 +1,5 @@
-import { useCallback, useState, type ReactNode } from "react";
-import { Link } from "react-router-dom";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { Link, useLocation } from "react-router-dom";
 import { Badge, Button, Skeleton } from "../../shared/Controls";
 import { ApiFailure } from "../../shared/api";
 import { ErrorBanner } from "../../shared/ErrorBanner";
@@ -33,13 +33,45 @@ export default function UI11Screen({
   groupName = "프로젝트·투입",
   renderShortages,
 }: PlanComparisonScreenProps) {
+  const location = useLocation();
   const [filters, setFilters] = useState(() => {
-    const year = Number(sessionStorage.getItem("UI-11.year"));
-    return planComparisonDefaults(
+    const query = new URLSearchParams(location.search);
+    const year = Number(
+      query.get("year") ?? sessionStorage.getItem("UI-11.year"),
+    );
+    const defaults = planComparisonDefaults(
       year >= 1 && year <= 9999 ? year : Number(seoulMonth().slice(0, 4)),
     );
+    const projectId = query.get("projectId") ?? "";
+    return {
+      ...defaults,
+      projectId: /^[1-9][0-9]{0,18}$/.test(projectId) ? projectId : "",
+    };
   });
   const [draft, setDraft] = useState(filters);
+  useEffect(() => {
+    if (location.pathname !== "/UI-11") return;
+    const query = new URLSearchParams(location.search);
+    const year = Number(query.get("year"));
+    const projectId = query.get("projectId");
+    const update = (current: PlanComparisonFilters): PlanComparisonFilters => {
+      const nextYear =
+        Number.isInteger(year) && year >= 1 && year <= 9999
+          ? year
+          : current.year;
+      const nextProject =
+        projectId && /^[1-9][0-9]{0,18}$/.test(projectId)
+          ? projectId
+          : current.projectId;
+      return current.year === nextYear && current.projectId === nextProject
+        ? current
+        : { ...current, year: nextYear, projectId: nextProject, page: 0 };
+    };
+    setFilters(update);
+    setDraft(update);
+    if (Number.isInteger(year) && year >= 1 && year <= 9999)
+      sessionStorage.setItem("UI-11.year", String(year));
+  }, [location.pathname, location.search]);
   const [tab, setTab] = useState("annual");
   const [downloadError, setDownloadError] = useState<ApiFailure | null>(null);
   const [downloading, setDownloading] = useState(false);

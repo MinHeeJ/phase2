@@ -1,0 +1,28 @@
+.cards {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-4);
+  margin: var(--space-6) 0;
+}
+.cards strong {
+  display: block;
+  margin-top: var(--space-2);
+  font-size: var(--title-size);
+  font-variant-numeric: tabular-nums;
+}
+.cards span,
+.notice {
+  color: var(--text-sub);
+  font-size: var(--caption-size);
+}
+.warning {
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-panel);
+  background: var(--warning-bg);
+  color: var(--warning);
+}
+@media (max-width: 767px) {
+  .cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
