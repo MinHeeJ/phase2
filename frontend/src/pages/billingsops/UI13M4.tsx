@@ -100,7 +100,10 @@ export function UI13M4({
             ["rcpt_plan_dt", "입금 예정일"],
           ] as const
         ).map(([key, label]) => (
-          <label key={key}>
+          <label
+            key={key}
+            data-testid={`billing-amend-field-${key.replaceAll("_", "-")}`}
+          >
             {label}
             <input
               data-testid={`billing-amend-${key.replaceAll("_", "-")}`}

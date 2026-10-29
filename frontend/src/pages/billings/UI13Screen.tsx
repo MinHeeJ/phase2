@@ -232,7 +232,10 @@ export default function UI13Screen({
             ["미수금", summary.data.confirmed_receivable_amt, "부가세 포함"],
             ["연체", summary.data.overdue_amt, "입금 예정일 지남"],
           ].map(([label, amount, hint]) => (
-            <article key={label}>
+            <article
+              key={label}
+              data-testid={`billing-summary-${[`${filters.year}년 청구`, "이번 달 청구", "미수금", "연체"].indexOf(String(label))}`}
+            >
               <span>{label}</span>
               <strong>
                 {typeof amount === "number"
@@ -313,7 +316,11 @@ export default function UI13Screen({
             >
               <option value="">전체</option>
               {customerOptions.data?.map((c) => (
-                <option key={c.id} value={c.id}>
+                <option
+                  key={c.id}
+                  value={c.id}
+                  data-testid={`billing-customer-option-${c.id}`}
+                >
                   {c.name}
                 </option>
               ))}
@@ -365,7 +372,10 @@ export default function UI13Screen({
                 <thead>
                   <tr>
                     {columns.map(([key, label]) => (
-                      <th key={key}>
+                      <th
+                        key={key}
+                        data-testid={`billing-column-${key.replaceAll("_", "-")}`}
+                      >
                         <Button
                           data-testid={`billing-sort-${key.replaceAll("_", "-")}`}
                           small
@@ -424,7 +434,11 @@ export default function UI13Screen({
                         r.received_amt,
                         r.receivable_amt,
                       ].map((v, i) => (
-                        <td key={i} className={tables.amount}>
+                        <td
+                          key={i}
+                          className={tables.amount}
+                          data-testid={`billing-amount-${r.bill_id ?? `stage-${r.bill_stg_id}`}-${i}`}
+                        >
                           {v.toLocaleString("ko-KR")}
                         </td>
                       ))}

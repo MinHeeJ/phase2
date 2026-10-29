@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sicost.costsops.RenegotiationMapper">
+  <resultMap id="source" type="com.sicost.costsops.RenegotiationModels$Source">
+    <constructor>
+      <arg column="asgn_id" javaType="_long"/>
+      <arg column="dev_id" javaType="_long"/>
+      <arg column="dev_nm" javaType="string"/>
+      <arg column="emp_se_cd" javaType="string"/>
+      <arg column="prj_id" javaType="_long"/>
+      <arg column="prj_nm" javaType="string"/>
+      <arg column="end_dt" javaType="java.time.LocalDate"/>
+    </constructor>
+  </resultMap>
+  <select id="candidates" resultMap="source">
+    SELECT a.asgn_id, a.dev_id, d.dev_nm, coalesce(c.emp_se_cd,d.emp_se_cd) AS emp_se_cd,
+           a.prj_id, p.prj_nm, a.end_dt
+    FROM asgn.asgn a
+    JOIN mst.dev d ON d.dev_id=a.dev_id
+    JOIN prj.prj p ON p.prj_id=a.prj_id
+    LEFT JOIN cst.mth_cst c ON c.dev_id=a.dev_id AND c.cst_ym=#{month}
+    WHERE p.prj_stts_cd='RUN' AND p.cntrct_ty_cd IN ('MO','DP')
+      AND a.asgn_stts_cd='ACTIVE' AND a.asgn_se_cd!='FREE'
+      AND a.bgn_dt &lt;=#{today} AND a.end_dt &gt;=#{today} AND a.end_dt &lt;=#{throughDate}
+      <if test="empType != null">AND coalesce(c.emp_se_cd,d.emp_se_cd)=#{empType}</if>
+      <if test="projectId != null">AND a.prj_id=#{projectId}</if>
+    ORDER BY a.asgn_id
+  </select>
+  <insert id="download">
+    INSERT INTO sys.acs_hist(acs_ty_cd,scrn_id,user_id,obj_desc,dtl_desc)
+    VALUES('DOWNLOAD','UI-32',#{actor},#{name},#{description})
+  </insert>
+</mapper>

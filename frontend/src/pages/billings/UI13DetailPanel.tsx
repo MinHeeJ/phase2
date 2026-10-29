@@ -35,7 +35,7 @@ export function BillingStatus({ row }: { row: BillingRow }) {
 }
 export function BillingLines({ lines }: { lines: BillingDetailLine[] }) {
   return (
-    <div className={tables.tableScroll}>
+    <div className={tables.tableScroll} data-testid="billing-lines-root">
       <table className={tables.table}>
         <thead>
           <tr>
@@ -162,15 +162,22 @@ export function UI13DetailPanel({
                     row.adjusted_total_amt.toLocaleString("ko-KR"),
                   ],
                   ["미수금", row.receivable_amt.toLocaleString("ko-KR")],
-                ].map(([label, value]) => (
-                  <div key={label}>
+                ].map(([label, value], index) => (
+                  <div
+                    key={label}
+                    data-testid={`billing-detail-field-${index}`}
+                  >
                     <dt>{label}</dt>
                     <dd>{value ?? "–"}</dd>
                   </div>
                 ))}
               </dl>
               {d.warnings.map((w, i) => (
-                <p className={styles.warning} key={i}>
+                <p
+                  className={styles.warning}
+                  key={i}
+                  data-testid={`billing-detail-warning-${i}`}
+                >
                   {w}
                 </p>
               ))}

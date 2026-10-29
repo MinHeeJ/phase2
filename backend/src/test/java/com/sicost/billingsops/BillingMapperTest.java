@@ -23,7 +23,8 @@ class BillingMapperTest {
         var projections=Map.ofEntries(Map.entry("project",Project.class),Map.entry("stage",Stage.class),
             Map.entry("source",Source.class),Map.entry("state",State.class),Map.entry("line",Line.class),
             Map.entry("balance",Balance.class),Map.entry("confirmed",Confirmed.class),Map.entry("receipt",Receipt.class),
-            Map.entry("history",History.class),Map.entry("sent",Sent.class),Map.entry("revenue",Revenue.class),Map.entry("cash",Cash.class));
+            Map.entry("history",History.class),Map.entry("sent",Sent.class),Map.entry("revenue",Revenue.class),
+            Map.entry("projectRevenue",ProjectRevenue.class),Map.entry("cash",Cash.class));
         for(var entry:projections.entrySet()) {
             var components=entry.getValue().getRecordComponents();
             var mappings=c.getResultMap(ns+entry.getKey()).getConstructorResultMappings();

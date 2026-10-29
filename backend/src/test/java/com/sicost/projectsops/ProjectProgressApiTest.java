@@ -32,6 +32,7 @@ class ProjectProgressApiTest {
     @Autowired MockMvc mvc;
     @MockBean ProjectProgressMapper mapper;
     @MockBean ProjectBoardMapper board;
+    @MockBean ProjectCostService costs;
     final LocalDate today=LocalDate.of(2026,10,23);
     static BigDecimal n(String value) { return new BigDecimal(value); }
     static List<OperatingParam> params() {
@@ -45,7 +46,7 @@ class ProjectProgressApiTest {
     void project(String type,String status,String enabled,LocalDate start,LocalDate memo, String actual) {
         when(mapper.state(1)).thenReturn(new ProjectState(1,type,status,enabled));
         when(mapper.source(any())).thenReturn(new BoardSource(1,"P-2601","시험",null,type,null,"PM 미지정",500000000L,
-            start,memo,actual==null?null:n(actual),0,0,0,0));
+            start,memo,actual==null?null:n(actual),0,0,0,0,400000000L));
     }
     Phase phase(int seq,String weight,LocalDate start,LocalDate end,LocalDate completed) {
         return new Phase(seq,1,seq,"단계"+seq,n(weight),start,end,completed,null);
@@ -55,7 +56,7 @@ class ProjectProgressApiTest {
         when(board.params("2026-10")).thenReturn(params());
         when(board.phases(1)).thenReturn(List.of(phase(1,"40",today.minusDays(80),today.minusDays(31),today.minusDays(31)),
             phase(2,"35",today.minusDays(30),today.plusDays(69),null),phase(3,"25",today.plusDays(70),today.plusDays(80),null)));
-        when(board.costs(any())).thenReturn(List.of(new CostMonth("2026-10",n("0"),false)));
+        when(costs.calculate(anyLong(), anyString())).thenReturn(new ProjectCost(0, List.of()));
         when(mapper.memos(1)).thenReturn(List.of(new MemoSource(1,1,today,n("42"),"한 일","할 일",null)));
         when(mapper.issues(1)).thenReturn(List.of());
     }
@@ -69,7 +70,7 @@ class ProjectProgressApiTest {
         verify(mapper).source(new ProgressRead(1,today));
     }
     @Test void costRiskOverridesScheduleWarn() throws Exception {
-        when(board.costs(any())).thenReturn(List.of(new CostMonth("2026-10",n("230000000"),false)));
+        when(costs.calculate(anyLong(), anyString())).thenReturn(new ProjectCost(230000000, List.of()));
         mvc.perform(get("/api/projects/1/progress")).andExpect(status().isOk())
             .andExpect(jsonPath("$.data.budget_amt").value(400000000)).andExpect(jsonPath("$.data.cost_use_rt").value(57.5))
             .andExpect(jsonPath("$.data.cost_progress_diff_rt").value(15.5)).andExpect(jsonPath("$.data.light").value("위험"))
@@ -94,7 +95,7 @@ class ProjectProgressApiTest {
     }
     @Test void zeroPhasesExcludesCostAndScheduleFromLight() throws Exception {
         when(board.phases(1)).thenReturn(List.of());
-        when(board.costs(any())).thenReturn(List.of(new CostMonth("2026-10",n("900000000"),false)));
+        when(costs.calculate(anyLong(), anyString())).thenReturn(new ProjectCost(900000000, List.of()));
         mvc.perform(get("/api/projects/1/progress")).andExpect(status().isOk())
             .andExpect(jsonPath("$.data.plan_prgs_rt").value(0)).andExpect(jsonPath("$.data.currentPhase").isEmpty())
             .andExpect(jsonPath("$.data.light").value("정상"));

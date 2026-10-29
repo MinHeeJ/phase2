@@ -17,6 +17,9 @@ import UI27Screen from "../pages/admin/UI27Screen";
 import UI15Screen from "../pages/partners/UI15Screen";
 import SalesPartManagement from "../pages/salespartsops/SalesPartManagement";
 import UI02Screen from "../pages/developers/UI02Screen";
+import UI03Screen from "../pages/people/UI03Screen";
+import UI04Screen from "../pages/projects/UI04Screen";
+import UI19Screen from "../pages/parts/UI19Screen";
 import UI01Screen from "../pages/projects/UI01Screen";
 import UI05Screen from "../pages/us1/UI05Screen";
 import { WithdrawalChanceSelect } from "../pages/us2/WithdrawalChanceSelect";
@@ -769,6 +772,12 @@ export function AppRouter() {
                 <PartnersScreen {...bindings} />
               ) : id === "UI-02" ? (
                 <DevelopersScreen {...bindings} />
+              ) : id === "UI-03" ? (
+                <UI03Screen {...bindings} />
+              ) : id === "UI-04" ? (
+                <UI04Screen {...bindings} />
+              ) : id === "UI-19" ? (
+                <UI19Screen {...bindings} />
               ) : id === "UI-01" ? (
                 <ProjectsScreen {...bindings} />
               ) : id === "UI-05" ? (

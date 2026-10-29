@@ -66,6 +66,10 @@
   <resultMap id="cash" type="com.sicost.billingsops.BillingModels$Cash"><constructor>
     <arg column="rcpt_dt" javaType="java.time.LocalDate"/><arg column="rcpt_amt" javaType="_long"/>
   </constructor></resultMap>
+  <resultMap id="projectRevenue" type="com.sicost.billingsops.BillingModels$ProjectRevenue"><constructor>
+    <arg column="prj_id" javaType="_long"/><arg column="month" javaType="string"/>
+    <arg column="confirmed_supply_amt" javaType="_long"/>
+  </constructor></resultMap>
   <sql id="projectColumns">p.prj_id AS project_id,p.prj_nm AS project_name,p.cntrct_ty_cd AS contract_type,
     p.stlm_mthd_cd AS basis,p.use_yn</sql>
   <select id="project" resultMap="project">SELECT <include refid="projectColumns"/> FROM prj.prj p WHERE p.prj_id=#{id}</select>
@@ -146,6 +150,16 @@
     FROM bill.bill b JOIN prj.prj p ON p.prj_id=b.prj_id LEFT JOIN prj.bill_stg s ON s.bill_stg_id=b.bill_stg_id
     WHERE b.bill_stts_cd='CONFIRM' AND left(<include refid="month"/>,4)=lpad(#{year}::text,4,'0') GROUP BY <include refid="month"/> ORDER BY month</select>
   <select id="cash" resultMap="cash">SELECT r.rcpt_dt,sum(r.rcpt_amt)::bigint AS rcpt_amt FROM bill.rcpt r WHERE extract(year FROM r.rcpt_dt)=#{year} GROUP BY r.rcpt_dt ORDER BY r.rcpt_dt</select>
+  <select id="projectRevenue" resultMap="projectRevenue">
+    SELECT b.prj_id,<include refid="month"/> AS month,sum(b.sply_amt)::bigint AS confirmed_supply_amt
+    FROM bill.bill b JOIN prj.prj p ON p.prj_id=b.prj_id
+    LEFT JOIN prj.bill_stg s ON s.bill_stg_id=b.bill_stg_id
+    WHERE b.bill_stts_cd='CONFIRM'
+      AND left(<include refid="month"/>,4)=lpad(#{year}::text,4,'0')
+      <if test="projectId != null">AND b.prj_id=#{projectId}</if>
+    GROUP BY b.prj_id,<include refid="month"/>
+    ORDER BY b.prj_id,month
+  </select>
   <select id="planned" resultType="long">SELECT coalesce(sum(s.sply_amt),0)::bigint FROM prj.bill_stg s JOIN prj.prj p ON p.prj_id=s.prj_id WHERE p.cntrct_ty_cd='TK' AND extract(year FROM s.bill_plan_dt)=#{year} AND NOT EXISTS(SELECT 1 FROM bill.bill b WHERE b.bill_stg_id=s.bill_stg_id AND b.amnd_yn='N' AND b.bill_stts_cd!='CANCEL')</select>
   <select id="lockNumber" resultType="string" flushCache="true" useCache="false">SELECT pg_advisory_xact_lock(hashtextextended('bill.bill:' || #{prefix},0))::text</select>
   <select id="maximumNumber" resultType="long">SELECT coalesce(max(substring(b.bill_no FROM length(#{prefix})+1)::bigint),0) FROM bill.bill b WHERE b.bill_no LIKE (#{prefix} || '%') AND substring(b.bill_no FROM length(#{prefix})+1) ~ '^[0-9]+$'</select>

@@ -61,7 +61,8 @@ class AssignmentMonthsPersistenceTest {
         factory.setDataSource(source);
         factory.setMapperLocations(new ClassPathResource("mappers/months/AssignmentMonthsMapper.xml"),
             new ClassPathResource("mappers/common/AssignmentConcurrencyMapper.xml"),
-            new ClassPathResource("mappers/apiops/ProjectBoardMapper.xml"));
+            new ClassPathResource("mappers/apiops/ProjectBoardMapper.xml"),
+            new ClassPathResource("mappers/costallocation/CostAllocationMapper.xml"));
         factory.afterPropertiesSet();
         var session=new SqlSessionTemplate(factory.getObject());
         mapper=session.getMapper(AssignmentMonthsMapper.class);
@@ -71,6 +72,11 @@ class AssignmentMonthsPersistenceTest {
         context.registerBean(AssignmentMonthsMapper.class,()->mapper);
         context.registerBean(AssignmentConcurrencyMapper.class,()->session.getMapper(AssignmentConcurrencyMapper.class));
         context.registerBean(ProjectBoardMapper.class,()->session.getMapper(ProjectBoardMapper.class));
+        context.register(com.sicost.costallocation.CostAllocationService.class);
+        context.registerBean(com.sicost.costallocation.CostAllocationMapper.class,
+            () -> session.getMapper(com.sicost.costallocation.CostAllocationMapper.class));
+        context.registerBean(java.time.Clock.class, () -> java.time.Clock.fixed(
+            java.time.Instant.parse("2026-10-29T00:00:00Z"), java.time.ZoneId.of("Asia/Seoul")));
         context.registerBean(org.springframework.transaction.PlatformTransactionManager.class,()->new DataSourceTransactionManager(source));
         context.refresh();
         service=context.getBean(AssignmentMonthsService.class);

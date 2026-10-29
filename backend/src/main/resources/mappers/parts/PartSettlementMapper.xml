@@ -1,0 +1,142 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sicost.parts.PartSettlementMapper">
+  <resultMap id="part" type="com.sicost.parts.PartSettlementModels$Part"><constructor>
+    <arg column="bsn_part_id" javaType="_long"/><arg column="bsn_part_nm" javaType="string"/>
+  </constructor></resultMap>
+  <resultMap id="standard" type="com.sicost.parts.PartSettlementModels$Standard"><constructor>
+    <arg column="part_std_hist_id" javaType="_long"/><arg column="aply_bgn_ym" javaType="string"/>
+    <arg column="aply_end_ym" javaType="string"/><arg column="ldr_nm" javaType="string"/>
+    <arg column="prft_dstrb_rt" javaType="java.math.BigDecimal"/><arg column="bsn_fee_amt" javaType="_long"/>
+  </constructor></resultMap>
+  <resultMap id="person" type="com.sicost.parts.PartSettlementModels$Person"><constructor>
+    <arg column="dev_id" javaType="_long"/><arg column="dev_nm" javaType="string"/>
+    <arg column="emp_se_cd" javaType="string"/><arg column="real_pay_amt" javaType="_long"/>
+    <arg column="rtrpay_acml_amt" javaType="_long"/><arg column="first_start" javaType="java.time.LocalDate"/>
+  </constructor></resultMap>
+  <resultMap id="settlement" type="com.sicost.parts.PartSettlementModels$Settlement"><constructor>
+    <arg column="stlm_id" javaType="java.lang.Long"/><arg column="bsn_part_id" javaType="_long"/>
+    <arg column="stlm_ym" javaType="string"/><arg column="stlm_stts_cd" javaType="string"/>
+    <arg column="part_std_hist_id" javaType="java.lang.Long"/><arg column="ldr_nm" javaType="string"/>
+    <arg column="prft_dstrb_rt" javaType="java.math.BigDecimal"/><arg column="bsn_fee_amt" javaType="java.lang.Long"/>
+    <arg column="psn_cnt" javaType="_int"/><arg column="tot_sls_amt" javaType="_long"/>
+    <arg column="tot_exp_amt" javaType="_long"/><arg column="tot_diff_amt" javaType="_long"/>
+    <arg column="tot_psn_prft_amt" javaType="_long"/><arg column="corp_card_amt" javaType="_long"/>
+    <arg column="part_prft_amt" javaType="_long"/><arg column="rmrk_desc" javaType="string"/>
+    <arg column="cnfrm_at" javaType="java.time.LocalDateTime"/>
+  </constructor></resultMap>
+  <resultMap id="item" type="com.sicost.parts.PartSettlementModels$Item"><constructor>
+    <arg column="stlm_dtl_id" javaType="java.lang.Long"/><arg column="dev_id" javaType="_long"/>
+    <arg column="dev_nm" javaType="string"/><arg column="emp_se_cd" javaType="string"/>
+    <arg column="project_names" javaType="string"/><arg column="mm_qty" javaType="java.math.BigDecimal"/>
+    <arg column="mth_untprc_amt" javaType="_long"/><arg column="slry_amt" javaType="_long"/>
+    <arg column="bsn_fee_amt" javaType="_long"/><arg column="rtrpay_amt" javaType="_long"/>
+    <arg column="tot_exp_amt" javaType="_long"/><arg column="diff_amt" javaType="_long"/>
+    <arg column="prft_amt" javaType="_long"/><arg column="rmrk_desc" javaType="string"/>
+  </constructor></resultMap>
+  <resultMap id="history" type="com.sicost.parts.PartSettlementModels$History"><constructor>
+    <arg column="stlm_hist_id" javaType="_long"/><arg column="stlm_prcs_cd" javaType="string"/>
+    <arg column="rsn_desc" javaType="string"/><arg column="prcs_user_id" javaType="java.lang.Long"/>
+    <arg column="prcs_at" javaType="java.time.LocalDateTime"/>
+  </constructor></resultMap>
+  <select id="parts" resultMap="part">
+    SELECT p.bsn_part_id,p.bsn_part_nm FROM mst.bsn_part p
+    WHERE p.hq_yn='N' ORDER BY p.bsn_part_id
+  </select>
+  <select id="part" resultMap="part">
+    SELECT p.bsn_part_id,p.bsn_part_nm FROM mst.bsn_part p WHERE p.bsn_part_id=#{id} AND p.hq_yn='N'
+  </select>
+  <select id="lockPart" resultType="long" useCache="false" flushCache="true">
+    SELECT p.bsn_part_id FROM mst.bsn_part p WHERE p.bsn_part_id=#{id} AND p.hq_yn='N' FOR UPDATE
+  </select>
+  <select id="lockSettlement" resultType="long" useCache="false" flushCache="true">
+    SELECT s.stlm_id FROM fin.part_stlm s WHERE s.bsn_part_id=#{partId} AND s.stlm_ym=#{month} FOR UPDATE
+  </select>
+  <select id="monthStatus" resultType="string">
+    SELECT c.cls_stts_cd FROM fin.mth_cls c WHERE c.cls_ym=#{month}
+  </select>
+  <select id="lockMonth" resultType="string" useCache="false" flushCache="true">
+    SELECT c.cls_stts_cd FROM fin.mth_cls c WHERE c.cls_ym=#{month} FOR SHARE
+  </select>
+  <select id="standards" resultMap="standard">
+    SELECT h.part_std_hist_id,h.aply_bgn_ym,h.aply_end_ym,h.ldr_nm,h.prft_dstrb_rt,h.bsn_fee_amt
+    FROM mst.bsn_part_std_hist h WHERE h.bsn_part_id=#{id}
+    ORDER BY h.aply_bgn_ym DESC,h.part_std_hist_id DESC
+  </select>
+  <select id="settlement" resultMap="settlement">
+    SELECT s.stlm_id,s.bsn_part_id,s.stlm_ym,s.stlm_stts_cd,s.part_std_hist_id,h.ldr_nm,
+      s.prft_dstrb_rt,s.bsn_fee_amt,coalesce(s.psn_cnt,0) AS psn_cnt,
+      coalesce(s.tot_sls_amt,0) AS tot_sls_amt,coalesce(s.tot_exp_amt,0) AS tot_exp_amt,
+      coalesce(s.tot_diff_amt,0) AS tot_diff_amt,coalesce(s.tot_psn_prft_amt,0) AS tot_psn_prft_amt,
+      s.corp_card_amt,coalesce(s.part_prft_amt,0) AS part_prft_amt,s.cnfrm_at,
+      (SELECT a.aft_val::jsonb-&gt;&gt;'rmrk_desc' FROM sys.data_chg_hist a
+       WHERE a.tbl_nm='fin.part_stlm' AND a.obj_rec_id=s.stlm_id::text AND a.clmn_nm='corp_card_amt'
+       ORDER BY a.chg_at DESC,a.data_chg_hist_id DESC LIMIT 1) AS rmrk_desc
+    FROM fin.part_stlm s LEFT JOIN mst.bsn_part_std_hist h ON h.part_std_hist_id=s.part_std_hist_id
+    WHERE s.bsn_part_id=#{partId} AND s.stlm_ym=#{month}
+  </select>
+  <select id="people" resultMap="person">
+    SELECT c.dev_id,d.dev_nm,c.emp_se_cd,c.real_pay_amt,c.rtrpay_acml_amt,
+      (SELECT min(a.bgn_dt) FROM asgn.asgn a WHERE a.dev_id=c.dev_id
+       AND a.asgn_stts_cd!='CANCELLED' AND a.bgn_dt &lt; (to_date(#{month},'YYYY-MM')+interval '1 month')) AS first_start
+    FROM cst.mth_cst c JOIN mst.dev d ON d.dev_id=c.dev_id
+    WHERE c.bsn_part_id=#{partId} AND c.cst_ym=#{month} ORDER BY c.dev_id
+  </select>
+  <select id="projectNames" resultType="string">
+    SELECT string_agg(DISTINCT p.prj_nm,' · ' ORDER BY p.prj_nm)
+    FROM asgn.asgn a JOIN prj.prj p ON p.prj_id=a.prj_id
+    JOIN asgn.asgn_mth m ON m.asgn_id=a.asgn_id AND m.work_ym=#{month}
+    WHERE a.dev_id=#{devId} AND a.asgn_stts_cd!='CANCELLED'
+  </select>
+  <select id="details" resultMap="item">
+    SELECT i.stlm_dtl_id,i.dev_id,d.dev_nm,i.emp_se_cd,NULL::text AS project_names,i.mm_qty,
+      i.mth_untprc_amt,i.slry_amt,i.bsn_fee_amt,i.rtrpay_amt,i.tot_exp_amt,i.diff_amt,i.prft_amt,i.rmrk_desc
+    FROM fin.part_stlm_dtl i JOIN mst.dev d ON d.dev_id=i.dev_id
+    WHERE i.stlm_id=#{id} ORDER BY i.dev_id
+  </select>
+  <select id="history" resultMap="history">
+    SELECT h.stlm_hist_id,h.stlm_prcs_cd,h.rsn_desc,h.prcs_user_id,h.prcs_at
+    FROM fin.part_stlm_hist h WHERE h.stlm_id=#{id} ORDER BY h.prcs_at DESC,h.stlm_hist_id DESC
+  </select>
+  <select id="saveCard" resultType="long" affectData="true" flushCache="true">
+    INSERT INTO fin.part_stlm(bsn_part_id,stlm_ym,corp_card_amt,created_by)
+    VALUES(#{scope.partId},#{scope.month},#{card.corp_card_amt},#{actor})
+    ON CONFLICT(bsn_part_id,stlm_ym) DO UPDATE SET corp_card_amt=excluded.corp_card_amt,
+      updated_at=CURRENT_TIMESTAMP,updated_by=excluded.created_by
+    WHERE fin.part_stlm.stlm_stts_cd='DRAFT' RETURNING stlm_id
+  </select>
+  <update id="snapshot">
+    UPDATE fin.part_stlm SET part_std_hist_id=#{settlement.part_std_hist_id},
+      prft_dstrb_rt=#{settlement.prft_dstrb_rt},bsn_fee_amt=#{settlement.bsn_fee_amt},
+      psn_cnt=#{settlement.psn_cnt},tot_sls_amt=#{settlement.tot_sls_amt},tot_exp_amt=#{settlement.tot_exp_amt},
+      tot_diff_amt=#{settlement.tot_diff_amt},tot_psn_prft_amt=#{settlement.tot_psn_prft_amt},
+      part_prft_amt=#{settlement.part_prft_amt},updated_at=#{now},updated_by=#{actor}
+    WHERE stlm_id=#{id} AND stlm_stts_cd='DRAFT'
+  </update>
+  <update id="transition">
+    UPDATE fin.part_stlm SET stlm_stts_cd=#{after},updated_at=#{now},updated_by=#{actor},
+      cnfrm_user_id=CASE WHEN #{after}='CONFIRM' THEN #{actor} ELSE cnfrm_user_id END,
+      cnfrm_at=CASE WHEN #{after}='CONFIRM' THEN #{now} ELSE cnfrm_at END,
+      cncl_rsn_desc=CASE WHEN #{after}='DRAFT' THEN #{reason} ELSE cncl_rsn_desc END
+    WHERE stlm_id=#{id} AND stlm_stts_cd=#{before}
+  </update>
+  <delete id="deleteDetails">DELETE FROM fin.part_stlm_dtl WHERE stlm_id=#{id}</delete>
+  <insert id="insertDetail">
+    INSERT INTO fin.part_stlm_dtl(stlm_id,dev_id,emp_se_cd,mm_qty,mth_untprc_amt,slry_amt,
+      bsn_fee_amt,rtrpay_amt,tot_exp_amt,diff_amt,prft_amt,rmrk_desc)
+    VALUES(#{id},#{item.dev_id},#{item.emp_se_cd},#{item.mm_qty},#{item.mth_untprc_amt},#{item.slry_amt},
+      #{item.bsn_fee_amt},#{item.rtrpay_amt},#{item.tot_exp_amt},#{item.diff_amt},#{item.prft_amt},#{item.rmrk_desc})
+  </insert>
+  <insert id="historyWrite">
+    INSERT INTO fin.part_stlm_hist(stlm_id,stlm_prcs_cd,rsn_desc,prcs_user_id,prcs_at)
+    VALUES(#{id},CASE WHEN #{after}='CONFIRM' THEN 'CONFIRM' ELSE 'CANCEL' END,#{reason},#{actor},#{now})
+  </insert>
+  <insert id="audit">
+    INSERT INTO sys.data_chg_hist(tbl_nm,obj_rec_id,data_chg_ty_cd,clmn_nm,bfr_val,aft_val,rsn_desc,chg_user_id)
+    VALUES('fin.part_stlm',#{id}::text,'UPDATE',#{column},#{before},#{after},#{reason},#{actor})
+  </insert>
+  <insert id="access">
+    INSERT INTO sys.acs_hist(acs_ty_cd,scrn_id,user_id,obj_desc,dtl_desc)
+    VALUES(#{type},'UI-19',#{actor},#{object},#{description})
+  </insert>
+</mapper>
