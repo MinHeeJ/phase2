@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sicost.common.billing.BillingRevenueQuery">
+  <resultMap id="revenue" type="com.sicost.common.billing.BillingSupportModels$Revenue">
+    <constructor>
+      <arg column="month" javaType="java.lang.String"/>
+      <arg column="confirmed_supply_amt" javaType="_long"/>
+    </constructor>
+  </resultMap>
+  <resultMap id="cashReceipt" type="com.sicost.common.billing.BillingSupportModels$CashReceipt">
+    <constructor>
+      <arg column="receipt_id" javaType="_long"/>
+      <arg column="bill_id" javaType="_long"/>
+      <arg column="rcpt_dt" javaType="java.time.LocalDate"/>
+      <arg column="rcpt_amt" javaType="_long"/>
+    </constructor>
+  </resultMap>
+  <resultMap id="supply" type="com.sicost.common.billing.BillingSupportModels$Supply">
+    <constructor>
+      <arg column="confirmed_supply_amt" javaType="_long"/>
+      <arg column="confirmed_count" javaType="_long"/>
+    </constructor>
+  </resultMap>
+  <resultMap id="balance" type="com.sicost.common.billing.BillingSupportModels$Balance">
+    <constructor>
+      <arg column="bill_id" javaType="_long"/>
+      <arg column="bill_stts_cd" javaType="java.lang.String"/>
+      <arg column="amnd_yn" javaType="java.lang.String"/>
+      <arg column="original_total_amt" javaType="_long"/>
+      <arg column="confirmed_adjustment_amt" javaType="_long"/>
+      <arg column="received_amt" javaType="_long"/>
+    </constructor>
+  </resultMap>
+  <sql id="revenueMonth">
+    CASE WHEN p.cntrct_ty_cd='TK' THEN to_char(b.bill_dt,'YYYY-MM') ELSE b.atrb_ym END
+  </sql>
+  <select id="monthlyRevenue" resultMap="revenue">
+    SELECT <include refid="revenueMonth"/> AS month,
+      CAST(SUM(b.sply_amt) AS BIGINT) AS confirmed_supply_amt
+    FROM bill.bill b
+    JOIN prj.prj p ON p.prj_id=b.prj_id
+    WHERE b.bill_stts_cd='CONFIRM' AND p.cntrct_ty_cd IN ('TK','MO','DP')
+      AND <include refid="revenueMonth"/> &gt;= #{from}
+      AND <include refid="revenueMonth"/> &lt;= #{to}
+    GROUP BY <include refid="revenueMonth"/>
+    ORDER BY month
+  </select>
+  <select id="cashReceipts" resultMap="cashReceipt">
+    SELECT r.rcpt_id AS receipt_id, r.bill_id, r.rcpt_dt, r.rcpt_amt
+    FROM bill.rcpt r
+    JOIN bill.bill b ON b.bill_id=r.bill_id
+    WHERE b.bill_stts_cd='CONFIRM' AND b.amnd_yn='N'
+      AND r.rcpt_dt &gt;= #{start} AND r.rcpt_dt &lt; #{endExclusive}
+    ORDER BY r.rcpt_dt, r.rcpt_id
+  </select>
+  <select id="confirmedSupply" resultMap="supply">
+    SELECT CAST(COALESCE(SUM(b.sply_amt),0) AS BIGINT) AS confirmed_supply_amt,
+      COUNT(*) AS confirmed_count
+    FROM bill.bill b
+    JOIN prj.prj p ON p.prj_id=b.prj_id
+    WHERE b.prj_id=#{projectId} AND b.bill_stts_cd='CONFIRM'
+      AND p.cntrct_ty_cd IN ('TK','MO','DP')
+      AND <include refid="revenueMonth"/> = #{month}
+  </select>
+  <select id="balance" resultMap="balance" useCache="false" flushCache="true">
+    SELECT b.bill_id, b.bill_stts_cd, b.amnd_yn, b.tot_amt AS original_total_amt,
+      CAST(COALESCE((SELECT SUM(a.tot_amt) FROM bill.bill a
+        WHERE a.orgnl_bill_id=b.bill_id AND a.amnd_yn='Y'
+          AND a.bill_stts_cd='CONFIRM'),0) AS BIGINT) AS confirmed_adjustment_amt,
+      CAST(COALESCE((SELECT SUM(r.rcpt_amt) FROM bill.rcpt r
+        WHERE r.bill_id=b.bill_id),0) AS BIGINT) AS received_amt
+    FROM bill.bill b WHERE b.bill_id=#{billId}
+  </select>
+</mapper>

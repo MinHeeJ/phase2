@@ -2,6 +2,19 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Route, Routes } from "react-router-dom";
 import UI27Screen from "../pages/admin/UI27Screen";
 import UI15Screen from "../pages/partners/UI15Screen";
+import UI13Screen, {
+  type BillingScreenContext,
+} from "../pages/billings/UI13Screen";
+import BillingReviewScreen from "../pages/billingsops/UI13Screen";
+import { BillingActionDialog } from "../pages/billingsops/BillingDetailPanel";
+import type { BillingDetail } from "../pages/billings/client";
+import { updateBilling } from "../pages/billings/client";
+import { BillingReceiptPanel } from "../pages/receipts/BillingReceiptPanel";
+import { DispatchAttendanceDialog } from "../pages/dispatchattendance/DispatchAttendanceDialog";
+import {
+  DispatchAttendanceUploadActions,
+  DispatchAttendanceUploadDialog,
+} from "../pages/dispatchattendance2/DispatchAttendanceUploadDialog";
 import SalesPartManagement from "../pages/salespartsops/SalesPartManagement";
 import UI02Screen from "../pages/developers/UI02Screen";
 import UI01Screen from "../pages/projects/UI01Screen";
@@ -60,6 +73,166 @@ import {
   AppShell,
   type BusinessScreenBindings,
 } from "../pages/shared/AppShell";
+
+function BillingsScreen({
+  onDirtyChange,
+  ...bindings
+}: BusinessScreenBindings) {
+  const notify = useRef(onDirtyChange);
+  notify.current = onDirtyChange;
+  const reportDirty = useCallback(
+    (dirty: boolean) => notify.current(dirty),
+    [],
+  );
+  const [attendance, setAttendance] = useState<{
+    projectId: number;
+    month: string;
+    context: BillingScreenContext;
+  } | null>(null);
+  const [upload, setUpload] = useState<BillingScreenContext | null>(null);
+  const mobile = useDeveloperReadOnly();
+  useEffect(() => {
+    if (mobile) {
+      setAttendance(null);
+      setUpload(null);
+    }
+  }, [mobile]);
+  return (
+    <>
+      <UI13Screen
+        {...bindings}
+        onDirtyChange={reportDirty}
+        onUpload={setUpload}
+        onAttendance={(projectId, month, context) =>
+          setAttendance({ projectId, month, context })
+        }
+        renderTab={(tab, context) => (
+          <BillingReviewScreen embedded={{ tab, ...context }} />
+        )}
+        renderActions={(detail, refresh, context) => (
+          <BillingLifecycleActions
+            key={detail.billing.bill_id}
+            detail={detail}
+            refresh={refresh}
+            openBilling={context.openBilling}
+          />
+        )}
+        renderReceipts={(detail, refresh, context) => (
+          <BillingReceiptPanel
+            key={detail.billing.bill_id}
+            billId={detail.billing.bill_id!}
+            year={context.year}
+            onChanged={async () => refresh()}
+          />
+        )}
+      />
+      {upload && !mobile && (
+        <DispatchAttendanceUploadDialog
+          year={upload.year}
+          onClose={() => setUpload(null)}
+          onApplied={async () => upload.refresh()}
+        />
+      )}
+      {attendance && !mobile && (
+        <DispatchAttendanceDialog
+          year={attendance.context.year}
+          initialMonth={attendance.month}
+          initialProjectId={attendance.projectId}
+          onClose={() => setAttendance(null)}
+          onDirtyChange={reportDirty}
+          onSaved={async () => attendance.context.refresh()}
+          renderUpload={({ month, projectId, onApplied }) => (
+            <DispatchAttendanceUploadActions
+              year={attendance.context.year}
+              initialMonth={month}
+              projectId={projectId}
+              onApplied={onApplied}
+            />
+          )}
+        />
+      )}
+    </>
+  );
+}
+
+function BillingLifecycleActions({
+  detail,
+  refresh,
+  openBilling,
+}: {
+  detail: BillingDetail;
+  refresh: () => void;
+  openBilling: (id: number) => void;
+}) {
+  const [action, setAction] = useState<
+    "confirm" | "cancel" | "amendments" | null
+  >(null);
+  const [error, setError] = useState<ApiFailure | null>(null);
+  const [pending, setPending] = useState(false);
+  const row = detail.billing;
+  return (
+    <>
+      <ErrorBanner error={error} />
+      {row.bill_stts_cd === "DRAFT" && (
+        <Button
+          data-testid="billing-recalculate-details"
+          pending={pending}
+          onClick={async () => {
+            setPending(true);
+            setError(null);
+            try {
+              await updateBilling(row.bill_id!, { recalculate: true });
+              refresh();
+            } catch (e) {
+              setError(e as ApiFailure);
+            } finally {
+              setPending(false);
+            }
+          }}
+        >
+          다시 계산
+        </Button>
+      )}
+      {row.bill_stts_cd === "DRAFT" && (
+        <Button
+          data-testid="billing-confirm"
+          onClick={() => setAction("confirm")}
+        >
+          확정
+        </Button>
+      )}
+      {["DRAFT", "CONFIRM"].includes(row.bill_stts_cd) &&
+        detail.receipts.length === 0 && (
+          <Button
+            data-testid="billing-cancel"
+            onClick={() => setAction("cancel")}
+          >
+            청구 취소
+          </Button>
+        )}
+      {row.bill_stts_cd === "CONFIRM" && detail.original_bill_id == null && (
+        <Button
+          data-testid="billing-amend"
+          onClick={() => setAction("amendments")}
+        >
+          수정 청구
+        </Button>
+      )}
+      {action && (
+        <BillingActionDialog
+          detail={detail}
+          action={action}
+          onClose={() => setAction(null)}
+          onSaved={async (next) => {
+            setAction(null);
+            if (next.billing.bill_id != null) openBilling(next.billing.bill_id);
+            refresh();
+          }}
+        />
+      )}
+    </>
+  );
+}
 
 function CommonCodesScreen({
   onDirtyChange,
@@ -587,7 +760,9 @@ export function AppRouter() {
         element={
           <AppShell
             renderBusiness={(id, bindings) =>
-              id === "UI-15" ? (
+              id === "UI-13" ? (
+                <BillingsScreen {...bindings} />
+              ) : id === "UI-15" ? (
                 <PartnersScreen {...bindings} />
               ) : id === "UI-02" ? (
                 <DevelopersScreen {...bindings} />

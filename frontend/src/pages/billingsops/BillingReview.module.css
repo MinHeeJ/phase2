@@ -1,0 +1,84 @@
+.page {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+}
+.period,
+.tabs {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.tabs {
+  border-bottom: 1px solid var(--divider);
+}
+.tabs button {
+  border: 0;
+  background: none;
+  color: var(--text-sub);
+  padding: var(--space-3);
+  cursor: pointer;
+}
+.tabs button[aria-selected="true"] {
+  color: var(--primary);
+  border-bottom: 2px solid var(--primary);
+  font-weight: 600;
+}
+.cards {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+.cards article {
+  border: 1px solid var(--divider);
+  border-radius: var(--radius-panel);
+  background: var(--surface);
+  padding: var(--space-4);
+}
+.cards article strong {
+  display: block;
+  font-size: var(--title-size);
+  margin: var(--space-2) 0;
+}
+.cards article span {
+  color: var(--text-sub);
+  font-size: var(--caption-size);
+}
+.message {
+  padding: var(--space-3);
+  border-radius: var(--radius-panel);
+  background: var(--warn-bg);
+  color: var(--warn);
+}
+.empty {
+  text-align: center;
+  padding: 48px 16px;
+  color: var(--text-sub);
+}
+.fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+.fields label {
+  display: grid;
+  gap: var(--space-2);
+}
+.fields input,
+.fields select,
+.fields textarea {
+  width: 100%;
+  min-width: 0;
+  min-height: var(--control-height);
+  padding: var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+}
+@media (max-width: 767px) {
+  .cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .fields {
+    grid-template-columns: 1fr;
+  }
+}

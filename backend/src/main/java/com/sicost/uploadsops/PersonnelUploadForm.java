@@ -17,13 +17,14 @@ import static com.sicost.uploadsops.UploadModels.*;
 
 @Component
 public class PersonnelUploadForm {
+    public static final List<String> ATTENDANCE_HEADERS=List.of("연월","프로젝트ID","관리번호","이름","근무일수","정규 근무시간","초과 근무시간","해당 월 근무일수");
     public static final List<String> DEVELOPER_HEADERS=List.of("관리번호","이름","연락처","직원구분","소속","직위","업무 구분","등급","주 직무","보조 직무","스킬","영업 파트","입사일","월 단가","상태","시작일","종료일","비고");
     public static final List<String> SALARY_HEADERS=List.of("","이름","소속","직위","구분","프로젝트명","기간","계약유형","단가","월 급여","수당","4대보험(회사)","4대보험(본인)","3.3% 원천세","퇴직금 적립","실지급액","개인별 원가","팀비","프로젝트경비","원가합계","영업이익","가동","가득","관리번호","부가세","근로소득세");
     private static final Map<String,String> ALIASES=Map.ofEntries(Map.entry("사번","관리번호"),Map.entry("성명","이름"),Map.entry("전화번호","연락처"),Map.entry("소속사","소속"),Map.entry("업체명","소속"),Map.entry("직무","주 직무"),Map.entry("보유스킬","스킬"),Map.entry("파트","영업 파트"),Map.entry("계약일","입사일"),Map.entry("단가","월 단가"),Map.entry("메모","비고"),Map.entry("직접/간접","업무 구분"),Map.entry("근무상태","상태"));
     private final PersonnelUploadMapper mapper;
     private final SharedReadService shared;
     public PersonnelUploadForm(PersonnelUploadMapper mapper,SharedReadService shared){this.mapper=mapper;this.shared=shared;}
-    public static List<String> headers(String form){return "B.8".equals(form)?DEVELOPER_HEADERS:SALARY_HEADERS;}
+    public static List<String> headers(String form){return "B.3".equals(form)?ATTENDANCE_HEADERS:"B.8".equals(form)?DEVELOPER_HEADERS:SALARY_HEADERS;}
     static String label(String raw,String form){String key=PartnerUploadForm.normalize(raw);if("B.8".equals(form)&&key.equals("구분"))return "직원구분";for(String h:headers(form))if(!h.isBlank()&&PartnerUploadForm.normalize(h).equals(key))return h;return "B.8".equals(form)?ALIASES.getOrDefault(key,raw):raw;}
     static Row title(Sheet sheet,String form){String marker="B.8".equals(form)?"이름":"관리번호";for(int i=0;i<20;i++){Row r=sheet.getRow(i);if(r!=null)for(Cell c:r)if(c.getCellType()==CellType.STRING&&label(c.getStringCellValue(),form).equals(marker))return r;}throw PartnerUploadForm.fileError("HEADER_NOT_FOUND","제목 줄을 찾을 수 없습니다. 양식의 제목을 확인해 주세요.");}
     public Parsed parse(InputStream input,String form,String month)throws IOException {

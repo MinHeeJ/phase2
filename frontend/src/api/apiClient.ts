@@ -1,4 +1,69 @@
 export { api, readData, ApiFailure, retryRecovery } from "../shared/api";
+export {
+  listBillings,
+  getBilling,
+  createBilling,
+  updateBilling,
+  previewBilling,
+  getBillingSummary,
+  downloadBillings,
+} from "../pages/billings/client";
+export type {
+  BillingRow,
+  BillingDetail,
+  BillingLine,
+  BillingPage,
+  BillingFilters,
+  BillingCreate,
+  BillingUpdate,
+  BillingPreview,
+  BillingSummary,
+} from "../pages/billings/client";
+export {
+  listBillingGaps,
+  listBillingOverdue,
+  billingWrite,
+} from "../pages/billingsops/client";
+export type {
+  BillingGap,
+  BillingGapResult,
+  BillingOverdue,
+  BillingOverdueResult,
+} from "../pages/billingsops/client";
+export {
+  getDispatchAttendance,
+  saveDispatchAttendance,
+} from "../pages/dispatchattendance/client";
+export type {
+  DispatchAttendanceInput,
+  DispatchAttendanceRow,
+  DispatchAttendanceResult,
+} from "../pages/dispatchattendance/client";
+export {
+  validateDispatchAttendanceUpload,
+  applyDispatchAttendanceUpload,
+  revalidateDispatchAttendanceUpload,
+  getDispatchAttendanceInspection,
+  listDispatchAttendanceIssues,
+  listDispatchAttendanceRows,
+} from "../pages/dispatchattendance2/client";
+export type {
+  DispatchAttendanceValidation,
+  DispatchAttendancePreview,
+  DispatchAttendanceApplied,
+} from "../pages/dispatchattendance2/client";
+export {
+  listBillingReceipts,
+  createBillingReceipt,
+  updateBillingReceipt,
+  deleteBillingReceipt,
+} from "../pages/receipts/client";
+export type {
+  BillingReceiptInput,
+  BillingReceipt,
+  ReceiptBillingDetail,
+  ReceiptBillingRow,
+} from "../pages/receipts/client";
 export { listWithdrawals, exportWithdrawals } from "../pages/us1/client";
 export type {
   WithdrawalFilters,

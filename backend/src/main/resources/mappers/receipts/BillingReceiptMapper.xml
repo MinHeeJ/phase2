@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sicost.receipts.BillingReceiptMapper">
+  <resultMap id="receipt" type="com.sicost.receipts.BillingReceiptModels$ReceiptRow">
+    <constructor>
+      <arg column="receipt_id" javaType="_long"/>
+      <arg column="rcpt_dt" javaType="java.time.LocalDate"/>
+      <arg column="rcpt_amt" javaType="_long"/>
+      <arg column="rmrk_desc" javaType="java.lang.String"/>
+    </constructor>
+  </resultMap>
+  <resultMap id="billing" type="com.sicost.receipts.BillingReceiptModels$ReceiptBillingRow">
+    <constructor>
+      <arg column="bill_id" javaType="java.lang.Long"/>
+      <arg column="bill_stg_id" javaType="java.lang.Long"/>
+      <arg column="virtual_plan" javaType="_boolean"/>
+      <arg column="bill_no" javaType="java.lang.String"/>
+      <arg column="prj_id" javaType="_long"/>
+      <arg column="project_name" javaType="java.lang.String"/>
+      <arg column="customer_id" javaType="java.lang.Long"/>
+      <arg column="customer_name" javaType="java.lang.String"/>
+      <arg column="contract_type" javaType="java.lang.String"/>
+      <arg column="atrb_ym" javaType="java.lang.String"/>
+      <arg column="bill_dt" javaType="java.time.LocalDate"/>
+      <arg column="sply_amt" javaType="_long"/>
+      <arg column="vat_amt" javaType="_long"/>
+      <arg column="tot_amt" javaType="_long"/>
+      <arg column="bill_stts_cd" javaType="java.lang.String"/>
+      <arg column="txinv_no" javaType="java.lang.String"/>
+      <arg column="txinv_dt" javaType="java.time.LocalDate"/>
+      <arg column="rcpt_plan_dt" javaType="java.time.LocalDate"/>
+      <arg column="received_amt" javaType="_long"/>
+      <arg column="adjusted_total_amt" javaType="_long"/>
+      <arg column="receivable_amt" javaType="_long"/>
+      <arg column="reminder_stage" javaType="java.lang.Integer"/>
+    </constructor>
+  </resultMap>
+  <resultMap id="detail" type="com.sicost.receipts.BillingReceiptModels$ReceiptDetailLine">
+    <constructor>
+      <arg column="asgn_id" javaType="java.lang.Long"/>
+      <arg column="dev_id" javaType="java.lang.Long"/>
+      <arg column="cntrct_dev_id" javaType="java.lang.Long"/>
+      <arg column="display_name" javaType="java.lang.String"/>
+      <arg column="work_ym" javaType="java.lang.String"/>
+      <arg column="mm_qty" javaType="java.math.BigDecimal"/>
+      <arg column="source_mm_qty" javaType="java.math.BigDecimal"/>
+      <arg column="untprc_amt" javaType="java.lang.Long"/>
+      <arg column="work_day_qty" javaType="java.math.BigDecimal"/>
+      <arg column="work_tm_qty" javaType="java.math.BigDecimal"/>
+      <arg column="ovtm_tm_qty" javaType="java.math.BigDecimal"/>
+      <arg column="ovtm_amt" javaType="_long"/>
+      <arg column="bill_amt" javaType="_long"/>
+      <arg column="rmrk_desc" javaType="java.lang.String"/>
+    </constructor>
+  </resultMap>
+  <resultMap id="history" type="com.sicost.receipts.BillingReceiptModels$ReceiptHistory">
+    <constructor>
+      <arg column="description" javaType="java.lang.String"/>
+      <arg column="changed_at" javaType="java.time.LocalDateTime"/>
+      <arg column="user_id" javaType="java.lang.String"/>
+    </constructor>
+  </resultMap>
+  <sql id="receiptProjection">
+    SELECT r.rcpt_id AS receipt_id, r.rcpt_dt, r.rcpt_amt, r.rmrk_desc
+    FROM bill.rcpt r WHERE r.bill_id=#{id}
+  </sql>
+  <select id="list" resultMap="receipt" useCache="false" flushCache="true">
+    <include refid="receiptProjection"/> ORDER BY r.rcpt_dt, r.rcpt_id
+  </select>
+  <select id="row" resultMap="receipt" useCache="false" flushCache="true">
+    <include refid="receiptProjection"/> AND r.rcpt_id=#{receiptId}
+  </select>
+  <select id="insert" resultType="long" affectData="true" flushCache="true">
+    INSERT INTO bill.rcpt(bill_id,rcpt_dt,rcpt_amt,rmrk_desc,created_by)
+    VALUES(#{id},#{input.rcpt_dt},#{input.rcpt_amt},#{input.rmrk_desc},#{actor}) RETURNING rcpt_id
+  </select>
+  <update id="update">
+    UPDATE bill.rcpt SET rcpt_dt=#{input.rcpt_dt},rcpt_amt=#{input.rcpt_amt},rmrk_desc=#{input.rmrk_desc}
+    WHERE bill_id=#{id} AND rcpt_id=#{receiptId}
+  </update>
+  <delete id="delete">
+    DELETE FROM bill.rcpt WHERE bill_id=#{id} AND rcpt_id=#{receiptId}
+  </delete>
+  <sql id="billingProjection">
+    SELECT z.bill_id,z.bill_stg_id,false AS virtual_plan,z.bill_no,z.prj_id,z.project_name,
+      z.customer_id,z.customer_name,z.contract_type,z.atrb_ym,z.bill_dt,z.sply_amt,z.vat_amt,z.tot_amt,
+      z.bill_stts_cd,z.txinv_no,z.txinv_dt,z.rcpt_plan_dt,z.received_amt,z.adjusted_total_amt,
+      CASE WHEN z.bill_stts_cd='CONFIRM' AND z.amnd_yn='N'
+        THEN GREATEST(0,z.adjusted_total_amt-z.received_amt) ELSE 0 END AS receivable_amt,
+      CASE WHEN z.rcpt_plan_dt IS NULL OR z.bill_stts_cd!='CONFIRM' OR z.amnd_yn!='N'
+          OR z.adjusted_total_amt &lt;= z.received_amt THEN NULL
+        WHEN (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Seoul')::date-z.rcpt_plan_dt &gt;= 60 THEN 3
+        WHEN (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Seoul')::date-z.rcpt_plan_dt &gt;= 30 THEN 2
+        WHEN (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Seoul')::date-z.rcpt_plan_dt &gt;= 7 THEN 1
+        ELSE 0 END AS reminder_stage
+    FROM (
+      SELECT b.*,p.prj_nm AS project_name,p.cust_ptnr_id AS customer_id,c.ptnr_nm AS customer_name,
+        p.cntrct_ty_cd AS contract_type,
+        CAST(COALESCE((SELECT SUM(r.rcpt_amt) FROM bill.rcpt r WHERE r.bill_id=b.bill_id),0) AS BIGINT) AS received_amt,
+        b.tot_amt+CAST(COALESCE((SELECT SUM(a.tot_amt) FROM bill.bill a
+          WHERE a.orgnl_bill_id=b.bill_id AND a.amnd_yn='Y' AND a.bill_stts_cd='CONFIRM'),0) AS BIGINT) AS adjusted_total_amt
+      FROM bill.bill b JOIN prj.prj p ON p.prj_id=b.prj_id
+      LEFT JOIN mst.ptnr c ON c.ptnr_id=p.cust_ptnr_id
+    ) z
+  </sql>
+  <select id="billing" resultMap="billing" useCache="false" flushCache="true">
+    <include refid="billingProjection"/> WHERE z.bill_id=#{id}
+  </select>
+  <select id="amendments" resultMap="billing" useCache="false" flushCache="true">
+    <include refid="billingProjection"/> WHERE z.orgnl_bill_id=#{id} AND z.amnd_yn='Y' ORDER BY z.bill_id
+  </select>
+  <select id="originalId" resultType="java.lang.Long">
+    SELECT b.orgnl_bill_id FROM bill.bill b WHERE b.bill_id=#{id}
+  </select>
+  <select id="details" resultMap="detail">
+    SELECT d.asgn_id,a.dev_id,COALESCE(d.cntrct_dev_id,a.dev_id) AS cntrct_dev_id,
+      n.dev_nm AS display_name,d.work_ym,d.mm_qty,m.mm_qty AS source_mm_qty,d.untprc_amt,
+      d.work_day_qty,d.work_tm_qty,d.ovtm_tm_qty,d.ovtm_amt,d.bill_amt,d.rmrk_desc
+    FROM bill.bill_dtl d LEFT JOIN asgn.asgn a ON a.asgn_id=d.asgn_id
+    LEFT JOIN mst.dev n ON n.dev_id=COALESCE(d.cntrct_dev_id,a.dev_id)
+    LEFT JOIN asgn.asgn_mth m ON m.asgn_id=d.asgn_id AND m.work_ym=d.work_ym
+    WHERE d.bill_id=#{id} ORDER BY d.bill_dtl_id
+  </select>
+  <select id="history" resultMap="history">
+    SELECT concat(h.data_chg_ty_cd,' ',h.clmn_nm,' ',h.bfr_val,' → ',h.aft_val) AS description,
+      h.chg_at AS changed_at,CAST(h.chg_user_id AS VARCHAR) AS user_id
+    FROM sys.data_chg_hist h
+    WHERE (h.tbl_nm='bill.bill' AND h.obj_rec_id=CAST(#{id} AS VARCHAR))
+      OR (h.tbl_nm='bill.rcpt' AND (h.rsn_desc=concat('청구 입금 #',CAST(#{id} AS VARCHAR))
+        OR EXISTS(SELECT 1 FROM bill.rcpt r WHERE r.bill_id=#{id} AND CAST(r.rcpt_id AS VARCHAR)=h.obj_rec_id)))
+    ORDER BY h.chg_at DESC,h.data_chg_hist_id DESC
+  </select>
+</mapper>

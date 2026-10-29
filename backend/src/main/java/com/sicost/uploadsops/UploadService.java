@@ -27,6 +27,7 @@ public class UploadService {
     private final TransactionTemplate transaction;
     private final Map<String,Validation> validations=new HashMap<>();
     @org.springframework.beans.factory.annotation.Autowired(required=false) private PersonnelUploadService personnel;
+    @org.springframework.beans.factory.annotation.Autowired(required=false) private List<UploadFormDelegate> delegates=List.of();
     @Value("${sicost.upload-directory:${java.io.tmpdir}/sicost/uploads}") private String directory;
     public UploadService(UploadMapper mapper,CurrentUser user,Clock clock,UploadWorkbookWriter writer,PartnerUploadForm form,PlatformTransactionManager manager) {
         this.mapper=mapper;this.user=user;this.clock=clock;this.writer=writer;this.form=form;this.transaction=new TransactionTemplate(manager);
@@ -48,6 +49,12 @@ public class UploadService {
         return inspect(name,store(file,name));
     }
     public PersonnelUploadService personnel(){return Objects.requireNonNull(personnel);}
+    public UploadFormDelegate delegate(long id){return delegates.stream().filter(d->d.owns(id)).findFirst().orElse(null);}
+    public PersonnelUploadModels.Result validateDispatchAttendance(String month,long projectId,MultipartFile file){
+        var delegate=delegates.stream().filter(d->d.supports("B.3")).findFirst().orElseThrow(()->ApiException.notFound("업로드 양식이 없습니다."));
+        String name=filename(file.getOriginalFilename());return delegate.validate(month,projectId,name,store(file,name));
+    }
+    public Object applyDispatchAttendance(long id){var delegate=delegate(id);if(delegate==null||!delegate.supports("B.3"))throw new ApiException(410,"VALIDATION_EXPIRED","검사 결과가 만료되었습니다. 다시 검사하세요.","upload_id");return delegate.apply(id);}
     public PersonnelUploadModels.Result validatePersonnel(String requestedForm,String month,MultipartFile file){
         PersonnelUploadService.formType(requestedForm);
         if("B.1".equals(requestedForm))com.sicost.common.validation.CalendarValues.month(month,"month");
@@ -58,7 +65,8 @@ public class UploadService {
         if(file.getSize()>10L*1024*1024)throw new ApiException(413,"INVALID_INPUT","파일은 10MB 이하만 올릴 수 있습니다.","file");
         if(!name.toLowerCase(Locale.ROOT).endsWith(".xlsx"))throw PartnerUploadForm.fileError("UNSUPPORTED_FILE_TYPE","xlsx 파일만 올릴 수 있습니다.");
         if(file.isEmpty())throw PartnerUploadForm.fileError("EMPTY_FILE","검사할 데이터가 없습니다.");
-        Path root=Path.of(directory).toAbsolutePath().normalize();
+        Path root=Path.of(directory==null?System.getProperty("java.io.tmpdir")+"/sicost/uploads":directory).toAbsolutePath().normalize();
+        if(!Files.isDirectory(root)||!Files.isWritable(root))root=Path.of(System.getProperty("java.io.tmpdir"),"sicost","uploads");
         Path target=root.resolve(LocalDate.now(clock.withZone(ZoneId.of("Asia/Seoul"))).format(DateTimeFormatter.ofPattern("yyyy/MM"))).resolve(UUID.randomUUID()+".xlsx");
         try {Files.createDirectories(target.getParent());try(InputStream in=file.getInputStream()){Files.copy(in,target);}return target;}
         catch(ApiException ex){throw ex;}
@@ -121,6 +129,7 @@ public class UploadService {
         catch(JsonProcessingException ex){throw new IllegalStateException("접근 기록 생성 실패",ex);}
     }
     public UploadFile template(String requestedForm) {
+        for(var delegate:delegates)if(delegate.supports(requestedForm))return delegate.template();
         if("B.8".equals(requestedForm)||"B.1".equals(requestedForm))return personnel().template(requestedForm);
         requireForm(requestedForm);
         try {byte[] bytes=writer.template(mapper.codes());String name="거래처_업로드양식.xlsx";access("DOWNLOAD",name,Map.of("form","B.7"));return new UploadFile(name,bytes);}

@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sicost.common.billing.BillingMutationMapper">
+  <resultMap id="state" type="com.sicost.common.billing.BillingSupportModels$State">
+    <constructor>
+      <arg column="bill_id" javaType="_long"/>
+      <arg column="prj_id" javaType="_long"/>
+      <arg column="orgnl_bill_id" javaType="java.lang.Long"/>
+      <arg column="bill_stts_cd" javaType="java.lang.String"/>
+      <arg column="contract_type" javaType="java.lang.String"/>
+      <arg column="atrb_ym" javaType="java.lang.String"/>
+      <arg column="bill_dt" javaType="java.time.LocalDate"/>
+      <arg column="bill_plan_dt" javaType="java.time.LocalDate"/>
+      <arg column="created_at" javaType="java.time.LocalDateTime"/>
+    </constructor>
+  </resultMap>
+  <sql id="stateProjection">
+    SELECT b.bill_id, b.prj_id, b.orgnl_bill_id, b.bill_stts_cd,
+      p.cntrct_ty_cd AS contract_type, b.atrb_ym, b.bill_dt, s.bill_plan_dt, b.created_at
+    FROM bill.bill b
+    JOIN prj.prj p ON p.prj_id=b.prj_id
+    LEFT JOIN prj.bill_stg s ON s.bill_stg_id=b.bill_stg_id
+    WHERE b.bill_id=#{billId}
+  </sql>
+  <select id="state" resultMap="state" useCache="false" flushCache="true">
+    <include refid="stateProjection"/>
+  </select>
+  <select id="lockBill" resultMap="state" useCache="false" flushCache="true">
+    <include refid="stateProjection"/> FOR UPDATE OF b
+  </select>
+  <select id="numberLock" resultType="java.lang.Object" useCache="false" flushCache="true">
+    SELECT pg_advisory_xact_lock(hashtext('bill.bill_no'),hashtext(#{prefix}))
+  </select>
+  <select id="maximumNumber" resultType="long" useCache="false" flushCache="true">
+    SELECT COALESCE(MAX(CAST(substring(b.bill_no FROM 8) AS BIGINT)),0)
+    FROM bill.bill b
+    WHERE b.bill_no LIKE (#{prefix} || '%') AND b.bill_no ~ '^B-[0-9]{4}-[0-9]+$'
+  </select>
+  <insert id="audit">
+    INSERT INTO sys.data_chg_hist(tbl_nm,obj_rec_id,data_chg_ty_cd,clmn_nm,bfr_val,aft_val,rsn_desc,chg_user_id)
+    VALUES(#{table},#{id},#{type},#{field},#{before},#{after},#{reason},#{actor})
+  </insert>
+</mapper>

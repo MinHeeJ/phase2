@@ -67,16 +67,16 @@ public class UploadWorkbookWriter {
     }
     public byte[] template(String form,List<UploadCode> codes)throws IOException {
         try(var book=new XSSFWorkbook();var out=new ByteArrayOutputStream()){
-            boolean developer=form.equals("B.8");Sheet sheet=book.createSheet(developer?"개발자":"급여"),guide=book.createSheet("입력 방법"),lists=book.createSheet("목록");
+            boolean developer=form.equals("B.8"),attendance=form.equals("B.3");Sheet sheet=book.createSheet(attendance?"파견 근태":developer?"개발자":"급여"),guide=book.createSheet("입력 방법"),lists=book.createSheet("목록");
             sheet.createRow(0).createCell(0).setCellValue("* 표시는 필수입니다. 4행 제목은 바꾸지 마세요.");
-            sheet.createRow(1).createCell(0).setCellValue(developer?"관리번호를 비우면 자동 발급합니다. 외주는 사용 중 협력사가 필요합니다.":"연월은 업로드 창에서 선택합니다. 같은 달의 급여 전체를 새 파일로 바꿉니다.");
+            sheet.createRow(1).createCell(0).setCellValue(attendance?"선택 연월·프로젝트ID와 일치해야 합니다. 해당 월 근무일수는 직접 입력하세요.":developer?"관리번호를 비우면 자동 발급합니다. 외주는 사용 중 협력사가 필요합니다.":"연월은 업로드 창에서 선택합니다. 같은 달의 급여 전체를 새 파일로 바꿉니다.");
             var headers=PersonnelUploadForm.headers(form);Row title=sheet.createRow(3),example=sheet.createRow(4);CellStyle text=book.createCellStyle();text.setDataFormat(book.createDataFormat().getFormat("@"));
-            Set<String> required=developer?Set.of("이름","직원구분","주 직무"):Set.of("관리번호","이름","월 급여");
+            Set<String> required=attendance?Set.of("연월","프로젝트ID","관리번호","이름","해당 월 근무일수"):developer?Set.of("이름","직원구분","주 직무"):Set.of("관리번호","이름","월 급여");
             for(int i=0;i<headers.size();i++){String h=headers.get(i);title.createCell(i).setCellValue(h+(required.contains(h)?" *":""));example.createCell(i);sheet.setColumnWidth(i,24*256);if(h.equals("관리번호"))sheet.setDefaultColumnStyle(i,text);}
             example.getCell(headers.indexOf("이름")).setCellValue("예시) 이 행은 검사·반영에서 제외됩니다.");sheet.createFreezePane(0,4);
             guide.createRow(0).createCell(0).setCellValue("4행 제목을 유지하고 5행 예시 아래에 입력하세요. 오류가 하나라도 있으면 파일 전체를 반영하지 않습니다.");
-            guide.createRow(1).createCell(0).setCellValue(developer?"보조 직무는 쉼표·/ 구분, 스킬은 쉼표 구분. 날짜는 YYYY-MM-DD, 관리번호는 텍스트입니다.":"B~W 열 위치를 유지하세요. X 관리번호, Y 부가세, Z 근로소득세. 계산값은 비교만 합니다.");
-            Map<String,String> groups=developer?Map.of("EMP_TYPE","직원구분","POSITION","직위","WORK_TYPE","업무 구분","GRADE","등급","JOB","주 직무","SKILL","스킬","WORK_STATUS","상태"):Map.of("EMP_TYPE","구분");int col=0;
+            guide.createRow(1).createCell(0).setCellValue(attendance?"DAY는 근무일수, HOUR는 정규 근무시간 필수. 빈 초과 근무시간은 0, 수식은 금지합니다.":developer?"보조 직무는 쉼표·/ 구분, 스킬은 쉼표 구분. 날짜는 YYYY-MM-DD, 관리번호는 텍스트입니다.":"B~W 열 위치를 유지하세요. X 관리번호, Y 부가세, Z 근로소득세. 계산값은 비교만 합니다.");
+            Map<String,String> groups=attendance?Map.of():developer?Map.of("EMP_TYPE","직원구분","POSITION","직위","WORK_TYPE","업무 구분","GRADE","등급","JOB","주 직무","SKILL","스킬","WORK_STATUS","상태"):Map.of("EMP_TYPE","구분");int col=0;
             for(var entry:groups.entrySet()){var options=codes.stream().filter(c->c.group().equals(entry.getKey())).toList();if(lists.getRow(0)==null)lists.createRow(0);lists.getRow(0).createCell(col).setCellValue(entry.getKey());for(int i=0;i<options.size();i++){Row r=lists.getRow(i+1);if(r==null)r=lists.createRow(i+1);r.createCell(col).setCellValue(options.get(i).name());}
                 if(!options.isEmpty()){Name range=book.createName();range.setNameName("Personnel_"+entry.getKey());String letter=org.apache.poi.ss.util.CellReference.convertNumToColString(col);range.setRefersToFormula("'목록'!$"+letter+"$2:$"+letter+"$"+(options.size()+1));var helper=sheet.getDataValidationHelper();int target=headers.indexOf(entry.getValue());var validation=helper.createValidation(helper.createFormulaListConstraint(range.getNameName()),new CellRangeAddressList(5,10004,target,target));validation.setShowErrorBox(true);sheet.addValidationData(validation);}col++;}
             lists.protectSheet(UUID.randomUUID().toString());book.write(out);return out.toByteArray();
