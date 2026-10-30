@@ -112,6 +112,8 @@ class ProjectWireContractTest {
         for (var pathEntry : paths.entrySet()) {
             String path = pathEntry.getKey().toString();
             if (!path.startsWith("/api/projects") && !path.startsWith("/api/uploads")) continue;
+            // Dispatch attendance uploads are billing-owned (UI-13); BillingCommonContractTest checks them.
+            if (path.startsWith("/api/uploads/dispatch-attendance")) continue;
             var methods = (Map<?, ?>) pathEntry.getValue();
             for (String method : List.of("get", "post", "put", "delete")) {
                 if (!(methods.get(method) instanceof Map<?, ?> operation)) continue;

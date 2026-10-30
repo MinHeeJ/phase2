@@ -468,7 +468,7 @@ export default function UI03Screen({
         !list.error &&
         list.data && (
           <>
-            {list.data.warnings.length > 0 && (
+            {(list.data.warnings ?? []).length > 0 && (
               <div
                 role="status"
                 data-testid="people-warnings"
@@ -476,7 +476,7 @@ export default function UI03Screen({
               >
                 <Badge tone="warning">자료 점검</Badge>
                 <ul>
-                  {list.data.warnings.map((w) => (
+                  {(list.data.warnings ?? []).map((w) => (
                     <li key={w}>{w}</li>
                   ))}
                 </ul>

@@ -172,6 +172,11 @@ class CostProjectApiTest {
         mvc.perform(get("/api/costs/projects/7").param("year","2026"))
             .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("PART_STANDARD_MISSING"));
     }
+    @Test void downloadErrorsKeepTheirStatusAsJson() throws Exception {
+        mvc.perform(get("/api/costs/projects").param("year","2027")
+                .accept("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+            .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+    }
     @Test void summaryAndTotalUseFullFilteredSetBeforePagination() throws Exception {
         mvc.perform(get("/api/costs/projects").param("year","2026").param("page","1").param("q","원가").accept("application/json"))
             .andExpect(status().isOk()).andExpect(jsonPath("$.data.items").isEmpty())
