@@ -1,0 +1,99 @@
+.content {
+  display: grid;
+  gap: var(--space-4);
+}
+.summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+.summary dl {
+  margin: 0;
+  display: grid;
+  gap: var(--space-2);
+  grid-template-columns: 1fr 1fr;
+}
+.summary dt {
+  color: var(--text-sub);
+}
+.summary dd {
+  margin: 0;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.chart {
+  width: 100%;
+  min-width: 600px;
+  height: 270px;
+}
+.chart text {
+  fill: var(--text-sub);
+  font-size: 12px;
+}
+.chart line {
+  stroke: var(--divider);
+}
+.target {
+  fill: var(--border);
+}
+.actual {
+  fill: var(--primary);
+}
+.negative {
+  color: var(--bad);
+}
+.positive {
+  color: var(--ok);
+}
+.legend {
+  display: flex;
+  gap: var(--space-4);
+  color: var(--text-sub);
+  font-size: var(--caption-size);
+}
+.legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.legend i {
+  width: 12px;
+  height: 12px;
+  display: inline-block;
+}
+.targetMark {
+  background: var(--border);
+}
+.actualMark {
+  background: var(--primary);
+}
+.editor {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  align-items: end;
+}
+.editor label {
+  display: grid;
+  gap: var(--space-2);
+}
+.editor input,
+.editor select {
+  height: var(--control-height);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: var(--radius-control);
+  padding: var(--space-2);
+  width: 160px;
+}
+.editor input:disabled {
+  background: var(--ro-bg);
+}
+@media (max-width: 767px) {
+  .summary {
+    grid-template-columns: 1fr;
+  }
+  .editor {
+    display: none;
+  }
+}

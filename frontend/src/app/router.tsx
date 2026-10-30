@@ -20,6 +20,18 @@ import UI02Screen from "../pages/developers/UI02Screen";
 import UI03Screen from "../pages/people/UI03Screen";
 import UI04Screen from "../pages/projects/UI04Screen";
 import UI19Screen from "../pages/parts/UI19Screen";
+import UI07Screen from "../pages/profit/UI07Screen";
+import UI08Screen from "../pages/profit/UI08Screen";
+import UI09Screen from "../pages/profit/UI09Screen";
+import FinanceEntriesScreen from "../pages/financeentries/FinanceEntriesScreen";
+import UI18Screen from "../pages/businessplan/UI18Screen";
+import UI20Screen from "../pages/payments/UI20Screen";
+import UI21Screen from "../pages/cashflow/UI21Screen";
+import { CorporateTaxPanel } from "../pages/tax/CorporateTaxPanel";
+import { getTaxPlan } from "../pages/tax/client";
+import { PaymentOrderPanel } from "../pages/paymentorders/PaymentOrderPanel";
+import { BusinessPlanUploadDialog } from "../pages/businessplan2/BusinessPlanUploadDialog";
+import { PriorProfitUploadDialog } from "../pages/priorprofit/PriorProfitUploadDialog";
 import UI01Screen from "../pages/projects/UI01Screen";
 import UI05Screen from "../pages/us1/UI05Screen";
 import { WithdrawalChanceSelect } from "../pages/us2/WithdrawalChanceSelect";
@@ -760,6 +772,138 @@ function ProjectBoardScreen(bindings: BusinessScreenBindings) {
   );
 }
 
+function FinanceEntriesPage({
+  onDirtyChange,
+  ...bindings
+}: BusinessScreenBindings) {
+  const notify = useRef(onDirtyChange);
+  notify.current = onDirtyChange;
+  const reportDirty = useCallback(
+    (dirty: boolean) => notify.current(dirty),
+    [],
+  );
+  const [month, setMonth] = useState(seoulMonth);
+  const [showTax, setShowTax] = useState(false);
+  const [revision, setRevision] = useState(0);
+  const mobile = useDeveloperReadOnly();
+  const year = Number(month.slice(0, 4));
+  const plan = useAdminRead(
+    useCallback(async () => {
+      if (mobile) return null;
+      try {
+        return await getTaxPlan(year);
+      } catch (error) {
+        if ((error as ApiFailure).status === 404) return null;
+        throw error;
+      }
+    }, [year, revision, mobile]),
+  );
+  const refresh = useCallback(() => setRevision((value) => value + 1), []);
+  const currentPlan =
+    plan.data?.year === year && !plan.loading && !plan.error ? plan.data : null;
+  const selected = currentPlan?.months.find((row) => row.month === month);
+  return (
+    <FinanceEntriesScreen
+      {...bindings}
+      onDirtyChange={reportDirty}
+      onMonthChange={setMonth}
+      refreshVersion={revision}
+      taxMonthlyAmount={selected?.amount}
+      onTax={() => setShowTax((value) => !value)}
+      taxPanel={
+        <>
+          <ErrorBanner
+            error={plan.error}
+            onRetry={() => void plan.reload().catch(() => {})}
+          />
+          {showTax && !mobile && (
+            <CorporateTaxPanel
+              year={year}
+              month={month}
+              readOnly={month.slice(0, 4) < seoulMonth().slice(0, 4)}
+              onSaved={refresh}
+            />
+          )}
+        </>
+      }
+    />
+  );
+}
+
+function BusinessPlanPage({
+  onDirtyChange,
+  ...bindings
+}: BusinessScreenBindings) {
+  const notify = useRef(onDirtyChange);
+  notify.current = onDirtyChange;
+  const reportDirty = useCallback(
+    (dirty: boolean) => notify.current(dirty),
+    [],
+  );
+  const [upload, setUpload] = useState<{
+    year: number;
+    refresh: () => Promise<void>;
+  } | null>(null);
+  return (
+    <>
+      <UI18Screen
+        {...bindings}
+        onDirtyChange={reportDirty}
+        onUpload={(year, refresh) => setUpload({ year, refresh })}
+      />
+      {upload && (
+        <BusinessPlanUploadDialog
+          readOnly={upload.year < Number(seoulMonth().slice(0, 4))}
+          onClose={() => setUpload(null)}
+          onApplied={async () => {
+            await upload.refresh();
+            setUpload(null);
+          }}
+        />
+      )}
+    </>
+  );
+}
+
+function OperatingProfitPage(bindings: BusinessScreenBindings) {
+  const [upload, setUpload] = useState<{ refresh: () => void } | null>(null);
+  return (
+    <>
+      <UI08Screen
+        {...bindings}
+        onPriorUpload={(year, refresh) => {
+          if (year === 2025) setUpload({ refresh });
+        }}
+      />
+      {upload && (
+        <PriorProfitUploadDialog
+          onClose={() => setUpload(null)}
+          onApplied={() => {
+            upload.refresh();
+            setUpload(null);
+          }}
+        />
+      )}
+    </>
+  );
+}
+
+function PaymentsPage({ onDirtyChange, ...bindings }: BusinessScreenBindings) {
+  const notify = useRef(onDirtyChange);
+  notify.current = onDirtyChange;
+  const reportDirty = useCallback(
+    (dirty: boolean) => notify.current(dirty),
+    [],
+  );
+  return (
+    <UI20Screen
+      {...bindings}
+      onDirtyChange={reportDirty}
+      renderPaymentOrders={(context) => <PaymentOrderPanel {...context} />}
+    />
+  );
+}
+
 export function AppRouter() {
   return (
     <Routes>
@@ -835,6 +979,20 @@ export function AppRouter() {
                 <ProjectBoardScreen {...bindings} />
               ) : id === "UI-27" ? (
                 <CommonCodesScreen {...bindings} />
+              ) : id === "UI-07" ? (
+                <UI07Screen {...bindings} />
+              ) : id === "UI-08" ? (
+                <OperatingProfitPage {...bindings} />
+              ) : id === "UI-09" ? (
+                <UI09Screen {...bindings} />
+              ) : id === "UI-10" ? (
+                <FinanceEntriesPage {...bindings} />
+              ) : id === "UI-18" ? (
+                <BusinessPlanPage {...bindings} />
+              ) : id === "UI-20" ? (
+                <PaymentsPage {...bindings} />
+              ) : id === "UI-21" ? (
+                <UI21Screen {...bindings} />
               ) : null
             }
           />

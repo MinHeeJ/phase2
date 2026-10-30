@@ -1,0 +1,116 @@
+.content {
+  padding: 0 var(--space-6) var(--space-6);
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+}
+.summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+.summary h2 {
+  margin-bottom: var(--space-3);
+}
+.summary strong {
+  display: block;
+  font-size: var(--title-size);
+  margin-bottom: var(--space-2);
+}
+.summary small {
+  color: var(--text-sub);
+}
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+.chart {
+  display: block;
+  width: 100%;
+  min-width: 480px;
+  height: auto;
+}
+.chart text {
+  font-size: 12px;
+  fill: var(--text-sub);
+}
+.chart line {
+  stroke: var(--border);
+}
+.chart rect {
+  fill: var(--primary);
+}
+.chart .negative {
+  fill: var(--bad);
+}
+.chart .positive {
+  fill: var(--ok);
+}
+.positive {
+  color: var(--ok);
+}
+.negative {
+  color: var(--bad);
+}
+.reference {
+  color: var(--info);
+}
+.warning {
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-panel);
+  background: var(--warn-bg);
+  color: var(--warn);
+  font-size: var(--caption-size);
+}
+.waterfall {
+  display: grid;
+  gap: var(--space-2);
+}
+.waterfallRow {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr) 130px;
+  align-items: center;
+  gap: var(--space-3);
+}
+.track {
+  display: block;
+  height: 24px;
+  background: var(--header-bg);
+  position: relative;
+}
+.track i {
+  display: block;
+  height: 100%;
+  background: var(--primary);
+  min-width: 1px;
+}
+.track .negative {
+  background: var(--bad);
+}
+.track .positive {
+  background: var(--ok);
+}
+.current {
+  background: var(--primary-bg);
+}
+.formula {
+  color: var(--text-sub);
+  line-height: 1.8;
+}
+@media (max-width: 900px) {
+  .summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 767px) {
+  .content {
+    padding: 0 var(--space-4) var(--space-4);
+  }
+  .waterfallRow {
+    grid-template-columns: 90px minmax(0, 1fr) 90px;
+  }
+}

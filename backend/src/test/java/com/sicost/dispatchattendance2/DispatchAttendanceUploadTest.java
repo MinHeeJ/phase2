@@ -77,6 +77,10 @@ class DispatchAttendanceUploadTest {
         verify(mapper,never()).audit(any());
     }
     @Test void anonymousValidationHasCommonEnvelopeRealRowsAndDoesNotWriteBusinessData() throws Exception {
+        mvc.perform(multipart("/api/uploads/dispatch-attendance/validate")
+            .file(AttendanceWorkbooks.file(AttendanceWorkbooks.values())).param("month","2026-10").param("projectId","1"))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.data.form_type").value("B.3"))
+            .andExpect(jsonPath("$.data.error_count").value(0)).andExpect(jsonPath("$.data.can_apply").value(true));
         long id=review();
         var result=service.result(id);
         assertThat(result.can_apply()).isTrue();assertThat(result.form_type()).isEqualTo("B.3");

@@ -1,0 +1,91 @@
+.tableScroll {
+  composes: tableScroll from "../developers/Developers.module.css";
+}
+.table {
+  composes: table from "../developers/Developers.module.css";
+}
+.amount {
+  composes: amount from "../developers/Developers.module.css";
+}
+.empty {
+  composes: empty from "../developers/Developers.module.css";
+}
+.toolbar {
+  composes: toolbar from "../developers/Developers.module.css";
+}
+.actions {
+  composes: actions from "../developers/Developers.module.css";
+}
+.period {
+  background: var(--surface);
+  border: 1px solid var(--divider);
+  border-radius: var(--radius-panel);
+  padding: var(--space-3) var(--space-4);
+  margin-bottom: var(--space-6);
+}
+.period .toolbar {
+  justify-content: flex-start;
+}
+.months {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: var(--space-1);
+  margin-top: var(--space-3);
+}
+.months button {
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  padding: var(--space-2) var(--space-1);
+  cursor: pointer;
+}
+.months small {
+  display: block;
+  font-size: var(--caption-size);
+  color: var(--text-sub);
+  margin-top: var(--space-1);
+}
+.months button[aria-selected="true"] {
+  background: var(--primary-bg);
+  border-color: var(--primary);
+  color: var(--primary);
+}
+.months button:disabled {
+  background: var(--header-bg);
+  color: var(--text-disabled);
+  cursor: not-allowed;
+}
+.drafts {
+  margin-top: var(--space-6);
+}
+.memo {
+  white-space: normal;
+  max-width: 240px;
+  overflow-wrap: anywhere;
+}
+.form {
+  display: grid;
+  gap: var(--space-4);
+}
+.form label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.form input:not([type="checkbox"]),
+.form select,
+.form textarea {
+  flex: 1;
+  min-width: 0;
+  min-height: var(--control-height);
+  padding: var(--space-2) var(--space-3);
+  font: inherit;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+}
+.form textarea {
+  min-height: 80px;
+}

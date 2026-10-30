@@ -60,7 +60,18 @@ import org.yaml.snakeyaml.Yaml;
     com.sicost.costallocation.CostAllocationController.class,
     com.sicost.people.PeopleController.class, CostProjectController.class,
     com.sicost.parts.PartSettlementController.class,
-    com.sicost.costsops.RenegotiationController.class})
+    com.sicost.costsops.RenegotiationController.class,
+    com.sicost.billingsops.BillingExportController.class,
+    com.sicost.entries.FinanceEntryController.class,
+    com.sicost.cashflow.CashFlowController.class,
+    com.sicost.businessplan.BusinessPlanController.class,
+    com.sicost.businessplan2.BusinessPlanUploadController.class,
+    com.sicost.financeentries.FinanceEntriesUploadController.class,
+    com.sicost.priorprofit.PriorProfitUploadController.class,
+    com.sicost.paymentorders.PaymentOrderController.class,
+    com.sicost.payments.FinancePaymentController.class,
+    com.sicost.tax.CorporateTaxController.class,
+    com.sicost.profit.MonthlyProfitController.class})
 @Import(CurrentUser.class)
 class OpenApiHandlerContractTest {
     @Autowired RequestMappingHandlerMapping handlers;
@@ -118,6 +129,19 @@ class OpenApiHandlerContractTest {
     @MockBean com.sicost.parts.PartSettlementExportService partSettlementExports;
     @MockBean com.sicost.costsops.RenegotiationService renegotiations;
     @MockBean com.sicost.costsops.RenegotiationExportService renegotiationExports;
+    @MockBean com.sicost.common.excel.ExcelExportService excel;
+    @MockBean com.sicost.billingsops.BillingMapper billingMapper;
+    @MockBean com.sicost.entries.FinanceEntryService financeEntries;
+    @MockBean com.sicost.cashflow.CashFlowService cashFlow;
+    @MockBean com.sicost.businessplan.BusinessPlanService businessPlan;
+    @MockBean com.sicost.businessplan.BusinessPlanComparisonService businessPlanComparison;
+    @MockBean com.sicost.businessplan2.BusinessPlanUploadService businessPlanUploads;
+    @MockBean com.sicost.financeentries.FinanceEntriesUploadService financeEntryUploads;
+    @MockBean com.sicost.priorprofit.PriorProfitUploadService priorProfitUploads;
+    @MockBean com.sicost.paymentorders.PaymentOrderService paymentOrders;
+    @MockBean com.sicost.payments.FinancePaymentService financePayments;
+    @MockBean com.sicost.tax.CorporateTaxService corporateTax;
+    @MockBean com.sicost.profit.MonthlyProfitService monthlyProfit;
 
     @Test void everyDurableOperationHasOneRegisteredLiteralHandler() throws Exception {
         Map<?,?> contract;
