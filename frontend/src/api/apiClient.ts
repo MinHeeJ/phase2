@@ -363,3 +363,57 @@ export type {
   AttendancePreview,
   AttendanceApplied,
 } from "../pages/dispatchattendance2/client";
+export {
+  listCostPeople,
+  getCostPersonBreakdown,
+  downloadCostPeople,
+} from "../pages/people/client";
+export type {
+  PeopleFilters,
+  PeopleRow,
+  PeopleSummary,
+  PeopleList,
+  PersonBreakdown,
+} from "../pages/people/client";
+export {
+  listCostProjects,
+  getCostProject,
+  getCostProjectCauses,
+  simulateCostProject,
+  downloadCostProjects,
+} from "../pages/projects/costClient";
+export type {
+  CostProjectFilters,
+  CostProjectRow,
+  CostProjectList,
+  CostProjectDetail,
+  ProjectCauses,
+  SimulationInput,
+  ProjectSimulation,
+} from "../pages/projects/costClient";
+export {
+  listPartSettlements,
+  getPartSettlement,
+  updatePartSettlementCard,
+  confirmPartSettlement,
+  cancelPartSettlement,
+  downloadPartSettlements,
+} from "../pages/parts/client";
+export type {
+  Settlement,
+  SettlementItem,
+  SettlementList,
+  SettlementDetail,
+} from "../pages/parts/client";
+export {
+  listCostRenegotiations,
+  getCostAllocation,
+  downloadCostRenegotiations,
+} from "../pages/costsops/client";
+export type {
+  RenegotiationFilters,
+  RenegotiationRow,
+  RenegotiationResult,
+  AllocationRow,
+  AllocationResult,
+} from "../pages/costsops/client";

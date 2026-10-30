@@ -50,7 +50,8 @@ beforeEach(() => {
             ]
           : path === "/api/month-close" ||
               path.startsWith("/api/codes/") ||
-              path === "/api/sales-parts/options"
+              path === "/api/sales-parts/options" ||
+              path === "/api/partners/options"
             ? []
             : { items: [], total: 0, page: 1, size: 100 };
       return new Response(JSON.stringify({ success: true, meta: {}, data }));

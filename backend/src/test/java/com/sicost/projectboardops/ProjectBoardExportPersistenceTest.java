@@ -49,7 +49,8 @@ class ProjectBoardExportPersistenceTest {
         var factory=new SqlSessionFactoryBean(); factory.setDataSource(source);
         factory.setMapperLocations(new ClassPathResource("mappers/projectboardops/ProjectBoardExportMapper.xml"),
             new ClassPathResource("mappers/projectcost/ProjectCostMapper.xml"),
-            new ClassPathResource("mappers/apiops/ProjectBoardMapper.xml"));
+            new ClassPathResource("mappers/apiops/ProjectBoardMapper.xml"),
+            new ClassPathResource("mappers/costallocation/CostAllocationMapper.xml"));
         factory.afterPropertiesSet(); var session=new SqlSessionTemplate(factory.getObject());
         mapper=session.getMapper(ProjectBoardExportMapper.class);
         var costMapper=session.getMapper(com.sicost.apiops.ProjectBoardMapper.class);
@@ -58,12 +59,16 @@ class ProjectBoardExportPersistenceTest {
             com.sicost.apiops.ProjectCostService.class,CurrentUser.class,PermissionService.class,ExcelExportService.class);
         context.registerBean(ProjectBoardExportMapper.class,()->mapper);
         context.registerBean(com.sicost.apiops.ProjectBoardMapper.class,()->costMapper);
+        context.register(com.sicost.costallocation.CostAllocationService.class);
+        context.registerBean(com.sicost.costallocation.CostAllocationMapper.class,
+            () -> session.getMapper(com.sicost.costallocation.CostAllocationMapper.class));
         context.registerBean(org.springframework.transaction.PlatformTransactionManager.class,()->new DataSourceTransactionManager(source));
         context.registerBean(Clock.class,()->clock); context.refresh();
         service=context.getBean(ProjectBoardExportService.class); costs=context.getBean(ProjectCostService.class);
         mvc=MockMvcBuilders.standaloneSetup(new ProjectBoardExportController(service))
             .setControllerAdvice(new ApiExceptionHandler()).addFilters(new RequestIdFilter()).build();
         sql("INSERT INTO prj.prj(prj_id,prj_no,prj_nm,cntrct_ty_cd,prj_stts_cd,cur_cntrct_amt,prfm_bgn_dt) VALUES(1,'P-2601','원가 대상','TK','RUN',10000000,'2026-10-01'),(2,'P-2602','다른 프로젝트','MO','END',10000000,'2026-10-01')");
+        sql("UPDATE prj.prj SET trgt_cst_amt=8000000 WHERE prj_id IN (1,2)");
         sql("INSERT INTO mst.dev(dev_id,mng_no,dev_nm,emp_se_cd) VALUES(1,'K-0001','개발자','FT')");
     }
     @AfterEach void removeDatabase() throws Exception {
@@ -120,21 +125,25 @@ class ProjectBoardExportPersistenceTest {
         var result=costs.calculate(1,YearMonth.of(2026,10));
         assertThat(result.cumulativeCostAmount()).isEqualTo(3350); assertThat(result.missingSalaryMonths()).isEmpty();
     }
-    @Test void closedWithoutAllocationAndOpenWithAllocationUseCalculatedSourcesWithNoLowerBound() {
+    @Test void closedWithoutAllocationRejectsLiveFallbackAndOpenIgnoresSnapshot() {
         assignment(1,1,"ACTIVE","2020-01","0.50"); assignment(2,1,"ACTIVE","2026-10","0.50");
         sql("INSERT INTO fin.mth_cls(cls_ym,cls_stts_cd) VALUES('2020-01','CLOSED') ON CONFLICT(cls_ym) DO UPDATE SET cls_stts_cd='CLOSED'");
         sql("INSERT INTO cst.mth_cst(dev_id,cst_ym,emp_se_cd,slry_amt) VALUES(1,'2020-01','FT',1000),(1,'2026-10','FT',1000)");
         sql("INSERT INTO cst.cst_aloc(cst_ym,dev_id,prj_id,aloc_ty_cd,lbr_cst_amt) VALUES('2026-10',1,1,'PROJECT',999999)");
-        assertThat(costs.calculate(1,YearMonth.of(2026,10)).cumulativeCostAmount()).isEqualTo(1000);
+        assertThatThrownBy(() -> costs.calculate(1,YearMonth.of(2026,10)))
+            .isInstanceOfSatisfying(ApiException.class, ex -> assertThat(ex.code()).isEqualTo("NOT_FOUND"));
+        sql("UPDATE fin.mth_cls SET cls_stts_cd='OPEN' WHERE cls_ym='2020-01'");
+        assertThat(costs.calculate(1,YearMonth.of(2026,10)).cumulativeCostAmount()).isEqualTo(500);
     }
     @Test void missingSalaryZeroesOnlyLaborReportsDistinctSortedPositiveMonthsAndIgnoresFuture() {
+        sql("UPDATE fin.mth_cls SET cls_stts_cd='OPEN' WHERE cls_ym IN ('2026-08','2026-09')");
         assignment(1,1,"ACTIVE","2026-08","0.50"); assignment(2,1,"ACTIVE","2026-08","0.20");
         assignment(3,1,"ACTIVE","2026-09","0.00"); assignment(4,1,"ACTIVE","2026-10","0.50");
         assignment(5,1,"ACTIVE","2026-11","0.50");
         sql("INSERT INTO cst.drct_expns(expns_ym,prj_id,expns_item_cd,expns_amt) VALUES('2026-08',1,'TRIP',123)");
         var result=costs.calculate(1,YearMonth.of(2026,10));
         assertThat(result.cumulativeCostAmount()).isEqualTo(123);
-        assertThat(result.missingSalaryMonths()).containsExactly("2026-08","2026-10");
+        assertThat(result.missingSalaryMonths()).containsExactly("2026-08","2026-09","2026-10");
     }
     @Test void eligibilityFiltersAndExportFullSetIgnoreProjectYearAndDisabledHoldEndLost() throws Exception {
         sql("UPDATE prj.prj SET prj_stts_cd='PLAN' WHERE prj_id=1");

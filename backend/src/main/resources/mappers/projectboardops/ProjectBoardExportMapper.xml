@@ -10,6 +10,7 @@
     <arg column="prfm_bgn_dt" javaType="java.time.LocalDate"/><arg column="cur_cntrct_amt" javaType="java.lang.Long"/>
     <arg column="open_issue_count" javaType="_long"/><arg column="overdue_issue_count" javaType="_long"/>
     <arg column="highOverdueCount" javaType="_long"/>
+    <arg column="trgt_cst_amt" javaType="java.lang.Long"/>
   </constructor></resultMap>
   <resultMap id="param" type="com.sicost.projectboardops.ProjectBoardExportModels$BoardExportParam"><constructor>
     <arg column="key" javaType="java.lang.String"/><arg column="number" javaType="java.math.BigDecimal"/>
@@ -25,7 +26,7 @@
     SELECT p.prj_id,p.prj_nm,c.ptnr_nm AS "custName",p.cntrct_ty_cd,
       coalesce(d.dev_nm,'PM 미지정') AS "pmName",phase.phs_nm AS "currentPhase",
       ph.count AS "phaseCount",ph.plan AS plan_prgs_rt,m.actl_prgs_rt AS "memoProgress",
-      m.wrt_dt AS last_memo_dt,p.prfm_bgn_dt,p.cur_cntrct_amt,
+      m.wrt_dt AS last_memo_dt,p.prfm_bgn_dt,p.cur_cntrct_amt,p.trgt_cst_amt,
       issues.open_count AS open_issue_count,issues.overdue_count AS overdue_issue_count,
       issues.high_count AS "highOverdueCount"
     FROM prj.prj p LEFT JOIN mst.ptnr c ON c.ptnr_id=p.cust_ptnr_id

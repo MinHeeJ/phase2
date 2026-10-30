@@ -38,12 +38,17 @@ class ProjectProgressPersistenceTest {
         source=new DriverManagerDataSource(adminUrl.substring(0,adminUrl.lastIndexOf('/')+1)+database,user,password);
         Flyway.configure().dataSource(source).defaultSchema("public").locations("classpath:db/migration").load().migrate();
         var factory=new SqlSessionFactoryBean(); factory.setDataSource(source);
-        factory.setMapperLocations(new ClassPathResource("mappers/projectsops/ProjectProgressMapper.xml"),new ClassPathResource("mappers/apiops/ProjectBoardMapper.xml"));
+        factory.setMapperLocations(new ClassPathResource("mappers/projectsops/ProjectProgressMapper.xml"),
+            new ClassPathResource("mappers/apiops/ProjectBoardMapper.xml"),
+            new ClassPathResource("mappers/costallocation/CostAllocationMapper.xml"));
         factory.afterPropertiesSet(); var session=new SqlSessionTemplate(factory.getObject());
         context=new AnnotationConfigApplicationContext();
         context.register(Transactions.class,ProjectProgressService.class,ProgressParameterService.class,ProjectCostService.class,PermissionService.class);
         context.registerBean(ProjectProgressMapper.class,()->session.getMapper(ProjectProgressMapper.class));
         context.registerBean(ProjectBoardMapper.class,()->session.getMapper(ProjectBoardMapper.class));
+        context.register(com.sicost.costallocation.CostAllocationService.class);
+        context.registerBean(com.sicost.costallocation.CostAllocationMapper.class,
+            () -> session.getMapper(com.sicost.costallocation.CostAllocationMapper.class));
         context.registerBean(org.springframework.transaction.PlatformTransactionManager.class,()->new DataSourceTransactionManager(source));
         context.registerBean(Clock.class,()->Clock.fixed(Instant.parse("2026-10-22T15:01:00Z"),ZoneId.of("Asia/Seoul")));
         context.registerBean(ObjectMapper.class,()->new ObjectMapper().findAndRegisterModules());
@@ -51,6 +56,7 @@ class ProjectProgressPersistenceTest {
         mvc=MockMvcBuilders.standaloneSetup(new ProjectProgressController(service)).setControllerAdvice(new ApiExceptionHandler()).addFilters(new RequestIdFilter()).build();
         for(var p:ProjectProgressApiTest.params()) sql("INSERT INTO cmn.oprt_std(oprt_std_id,aply_bgn_ym,oprt_std_nm,num_val) VALUES('"+p.oprt_std_id()+"','2026-10','시험',"+p.num_val()+") ON CONFLICT(oprt_std_id,aply_bgn_ym) DO UPDATE SET num_val=excluded.num_val");
         sql("INSERT INTO prj.prj(prj_id,prj_no,prj_nm,cntrct_ty_cd,prj_stts_cd,cur_cntrct_amt) VALUES(90001,'P-26901','진행 조회 시험','TK','RUN',500000000),(90002,'P-26902','다른 프로젝트','TK','END',500000000)");
+        sql("UPDATE prj.prj SET trgt_cst_amt=400000000 WHERE prj_id IN (90001,90002)");
         sql("INSERT INTO prj.phs(prj_id,phs_seq,phs_nm,wght_rt,plan_bgn_dt,plan_end_dt,cmpl_dt) VALUES(90001,1,'분석',40,'2026-01-01','2026-09-01','2026-09-01'),(90001,2,'개발',35,'2026-09-23','2026-12-31',NULL),(90001,3,'종료',25,NULL,NULL,NULL)");
         sql("INSERT INTO prj.wkly_memo(prj_id,wrt_dt,actl_prgs_rt,cmpl_work_desc,plan_work_desc) VALUES(90001,'2026-10-08',20,'지난 일','지난 계획'),(90001,'2026-10-23',42,'한 일','할 일')");
     }
@@ -82,6 +88,7 @@ class ProjectProgressPersistenceTest {
         assertThat(service.get(90001).light()).isEqualTo("위험");
     }
     @Test void costUsesSingleOwnerAllProjectDenominatorAndClosedMonthReplacement() throws Exception {
+        sql("UPDATE fin.mth_cls SET cls_stts_cd='OPEN' WHERE cls_ym='2026-09'");
         sql("INSERT INTO mst.dev(dev_id,mng_no,dev_nm,emp_se_cd) VALUES(90001,'K-90001','시험 개발자','FT')");
         sql("INSERT INTO asgn.asgn(asgn_id,asgn_no,prj_id,dev_id,job_cd,bgn_dt,end_dt) VALUES(90001,'A-90001',90001,90001,'BE','2026-01-01','2026-12-31'),(90002,'A-90002',90002,90001,'BE','2026-01-01','2026-12-31')");
         sql("INSERT INTO asgn.asgn_mth(asgn_id,work_ym,mm_qty) VALUES(90001,'2026-10',1),(90002,'2026-10',0.5),(90001,'2026-09',1),(90001,'2026-11',1)");

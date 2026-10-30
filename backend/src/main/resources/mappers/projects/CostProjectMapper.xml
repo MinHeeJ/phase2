@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sicost.projects.CostProjectMapper">
+  <resultMap id="source" type="com.sicost.projects.CostProjectModels$Source"><constructor>
+    <arg column="prj_id" javaType="_long"/><arg column="prj_no" javaType="string"/>
+    <arg column="prj_nm" javaType="string"/><arg column="cntrct_ty_cd" javaType="string"/>
+    <arg column="cur_cntrct_amt" javaType="java.lang.Long"/><arg column="init_cntrct_amt" javaType="java.lang.Long"/>
+    <arg column="trgt_cst_amt" javaType="java.lang.Long"/><arg column="trgt_mrgn_rt" javaType="java.math.BigDecimal"/>
+    <arg column="cur_end_dt" javaType="java.time.LocalDate"/><arg column="owner_name" javaType="string"/>
+    <arg column="progress_rt" javaType="java.math.BigDecimal"/>
+  </constructor></resultMap>
+  <resultMap id="plan" type="com.sicost.projects.CostProjectModels$Plan"><constructor>
+    <arg column="month" javaType="string"/><arg column="mm_qty" javaType="java.math.BigDecimal"/>
+  </constructor></resultMap>
+  <resultMap id="labor" type="com.sicost.projects.CostProjectModels$Labor"><constructor>
+    <arg column="dev_id" javaType="_long"/><arg column="dev_nm" javaType="string"/>
+    <arg column="monthly_cost_amt" javaType="java.lang.Long"/><arg column="future_mm_qty" javaType="java.math.BigDecimal"/>
+  </constructor></resultMap>
+  <resultMap id="reference" type="com.sicost.projects.CostProjectModels$Reference"><constructor>
+    <arg column="month" javaType="string"/><arg column="amount" javaType="java.lang.Long"/>
+  </constructor></resultMap>
+  <sql id="columns">p.prj_id,p.prj_no,p.prj_nm,p.cntrct_ty_cd,p.cur_cntrct_amt,p.init_cntrct_amt,
+    p.trgt_cst_amt,p.trgt_mrgn_rt,p.cur_end_dt,d.dev_nm AS owner_name,
+    (SELECT w.actl_prgs_rt FROM prj.wkly_memo w WHERE w.prj_id=p.prj_id
+      ORDER BY w.wrt_dt DESC,w.memo_id DESC LIMIT 1) AS progress_rt</sql>
+  <select id="source" resultMap="source">
+    SELECT <include refid="columns"/> FROM prj.prj p LEFT JOIN mst.dev d ON d.dev_id=p.pm_dev_id WHERE p.prj_id=#{id}
+  </select>
+  <select id="sources" resultMap="source">
+    SELECT <include refid="columns"/> FROM prj.prj p LEFT JOIN mst.dev d ON d.dev_id=p.pm_dev_id
+    WHERE p.use_yn='Y'
+      AND coalesce(p.prfm_bgn_dt,p.cntrct_bgn_dt) &lt; make_date(#{year}+1,1,1)
+      AND coalesce(p.cur_end_dt,p.cntrct_end_dt) &gt;= make_date(#{year},1,1)
+    <if test="type != null">AND p.cntrct_ty_cd=#{type}</if>
+    <if test="partId != null">AND p.bsn_part_id=#{partId}</if>
+    <if test="status != null">AND p.prj_stts_cd=#{status}</if>
+    <if test="q != null">AND (p.prj_nm ILIKE '%' || #{q} || '%' OR p.prj_no ILIKE '%' || #{q} || '%')</if>
+    ORDER BY p.prj_id
+  </select>
+  <select id="plans" resultMap="plan">
+    SELECT p.plan_ym AS month,sum(p.need_mm_qty) AS mm_qty FROM prj.psn_plan p
+    WHERE p.prj_id=#{id} AND p.plan_ym BETWEEN #{fromMonth} AND #{throughMonth}
+    GROUP BY p.plan_ym ORDER BY p.plan_ym
+  </select>
+  <select id="labor" resultMap="labor">
+    SELECT d.dev_id,d.dev_nm,c.indv_lbr_cst_amt AS monthly_cost_amt,
+      (SELECT sum(m.mm_qty) FROM prj.tk_aloc_line l JOIN prj.tk_aloc_mth m ON m.aloc_line_id=l.aloc_line_id
+       WHERE l.prj_id=#{id} AND l.dev_id=d.dev_id AND l.line_ty_cd='PERSON'
+         AND l.aloc_stg_cd=(SELECT s.aloc_stg_cd FROM prj.tk_aloc_line s WHERE s.prj_id=#{id}
+           ORDER BY CASE s.aloc_stg_cd WHEN 'ACTUAL' THEN 0 WHEN 'FINAL' THEN 1 ELSE 2 END LIMIT 1)
+         AND m.aloc_ym &gt; #{throughMonth}) AS future_mm_qty
+    FROM mst.dev d
+    LEFT JOIN LATERAL (SELECT s.indv_lbr_cst_amt FROM cst.mth_cst s WHERE s.dev_id=d.dev_id
+      AND s.cst_ym &lt;= #{throughMonth} AND s.duty_se_cd='DIRECT' ORDER BY s.cst_ym DESC LIMIT 1) c ON true
+    WHERE EXISTS(SELECT 1 FROM asgn.asgn a WHERE a.dev_id=d.dev_id AND a.prj_id=#{id}
+      AND a.asgn_stts_cd!='CANCELLED')
+      OR EXISTS(SELECT 1 FROM prj.tk_aloc_line l WHERE l.prj_id=#{id} AND l.dev_id=d.dev_id AND l.line_ty_cd='PERSON')
+    ORDER BY d.dev_id
+  </select>
+  <select id="reference" resultMap="reference">
+    SELECT m.aloc_ym AS month,sum(m.aloc_amt)::bigint AS amount
+    FROM prj.tk_aloc_line l JOIN prj.tk_aloc_mth m ON m.aloc_line_id=l.aloc_line_id
+    WHERE l.prj_id=#{id} AND m.aloc_ym BETWEEN #{fromMonth} AND #{throughMonth}
+      AND l.aloc_stg_cd=(SELECT s.aloc_stg_cd FROM prj.tk_aloc_line s WHERE s.prj_id=#{id}
+        ORDER BY CASE s.aloc_stg_cd WHEN 'ACTUAL' THEN 0 WHEN 'FINAL' THEN 1 ELSE 2 END LIMIT 1)
+    GROUP BY m.aloc_ym ORDER BY m.aloc_ym
+  </select>
+  <select id="headcount" resultType="long">
+    SELECT count(DISTINCT a.dev_id) FROM asgn.asgn a WHERE a.prj_id=#{id}
+      AND a.asgn_stts_cd!='CANCELLED'
+      AND a.bgn_dt &lt; to_date(#{throughMonth},'YYYY-MM') + interval '1 month'
+      AND a.end_dt &gt;= to_date(#{throughMonth},'YYYY-MM')
+  </select>
+  <select id="parameter" resultType="java.math.BigDecimal">
+    SELECT s.num_val FROM cmn.oprt_std s WHERE s.oprt_std_id=#{key} AND s.aply_bgn_ym &lt;= #{month}
+    ORDER BY s.aply_bgn_ym DESC LIMIT 1
+  </select>
+  <insert id="download">INSERT INTO sys.acs_hist(acs_ty_cd,scrn_id,user_id,obj_desc,dtl_desc)
+    VALUES('DOWNLOAD','UI-04',#{actor},#{name},#{description})</insert>
+</mapper>

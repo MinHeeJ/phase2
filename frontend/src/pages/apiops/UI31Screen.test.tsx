@@ -174,8 +174,11 @@ describe("프로젝트 현황판", () => {
     mount();
     await screen.findByTestId("board-row-41");
     expect(screen.getByLabelText("진척률·신호등 계산 설명")).toHaveTextContent(
-      "75%",
+      "목표 원가(trgt_cst_amt)",
     );
+    expect(
+      screen.getByLabelText("진척률·신호등 계산 설명"),
+    ).not.toHaveTextContent("75%");
     expect(screen.getByLabelText("진척률·신호등 계산 설명")).toHaveTextContent(
       "6%p",
     );

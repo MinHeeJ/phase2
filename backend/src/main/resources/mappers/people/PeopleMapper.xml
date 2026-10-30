@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sicost.people.PeopleMapper">
+  <resultMap id="personMonth" type="com.sicost.people.PeopleModels$PersonMonth"><constructor>
+    <arg column="dev_id" javaType="_long"/><arg column="dev_nm" javaType="string"/>
+    <arg column="vendor_id" javaType="java.lang.Long"/><arg column="vendor_name" javaType="string"/>
+    <arg column="pstn_cd" javaType="string"/><arg column="emp_se_cd" javaType="string"/>
+    <arg column="duty_se_cd" javaType="string"/><arg column="bsn_part_id" javaType="java.lang.Long"/>
+    <arg column="job_cd" javaType="string"/><arg column="grd_cd" javaType="string"/>
+    <arg column="month" javaType="string"/><arg column="on_leave" javaType="_boolean"/>
+    <arg column="payroll_present" javaType="_boolean"/><arg column="slry_amt" javaType="_long"/>
+    <arg column="alwnc_amt" javaType="_long"/><arg column="sins_cmpny_amt" javaType="_long"/>
+    <arg column="sins_emp_amt" javaType="_long"/><arg column="whtax_amt" javaType="_long"/>
+    <arg column="real_pay_amt" javaType="_long"/><arg column="rtrpay_acml_amt" javaType="_long"/>
+    <arg column="indv_lbr_cst_amt" javaType="_long"/><arg column="team_expns_amt" javaType="_long"/>
+    <arg column="project_expns_amt" javaType="_long"/>
+  </constructor></resultMap>
+  <resultMap id="projectLink" type="com.sicost.people.PeopleModels$ProjectLink"><constructor>
+    <arg column="asgn_id" javaType="_long"/><arg column="dev_id" javaType="_long"/>
+    <arg column="prj_id" javaType="_long"/><arg column="prj_nm" javaType="string"/>
+    <arg column="cntrct_ty_cd" javaType="string"/><arg column="job_cd" javaType="string"/>
+    <arg column="bgn_dt" javaType="string"/><arg column="end_dt" javaType="string"/>
+  </constructor></resultMap>
+  <select id="people" resultMap="personMonth">
+    WITH months AS (
+      SELECT to_char(g.month,'YYYY-MM') AS month, g.month::date AS start_date,
+        (g.month+interval '1 month - 1 day')::date AS end_date
+      FROM generate_series(to_date(#{fromMonth},'YYYY-MM'),
+        to_date(#{throughMonth},'YYYY-MM'),interval '1 month') AS g(month)
+    ), expenses AS (
+      SELECT e.dev_id,e.expns_ym,
+        sum(CASE WHEN e.expns_item_cd='TEAM' THEN e.expns_amt ELSE 0 END)::bigint AS team_expns_amt,
+        sum(CASE WHEN e.expns_item_cd!='TEAM' THEN e.expns_amt ELSE 0 END)::bigint AS project_expns_amt
+      FROM cst.drct_expns e WHERE e.dev_id IS NOT NULL
+        AND e.expns_ym BETWEEN #{fromMonth} AND #{throughMonth}
+      GROUP BY e.dev_id,e.expns_ym
+    )
+    SELECT d.dev_id,d.dev_nm,d.vndr_ptnr_id AS vendor_id,v.ptnr_nm AS vendor_name,
+      coalesce(c.pstn_cd,d.pstn_cd) AS pstn_cd,coalesce(c.emp_se_cd,d.emp_se_cd) AS emp_se_cd,
+      coalesce(c.duty_se_cd,d.duty_se_cd) AS duty_se_cd,coalesce(c.bsn_part_id,d.bsn_part_id) AS bsn_part_id,
+      d.main_job_cd AS job_cd,d.grd_cd,m.month,
+      EXISTS(SELECT 1 FROM mst.dev_work_stts_hist h WHERE h.dev_id=d.dev_id
+        AND h.work_stts_cd IN ('PARENTAL','UNPAID','LEAVE')
+        AND h.bgn_dt &lt;=m.end_date AND (h.end_dt IS NULL OR h.end_dt &gt;=m.start_date)) AS on_leave,
+      c.mth_cst_id IS NOT NULL AS payroll_present,
+      coalesce(c.slry_amt,0) AS slry_amt,coalesce(c.alwnc_amt,0) AS alwnc_amt,
+      coalesce(c.sins_cmpny_amt,0) AS sins_cmpny_amt,coalesce(c.sins_emp_amt,0) AS sins_emp_amt,
+      coalesce(c.whtax_amt,0) AS whtax_amt,coalesce(c.real_pay_amt,0) AS real_pay_amt,
+      coalesce(c.rtrpay_acml_amt,0) AS rtrpay_acml_amt,coalesce(c.indv_lbr_cst_amt,0) AS indv_lbr_cst_amt,
+      coalesce(e.team_expns_amt,0) AS team_expns_amt,coalesce(e.project_expns_amt,0) AS project_expns_amt
+    FROM mst.dev d CROSS JOIN months m
+    LEFT JOIN mst.ptnr v ON v.ptnr_id=d.vndr_ptnr_id
+    LEFT JOIN cst.mth_cst c ON c.dev_id=d.dev_id AND c.cst_ym=m.month
+    LEFT JOIN expenses e ON e.dev_id=d.dev_id AND e.expns_ym=m.month
+    WHERE (d.hire_dt IS NULL OR d.hire_dt &lt;=m.end_date)
+      AND (d.rsgn_dt IS NULL OR d.rsgn_dt &gt;=m.start_date)
+      AND (d.use_yn='Y' OR c.mth_cst_id IS NOT NULL
+        OR EXISTS(SELECT 1 FROM cst.cst_aloc s WHERE s.dev_id=d.dev_id AND s.cst_ym=m.month))
+    ORDER BY d.dev_id,m.month
+  </select>
+  <select id="projects" resultMap="projectLink">
+    SELECT a.asgn_id,a.dev_id,a.prj_id,p.prj_nm,p.cntrct_ty_cd,a.job_cd,
+      a.bgn_dt::text AS bgn_dt,a.end_dt::text AS end_dt
+    FROM asgn.asgn a JOIN prj.prj p ON p.prj_id=a.prj_id
+    WHERE a.asgn_stts_cd!='CANCELLED' AND a.bgn_dt &lt; to_date(#{throughMonth},'YYYY-MM')+interval '1 month'
+      AND a.end_dt &gt;=to_date(#{fromMonth},'YYYY-MM')
+    ORDER BY a.dev_id,a.asgn_id
+  </select>
+  <select id="personExists" resultType="boolean">
+    SELECT EXISTS(SELECT 1 FROM mst.dev d WHERE d.dev_id=#{devId})
+  </select>
+  <insert id="download">
+    INSERT INTO sys.acs_hist(acs_ty_cd,scrn_id,user_id,obj_desc,dtl_desc)
+    VALUES('DOWNLOAD','UI-03',#{actor},#{name},#{description})
+  </insert>
+</mapper>

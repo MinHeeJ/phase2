@@ -42,11 +42,17 @@ class ProjectBoardPersistenceTest {
         source = new DriverManagerDataSource(adminUrl.substring(0, adminUrl.lastIndexOf('/') + 1) + database, user, password);
         Flyway.configure().dataSource(source).defaultSchema("public").locations("classpath:db/migration").load().migrate();
         var factory = new SqlSessionFactoryBean(); factory.setDataSource(source);
-        factory.setMapperLocations(new ClassPathResource("mappers/apiops/ProjectBoardMapper.xml"));
-        factory.afterPropertiesSet(); mapper = new SqlSessionTemplate(factory.getObject()).getMapper(ProjectBoardMapper.class);
+        factory.setMapperLocations(new ClassPathResource("mappers/apiops/ProjectBoardMapper.xml"),
+            new ClassPathResource("mappers/costallocation/CostAllocationMapper.xml"));
+        factory.afterPropertiesSet();
+        var session = new SqlSessionTemplate(factory.getObject());
+        mapper = session.getMapper(ProjectBoardMapper.class);
         context = new AnnotationConfigApplicationContext();
         context.register(Transactions.class, ProjectBoardService.class, ProgressParameterService.class, ProjectCostService.class, PermissionService.class);
         context.registerBean(ProjectBoardMapper.class, () -> mapper);
+        context.register(com.sicost.costallocation.CostAllocationService.class);
+        context.registerBean(com.sicost.costallocation.CostAllocationMapper.class,
+            () -> session.getMapper(com.sicost.costallocation.CostAllocationMapper.class));
         context.registerBean(org.springframework.transaction.PlatformTransactionManager.class, () -> new DataSourceTransactionManager(source));
         context.registerBean(Clock.class, () -> Clock.fixed(Instant.parse("2026-10-22T15:01:00Z"), ZoneId.of("Asia/Seoul")));
         context.registerBean(ObjectMapper.class, () -> new ObjectMapper().findAndRegisterModules());
@@ -57,6 +63,7 @@ class ProjectBoardPersistenceTest {
         for (var p : ProjectBoardApiTest.params()) sql("INSERT INTO cmn.oprt_std(oprt_std_id,aply_bgn_ym,oprt_std_nm,num_val) VALUES('" + p.oprt_std_id() + "','2026-10','시험'," + p.num_val() + ") ON CONFLICT(oprt_std_id,aply_bgn_ym) DO UPDATE SET num_val=excluded.num_val");
         sql("INSERT INTO mst.dev(dev_id,mng_no,dev_nm,emp_se_cd) VALUES(90001,'K-90001','시험 개발자','FT')");
         sql("INSERT INTO prj.prj(prj_id,prj_no,prj_nm,cntrct_ty_cd,prj_stts_cd,cur_cntrct_amt,prfm_bgn_dt) VALUES(90001,'P-26901','진행','TK','RUN',500000000,'2026-10-08'),(90002,'P-26902','종료','TK','END',500000000,NULL),(90003,'P-26903','미투입 예정','TK','PLAN',500000000,NULL),(90004,'P-26904','투입 예정','MO','PLAN',NULL,NULL),(90005,'P-26905','보류','MO','HOLD',NULL,NULL),(90006,'P-26906','미사용','MO','RUN',NULL,NULL)");
+        sql("UPDATE prj.prj SET trgt_cst_amt=400000000 WHERE prj_id BETWEEN 90001 AND 90006");
         sql("UPDATE prj.prj SET use_yn='N' WHERE prj_id=90006");
         sql("INSERT INTO asgn.asgn(asgn_id,asgn_no,prj_id,dev_id,job_cd,bgn_dt,end_dt) VALUES(90001,'A-90001',90001,90001,'BE','2026-01-01','2026-12-31'),(90002,'A-90002',90002,90001,'BE','2026-01-01','2026-12-31'),(90003,'A-90003',90004,90001,'BE','2026-10-23','2026-10-23')");
     }

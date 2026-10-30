@@ -312,7 +312,11 @@ export function UI13M1({
             </Button>
           )}
           {(preview?.warnings ?? existing?.warnings ?? []).map((w, i) => (
-            <p className={styles.warning} key={i}>
+            <p
+              className={styles.warning}
+              key={i}
+              data-testid={`billing-editor-warning-${i}`}
+            >
               {w}
             </p>
           ))}

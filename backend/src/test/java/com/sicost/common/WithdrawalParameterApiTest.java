@@ -36,6 +36,7 @@ class WithdrawalParameterApiTest {
 
     @Autowired MockMvc mvc;
     @MockBean ProjectBoardMapper mapper;
+    @MockBean ProjectCostService costs;
 
     private OperatingParam number(String key, String value) {
         return new OperatingParam(key, "2000-01", key, new BigDecimal(value), null, null, null);

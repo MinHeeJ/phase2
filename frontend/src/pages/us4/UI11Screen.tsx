@@ -1,5 +1,5 @@
-import { useCallback, useState, type ReactNode } from "react";
-import { Link } from "react-router-dom";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { Link, useLocation } from "react-router-dom";
 import { Badge, Button, Skeleton } from "../../shared/Controls";
 import { ApiFailure } from "../../shared/api";
 import { ErrorBanner } from "../../shared/ErrorBanner";
@@ -33,13 +33,56 @@ export default function UI11Screen({
   groupName = "프로젝트·투입",
   renderShortages,
 }: PlanComparisonScreenProps) {
+  const location = useLocation();
   const [filters, setFilters] = useState(() => {
     const year = Number(sessionStorage.getItem("UI-11.year"));
-    return planComparisonDefaults(
+    const defaults = planComparisonDefaults(
       year >= 1 && year <= 9999 ? year : Number(seoulMonth().slice(0, 4)),
     );
+    const state = location.state as {
+      projectId?: unknown;
+      year?: unknown;
+    } | null;
+    if (
+      state &&
+      Number.isSafeInteger(state.projectId) &&
+      Number(state.projectId) > 0 &&
+      Number.isInteger(state.year) &&
+      Number(state.year) >= 1 &&
+      Number(state.year) <= Number(seoulMonth().slice(0, 4))
+    ) {
+      return {
+        ...defaults,
+        projectId: String(state.projectId),
+        year: Number(state.year),
+      };
+    }
+    return defaults;
   });
   const [draft, setDraft] = useState(filters);
+  useEffect(() => {
+    if (location.pathname !== "/UI-11") return;
+    const state = location.state as {
+      projectId?: unknown;
+      year?: unknown;
+    } | null;
+    if (
+      state &&
+      Number.isSafeInteger(state.projectId) &&
+      Number(state.projectId) > 0 &&
+      Number.isInteger(state.year) &&
+      Number(state.year) >= 1 &&
+      Number(state.year) <= Number(seoulMonth().slice(0, 4))
+    ) {
+      const next = {
+        ...planComparisonDefaults(Number(state.year)),
+        projectId: String(state.projectId),
+      };
+      setFilters(next);
+      setDraft(next);
+      sessionStorage.setItem("UI-11.year", String(next.year));
+    }
+  }, [location.key, location.pathname, location.state]);
   const [tab, setTab] = useState("annual");
   const [downloadError, setDownloadError] = useState<ApiFailure | null>(null);
   const [downloading, setDownloading] = useState(false);

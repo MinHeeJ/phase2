@@ -56,7 +56,11 @@ import org.yaml.snakeyaml.Yaml;
     com.sicost.billings.BillingController.class, com.sicost.billingsops.BillingController.class,
     com.sicost.receipts.BillingReceiptController.class,
     com.sicost.dispatchattendance.DispatchAttendanceController.class,
-    com.sicost.dispatchattendance2.DispatchAttendanceUploadController.class})
+    com.sicost.dispatchattendance2.DispatchAttendanceUploadController.class,
+    com.sicost.costallocation.CostAllocationController.class,
+    com.sicost.people.PeopleController.class, CostProjectController.class,
+    com.sicost.parts.PartSettlementController.class,
+    com.sicost.costsops.RenegotiationController.class})
 @Import(CurrentUser.class)
 class OpenApiHandlerContractTest {
     @Autowired RequestMappingHandlerMapping handlers;
@@ -105,6 +109,15 @@ class OpenApiHandlerContractTest {
     @MockBean com.sicost.receipts.BillingReceiptService billingReceipts;
     @MockBean com.sicost.dispatchattendance.DispatchAttendanceService dispatchAttendance;
     @MockBean com.sicost.dispatchattendance2.DispatchAttendanceUploadService dispatchAttendanceUploads;
+    @MockBean com.sicost.costallocation.CostAllocationService costAllocations;
+    @MockBean com.sicost.people.PeopleCostService costPeople;
+    @MockBean com.sicost.people.PeopleExportService costPeopleExports;
+    @MockBean CostProjectService costProjects;
+    @MockBean CostProjectExportService costProjectExports;
+    @MockBean com.sicost.parts.PartSettlementService partSettlements;
+    @MockBean com.sicost.parts.PartSettlementExportService partSettlementExports;
+    @MockBean com.sicost.costsops.RenegotiationService renegotiations;
+    @MockBean com.sicost.costsops.RenegotiationExportService renegotiationExports;
 
     @Test void everyDurableOperationHasOneRegisteredLiteralHandler() throws Exception {
         Map<?,?> contract;
@@ -129,7 +142,13 @@ class OpenApiHandlerContractTest {
                 assertThat(mapping.getMethodsCondition().getMethods()).as("one method per operation").hasSize(1);
                 String path=mapping.getPatternValues().iterator().next();
                 String method=mapping.getMethodsCondition().getMethods().iterator().next().name();
-                assertThat(actual.put(method+" "+normalize(path),handler.getMethod().getName())).isNull();
+                // A list operation can negotiate JSON and XLSX at the same method/path.
+                // Check the JSON handler here; Spring registers each representation separately.
+                var produces = mapping.getProducesCondition().getProducibleMediaTypes();
+                if (produces.isEmpty() || produces.stream().anyMatch(
+                        media -> media.isCompatibleWith(org.springframework.http.MediaType.APPLICATION_JSON))) {
+                    assertThat(actual.put(method+" "+normalize(path),handler.getMethod().getName())).isNull();
+                }
             }
         });
         // Existing phases expose additional APIs; they must not hide a missing contract operation.

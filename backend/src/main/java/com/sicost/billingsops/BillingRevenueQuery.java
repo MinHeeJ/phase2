@@ -19,6 +19,12 @@ public class BillingRevenueQuery {
         this.mapper=mapper;this.receivables=receivables;this.clock=clock;this.permissions=permissions;
     }
     public List<Revenue> revenue(int year) {return mapper.revenue(BillingValues.year(year,clock));}
+    public List<ProjectRevenue> projectRevenue(CostRevenueQuery query) {
+        if (query == null) throw BillingValues.invalid("year");
+        int year = CostValues.year(query.year(), clock);
+        if (query.projectId() != null) CostValues.id(query.projectId(), "projectId");
+        return mapper.projectRevenue(new CostRevenueQuery(year, query.projectId()));
+    }
     public List<Cash> cash(int year) {return mapper.cash(BillingValues.year(year,clock));}
     public Summary summary(Integer requested) {
         permissions.can(BillingActions.READ);
