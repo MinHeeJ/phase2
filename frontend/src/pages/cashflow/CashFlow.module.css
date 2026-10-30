@@ -1,0 +1,43 @@
+.chart {
+  width: 100%;
+  height: 310px;
+  color: var(--text-sub);
+  font-size: var(--table-size);
+}
+.series0 {
+  stroke: var(--primary);
+  fill: var(--primary);
+  stroke-width: 2;
+}
+.series1 {
+  stroke: var(--success, #15803d);
+  fill: var(--success, #15803d);
+  stroke-width: 2;
+}
+.series2 {
+  stroke: var(--warning, #b45309);
+  fill: var(--warning, #b45309);
+  stroke-width: 2;
+  stroke-dasharray: 5 3;
+}
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-6);
+  justify-content: center;
+}
+.legend span:nth-child(1) {
+  color: var(--primary);
+}
+.legend span:nth-child(2) {
+  color: var(--success, #15803d);
+}
+.legend span:nth-child(3) {
+  color: var(--warning, #b45309);
+}
+.danger {
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-panel);
+  background: var(--danger-bg);
+  color: var(--danger);
+}

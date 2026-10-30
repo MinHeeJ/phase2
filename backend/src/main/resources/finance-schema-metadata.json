@@ -1,0 +1,101 @@
+[
+  {
+    "table": "fin.entry",
+    "columns": [
+      {"name":"entry_id","type":"BIGINT","nullable":false,"identity":true,"default":null},
+      {"name":"entry_ym","type":"CHAR(7)","nullable":false,"identity":false,"default":null},
+      {"name":"fin_se_cd","type":"VARCHAR(10)","nullable":false,"identity":false,"default":null},
+      {"name":"item_cd","type":"VARCHAR(30)","nullable":true,"identity":false,"default":null},
+      {"name":"item_nm","type":"VARCHAR(100)","nullable":false,"identity":false,"default":null},
+      {"name":"entry_amt","type":"BIGINT","nullable":false,"identity":false,"default":null},
+      {"name":"vat_amt","type":"BIGINT","nullable":false,"identity":false,"default":"0"},
+      {"name":"inout_dt","type":"DATE","nullable":true,"identity":false,"default":null},
+      {"name":"inout_cmpl_yn","type":"CHAR(1)","nullable":false,"identity":false,"default":"'N'"},
+      {"name":"rpt_yn","type":"CHAR(1)","nullable":false,"identity":false,"default":"'N'"},
+      {"name":"auto_fill_yn","type":"CHAR(1)","nullable":false,"identity":false,"default":"'N'"},
+      {"name":"copy_entry_id","type":"BIGINT","nullable":true,"identity":false,"default":null},
+      {"name":"rmrk_desc","type":"VARCHAR(500)","nullable":true,"identity":false,"default":null},
+      {"name":"upld_id","type":"BIGINT","nullable":true,"identity":false,"default":null},
+      {"name":"created_at","type":"TIMESTAMP","nullable":false,"identity":false,"default":"CURRENT_TIMESTAMP"},
+      {"name":"created_by","type":"BIGINT","nullable":true,"identity":false,"default":null},
+      {"name":"updated_at","type":"TIMESTAMP","nullable":true,"identity":false,"default":null},
+      {"name":"updated_by","type":"BIGINT","nullable":true,"identity":false,"default":null},
+      {"name":"deleted_yn","type":"CHAR(1)","nullable":false,"identity":false,"default":"'N'"}
+    ],
+    "primaryKey": ["entry_id"],
+    "foreignKeys": [{"name":"fk_entry_copy_entry","columns":["copy_entry_id"],"parent":"fin.entry","targets":["entry_id"]}],
+    "uniqueKeys": [["entry_ym","copy_entry_id"]]
+  },
+  {
+    "table": "fin.pay",
+    "columns": [
+      {"name":"pay_id","type":"BIGINT","nullable":false,"identity":true,"default":null},
+      {"name":"pay_ym","type":"CHAR(7)","nullable":false,"identity":false,"default":null},
+      {"name":"pay_odr_no","type":"SMALLINT","nullable":true,"identity":false,"default":null},
+      {"name":"pay_se_cd","type":"VARCHAR(20)","nullable":false,"identity":false,"default":null},
+      {"name":"rcvr_se_cd","type":"VARCHAR(10)","nullable":false,"identity":false,"default":null},
+      {"name":"dev_id","type":"BIGINT","nullable":true,"identity":false,"default":null},
+      {"name":"ptnr_id","type":"BIGINT","nullable":true,"identity":false,"default":null},
+      {"name":"rcvr_nm","type":"VARCHAR(100)","nullable":false,"identity":false,"default":null},
+      {"name":"sply_amt","type":"BIGINT","nullable":false,"identity":false,"default":"0"},
+      {"name":"vat_amt","type":"BIGINT","nullable":false,"identity":false,"default":"0"},
+      {"name":"ddct_amt","type":"BIGINT","nullable":false,"identity":false,"default":"0"},
+      {"name":"pay_amt","type":"BIGINT","nullable":false,"identity":false,"default":null},
+      {"name":"pay_plan_dt","type":"DATE","nullable":false,"identity":false,"default":null},
+      {"name":"pay_dt","type":"DATE","nullable":true,"identity":false,"default":null},
+      {"name":"pay_stts_cd","type":"VARCHAR(10)","nullable":false,"identity":false,"default":"'PLAN'"},
+      {"name":"pay_src_cd","type":"VARCHAR(10)","nullable":false,"identity":false,"default":"'MANUAL'"},
+      {"name":"src_rec_id","type":"BIGINT","nullable":true,"identity":false,"default":null},
+      {"name":"cry_pay_id","type":"BIGINT","nullable":true,"identity":false,"default":null},
+      {"name":"bank_cd","type":"VARCHAR(30)","nullable":true,"identity":false,"default":null},
+      {"name":"acnt_no","type":"VARCHAR(30)","nullable":true,"identity":false,"default":null},
+      {"name":"dpstr_nm","type":"VARCHAR(50)","nullable":true,"identity":false,"default":null},
+      {"name":"rmrk_desc","type":"VARCHAR(500)","nullable":true,"identity":false,"default":null},
+      {"name":"created_at","type":"TIMESTAMP","nullable":false,"identity":false,"default":"CURRENT_TIMESTAMP"},
+      {"name":"created_by","type":"BIGINT","nullable":true,"identity":false,"default":null},
+      {"name":"updated_at","type":"TIMESTAMP","nullable":true,"identity":false,"default":null},
+      {"name":"updated_by","type":"BIGINT","nullable":true,"identity":false,"default":null}
+    ],
+    "primaryKey": ["pay_id"],
+    "foreignKeys": [
+      {"name":"fk_pay_dev","columns":["dev_id"],"parent":"mst.dev","targets":["dev_id"]},
+      {"name":"fk_pay_ptnr","columns":["ptnr_id"],"parent":"mst.ptnr","targets":["ptnr_id"]},
+      {"name":"fk_pay_cry_pay","columns":["cry_pay_id"],"parent":"fin.pay","targets":["pay_id"]}
+    ],
+    "uniqueKeys": [["pay_src_cd","src_rec_id","pay_se_cd","pay_ym"],["cry_pay_id"]]
+  },
+  {
+    "table": "fin.cash_bal",
+    "columns": [
+      {"name":"bal_ym","type":"CHAR(7)","nullable":false,"identity":false,"default":null},
+      {"name":"bgn_bal_amt","type":"BIGINT","nullable":true,"identity":false,"default":null},
+      {"name":"end_bal_amt","type":"BIGINT","nullable":true,"identity":false,"default":null},
+      {"name":"init_yn","type":"CHAR(1)","nullable":false,"identity":false,"default":"'N'"},
+      {"name":"min_oprt_fund_amt","type":"BIGINT","nullable":true,"identity":false,"default":null},
+      {"name":"updated_at","type":"TIMESTAMP","nullable":true,"identity":false,"default":null},
+      {"name":"updated_by","type":"BIGINT","nullable":true,"identity":false,"default":null}
+    ],
+    "primaryKey": ["bal_ym"],
+    "foreignKeys": [],
+    "uniqueKeys": [["init_yn"]]
+  },
+  {
+    "table": "fin.pay_execution",
+    "columns": [
+      {"name":"pay_execution_id","type":"BIGINT","nullable":false,"identity":true,"default":null},
+      {"name":"pay_id","type":"BIGINT","nullable":false,"identity":false,"default":null},
+      {"name":"pay_dt","type":"DATE","nullable":false,"identity":false,"default":null},
+      {"name":"pay_amt","type":"BIGINT","nullable":false,"identity":false,"default":null},
+      {"name":"reversal_of_id","type":"BIGINT","nullable":true,"identity":false,"default":null},
+      {"name":"rsn_desc","type":"VARCHAR(500)","nullable":true,"identity":false,"default":null},
+      {"name":"created_at","type":"TIMESTAMP","nullable":false,"identity":false,"default":"CURRENT_TIMESTAMP"},
+      {"name":"created_by","type":"BIGINT","nullable":true,"identity":false,"default":null}
+    ],
+    "primaryKey": ["pay_execution_id"],
+    "foreignKeys": [
+      {"name":"fk_pay_execution_pay","columns":["pay_id"],"parent":"fin.pay","targets":["pay_id"]},
+      {"name":"fk_pay_execution_reversal","columns":["reversal_of_id"],"parent":"fin.pay_execution","targets":["pay_execution_id"]}
+    ],
+    "uniqueKeys": [["reversal_of_id"]]
+  }
+]

@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sicost.profit.MonthlyProfitMapper">
+  <resultMap id="entry" type="com.sicost.profit.MonthlyProfitModels$Entry"><constructor>
+    <arg column="category" javaType="java.lang.String"/><arg column="name" javaType="java.lang.String"/><arg column="amount" javaType="_long"/>
+  </constructor></resultMap>
+  <resultMap id="facts" type="com.sicost.profit.MonthlyProfitModels$Facts"><constructor>
+    <arg column="payroll_count" javaType="_long"/><arg column="draft_count" javaType="_long"/>
+  </constructor></resultMap>
+  <resultMap id="tax" type="com.sicost.profit.MonthlyProfitModels$TaxMonth"><constructor>
+    <arg column="month" javaType="java.lang.String"/><arg column="amount" javaType="_long"/>
+  </constructor></resultMap>
+  <resultMap id="project" type="com.sicost.profit.MonthlyProfitModels$Project"><constructor>
+    <arg column="contract" javaType="java.lang.String"/><arg column="contract_name" javaType="java.lang.String"/>
+    <arg column="customer_id" javaType="java.lang.Long"/><arg column="customer_name" javaType="java.lang.String"/>
+    <arg column="part_id" javaType="java.lang.Long"/><arg column="part_name" javaType="java.lang.String"/>
+  </constructor></resultMap>
+  <resultMap id="detail" type="com.sicost.profit.MonthlyProfitModels$Detail"><constructor>
+    <arg column="dimension" javaType="java.lang.String"/><arg column="code" javaType="java.lang.String"/>
+    <arg column="name" javaType="java.lang.String"/><arg column="revenue" javaType="_long"/>
+    <arg column="cost" javaType="_long"/><arg column="gross_profit" javaType="_long"/>
+  </constructor></resultMap>
+  <select id="closedMonths" resultType="string">
+    SELECT cls_ym FROM fin.mth_cls WHERE left(cls_ym,4)=lpad(#{year}::text,4,'0') AND cls_stts_cd='CLOSED' ORDER BY cls_ym
+  </select>
+  <select id="snapshot" resultType="map">
+    SELECT sls_amt AS revenue,aloc_cst_amt AS project_labor_cost,idle_cst_amt AS idle_cost,
+      drct_expns_amt AS direct_expenses,sls_cst_amt AS cost,grs_prft_amt AS gross_profit,
+      sga_input_amt AS sga_input,indrct_lbr_cst_amt AS indirect_labor_cost,rnd_cst_amt AS rnd_cost,
+      tot_sga_amt AS sga,prvmn_adj_amt AS previous_adjustment,bsn_prft_amt AS operating_profit,
+      nop_incm_amt AS non_operating_income,nop_exp_amt AS non_operating_expenses,
+      corp_tax_amt AS corporate_tax,net_prft_amt AS net_profit,aloc_sls_amt AS allocation_revenue_reference
+    FROM fin.mth_pl WHERE pl_ym=#{month} AND pl_src_cd=#{source}
+  </select>
+  <select id="entries" resultMap="entry">
+    SELECT fin_se_cd AS category,item_nm AS name,entry_amt AS amount FROM fin.entry
+    WHERE entry_ym=#{month} AND deleted_yn='N' ORDER BY entry_id
+  </select>
+  <select id="adjustment" resultType="long">SELECT COALESCE(sum(adj_amt),0) FROM cst.prvmn_adj WHERE aply_ym=#{month}</select>
+  <select id="annualTax" resultType="java.lang.Long">SELECT annl_expc_amt FROM fin.corp_tax_plan WHERE tax_yr=lpad(#{year}::text,4,'0')</select>
+  <select id="taxMonths" resultMap="tax">
+    SELECT tax_ym AS month,corp_tax_amt AS amount FROM fin.corp_tax_mth WHERE tax_yr=lpad(#{year}::text,4,'0') ORDER BY tax_ym
+  </select>
+  <select id="facts" resultMap="facts">
+    SELECT (SELECT count(*) FROM cst.mth_cst WHERE cst_ym=#{month}) AS payroll_count,
+      (SELECT count(*) FROM bill.bill WHERE atrb_ym=#{month} AND bill_stts_cd IN ('DRAFT','PLAN')) AS draft_count
+  </select>
+  <select id="project" resultMap="project">
+    SELECT p.cntrct_ty_cd AS contract,COALESCE(cd.cd_nm,p.cntrct_ty_cd) AS contract_name,
+      p.cust_ptnr_id AS customer_id,c.ptnr_nm AS customer_name,h.bsn_part_id AS part_id,b.bsn_part_nm AS part_name
+    FROM prj.prj p LEFT JOIN mst.ptnr c ON c.ptnr_id=p.cust_ptnr_id
+    LEFT JOIN cmn.cd_dtl cd ON cd.cd_grp_id='CONTRACT_TYPE' AND cd.dtl_cd=p.cntrct_ty_cd
+    LEFT JOIN LATERAL (SELECT bsn_part_id FROM prj.prj_part_hist WHERE prj_id=p.prj_id AND aply_bgn_ym &lt;= #{month} ORDER BY aply_bgn_ym DESC,part_hist_id DESC LIMIT 1) h ON true
+    LEFT JOIN mst.bsn_part b ON b.bsn_part_id=h.bsn_part_id WHERE p.prj_id=#{projectId}
+  </select>
+  <select id="details" resultMap="detail">
+    SELECT d.dim_ty_cd AS dimension,d.dim_val AS code,
+      COALESCE(CASE WHEN d.dim_ty_cd='CUSTOMER' THEN c.ptnr_nm WHEN d.dim_ty_cd='PART' THEN b.bsn_part_nm ELSE cd.cd_nm END,d.dim_val) AS name,
+      d.sls_amt AS revenue,d.cst_amt AS cost,d.grs_prft_amt AS gross_profit
+    FROM fin.mth_pl_dtl d LEFT JOIN mst.ptnr c ON d.dim_ty_cd='CUSTOMER' AND c.ptnr_id::text=d.dim_val
+    LEFT JOIN mst.bsn_part b ON d.dim_ty_cd='PART' AND b.bsn_part_id::text=d.dim_val
+    LEFT JOIN cmn.cd_dtl cd ON d.dim_ty_cd='CONTRACT_TYPE' AND cd.cd_grp_id='CONTRACT_TYPE' AND cd.dtl_cd=d.dim_val
+    WHERE d.pl_ym=#{month} ORDER BY d.dim_ty_cd,d.dim_val
+  </select>
+</mapper>

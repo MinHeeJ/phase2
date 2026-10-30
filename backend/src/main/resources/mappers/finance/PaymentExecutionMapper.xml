@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sicost.common.finance.PaymentExecutionMapper">
+  <resultMap id="payment" type="com.sicost.common.finance.PaymentExecutionMapper$Payment">
+    <constructor>
+      <arg column="pay_id" javaType="_long"/><arg column="pay_ym" javaType="string"/>
+      <arg column="pay_plan_dt" javaType="java.time.LocalDate"/><arg column="pay_amt" javaType="_long"/>
+      <arg column="pay_stts_cd" javaType="string"/><arg column="pay_src_cd" javaType="string"/>
+      <arg column="pay_se_cd" javaType="string"/><arg column="src_rec_id" javaType="java.lang.Long"/>
+      <arg column="cry_pay_id" javaType="java.lang.Long"/><arg column="updated_at" javaType="java.time.LocalDateTime"/>
+      <arg column="rcvr_nm" javaType="string"/><arg column="bank_cd" javaType="string"/>
+      <arg column="acnt_no" javaType="string"/><arg column="dpstr_nm" javaType="string"/>
+    </constructor>
+  </resultMap>
+  <select id="lock" resultMap="payment" useCache="false" flushCache="true">
+    SELECT pay_id,pay_ym,pay_plan_dt,pay_amt,pay_stts_cd,pay_src_cd,pay_se_cd,src_rec_id,
+      cry_pay_id,updated_at,rcvr_nm,bank_cd,acnt_no,dpstr_nm FROM fin.pay WHERE pay_id=#{id} FOR UPDATE
+  </select>
+  <select id="taxPaymentId" resultType="java.lang.Long">
+    SELECT pay_id FROM fin.pay WHERE pay_src_cd='AUTO_FIN' AND pay_se_cd='CORP_TAX'
+      AND src_rec_id=#{taxPayId} AND cry_pay_id IS NULL AND pay_stts_cd!='CANCEL'
+    ORDER BY pay_id LIMIT 1
+  </select>
+  <select id="activeChild" resultType="boolean">
+    SELECT EXISTS(SELECT 1 FROM fin.pay WHERE cry_pay_id=#{id} AND pay_stts_cd!='CANCEL')
+  </select>
+  <select id="executed" resultType="long" useCache="false">
+    SELECT COALESCE(SUM(pay_amt),0)::bigint FROM fin.pay_execution WHERE pay_id=#{id}
+  </select>
+  <select id="monthStatus" resultType="string">SELECT cls_stts_cd FROM fin.mth_cls WHERE cls_ym=#{month}</select>
+  <insert id="insertExecution">
+    INSERT INTO fin.pay_execution(pay_id,pay_dt,pay_amt,created_by)
+    VALUES(#{paymentId},#{date},#{amount},#{actor})
+  </insert>
+  <update id="updatePayment">
+    UPDATE fin.pay SET pay_stts_cd=<choose><when test="paid">'PAID'</when><otherwise>'PLAN'</otherwise></choose>,
+      pay_dt=<choose><when test="paid">#{date}</when><otherwise>NULL</otherwise></choose>,updated_at=CURRENT_TIMESTAMP,updated_by=#{actor}
+    WHERE pay_id=#{paymentId} AND pay_stts_cd='PLAN'
+  </update>
+  <update id="synchronizeTax">
+    UPDATE fin.corp_tax_pay t SET pay_dt=#{date},pay_amt=(SELECT SUM(e.pay_amt)::bigint FROM fin.pay_execution e WHERE e.pay_id=#{paymentId})
+    FROM fin.pay p WHERE p.pay_id=#{paymentId} AND p.pay_src_cd='AUTO_FIN' AND p.pay_se_cd='CORP_TAX' AND t.tax_pay_id=p.src_rec_id
+  </update>
+  <insert id="audit">
+    INSERT INTO sys.data_chg_hist(tbl_nm,obj_rec_id,data_chg_ty_cd,clmn_nm,bfr_val,aft_val,chg_user_id)
+    VALUES('fin.pay',CAST(#{paymentId} AS text),'UPDATE','pay_execution',
+      CAST((SELECT COALESCE(SUM(pay_amt),0)-#{amount} FROM fin.pay_execution WHERE pay_id=#{paymentId}) AS text),
+      CAST((SELECT COALESCE(SUM(pay_amt),0) FROM fin.pay_execution WHERE pay_id=#{paymentId}) AS text),#{actor})
+  </insert>
+</mapper>

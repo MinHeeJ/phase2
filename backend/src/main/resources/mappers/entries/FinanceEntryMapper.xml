@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sicost.entries.FinanceEntryMapper">
+  <resultMap id="entry" type="com.sicost.entries.FinanceEntryModels$FinanceEntry">
+    <constructor>
+      <arg column="entry_id" javaType="java.lang.Long"/>
+      <arg column="entry_ym" javaType="java.lang.String"/>
+      <arg column="fin_se_cd" javaType="java.lang.String"/>
+      <arg column="item_nm" javaType="java.lang.String"/>
+      <arg column="entry_amt" javaType="_long"/>
+      <arg column="vat_amt" javaType="_long"/>
+      <arg column="inout_dt" javaType="java.time.LocalDate"/>
+      <arg column="rpt_yn" javaType="java.lang.String"/>
+      <arg column="inout_cmpl_yn" javaType="java.lang.String"/>
+      <arg column="remark" javaType="java.lang.String"/>
+      <arg column="copy_entry_id" javaType="java.lang.Long"/>
+      <arg column="auto_fill_yn" javaType="java.lang.String"/>
+      <arg column="already_copied" javaType="_boolean"/>
+    </constructor>
+  </resultMap>
+  <resultMap id="month" type="com.sicost.entries.FinanceEntryModels$EntryMonth">
+    <constructor>
+      <arg column="month" javaType="java.lang.String"/>
+      <arg column="status" javaType="java.lang.String"/>
+      <arg column="saved_count" javaType="_long"/>
+    </constructor>
+  </resultMap>
+  <sql id="columns">entry_id,entry_ym,fin_se_cd,item_nm,entry_amt,vat_amt,inout_dt,rpt_yn,inout_cmpl_yn,rmrk_desc AS remark,copy_entry_id,auto_fill_yn,false AS already_copied</sql>
+  <select id="list" resultMap="entry">
+    SELECT <include refid="columns"/> FROM fin.entry
+    WHERE entry_ym=#{month} AND deleted_yn='N' ORDER BY entry_id
+  </select>
+  <select id="row" resultMap="entry">
+    SELECT <include refid="columns"/> FROM fin.entry WHERE entry_id=#{id} AND deleted_yn='N'
+  </select>
+  <select id="lockRow" resultMap="entry" useCache="false" flushCache="true">
+    SELECT <include refid="columns"/> FROM fin.entry WHERE entry_id=#{id} AND deleted_yn='N' FOR UPDATE
+  </select>
+  <select id="copiedSources" resultType="java.lang.Long">
+    SELECT copy_entry_id FROM fin.entry WHERE entry_ym=#{month} AND copy_entry_id IS NOT NULL
+  </select>
+  <select id="months" resultMap="month">
+    SELECT to_char(d,'YYYY-MM') AS month,COALESCE(c.cls_stts_cd,'OPEN') AS status,
+      (SELECT count(*) FROM fin.entry e WHERE e.entry_ym=to_char(d,'YYYY-MM') AND e.deleted_yn='N') AS saved_count
+    FROM generate_series(to_date(#{year} || '-01-01','YYYY-MM-DD'),to_date(#{year} || '-12-01','YYYY-MM-DD'),interval '1 month') d
+    LEFT JOIN fin.mth_cls c ON c.cls_ym=to_char(d,'YYYY-MM') ORDER BY d
+  </select>
+  <select id="monthStatus" resultType="string">
+    SELECT cls_stts_cd FROM fin.mth_cls WHERE cls_ym=#{month}
+  </select>
+  <select id="insert" resultType="long" affectData="true" flushCache="true">
+    INSERT INTO fin.entry(entry_ym,fin_se_cd,item_nm,entry_amt,vat_amt,inout_dt,rpt_yn,inout_cmpl_yn,rmrk_desc,copy_entry_id,auto_fill_yn,created_by)
+    VALUES(#{input.entry_ym},#{input.fin_se_cd},#{input.item_nm},#{input.entry_amt},#{input.vat_amt},#{input.inout_dt},#{input.rpt_yn},#{input.inout_cmpl_yn},#{input.remark},#{input.copy_entry_id},#{input.auto_fill_yn},#{actor}) RETURNING entry_id
+  </select>
+  <update id="update">
+    UPDATE fin.entry SET entry_ym=#{input.entry_ym},fin_se_cd=#{input.fin_se_cd},item_nm=#{input.item_nm},
+      entry_amt=#{input.entry_amt},vat_amt=#{input.vat_amt},inout_dt=#{input.inout_dt},rpt_yn=#{input.rpt_yn},
+      inout_cmpl_yn=#{input.inout_cmpl_yn},rmrk_desc=#{input.remark},copy_entry_id=#{input.copy_entry_id},
+      auto_fill_yn=#{input.auto_fill_yn},updated_at=CURRENT_TIMESTAMP,updated_by=#{actor}
+    WHERE entry_id=#{id} AND deleted_yn='N'
+  </update>
+  <update id="delete">
+    UPDATE fin.entry SET deleted_yn='Y',updated_at=CURRENT_TIMESTAMP,updated_by=#{actor}
+    WHERE entry_id=#{id} AND deleted_yn='N'
+  </update>
+  <insert id="audit">
+    INSERT INTO sys.data_chg_hist(tbl_nm,obj_rec_id,data_chg_ty_cd,clmn_nm,bfr_val,aft_val,chg_user_id)
+    VALUES('fin.entry',#{id},#{type},'재무 항목',#{before},#{after},#{actor})
+  </insert>
+</mapper>

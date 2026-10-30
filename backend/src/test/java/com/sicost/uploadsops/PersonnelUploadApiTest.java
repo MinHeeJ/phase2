@@ -124,7 +124,7 @@ class PersonnelUploadApiTest {
     @Test void existingManagementNumberRemainsRejectedOnRevalidation()throws Exception{var row=developer();row.put("관리번호","EXISTS");when(mapper.developer("EXISTS")).thenReturn(Map.of("dev_id",1));long id=validateDeveloper(row);long next=data(mvc.perform(post("/api/uploads/"+id+"/revalidate"))).get("upload_id").asLong();assertThat(service.result(next).can_apply()).isFalse();mvc.perform(get("/api/uploads/"+next+"/issues")).andExpect(jsonPath("$.data.items[0].message").value("이미 있는 관리번호입니다."));noBusiness();}
     @ParameterizedTest @CsvSource({"rows,severity,UNKNOWN","rows,size,10","rows,page,-1","rows,sort,other;drop","issues,column,missing","issues,severity,NORMAL"}) void badFiltersUseApiError(String endpoint,String field,String value)throws Exception{long id=validateDeveloper(developer());mvc.perform(get("/api/uploads/"+id+"/"+endpoint).param(field,value)).andExpect(status().isBadRequest()).andExpect(jsonPath("$.field").value(field)).andExpect(jsonPath("$.message").isNotEmpty()).andExpect(jsonPath("$.requestId").isNotEmpty());}
     @ParameterizedTest @ValueSource(strings={"revalidate","apply","issues","rows","errors"}) void invalidIdHasField(String endpoint)throws Exception{var request=Set.of("apply","revalidate").contains(endpoint)?post("/api/uploads/0/"+endpoint):get("/api/uploads/0/"+endpoint);mvc.perform(request).andExpect(status().isBadRequest()).andExpect(jsonPath("$.field").value("uploadId")).andExpect(jsonPath("$.requestId").isNotEmpty());noBusiness();}
-    @Test void anonymousHappyErrorsWorkbookPreservesRowColumnReason()throws Exception {
+    @Test void anonymousHappyErrorsWorkbookPreservesRowColumnReasonWithoutBusinessSideEffects()throws Exception {
         var row=developer();row.put("주 직무","");long id=validateDeveloper(row);
         var response=mvc.perform(get("/api/uploads/{uploadId}/errors",id)).andExpect(status().isOk())
             .andExpect(content().contentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")).andReturn().getResponse();
@@ -138,6 +138,27 @@ class PersonnelUploadApiTest {
         noBusiness();
     }
     @Test void expiryAndUnknownContextsAre410()throws Exception{long id=validateDeveloper(developer());clock.now=clock.now.plusSeconds(1800);mvc.perform(get("/api/uploads/"+id+"/rows")).andExpect(status().isGone()).andExpect(jsonPath("$.code").value("VALIDATION_EXPIRED"));}
+    @Test void rowsAndIssuesReadSideEffectsLeaveBusinessAndReviewWritesAbsent()throws Exception {
+        var row=developer();row.put("주 직무","");long id=validateDeveloper(row);
+        mvc.perform(get("/api/uploads/{uploadId}/rows",id))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.data.total").value(1))
+            .andExpect(jsonPath("$.data.items[0].row").value(5));
+        mvc.perform(get("/api/uploads/{uploadId}/issues",id).param("severity","ERROR"))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.data.total").value(1))
+            .andExpect(jsonPath("$.data.items[0].column").value("주 직무"));
+        noBusiness();verify(mapper,never()).insertReview(any());verify(legacy,never()).insertIssue(any());
+    }
+    @Test void templateDownloadSideEffectsNeverPersistBusinessOrInspectionRows()throws Exception {
+        byte[] bytes=mvc.perform(get("/api/uploads/templates/B.8"))
+            .andExpect(status().isOk())
+            .andExpect(content().contentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+            .andReturn().getResponse().getContentAsByteArray();
+        try(var book=new XSSFWorkbook(new ByteArrayInputStream(bytes))) {
+            assertThat(book.getNumberOfSheets()).isEqualTo(3);
+            assertThat(book.getSheetAt(0).getRow(3).getPhysicalNumberOfCells()).isPositive();
+        }
+        noBusiness();verify(mapper,never()).insertReview(any());verify(legacy,never()).insertIssue(any());
+    }
     @Test void validationSalaryRequiresMonth()throws Exception {
         mvc.perform(multipart("/api/uploads/validate")
             .file(new MockMultipartFile("file","급여.xlsx","application/octet-stream",workbook("B.1",List.of(salary()))))

@@ -132,7 +132,7 @@ class AssignmentChangeApiTest {
         noBusinessWrites();
     }
     @Test void invalidFilterIsFieldError() throws Exception {
-        mvc.perform(get(BASE).param("type","INVALID")).andExpect(status().isBadRequest()).andExpect(jsonPath("$.field").value("type")); noBusinessWrites();
+        mvc.perform(get("/api/assignments/1/changes").param("type","INVALID")).andExpect(status().isBadRequest()).andExpect(jsonPath("$.field").value("type")); noBusinessWrites();
     }
     @Test void unknownAssignmentIsNotFound() throws Exception {
         mvc.perform(get("/api/assignments/99/changes")).andExpect(status().isNotFound()); noBusinessWrites();
@@ -145,7 +145,10 @@ class AssignmentChangeApiTest {
         verify(mapper).insert(argThat(w -> type.equals(w.type())));
     }
     @Test void extensionRebuildsOpenMonthsAndPreservesManual() throws Exception {
-        postBody(BASE,input("EXTEND")).andExpect(status().isOk()).andExpect(jsonPath("$.data.assignment.end_dt").value("2027-03-31"));
+        mvc.perform(post("/api/assignments/1/changes").contentType("application/json").content(json.writeValueAsBytes(input("EXTEND"))))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.data.assignment.end_dt").value("2027-03-31"))
+            .andExpect(jsonPath("$.data.change.bfr_val").value("2026-12-31"))
+            .andExpect(jsonPath("$.data.change.aft_val").value("2027-03-31"));
         verify(mapper).month(argThat(m -> m.month().equals("2026-11") && m.quantity().compareTo(new BigDecimal("0.50")) == 0));
         for (String month : List.of("2027-01","2027-02","2027-03")) verify(mapper).month(argThat(m -> month.equals(m.month())));
         verify(mapper, never()).month(argThat(m -> m.month().equals("2026-09")));
@@ -171,7 +174,8 @@ class AssignmentChangeApiTest {
     }
     @Test void sameRateIsRejected() throws Exception {
         var n=input("RATE"); n.put("bill_untprc_amt",7000000);
-        postBody(BASE,n).andExpect(status().isBadRequest()).andExpect(jsonPath("$.field").value("bill_untprc_amt")); noBusinessWrites();
+        mvc.perform(post("/api/assignments/1/changes").contentType("application/json").content(json.writeValueAsBytes(n)))
+            .andExpect(status().isBadRequest()).andExpect(jsonPath("$.field").value("bill_untprc_amt")); noBusinessWrites();
     }
     @Test void rateMonthOutsidePeriodIsRejected() throws Exception {
         var n=input("RATE"); n.put("work_ym","2027-01");
@@ -258,7 +262,7 @@ class AssignmentChangeApiTest {
     }
     @Test void anonymousCorrectionMarksOnlyTargetAndAppendsFix() throws Exception {
         append("EXTEND");
-        postBody(BASE+"/1/fix",correction()).andExpect(status().isOk()).andExpect(jsonPath("$.success").value(true))
+        mvc.perform(post("/api/assignments/1/changes/1/fix").contentType("application/json").content(json.writeValueAsBytes(correction()))).andExpect(status().isOk()).andExpect(jsonPath("$.success").value(true))
             .andExpect(jsonPath("$.data.fix.fix_trgt_chg_id").value(1)).andExpect(jsonPath("$.data.target.fixed_yn").value("Y"))
             .andExpect(jsonPath("$.data.assignment.end_dt").value("2026-12-31"));
         verify(mapper,never()).period(any()); verify(mapper,never()).rate(any()); verify(mapper,never()).month(any());
@@ -268,12 +272,12 @@ class AssignmentChangeApiTest {
     @ParameterizedTest @CsvSource({"aft_val,바른 내용을 적어 주세요.","rsn_cd,사유를 골라 주세요."})
     void correctionRequiredFieldsHaveExactMessages(String field,String message) throws Exception {
         append("EXTEND"); var n=correction(); n.remove(field);
-        postBody(BASE+"/1/fix",n).andExpect(status().isBadRequest()).andExpect(jsonPath("$.field").value(field))
+        mvc.perform(post("/api/assignments/1/changes/1/fix").contentType("application/json").content(json.writeValueAsBytes(n))).andExpect(status().isBadRequest()).andExpect(jsonPath("$.field").value(field))
             .andExpect(jsonPath("$.message").value(message)); noBusinessWrites();
     }
     @ParameterizedTest @ValueSource(strings={"START","FIX"})
     void nonFixableKindsRejectDirectCall(String type) throws Exception {
-        append(type); postBody(BASE+"/1/fix",correction()).andExpect(status().isConflict())
+        append(type); mvc.perform(post("/api/assignments/1/changes/1/fix").contentType("application/json").content(json.writeValueAsBytes(correction()))).andExpect(status().isConflict())
             .andExpect(jsonPath("$.code").value("NOT_FIXABLE")); noBusinessWrites();
     }
     @Test void alreadyFixedTargetIsRejected() throws Exception {

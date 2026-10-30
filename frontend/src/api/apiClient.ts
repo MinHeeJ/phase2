@@ -417,3 +417,100 @@ export type {
   AllocationRow,
   AllocationResult,
 } from "../pages/costsops/client";
+export {
+  listFinanceEntries,
+  createFinanceEntry,
+  updateFinanceEntry,
+  deleteFinanceEntry,
+  previewPreviousFinanceEntries,
+} from "../pages/entries/client";
+export type {
+  FinanceEntryInput,
+  FinanceEntry,
+  EntryList,
+} from "../pages/entries/client";
+export {
+  getTaxPlan,
+  getTaxPayments,
+  saveTaxPlan,
+  saveTaxPayments,
+} from "../pages/tax/client";
+export type {
+  TaxPlan,
+  TaxMonth,
+  TaxHistory,
+  TaxPayment,
+  TaxPayments,
+} from "../pages/tax/client";
+export {
+  getMonthlyFinanceProfit,
+  getFinanceProfitStructure,
+  downloadProfit,
+} from "../pages/profit/client";
+export type {
+  ProfitAnnual,
+  ProfitMonth,
+  ProfitStructure,
+  ProfitPeriod,
+} from "../pages/profit/client";
+export {
+  getBusinessPlan,
+  getBusinessPlanComparison,
+  saveBusinessPlan,
+  downloadBusinessPlan,
+} from "../pages/businessplan/client";
+export type {
+  BusinessPlan,
+  BusinessPlans,
+  BusinessComparison,
+} from "../pages/businessplan/client";
+export {
+  listFinancePayments,
+  createFinancePayment,
+  updateFinancePayment,
+  generateFinancePayments,
+  completeFinancePayment,
+  reopenFinancePayment,
+  carryFinancePayment,
+  exportFinancePayments,
+} from "../pages/payments/client";
+export type {
+  PaymentInput,
+  Payment,
+  PaymentList,
+} from "../pages/payments/client";
+export {
+  getPaymentOrders,
+  savePaymentOrders,
+} from "../pages/paymentorders/client";
+export type {
+  PaymentOrder,
+  PaymentOrders,
+} from "../pages/paymentorders/client";
+export {
+  getFinanceCashflow,
+  getCashOpening,
+  saveCashOpening,
+  getFinanceOtherInflows,
+  postFinanceOtherInflows,
+  putFinanceOtherInflows,
+  downloadCashflow,
+} from "../pages/cashflow/client";
+export type {
+  CashFlow,
+  CashFlowMode,
+  CashOpening,
+  CashInflow,
+} from "../pages/cashflow/client";
+export {
+  validateFinanceEntriesUpload,
+  applyFinanceEntriesUpload,
+} from "../pages/financeentries/client";
+export {
+  validateBusinessPlanUpload,
+  applyBusinessPlanUpload,
+} from "../pages/businessplan2/client";
+export {
+  validatePriorProfitUpload,
+  applyPriorProfitUpload,
+} from "../pages/priorprofit/client";

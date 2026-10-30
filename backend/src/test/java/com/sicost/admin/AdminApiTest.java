@@ -87,7 +87,7 @@ class AdminApiTest {
     void unknownReadIs404(String path)throws Exception {mvc.perform(get(path)).andExpect(status().isNotFound());}
     @ParameterizedTest @ValueSource(strings={"page=0","size=30","sort=unknown,asc","sort=sort_seq;DROP TABLE,asc","sort=sort_seq,up"})
     void invalidPagingAndSortAre400(String query)throws Exception {mvc.perform(get("/api/admin/code-groups?"+query)).andExpect(status().isBadRequest());}
-    @Test void anonymousCreatesBizGroupWithNullActorAndAddHistory()throws Exception {
+    @Test void anonymousCreatesBizGroupWithNullActorAndAddHistorySideEffect()throws Exception {
         mvc.perform(post("/api/admin/code-groups").contentType(MediaType.APPLICATION_JSON)
             .content(json.writeValueAsString(Map.of("cd_grp_id","NEW_GROUP","cd_grp_nm","새 그룹"))))
             .andExpect(status().isOk()).andExpect(jsonPath("$.success").value(true))
