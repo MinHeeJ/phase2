@@ -270,6 +270,30 @@ describe("UI-13 receipt history and M5", () => {
     expect(screen.getByTestId("receipt-save")).toBeDisabled();
     expect(writes()).toHaveLength(0);
   });
+  it("a closed revenue month still allows cash in a different open receipt month", async () => {
+    detail.billing.atrb_ym = "2026-09";
+    detail.billing.bill_dt = "2026-09-01";
+    panel();
+    await add();
+    await fill("30", "2026-10-15");
+    fireEvent.click(screen.getByTestId("receipt-save"));
+    await screen.findByText("저장했습니다.");
+    expect(JSON.parse(writes()[0][1].body as string).rcpt_dt).toBe(
+      "2026-10-15",
+    );
+    expect(detail.billing.atrb_ym).toBe("2026-09");
+  });
+  it("moving an open receipt into a closed month preserves the draft and disables save", async () => {
+    panel();
+    fireEvent.click(await screen.findByTestId("receipt-edit-7"));
+    change("입금일", "2026-09-15");
+    await screen.findByText(
+      "입금일 월이 마감되어 등록·수정·삭제할 수 없습니다.",
+    );
+    expect(screen.getByTestId("receipt-save")).toBeDisabled();
+    expect(screen.getByLabelText("입금일")).toHaveValue("2026-09-15");
+    expect(writes()).toHaveLength(0);
+  });
   it.each(["PLAN", "DRAFT", "CANCEL"] as const)(
     "%s has read-only cash history",
     async (status) => {

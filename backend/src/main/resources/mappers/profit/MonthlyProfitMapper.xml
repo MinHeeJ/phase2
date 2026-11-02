@@ -34,9 +34,15 @@
   </select>
   <select id="entries" resultMap="entry">
     SELECT fin_se_cd AS category,item_nm AS name,entry_amt AS amount FROM fin.entry
-    WHERE entry_ym=#{month} AND deleted_yn='N' ORDER BY entry_id
+    WHERE entry_ym=#{month} AND deleted_yn='N'
+    UNION ALL
+    SELECT 'NOI' AS category,rsn_desc AS name,adj_amt AS amount FROM cst.prvmn_adj
+    WHERE aply_ym=#{month} AND adj_stts_cd='ACTIVE' AND adj_se_cd='ETC'
   </select>
-  <select id="adjustment" resultType="long">SELECT COALESCE(sum(adj_amt),0) FROM cst.prvmn_adj WHERE aply_ym=#{month}</select>
+  <select id="adjustment" resultType="long">
+    SELECT COALESCE(sum(adj_amt::numeric),0)
+    FROM cst.prvmn_adj WHERE aply_ym=#{month} AND adj_stts_cd='ACTIVE' AND adj_se_cd IN ('REVENUE','COST','SGA')
+  </select>
   <select id="annualTax" resultType="java.lang.Long">SELECT annl_expc_amt FROM fin.corp_tax_plan WHERE tax_yr=lpad(#{year}::text,4,'0')</select>
   <select id="taxMonths" resultMap="tax">
     SELECT tax_ym AS month,corp_tax_amt AS amount FROM fin.corp_tax_mth WHERE tax_yr=lpad(#{year}::text,4,'0') ORDER BY tax_ym
@@ -44,6 +50,15 @@
   <select id="facts" resultMap="facts">
     SELECT (SELECT count(*) FROM cst.mth_cst WHERE cst_ym=#{month}) AS payroll_count,
       (SELECT count(*) FROM bill.bill WHERE atrb_ym=#{month} AND bill_stts_cd IN ('DRAFT','PLAN')) AS draft_count
+  </select>
+  <select id="hasLaborTargets" resultType="boolean">
+    SELECT EXISTS(SELECT 1 FROM mst.dev d WHERE
+      ((d.use_yn='Y' OR d.hire_dt IS NOT NULL OR d.rsgn_dt IS NOT NULL)
+        AND (d.hire_dt IS NULL OR d.hire_dt &lt; to_date(#{month},'YYYY-MM')+interval '1 month')
+        AND (d.rsgn_dt IS NULL OR d.rsgn_dt &gt;=to_date(#{month},'YYYY-MM')))
+      OR EXISTS(SELECT 1 FROM asgn.asgn a WHERE a.dev_id=d.dev_id AND a.asgn_stts_cd!='CANCELLED'
+        AND a.bgn_dt &lt; to_date(#{month},'YYYY-MM')+interval '1 month' AND a.end_dt &gt;=to_date(#{month},'YYYY-MM'))
+      OR EXISTS(SELECT 1 FROM cst.mth_cst c WHERE c.dev_id=d.dev_id AND c.cst_ym=#{month}))
   </select>
   <select id="project" resultMap="project">
     SELECT p.cntrct_ty_cd AS contract,COALESCE(cd.cd_nm,p.cntrct_ty_cd) AS contract_name,

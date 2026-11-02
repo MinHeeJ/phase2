@@ -48,6 +48,7 @@ public class BillingReceiptService {
     }
     private void lock(long id) {
         BillingReceiptInput.id(id, "id");
+        mapper.lockClosingSources();
         var state = mapper.lockBill(id);
         if (state == null) throw ApiException.notFound("청구가 없습니다.");
         BillingRules.requireReceiptTarget(BillingRules.Status.valueOf(state.bill_stts_cd()),
@@ -64,7 +65,7 @@ public class BillingReceiptService {
         var month = YearMonth.from(date);
         BillingRules.requireOpen(month, mapper.monthStatus(month.toString()), "rcpt_dt");
     }
-    @Transactional
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     public BillingDetail create(long id, ReceiptInput input) {
         permissions.can(BillingActions.key("createBillingReceipt"));
         BillingReceiptInput.validate(input, null);
@@ -77,7 +78,7 @@ public class BillingReceiptService {
         audit(id, receiptId, "INSERT", null, after);
         return detail(id);
     }
-    @Transactional
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     public BillingDetail update(long id, long receiptId, ReceiptInput input) {
         permissions.can(BillingActions.key("updateBillingReceipt"));
         BillingReceiptInput.id(receiptId, "receiptId");
@@ -94,7 +95,7 @@ public class BillingReceiptService {
         audit(id, receiptId, "UPDATE", before, require(key));
         return detail(id);
     }
-    @Transactional
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     public BillingDetail delete(long id, long receiptId) {
         permissions.can(BillingActions.key("deleteBillingReceipt"));
         BillingReceiptInput.id(receiptId, "receiptId");

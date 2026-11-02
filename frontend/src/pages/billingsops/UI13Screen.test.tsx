@@ -1,10 +1,19 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 import UI13Screen from "./UI13Screen";
 import { UI13M1 } from "./UI13M1";
 import { UI13M3 } from "./UI13M3";
 import { UI13M4 } from "./UI13M4";
+import { UI13M1 as BillingEditor } from "../billings/UI13M1";
+import { UI13DetailPanel } from "../billings/UI13DetailPanel";
+import type { BillingDetail as BillingRecordDetail } from "../billings/client";
 import type { BillingDetail, BillingGap, BillingRow } from "./client";
 
 const response = (data: unknown) =>
@@ -99,6 +108,15 @@ beforeEach(() => {
         { id: 9, no: "P-2699", name: "월정산 프로젝트", type: "MO" },
         { id: 8, no: "P-2698", name: "내부", type: "IN" },
       ]);
+    if (url === "/api/projects/9")
+      return response({
+        prj_id: 9,
+        prj_nm: row.project_name,
+        cntrct_ty_cd: "MO",
+        stlm_mthd_cd: "MONTH",
+        use_yn: "Y",
+      });
+    if (url.startsWith("/api/month-close?")) return response([]);
     if (url.startsWith("/api/billings/preview?"))
       return response({
         project_id: 9,
@@ -183,6 +201,75 @@ const show = () =>
 const change = (label: string, value: string) =>
   fireEvent.change(screen.getByLabelText(label), { target: { value } });
 describe("billing queries and workflow", () => {
+  it("composes the merged detail panel and editor without replacing either", async () => {
+    render(
+      <MemoryRouter>
+        <UI13Screen
+          renderDetail={({ onEdit, ...props }) => (
+            <UI13DetailPanel {...props} onEdit={onEdit} onProject={() => {}} />
+          )}
+          renderEditor={({ existing, onSaved, ...props }) => (
+            <BillingEditor
+              {...props}
+              existing={existing as BillingRecordDetail | undefined}
+              onSaved={onSaved}
+            />
+          )}
+        />
+      </MemoryRouter>,
+    );
+    await screen.findByText("B-2610-71");
+    fireEvent.click(screen.getByTestId("billing-open-0"));
+    await screen.findByTestId("billing-detail-root");
+    fireEvent.click(await screen.findByRole("button", { name: "수정" }));
+    const editor = within(
+      await screen.findByRole("dialog", { name: "청구 수정" }),
+    );
+    expect(await editor.findByLabelText("프로젝트")).toBeDisabled();
+    expect(editor.getByLabelText("귀속월")).toHaveValue("2026-10");
+    expect(editor.getByLabelText("귀속월")).toHaveAttribute("readonly");
+    expect(writes()).toHaveLength(0);
+    fireEvent.change(editor.getByLabelText("공급가액"), {
+      target: { value: "120000" },
+    });
+    await waitFor(() =>
+      expect(editor.getByTestId("billing-editor-save")).not.toBeDisabled(),
+    );
+    fireEvent.click(editor.getByTestId("billing-editor-save"));
+    await screen.findByTestId("billing-success");
+    const call = writes()[0];
+    expect(call[0]).toBe("/api/billings/7");
+    expect(call[1]?.method).toBe("PUT");
+    const input = JSON.parse(call[1]!.body as string);
+    expect(input.sply_amt).toBe(120000);
+    expect(input).not.toHaveProperty("project_id");
+    expect(input).not.toHaveProperty("month");
+  });
+  it("passes mobile read-only state to the merged detail panel", async () => {
+    window.innerWidth = 767;
+    render(
+      <MemoryRouter>
+        <UI13Screen
+          renderDetail={({ onEdit, ...props }) => (
+            <UI13DetailPanel {...props} onEdit={onEdit} onProject={() => {}} />
+          )}
+        />
+      </MemoryRouter>,
+    );
+    await screen.findByText("B-2610-71");
+    fireEvent.click(screen.getByTestId("billing-open-0"));
+    const panel = within(
+      await screen.findByRole("dialog", { name: "청구 상세" }),
+    );
+    await panel.findByText("입금 이력이 없습니다.");
+    expect(
+      panel.queryByRole("button", { name: "수정" }),
+    ).not.toBeInTheDocument();
+    expect(
+      panel.queryByRole("button", { name: "다시 계산" }),
+    ).not.toBeInTheDocument();
+    expect(writes()).toHaveLength(0);
+  });
   it("shows real summary separate from plans and draft and opens selected bill", async () => {
     show();
     await screen.findByText("B-2610-71");

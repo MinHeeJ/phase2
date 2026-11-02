@@ -1,0 +1,39 @@
+.amounts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+  padding: var(--space-4);
+  background: var(--surface);
+  border: 1px solid var(--divider);
+  border-radius: var(--radius-panel);
+}
+.amounts dt {
+  color: var(--text-sub);
+  font-size: var(--caption-size);
+}
+.amounts dd {
+  margin: var(--space-2) 0 0;
+  font-weight: 600;
+}
+.reason {
+  display: grid;
+  gap: var(--space-2);
+}
+.reason textarea {
+  min-height: 96px;
+  resize: vertical;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  padding: var(--space-3);
+  font: inherit;
+}
+.warning {
+  color: var(--warning);
+  background: var(--warning-bg);
+  padding: var(--space-3);
+  border-radius: var(--radius-panel);
+}
+.danger {
+  color: var(--danger);
+  border-color: var(--danger);
+}

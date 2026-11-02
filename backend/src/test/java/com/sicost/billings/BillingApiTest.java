@@ -88,6 +88,7 @@ class BillingApiTest {
             .andExpect(jsonPath("$.success").value(true)).andExpect(jsonPath("$.data.billing.vat_amt").value(75))
             .andExpect(jsonPath("$.data.details[0].bill_amt").value(1000));
         var order = inOrder(mapper);
+        order.verify(mapper).lockClosingSources();
         order.verify(mapper).numberLock("B-2610-"); order.verify(mapper).lockProject(1);
         order.verify(mapper).insert(argThat(w -> w.number().equals("B-2610-01") && w.actor() == null));
         order.verify(mapper).insertDetail(any());
@@ -172,6 +173,26 @@ class BillingApiTest {
     @Test void closedCreateNeverWrites() throws Exception {
         postBody("{\"project_id\":1,\"month\":\"2026-09\"}").andExpect(status().isConflict())
             .andExpect(jsonPath("$.code").value("CLOSED_MONTH")); noWrite();
+        var order = inOrder(mapper);
+        order.verify(mapper).lockClosingSources();
+        order.verify(mapper).lockProject(1);
+        order.verify(mapper).monthStatus("2026-09");
+    }
+    @Test void updateAcquiresClosingGuardBeforeAnyStatusReadOrDomainLock() throws Exception {
+        putBody("{\"vat_amt\":17}").andExpect(status().isOk());
+        var order = inOrder(mapper);
+        order.verify(mapper).lockClosingSources();
+        order.verify(mapper).state(7);
+        order.verify(mapper).lockProject(1);
+        order.verify(mapper, times(2)).lockBill(7);
+        order.verify(mapper).monthStatus("2026-10");
+    }
+    @Test void listDoesNotAcquireWriteGuardOrCreateMonthState() throws Exception {
+        mvc.perform(get("/api/billings")).andExpect(status().isOk())
+            .andExpect(jsonPath("$.success").value(true)).andExpect(jsonPath("$.data.items").isArray());
+        verify(mapper, never()).lockClosingSources();
+        verify(mapper, never()).monthStatus(anyString());
+        noWrite();
     }
     @Test void closedOriginalCannotMoveToOpenDate() throws Exception {
         current = state("TK", "DRAFT", null, LocalDate.of(2026, 9, 1));

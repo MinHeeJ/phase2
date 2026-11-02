@@ -221,7 +221,12 @@ export function BusinessPlanUploadDialog({
                       "목표영업이익",
                       "목표가동률",
                     ].map((h) => (
-                      <th key={h}>{h}</th>
+                      <th
+                        key={h}
+                        data-testid={`business-plan-upload-header-${["행", "상태", "연월", "파트 ID", "목표매출", "목표영업이익", "목표가동률"].indexOf(h)}`}
+                      >
+                        {h}
+                      </th>
                     ))}
                   </tr>
                 </thead>

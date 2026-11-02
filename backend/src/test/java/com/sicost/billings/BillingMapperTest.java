@@ -49,6 +49,7 @@ class BillingMapperTest {
     }
     @Test void queryLocksAndEffectivePriceAreDatabaseBacked() throws Exception {
         var c = configuration();
+        assertThat(sql(c, "lockClosingSources", null)).isEqualTo("LOCK TABLE fin.mth_cls IN SHARE MODE");
         assertThat(sql(c, "numberLock", "B-2610-")).contains("pg_advisory_xact_lock");
         assertThat(sql(c, "lockProject", 1)).contains("FOR UPDATE");
         assertThat(sql(c, "lockBill", 1)).contains("FOR UPDATE OF b");

@@ -6,6 +6,7 @@ import static com.sicost.receipts.BillingReceiptModels.*;
 
 @Mapper
 public interface BillingReceiptMapper {
+    void lockClosingSources();
     BillState lockBill(long id);
     Header header(long id);
     Totals totals(long id);

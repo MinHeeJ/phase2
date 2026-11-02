@@ -81,7 +81,7 @@ public class MonthlyProfitService implements MonthlyProfitReader {
                     reference=Math.addExact(reference,item.sls_amt());
                 }
                 var facts=mapper.facts(month);
-                boolean missing=facts==null||facts.payroll_count()==0||allocation.warnings().stream().anyMatch(w->w.contains("급여 미업로드"));
+                boolean missing=facts==null||(facts.payroll_count()==0 && mapper.hasLaborTargets(month))||allocation.warnings().stream().anyMatch(w->w.contains("급여 미업로드"));
                 if(missing)warning.add("MISSING_PAYROLL");
                 if(year<now().getYear()&&missing&&revenue.stream().noneMatch(r->r.month().equals(month))) {
                     row.put("revenue",null);warning.add("MISSING_REVENUE_SOURCE");
@@ -150,19 +150,9 @@ public class MonthlyProfitService implements MonthlyProfitReader {
                     for(var d:details)if(groups.containsKey(d.dimension()))accumulate(groups.get(d.dimension()),names,d);
                     for(String dim:groups.keySet())if(details.stream().noneMatch(d->dim.equals(d.dimension())))warning.add("MISSING_CLOSED_COMPOSITION: "+ym+" "+dim);
                 } else {
-                    var byProject=new LinkedHashMap<Long,long[]>();
-                    for(var r:projectRevenue)if(r.month().equals(ym))byProject.computeIfAbsent(r.prj_id(),k->new long[2])[0]=Math.addExact(byProject.get(r.prj_id())[0],r.confirmed_supply_amt());
-                    for(var c:costs.calculate(ym,null).items())if("PROJECT".equals(c.aloc_ty_cd())&&c.prj_id()!=null) {
-                        var amounts=byProject.computeIfAbsent(c.prj_id(),k->new long[2]);amounts[1]=Math.addExact(amounts[1],c.cost());
-                    }
-                    for(var p:byProject.entrySet()) {
-                        var project=mapper.project(new ProjectMonth(ym,p.getKey()));
-                        for(String dim:groups.keySet()) {
-                            String code=project==null?null:switch(dim){case "CONTRACT_TYPE"->project.contract();case "CUSTOMER"->project.customer_id()==null?null:project.customer_id().toString();default->project.part_id()==null?null:project.part_id().toString();};
-                            String name=project==null?null:switch(dim){case "CONTRACT_TYPE"->project.contract_name();case "CUSTOMER"->project.customer_name();default->project.part_name();};
-                            if(code==null)warning.add("MISSING_ATTRIBUTION: "+ym+" "+dim);
-                            accumulate(groups.get(dim),names,new Detail(dim,code,name,p.getValue()[0],p.getValue()[1],Math.subtractExact(p.getValue()[0],p.getValue()[1])));
-                        }
+                    for(var detail:projectDetails(ym,projectRevenue))if(groups.containsKey(detail.dimension())) {
+                        if(detail.code()==null)warning.add("MISSING_ATTRIBUTION: "+ym+" "+detail.dimension());
+                        accumulate(groups.get(detail.dimension()),names,detail);
                     }
                 }
             }
@@ -175,6 +165,38 @@ public class MonthlyProfitService implements MonthlyProfitReader {
         row.put("contribution_note","유형별 기여도는 프로젝트 귀속 매출총이익입니다. 대기 원가·미귀속 경비는 차이로 표시합니다.");
         row.put("months",current);row.put("warnings",List.copyOf(new LinkedHashSet<>(warning)));row.put("warning",String.join("; ",new LinkedHashSet<>(warning)));
         row.put("export_file",structureWorkbook(year,from,month,row));return immutable(row);
+    }
+    public List<Detail> snapshotDetails(String month) {
+        var source=projectDetails(month,billing.projectRevenue(new CostRevenueQuery(YearMonth.parse(month).getYear(),null)));
+        var grouped=new LinkedHashMap<String,Detail>();
+        for(var d:source) {
+            String code=d.code()==null?"UNATTRIBUTED":d.code(),key=d.dimension()+":"+code;
+            var old=grouped.get(key);
+            grouped.put(key,old==null?new Detail(d.dimension(),code,d.name(),d.revenue(),d.cost(),d.gross_profit()):
+                new Detail(d.dimension(),code,d.name(),Math.addExact(old.revenue(),d.revenue()),Math.addExact(old.cost(),d.cost()),Math.addExact(old.gross_profit(),d.gross_profit())));
+        }
+        return List.copyOf(grouped.values());
+    }
+    private List<Detail> projectDetails(String month,List<com.sicost.billingsops.BillingModels.ProjectRevenue> revenue) {
+        var byProject=new LinkedHashMap<Long,long[]>();
+        for(var r:revenue)if(r.month().equals(month)) {
+            var amounts=byProject.computeIfAbsent(r.prj_id(),k->new long[2]);amounts[0]=Math.addExact(amounts[0],r.confirmed_supply_amt());
+        }
+        for(var c:costs.calculate(month,null).items())if("PROJECT".equals(c.aloc_ty_cd())&&c.prj_id()!=null) {
+            var amounts=byProject.computeIfAbsent(c.prj_id(),k->new long[2]);amounts[1]=Math.addExact(amounts[1],c.cost());
+        }
+        var result=new ArrayList<Detail>();
+        for(var p:byProject.entrySet()) {
+            var project=mapper.project(new ProjectMonth(month,p.getKey()));
+            for(String dim:List.of("PROJECT","CONTRACT_TYPE","CUSTOMER","PART")) {
+                String code=dim.equals("PROJECT")?p.getKey().toString():project==null?null:switch(dim) {
+                    case "CONTRACT_TYPE"->project.contract();case "CUSTOMER"->project.customer_id()==null?null:project.customer_id().toString();
+                    default->project.part_id()==null?null:project.part_id().toString();};
+                String name=project==null?null:switch(dim){case "CONTRACT_TYPE"->project.contract_name();case "CUSTOMER"->project.customer_name();default->project.part_name();};
+                result.add(new Detail(dim,code,name,p.getValue()[0],p.getValue()[1],Math.subtractExact(p.getValue()[0],p.getValue()[1])));
+            }
+        }
+        return List.copyOf(result);
     }
     private static void accumulate(Map<String,long[]> group,Map<String,String> names,Detail detail) {
         String key=detail.code()==null?"UNATTRIBUTED":detail.code();names.put(detail.dimension()+":"+key,detail.name()==null?"미귀속":detail.name());

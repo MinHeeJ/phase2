@@ -7,10 +7,11 @@ import java.time.*;
 import java.util.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.annotation.Isolation;
 import static com.sicost.billingsops.BillingModels.*;
 
 @Service
-@Transactional(readOnly=true)
+@Transactional(readOnly=true, isolation=Isolation.REPEATABLE_READ)
 public class BillingGapService {
     private final BillingMapper mapper;
     private final BillingAmountService amounts;
@@ -81,5 +82,8 @@ public class BillingGapService {
         var rows=filtered(new GapQuery(month,query.judgment(),query.q(),query.paging()));long sum=0;
         for(var row:rows)sum=BillingValues.add(sum,row.difference_amt(),"total_difference_amt");
         return new Gaps(month,sum,BillingReceivableService.page(rows,query.paging()),rows.size(),query.paging().page(),query.paging().size());
+    }
+    public void authorizeDownload() {
+        permissions.can(BillingActions.DOWNLOAD);
     }
 }

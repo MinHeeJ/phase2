@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sicost.adjustments.AdjustmentMapper">
+  <resultMap id="adjustmentRow" type="com.sicost.adjustments.AdjustmentModels$Row"><constructor>
+    <arg column="adj_id" javaType="_long"/><arg column="orgnl_ym" javaType="string"/>
+    <arg column="aply_ym" javaType="string"/><arg column="adj_se_cd" javaType="string"/>
+    <arg column="adj_amt" javaType="_long"/><arg column="rsn_desc" javaType="string"/>
+    <arg column="adj_stts_cd" javaType="string"/><arg column="created_at" javaType="java.time.OffsetDateTime"/>
+    <arg column="cncl_at" javaType="java.time.OffsetDateTime"/><arg column="orgnl_adj_id" javaType="java.lang.Long"/>
+  </constructor></resultMap>
+  <sql id="columns">adj_id,orgnl_ym,aply_ym,adj_se_cd,adj_amt,rsn_desc,adj_stts_cd,
+    created_at AT TIME ZONE 'Asia/Seoul' AS created_at,
+    cncl_at AT TIME ZONE 'Asia/Seoul' AS cncl_at,orgnl_adj_id</sql>
+  <sql id="filters">
+    WHERE left(aply_ym,4)=lpad(#{year}::text,4,'0')
+    <if test="month != null">AND aply_ym=#{month}</if>
+  </sql>
+  <update id="lockMonths">LOCK TABLE fin.mth_cls IN SHARE ROW EXCLUSIVE MODE</update>
+  <select id="monthStatus" resultType="string">SELECT cls_stts_cd FROM fin.mth_cls WHERE cls_ym=#{month}</select>
+  <select id="list" resultMap="adjustmentRow">
+    SELECT <include refid="columns"/> FROM cst.prvmn_adj <include refid="filters"/>
+    ORDER BY created_at DESC,adj_id DESC LIMIT #{size} OFFSET #{offset}
+  </select>
+  <select id="count" resultType="long">SELECT count(*) FROM cst.prvmn_adj <include refid="filters"/></select>
+  <select id="row" resultMap="adjustmentRow">SELECT <include refid="columns"/> FROM cst.prvmn_adj WHERE adj_id=#{id}</select>
+  <select id="lockRow" resultMap="adjustmentRow" useCache="false" flushCache="true">
+    SELECT <include refid="columns"/> FROM cst.prvmn_adj WHERE adj_id=#{id} FOR UPDATE
+  </select>
+  <select id="project" resultType="boolean">SELECT EXISTS(SELECT 1 FROM prj.prj WHERE prj_id=#{id})</select>
+  <select id="developer" resultType="boolean">SELECT EXISTS(SELECT 1 FROM mst.dev WHERE dev_id=#{id})</select>
+  <select id="insert" resultType="long" affectData="true" flushCache="true">
+    INSERT INTO cst.prvmn_adj(orgnl_ym,aply_ym,adj_se_cd,adj_amt,rsn_desc,prj_id,dev_id,orgnl_adj_id,created_by,created_at,adj_stts_cd)
+    VALUES(#{input.originalMonth},#{input.applyMonth},#{input.type},#{input.amount},#{input.reason},
+      #{input.projectId},#{input.developerId},#{input.originalAdjustmentId},#{actor},#{now},'ACTIVE') RETURNING adj_id
+  </select>
+  <update id="cancel">
+    UPDATE cst.prvmn_adj SET adj_stts_cd='CANCELLED',cncl_rsn_desc=#{reason},cncl_user_id=#{actor},cncl_at=#{now}
+    WHERE adj_id=#{id} AND adj_stts_cd='ACTIVE'
+  </update>
+  <insert id="audit">
+    INSERT INTO sys.data_chg_hist(tbl_nm,obj_rec_id,data_chg_ty_cd,clmn_nm,bfr_val,aft_val,rsn_desc,chg_user_id)
+    VALUES('cst.prvmn_adj',#{id}::text,#{action},'adjustment',#{before},#{after},#{reason},#{actor})
+  </insert>
+  <insert id="access">
+    INSERT INTO sys.acs_hist(acs_ty_cd,scrn_id,user_id,obj_desc,dtl_desc)
+    VALUES(CASE WHEN #{action}='INSERT' THEN 'ADJUSTMENT_CREATE' ELSE 'ADJUSTMENT_CANCEL' END,
+      'UI-14',#{actor},#{id}::text,#{after})
+  </insert>
+</mapper>

@@ -95,13 +95,15 @@ class BillingReceiptApiTest {
             .andExpect(jsonPath("$.data.billing.receivable_amt").value(58))
             .andExpect(jsonPath("$.data.details").isArray()).andExpect(jsonPath("$.data.change_history").isArray());
         untouched(); verify(mapper, never()).lockBill(anyLong());
+        verify(mapper, never()).lockClosingSources();
     }
     @Test void anonymousCreateThirtyLeavesEightyAndPreservesSupplyAndRevenueMonth() throws Exception {
         write("POST", body()).andExpect(status().isOk())
             .andExpect(jsonPath("$.data.billing.receivable_amt").value(80))
             .andExpect(jsonPath("$.data.billing.sply_amt").value(100))
             .andExpect(jsonPath("$.data.billing.atrb_ym").value("2026-09"));
-        var order = inOrder(mapper); order.verify(mapper).lockBill(1); order.verify(mapper).header(1);
+        var order = inOrder(mapper); order.verify(mapper).lockClosingSources();
+        order.verify(mapper).lockBill(1); order.verify(mapper).header(1);
         order.verify(mapper).monthStatus("2026-10"); order.verify(mapper).header(1); order.verify(mapper).totals(1);
         order.verify(mapper).insert(any()); order.verify(mapper).row(new ReceiptKey(1, 8)); order.verify(mapper).audit(any());
         assertThat(audits).hasSize(1); assertThat(audits.get(0).actor()).isNull();
@@ -202,5 +204,27 @@ class BillingReceiptApiTest {
         rows.put(7L, receipt(7, "2026-10-10", 20)); doReturn(0).when(mapper).update(any());
         write("PUT", body()).andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("STALE_BILL"));
         verify(mapper, never()).audit(any());
+    }
+    @ParameterizedTest @ValueSource(strings = {"POST", "PUT", "DELETE"})
+    void sourceGuardPrecedesDomainLockAndEveryMonthRead(String method) throws Exception {
+        rows.put(7L, receipt(7, "2026-10-10", 20));
+        write(method, body()).andExpect(status().isOk());
+        var order = inOrder(mapper);
+        order.verify(mapper).lockClosingSources();
+        order.verify(mapper).lockBill(1);
+        order.verify(mapper).header(1);
+        order.verify(mapper, atLeastOnce()).monthStatus("2026-10");
+    }
+    @ParameterizedTest @ValueSource(strings = {"POST", "PUT", "DELETE"})
+    void newlyClosedReceiptMonthRejectsAfterSourceGuardWithoutMutation(String method) throws Exception {
+        rows.put(7L, receipt(7, "2026-10-10", 20));
+        doAnswer(i -> {
+            when(mapper.monthStatus("2026-10")).thenReturn("CLOSED");
+            return null;
+        }).when(mapper).lockClosingSources();
+        write(method, body()).andExpect(status().isConflict())
+            .andExpect(jsonPath("$.code").value("CLOSED_MONTH"));
+        untouched();
+        assertThat(rows.get(7L)).isEqualTo(receipt(7, "2026-10-10", 20));
     }
 }

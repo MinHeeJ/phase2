@@ -15,5 +15,6 @@ public interface MonthlyProfitMapper {
     Long annualTax(int year);
     List<TaxMonth> taxMonths(int year);
     Facts facts(String month);
+    boolean hasLaborTargets(String month);
     Project project(ProjectMonth query);
 }

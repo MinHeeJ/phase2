@@ -32,10 +32,12 @@ public class BillingController {
     public ApiResponse<Preview> previewBilling(@RequestParam Map<String,String> q) {
         return ApiResponse.ok(amounts.preview(new Scope(BillingInput.identifier(q,"projectId",true),q.get("month"),BillingInput.identifier(q,"stageId",false))));
     }
+    @com.sicost.common.security.Sensitive
     @GetMapping("/api/billings/gaps")
     public ApiResponse<Gaps> listBillingGaps(@RequestParam Map<String,String> q) {
         return ApiResponse.ok(gaps.list(BillingInput.gaps(q)));
     }
+    @com.sicost.common.security.Sensitive
     @GetMapping("/api/billings/overdue")
     public ApiResponse<Overdues> listBillingOverdue(@RequestParam Map<String,String> q) {
         return ApiResponse.ok(receivables.list(BillingInput.overdue(q,clock)));

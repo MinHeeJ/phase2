@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Route, Routes, useNavigate } from "react-router-dom";
 import UI13Screen from "../pages/billingsops/UI13Screen";
+import ClosingWorkspace from "../pages/closingops/ClosingWorkspace";
 import { UI13M1 } from "../pages/billings/UI13M1";
 import { UI13DetailPanel } from "../pages/billings/UI13DetailPanel";
 import type { BillingDetail } from "../pages/billings/client";
@@ -776,6 +777,7 @@ function FinanceEntriesPage({
   onDirtyChange,
   ...bindings
 }: BusinessScreenBindings) {
+  const navigate = useNavigate();
   const notify = useRef(onDirtyChange);
   notify.current = onDirtyChange;
   const reportDirty = useCallback(
@@ -807,6 +809,11 @@ function FinanceEntriesPage({
       {...bindings}
       onDirtyChange={reportDirty}
       onMonthChange={setMonth}
+      onAdjustment={(selectedMonth) =>
+        navigate("/UI-14", {
+          state: { closingMonth: selectedMonth, closingTab: "adjustments" },
+        })
+      }
       refreshVersion={revision}
       taxMonthlyAmount={selected?.amount}
       onTax={() => setShowTax((value) => !value)}
@@ -975,6 +982,8 @@ export function AppRouter() {
                 <AssignmentsScreen {...bindings} />
               ) : id === "UI-13" ? (
                 <BillingsScreen {...bindings} />
+              ) : id === "UI-14" ? (
+                <ClosingWorkspace {...bindings} />
               ) : id === "UI-31" ? (
                 <ProjectBoardScreen {...bindings} />
               ) : id === "UI-27" ? (

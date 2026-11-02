@@ -10,6 +10,7 @@ import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.*;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 import static com.sicost.billings.BillingModels.*;
 
@@ -82,9 +83,10 @@ public class BillingService {
         if (amendment ? vat > 0 : vat < 0) throw BillingValues.invalid("vat_amt");
         BillingValues.add(supply, vat, "tot_amt");
     }
-    @Transactional
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     public BillingDetail create(Input input) {
         permissions.can(BillingActions.CREATE);
+        mapper.lockClosingSources();
         YearMonth creationMonth = YearMonth.from(ProjectValues.today(clock));
         String prefix = BillingNumbers.prefix(creationMonth);
         mapper.numberLock(prefix);
@@ -126,9 +128,10 @@ public class BillingService {
         auditDetails(id, "INSERT", new ArrayList<>(), source.details());
         return detail(require(id), new ArrayList<>(source.warnings()));
     }
-    @Transactional
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     public BillingDetail update(long id, Input input) {
         permissions.can(BillingActions.UPDATE);
+        mapper.lockClosingSources();
         var observed = require(id);
         var project = project(observed.prj_id());
         long root = observed.orgnl_bill_id() == null ? id : observed.orgnl_bill_id();

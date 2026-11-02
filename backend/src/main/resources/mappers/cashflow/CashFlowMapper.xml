@@ -63,8 +63,8 @@
       FROM fin.entry e WHERE e.deleted_yn='N' AND e.inout_dt IS NOT NULL
         AND NOT EXISTS(SELECT 1 FROM fin.pay p WHERE p.pay_src_cd='AUTO_FIN' AND p.src_rec_id=e.entry_id AND p.pay_se_cd IN ('SGA','ETC') AND p.pay_stts_cd!='CANCEL')
     UNION ALL
-    SELECT t.pay_plan_dt,COALESCE(t.plan_amt,0),t.pay_dt,COALESCE(t.pay_amt,0),
-      CASE WHEN t.pay_dt IS NULL THEN COALESCE(t.plan_amt,0) ELSE 0 END,false,'CORP_TAX'
+    SELECT t.pay_plan_dt,COALESCE(t.plan_amt,0),NULL::date,0,
+      COALESCE(t.plan_amt,0),false,'CORP_TAX'
       FROM fin.corp_tax_pay t WHERE NOT EXISTS(SELECT 1 FROM fin.pay p WHERE p.pay_src_cd='AUTO_FIN'
         AND p.pay_se_cd='CORP_TAX' AND p.src_rec_id=t.tax_pay_id AND p.pay_stts_cd!='CANCEL')
     UNION ALL

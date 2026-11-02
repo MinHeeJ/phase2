@@ -24,9 +24,11 @@ public class BillingExportController {
         this.gaps=gaps;this.receivables=receivables;this.excel=excel;this.user=user;this.mapper=mapper;this.clock=clock;
     }
     @GetMapping("/api/billings/gaps/export")
-    @Transactional
+    @Sensitive
+    @Transactional(isolation=org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
     public ResponseEntity<byte[]> exportBillingGaps(@RequestParam Map<String,String> parameters) {
         var q=BillingInput.gaps(parameters);
+        gaps.authorizeDownload();
         var columns=List.<ExportColumn<Gap>>of(
             new ExportColumn<>("project_name","프로젝트",false,false,Gap::project_name),
             new ExportColumn<>("month","귀속월",false,false,Gap::month),
@@ -35,12 +37,18 @@ public class BillingExportController {
             new ExportColumn<>("difference_amt","차이",false,true,Gap::difference_amt),
             new ExportColumn<>("judgment","판정",false,false,Gap::judgment),
             new ExportColumn<>("explanation","설명",false,false,Gap::explanation));
-        return download("청구누락.xlsx",parameters,columns,gaps.filtered(q));
+        String month=q.month()==null || q.month().isBlank()?gaps.month(q.month()):q.month();
+        var conditions=new LinkedHashMap<>(parameters);
+        conditions.put("month",month);
+        return download("청구누락.xlsx",conditions,columns,
+            gaps.filtered(new GapQuery(month,q.judgment(),q.q(),q.paging())));
     }
     @GetMapping("/api/billings/overdue/export")
+    @Sensitive
     @Transactional
     public ResponseEntity<byte[]> exportBillingOverdue(@RequestParam Map<String,String> parameters) {
         var q=BillingInput.overdue(parameters,clock);
+        receivables.authorizeDownload();
         var columns=List.<ExportColumn<Overdue>>of(
             new ExportColumn<>("customer_name","고객사",false,false,r->r.billing().customer_name()),
             new ExportColumn<>("project_name","프로젝트",false,false,r->r.billing().project_name()),
@@ -55,7 +63,7 @@ public class BillingExportController {
     }
     private <T> ResponseEntity<byte[]> download(String name,Map<String,String> parameters,
             List<ExportColumn<T>> columns,List<T> rows) {
-        byte[] bytes=excel.create(parameters.toString(),user.name(),LocalDateTime.now(clock.withZone(ZoneId.of("Asia/Seoul"))),columns,rows);
+        byte[] bytes=excel.create(parameters.toString(),user.userId()==null?"시스템 처리":user.name(),LocalDateTime.now(clock.withZone(ZoneId.of("Asia/Seoul"))),columns,rows);
         mapper.download(new Download(name,"{\"rows\":"+rows.size()+"}",user.userId()));
         return ResponseEntity.ok().contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
             .header(HttpHeaders.CONTENT_DISPOSITION,ContentDisposition.attachment().filename(name,StandardCharsets.UTF_8).build().toString()).body(bytes);

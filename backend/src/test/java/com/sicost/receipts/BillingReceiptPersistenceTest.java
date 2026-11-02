@@ -170,4 +170,31 @@ class BillingReceiptPersistenceTest {
             assertThat(value("SELECT count(*) FROM sys.data_chg_hist WHERE tbl_nm='bill.rcpt'")).isEqualTo("1");
         } finally { start.countDown(); pool.shutdownNow(); }
     }
+    @ParameterizedTest @ValueSource(strings = {"POST", "PUT", "DELETE"})
+    void receiptMutationHoldsMonthGuardUntilCommitEvenWhenMonthHasNoRow(String method) throws Exception {
+        service.create(101, input("2026-11-01", 20));
+        long id = receiptId();
+        assertThat(value("SELECT count(*) FROM fin.mth_cls WHERE cls_ym='2026-11'")).isEqualTo("0");
+        var transaction = new org.springframework.transaction.support.TransactionTemplate(
+            context.getBean(org.springframework.transaction.PlatformTransactionManager.class));
+        transaction.executeWithoutResult(status -> {
+            switch (method) {
+                case "POST" -> service.create(101, input("2026-11-02", 30));
+                case "PUT" -> service.update(101, id, input("2026-11-02", 30));
+                default -> service.delete(101, id);
+            }
+            try (var other = source.getConnection(); var statement = other.createStatement()) {
+                other.setAutoCommit(false);
+                statement.execute("SET LOCAL lock_timeout='100ms'");
+                assertThatThrownBy(() -> statement.execute("LOCK TABLE fin.mth_cls IN SHARE ROW EXCLUSIVE MODE"))
+                    .isInstanceOfSatisfying(SQLException.class, ex -> assertThat(ex.getSQLState()).isEqualTo("55P03"));
+                other.rollback();
+            } catch (SQLException ex) { throw new IllegalStateException(ex); }
+        });
+        try (var other = source.getConnection(); var statement = other.createStatement()) {
+            other.setAutoCommit(false);
+            statement.execute("LOCK TABLE fin.mth_cls IN SHARE ROW EXCLUSIVE MODE NOWAIT");
+            other.rollback();
+        }
+    }
 }

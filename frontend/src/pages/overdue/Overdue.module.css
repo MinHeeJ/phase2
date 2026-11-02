@@ -1,0 +1,33 @@
+.stages {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-4);
+  margin: var(--space-4) 0;
+}
+.stages h2 {
+  margin-bottom: var(--space-3);
+  font-size: var(--label-size);
+}
+.secondary {
+  display: block;
+  color: var(--text-sub);
+  margin-top: var(--space-1);
+}
+.notice {
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-panel);
+  background: var(--info-bg);
+  color: var(--info);
+}
+.customers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  margin-top: var(--space-4);
+  color: var(--text-sub);
+}
+@media (max-width: 767px) {
+  .stages {
+    grid-template-columns: 1fr;
+  }
+}

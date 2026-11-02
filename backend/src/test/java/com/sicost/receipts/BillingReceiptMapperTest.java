@@ -53,6 +53,7 @@ class BillingReceiptMapperTest {
     }
     @Test void rootLockAndBalanceQueryUseExactSchemaAndConfirmedAdjustmentsOnly() throws Exception {
         var c = configuration();
+        assertThat(sql(c, "lockClosingSources", null)).isEqualTo("LOCK TABLE fin.mth_cls IN SHARE MODE");
         assertThat(sql(c, "lockBill", 1L)).contains("FROM bill.bill b", "FOR UPDATE");
         assertThat(sql(c, "totals", 1L)).contains("a.orgnl_bill_id=b.bill_id", "a.amnd_yn='Y'",
             "a.bill_stts_cd='CONFIRM'", "SUM(r.rcpt_amt)").doesNotContain("vw_bill_unrcv", "CURRENT_DATE");

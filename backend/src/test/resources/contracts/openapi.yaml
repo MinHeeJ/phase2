@@ -160,6 +160,976 @@ paths:
           $ref: '#/components/schemas/DataScope'
         current: ALL
         description: 서비스 내부 인자. 호출자 권한 필터나 입력 파라미터가 아니며 sys.role을 읽지 않는다.
+  /api/closing:
+    get:
+      operationId: getClosing
+      summary: 선택 월의 저장 점검과 마감 상태 조회
+      security: []
+      x-related-requirements:
+      - REQ-569
+      - REQ-574
+      - REQ-580
+      x-business-rules:
+      - GET은 저장된 최신 9종 점검과 상태를 읽으며 원천 재점검·쓰기 금지.
+      - 행 없는 월은 OPEN, CLOSED 스냅샷 누락은 MISSING_CLOSED_SNAPSHOT.
+      x-required-tests:
+      - 월 변경 후 저장 결과 9종과 시각 표시
+      - GET 전후 원천·점검 행 변경 없음
+      parameters:
+      - name: month
+        in: query
+        required: true
+        schema:
+          $ref: '#/components/schemas/YearMonth'
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  required:
+                  - data
+                  properties:
+                    data:
+                      type: object
+                      required:
+                      - month
+                      - status
+                      - checks
+                      properties:
+                        month:
+                          $ref: '#/components/schemas/YearMonth'
+                        status:
+                          type: string
+                          enum:
+                          - OPEN
+                          - CLOSED
+                        checks:
+                          type: array
+                          items:
+                            type: object
+                            required:
+                            - code
+                            - status
+                            - count
+                            properties:
+                              code:
+                                type: string
+                                minLength: 1
+                              status:
+                                type: string
+                                enum:
+                                - OK
+                                - WARN
+                                - FAIL
+                              count:
+                                type: integer
+                                minimum: 0
+                              description:
+                                type: string
+                        checkedAt:
+                          type: string
+                          format: date-time
+                        canReopen:
+                          type: boolean
+        '400':
+          description: YYYY-MM 형식, 필수 입력 또는 값 범위 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '409':
+          description: 업무 상태 충돌
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '500':
+          description: 서버 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+  /api/closing/check:
+    post:
+      operationId: runClosingCheck
+      summary: OPEN 월 9종 재점검
+      security: []
+      x-related-requirements:
+      - REQ-571
+      - REQ-572
+      x-business-rules:
+      - 서버 Asia/Seoul 월 검증, CLOSED 월 409 CLOSED_MONTH.
+      - 9종 원천 판정, 월·코드 최신 9행 UPSERT와 실행별 이력 보존.
+      x-required-tests:
+      - 'happy: 정상 입력에서 HTTP 200과 data의 업무 결과 필드를 확인한다. 두 번 실행 후 최신 9행과 실행 이력 2건'
+      - 'auth: ⑯ 이전 비인증 요청이 권한 오류 없이 실행되는지 확인한다.'
+      - 'validation: 월 형식 오류 또는 필수 사유 공백은 400이며 저장 상태가 그대로인지 확인한다.'
+      - 'business: CLOSED_MONTH 또는 이 연산의 409 업무 충돌에서 원본 데이터가 유지되는지 확인한다.'
+      - 'side-effect: 점검 최신 결과·실행별 이력 저장, 원천 불변 결과를 DB에서 읽어 검증한다.'
+      - 급여 누락 FAIL, MM 1.01 WARN, 1.00 OK
+      x-side-effects:
+      - 점검 최신 결과·실행별 이력 저장, 원천 불변
+      parameters:
+      - name: month
+        in: query
+        required: true
+        schema:
+          $ref: '#/components/schemas/YearMonth'
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  required:
+                  - data
+                  properties:
+                    data:
+                      type: object
+                      required:
+                      - month
+                      - status
+                      - checks
+                      properties:
+                        month:
+                          $ref: '#/components/schemas/YearMonth'
+                        status:
+                          type: string
+                          enum:
+                          - OPEN
+                          - CLOSED
+                        checks:
+                          type: array
+                          items:
+                            type: object
+                            required:
+                            - code
+                            - status
+                            - count
+                            properties:
+                              code:
+                                type: string
+                                minLength: 1
+                              status:
+                                type: string
+                                enum:
+                                - OK
+                                - WARN
+                                - FAIL
+                              count:
+                                type: integer
+                                minimum: 0
+                              description:
+                                type: string
+                        checkedAt:
+                          type: string
+                          format: date-time
+                        canReopen:
+                          type: boolean
+        '400':
+          description: YYYY-MM 형식, 필수 입력 또는 값 범위 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '409':
+          description: CLOSED_MONTH 또는 동시 상태 변경
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '500':
+          description: 서버 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+      x-no-request-body-reason: month는 필수 query 파라미터이며 재점검에 JSON body는 없다.
+  /api/closing/confirm:
+    post:
+      operationId: confirmClosing
+      summary: 월 마감 확정
+      security: []
+      x-related-requirements:
+      - REQ-574
+      - REQ-576
+      - REQ-577
+      - REQ-578
+      - REQ-582
+      - REQ-583
+      - REQ-579
+      - REQ-587
+      x-business-rules:
+      - 확정 직전 9종 재점검은 별도 커밋. FAIL이면 409 CLOSE_CHECK_FAILED, WARN은 ackWarnings=true
+        필요.
+      - 가장 최근 CLOSED 다음 월만 확정, 동일 월 동시 요청은 하나만 성공.
+      - OPEN DTO의 원가·손익·법인세·현금 스냅샷과 상태·이력·감사는 원자 커밋.
+      x-required-tests:
+      - 'happy: 정상 입력에서 HTTP 200과 data의 업무 결과 필드를 확인한다. FAIL 재점검 결과 보존과 확정 거부'
+      - 'auth: ⑯ 이전 비인증 요청이 권한 오류 없이 실행되는지 확인한다.'
+      - 'validation: 월 형식 오류 또는 필수 사유 공백은 400이며 저장 상태가 그대로인지 확인한다.'
+      - 'business: CLOSED_MONTH 또는 이 연산의 409 업무 충돌에서 원본 데이터가 유지되는지 확인한다.'
+      - 'side-effect: 최신 점검 결과와 실행 이력 별도 커밋 결과를 DB에서 읽어 검증한다.'
+      - 동시 확정 하나만 성공
+      - 중간 DB 예외 시 모든 CLOSE 산출물 롤백
+      x-side-effects:
+      - 최신 점검 결과와 실행 이력 별도 커밋
+      - 성공 시 CLOSE 스냅샷·상태·이력·감사 원자 저장
+      x-state-transitions:
+        OPEN: CLOSED
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - month
+              - ackWarnings
+              properties:
+                month:
+                  $ref: '#/components/schemas/YearMonth'
+                ackWarnings:
+                  type: boolean
+              additionalProperties: false
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  required:
+                  - data
+                  properties:
+                    data:
+                      type: object
+                      required:
+                      - month
+                      - status
+                      properties:
+                        month:
+                          $ref: '#/components/schemas/YearMonth'
+                        status:
+                          type: string
+                          enum:
+                          - OPEN
+                          - CLOSED
+                        processedAt:
+                          type: string
+                          format: date-time
+                        actor:
+                          type: string
+        '400':
+          description: YYYY-MM 형식, 필수 입력 또는 값 범위 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '409':
+          description: CLOSE_CHECK_FAILED, CLOSE_ORDER, IMPORT_CONFLICT, TAX_BELOW_CLOSED,
+            OPENING_BALANCE_REQUIRED
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '500':
+          description: 서버 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+  /api/closing/reopen:
+    post:
+      operationId: reopenClosing
+      summary: 최신 월 마감 해제
+      security: []
+      x-related-requirements:
+      - REQ-584
+      - REQ-585
+      - REQ-586
+      - REQ-588
+      x-business-rules:
+      - 최신 CLOSED 월과 완전한 스냅샷만 해제. 사유 필수.
+      - 원월의 ACTIVE 조정 참조는 409 ADJUSTMENT_REFERENCE_EXISTS; CANCELLED 참조만 있으면 다른 조건
+        충족 시 허용.
+      - CLOSED 반영월 역방향 정정은 원본 ACTIVE 참조를 해제하지 않는다.
+      x-required-tests:
+      - 'happy: 정상 입력에서 HTTP 200과 data의 업무 결과 필드를 확인한다. 이전 CLOSED 월 해제 409'
+      - 'auth: ⑯ 이전 비인증 요청이 권한 오류 없이 실행되는지 확인한다.'
+      - 'validation: 월 형식 오류 또는 필수 사유 공백은 400이며 저장 상태가 그대로인지 확인한다.'
+      - 'business: CLOSED_MONTH 또는 이 연산의 409 업무 충돌에서 원본 데이터가 유지되는지 확인한다.'
+      - 'side-effect: 해당 CLOSE 스냅샷만 철회 결과를 DB에서 읽어 검증한다.'
+      - ACTIVE 참조 409와 CANCELLED만 남은 원월 해제 성공
+      - 해제 후 과거 CLOSE 이력·원천·IMPORT 보존
+      x-side-effects:
+      - 해당 CLOSE 스냅샷만 철회
+      - REOPEN 이력·사유·감사 기록
+      x-state-transitions:
+        CLOSED: OPEN
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - month
+              - reason
+              properties:
+                month:
+                  $ref: '#/components/schemas/YearMonth'
+                reason:
+                  type: string
+                  minLength: 1
+              additionalProperties: false
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  required:
+                  - data
+                  properties:
+                    data:
+                      type: object
+                      required:
+                      - month
+                      - status
+                      properties:
+                        month:
+                          $ref: '#/components/schemas/YearMonth'
+                        status:
+                          type: string
+                          enum:
+                          - OPEN
+                          - CLOSED
+                        processedAt:
+                          type: string
+                          format: date-time
+                        actor:
+                          type: string
+        '400':
+          description: YYYY-MM 형식, 필수 입력 또는 값 범위 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '409':
+          description: CLOSE_ORDER, ADJUSTMENT_REFERENCE_EXISTS, MISSING_CLOSED_SNAPSHOT
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '500':
+          description: 서버 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+  /api/closing/history:
+    get:
+      operationId: listClosingHistory
+      summary: 마감·해제 이력 조회
+      security: []
+      x-related-requirements:
+      - REQ-573
+      - REQ-582
+      - REQ-586
+      x-business-rules:
+      - CLOSE/REOPEN 저장 이력을 최신순으로 읽고 처리자·시각·사유를 반환.
+      x-required-tests:
+      - 이력 없음은 빈 items
+      - 기존 CLOSE 뒤 REOPEN이 최신순으로 보임
+      parameters:
+      - name: year
+        in: query
+        required: true
+        schema:
+          type: integer
+          minimum: 1
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+      - name: size
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  required:
+                  - data
+                  properties:
+                    data:
+                      type: object
+                      required:
+                      - items
+                      - page
+                      - size
+                      - total
+                      properties:
+                        items:
+                          type: array
+                          items:
+                            type: object
+                            required:
+                            - month
+                            - action
+                            - processedAt
+                            properties:
+                              month:
+                                $ref: '#/components/schemas/YearMonth'
+                              action:
+                                type: string
+                                enum:
+                                - CLOSE
+                                - REOPEN
+                              processedAt:
+                                type: string
+                                format: date-time
+                              actor:
+                                type: string
+                              reason:
+                                type: string
+                        page:
+                          type: integer
+                          minimum: 0
+                        size:
+                          type: integer
+                          minimum: 1
+                        total:
+                          type: integer
+                          minimum: 0
+        '400':
+          description: YYYY-MM 형식, 필수 입력 또는 값 범위 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '409':
+          description: 업무 상태 충돌
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '500':
+          description: 서버 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+  /api/closing/adjustments:
+    get:
+      operationId: listClosingAdjustments
+      summary: 전월 조정 목록 조회
+      security: []
+      x-related-requirements:
+      - REQ-590
+      - REQ-594
+      - REQ-595
+      x-business-rules:
+      - 원월·반영월·유형·금액·사유·원본 링크·ACTIVE/CANCELLED 상태를 조회.
+      - CANCELLED는 손익 집계에서 제외하지만 목록과 감사에서는 보존.
+      x-required-tests:
+      - 취소 원본 조회 가능, 합계 제외
+      - 페이지별 총건수와 필터 월 확인
+      parameters:
+      - name: year
+        in: query
+        required: true
+        schema:
+          type: integer
+          minimum: 1
+      - name: month
+        in: query
+        required: false
+        schema:
+          $ref: '#/components/schemas/YearMonth'
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+      - name: size
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  required:
+                  - data
+                  properties:
+                    data:
+                      type: object
+                      required:
+                      - items
+                      - page
+                      - size
+                      - total
+                      properties:
+                        items:
+                          type: array
+                          items:
+                            type: object
+                            required:
+                            - id
+                            - originalMonth
+                            - applyMonth
+                            - type
+                            - amount
+                            - reason
+                            - status
+                            properties:
+                              id:
+                                type: integer
+                                format: int64
+                              originalMonth:
+                                $ref: '#/components/schemas/YearMonth'
+                              applyMonth:
+                                $ref: '#/components/schemas/YearMonth'
+                              type:
+                                type: string
+                                enum:
+                                - REVENUE
+                                - COST
+                                - SGA
+                                - ETC
+                              amount:
+                                type: integer
+                                format: int64
+                                not:
+                                  enum:
+                                  - 0
+                              reason:
+                                type: string
+                                minLength: 1
+                              status:
+                                type: string
+                                enum:
+                                - ACTIVE
+                                - CANCELLED
+                              createdAt:
+                                type: string
+                                format: date-time
+                              cancelledAt:
+                                type: string
+                                format: date-time
+                              originalAdjustmentId:
+                                type: integer
+                                format: int64
+                        page:
+                          type: integer
+                          minimum: 0
+                        size:
+                          type: integer
+                          minimum: 1
+                        total:
+                          type: integer
+                          minimum: 0
+        '400':
+          description: YYYY-MM 형식, 필수 입력 또는 값 범위 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '409':
+          description: 업무 상태 충돌
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '500':
+          description: 서버 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+    post:
+      operationId: createClosingAdjustment
+      summary: 현재 OPEN 월 전월 조정 등록
+      security: []
+      x-related-requirements:
+      - REQ-591
+      - REQ-592
+      - REQ-593
+      - REQ-594
+      - REQ-581
+      x-business-rules:
+      - 원월은 과거 CLOSED 월, 반영월은 등록 시점 Asia/Seoul 현재 OPEN 월만 허용.
+      - 금액은 0 아닌 정수, 사유 필수. 원월과 CLOSED 반영월은 변경하지 않는다.
+      - CLOSED 반영월 정정은 다음 현재 OPEN 월에 역방향 및 정상 행을 각각 새로 등록.
+      x-required-tests:
+      - 'happy: 정상 입력에서 HTTP 200과 data의 업무 결과 필드를 확인한다. 과거 OPEN 반영월·미래월 거부'
+      - 'auth: ⑯ 이전 비인증 요청이 권한 오류 없이 실행되는지 확인한다.'
+      - 'validation: 월 형식 오류 또는 필수 사유 공백은 400이며 저장 상태가 그대로인지 확인한다.'
+      - 'business: CLOSED_MONTH 또는 이 연산의 409 업무 충돌에서 원본 데이터가 유지되는지 확인한다.'
+      - 'side-effect: 새 ACTIVE 조정 행 및 감사 추가 결과를 DB에서 읽어 검증한다.'
+      - 8월 CLOSED 원월, 10월 현재 OPEN 반영월 +100 등록
+      - CLOSED 월 정정 -100/+70은 새 현재 OPEN 월에 기록
+      x-side-effects:
+      - 새 ACTIVE 조정 행 및 감사 추가
+      - 원월과 CLOSED 월 원본 불변
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - originalMonth
+              - applyMonth
+              - type
+              - amount
+              - reason
+              properties:
+                originalMonth:
+                  $ref: '#/components/schemas/YearMonth'
+                applyMonth:
+                  $ref: '#/components/schemas/YearMonth'
+                type:
+                  type: string
+                  enum:
+                  - REVENUE
+                  - COST
+                  - SGA
+                  - ETC
+                amount:
+                  type: integer
+                  format: int64
+                  not:
+                    enum:
+                    - 0
+                reason:
+                  type: string
+                  minLength: 1
+                projectId:
+                  type: integer
+                  format: int64
+                developerId:
+                  type: integer
+                  format: int64
+                originalAdjustmentId:
+                  type: integer
+                  format: int64
+              additionalProperties: false
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  required:
+                  - data
+                  properties:
+                    data:
+                      type: object
+                      required:
+                      - id
+                      - originalMonth
+                      - applyMonth
+                      - type
+                      - amount
+                      - reason
+                      - status
+                      properties:
+                        id:
+                          type: integer
+                          format: int64
+                        originalMonth:
+                          $ref: '#/components/schemas/YearMonth'
+                        applyMonth:
+                          $ref: '#/components/schemas/YearMonth'
+                        type:
+                          type: string
+                          enum:
+                          - REVENUE
+                          - COST
+                          - SGA
+                          - ETC
+                        amount:
+                          type: integer
+                          format: int64
+                          not:
+                            enum:
+                            - 0
+                        reason:
+                          type: string
+                          minLength: 1
+                        status:
+                          type: string
+                          enum:
+                          - ACTIVE
+                          - CANCELLED
+                        createdAt:
+                          type: string
+                          format: date-time
+                        cancelledAt:
+                          type: string
+                          format: date-time
+                        originalAdjustmentId:
+                          type: integer
+                          format: int64
+        '400':
+          description: YYYY-MM 형식, 필수 입력 또는 값 범위 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '409':
+          description: CLOSED_MONTH, CURRENT_MONTH_REQUIRED, ORIGINAL_MONTH_NOT_CLOSED
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '500':
+          description: 서버 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+  /api/closing/adjustments/{id}/cancel:
+    post:
+      operationId: cancelClosingAdjustment
+      summary: 현재 OPEN 월의 원본 조정 취소
+      security: []
+      x-related-requirements:
+      - REQ-588
+      - REQ-593
+      - REQ-594
+      x-business-rules:
+      - ACTIVE 원본의 반영월이 현재 OPEN 월일 때만 취소. 이미 CANCELLED 또는 CLOSED 반영월이면 409.
+      - 원본 월·유형·금액·사유와 생성 이력은 보존하고 상태만 CANCELLED로 변경.
+      - CANCELLED는 손익 합계에서 제외하고 원월 해제의 ACTIVE 참조 검사에서도 제외.
+      x-required-tests:
+      - 'happy: 정상 입력에서 HTTP 200과 data의 업무 결과 필드를 확인한다. +100 취소 후 집계 0, 신규 +70 후 집계
+        +70'
+      - 'auth: ⑯ 이전 비인증 요청이 권한 오류 없이 실행되는지 확인한다.'
+      - 'validation: 월 형식 오류 또는 필수 사유 공백은 400이며 저장 상태가 그대로인지 확인한다.'
+      - 'business: CLOSED_MONTH 또는 이 연산의 409 업무 충돌에서 원본 데이터가 유지되는지 확인한다.'
+      - 'side-effect: 원본 상태 ACTIVE→CANCELLED 결과를 DB에서 읽어 검증한다.'
+      - 취소된 참조만 남은 원월은 다른 조건 충족 시 해제
+      - 중복 취소와 CLOSED 월 취소 409
+      x-side-effects:
+      - 원본 상태 ACTIVE→CANCELLED
+      - 취소 사유·처리자·시각·원본 ID 감사
+      x-state-transitions:
+        ACTIVE: CANCELLED
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - reason
+              properties:
+                reason:
+                  type: string
+                  minLength: 1
+              additionalProperties: false
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  required:
+                  - data
+                  properties:
+                    data:
+                      type: object
+                      required:
+                      - id
+                      - originalMonth
+                      - applyMonth
+                      - type
+                      - amount
+                      - reason
+                      - status
+                      properties:
+                        id:
+                          type: integer
+                          format: int64
+                        originalMonth:
+                          $ref: '#/components/schemas/YearMonth'
+                        applyMonth:
+                          $ref: '#/components/schemas/YearMonth'
+                        type:
+                          type: string
+                          enum:
+                          - REVENUE
+                          - COST
+                          - SGA
+                          - ETC
+                        amount:
+                          type: integer
+                          format: int64
+                          not:
+                            enum:
+                            - 0
+                        reason:
+                          type: string
+                          minLength: 1
+                        status:
+                          type: string
+                          enum:
+                          - ACTIVE
+                          - CANCELLED
+                        createdAt:
+                          type: string
+                          format: date-time
+                        cancelledAt:
+                          type: string
+                          format: date-time
+                        originalAdjustmentId:
+                          type: integer
+                          format: int64
+        '400':
+          description: YYYY-MM 형식, 필수 입력 또는 값 범위 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '409':
+          description: ALREADY_CANCELLED, CLOSED_MONTH
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '500':
+          description: 서버 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+  /api/closing/preview:
+    get:
+      operationId: previewClosing
+      summary: 월 마감 잠정 수치 미리보기
+      security: []
+      x-related-requirements:
+      - REQ-578
+      - REQ-580
+      x-business-rules:
+      - 기존 OPEN DTO 서비스로 원가·손익·법인세·현금과 누락 경고를 계산하며 쓰기 없음.
+      - CLOSED 월은 저장 스냅샷만 사용하고 누락 시 MISSING_CLOSED_SNAPSHOT.
+      x-required-tests:
+      - GET 전후 저장 상태 불변
+      - OPEN 잠정 DTO와 확정 결과 일치
+      parameters:
+      - name: month
+        in: query
+        required: true
+        schema:
+          $ref: '#/components/schemas/YearMonth'
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  required:
+                  - data
+                  properties:
+                    data:
+                      type: object
+                      required:
+                      - month
+                      - profit
+                      - cost
+                      - tax
+                      - cash
+                      properties:
+                        month:
+                          $ref: '#/components/schemas/YearMonth'
+                        profit:
+                          type: integer
+                          format: int64
+                        cost:
+                          type: integer
+                          format: int64
+                        tax:
+                          type: integer
+                          format: int64
+                        cash:
+                          type: integer
+                          format: int64
+                        warnings:
+                          type: array
+                          items:
+                            type: string
+                            minLength: 1
+        '400':
+          description: YYYY-MM 형식, 필수 입력 또는 값 범위 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '409':
+          description: 업무 상태 충돌
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '500':
+          description: 서버 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
   /api/health:
     get:
       operationId: getHealth
@@ -10177,6 +11147,223 @@ paths:
         usage: 사용중 비퇴사 인력 선택 및 주직무 기본값 재사용.
       - operationId: getCodeOptions
         usage: JOB·ASSIGN_KIND·RATE_BASIS·EXT_POSSIBILITY·ASGN_CHG_RSN 공통 선택 재사용.
+  /api/billings:
+    get:
+      operationId: listBillings
+      responses:
+        '200':
+          description: 청구 목록 조회 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+    post:
+      operationId: createBilling
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: 청구 생성 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+  /api/billings/gaps:
+    get:
+      operationId: listBillingGaps
+      responses:
+        '200':
+          description: 청구 누락 조회 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+  /api/billings/gaps/export:
+    get:
+      operationId: exportBillingGaps
+      responses:
+        '200':
+          description: 청구 누락 다운로드 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+  /api/billings/overdue:
+    get:
+      operationId: listBillingOverdue
+      responses:
+        '200':
+          description: 미수 조회 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+  /api/billings/overdue/export:
+    get:
+      operationId: exportBillingOverdue
+      responses:
+        '200':
+          description: 미수 다운로드 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+  /api/billings/preview:
+    get:
+      operationId: previewBilling
+      responses:
+        '200':
+          description: 청구 미리보기 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+  /api/billings/summary:
+    get:
+      operationId: getBillingSummary
+      responses:
+        '200':
+          description: 청구 요약 조회 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+  /api/billings/{id}/amendments:
+    parameters:
+    - name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+    post:
+      operationId: createBillingAmendment
+      responses:
+        '200':
+          description: 청구 변경 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+  /api/billings/{id}/cancel:
+    parameters:
+    - name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+    post:
+      operationId: cancelBilling
+      responses:
+        '200':
+          description: 청구 취소 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+  /api/billings/{id}/confirm:
+    parameters:
+    - name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+    post:
+      operationId: confirmBilling
+      responses:
+        '200':
+          description: 청구 확정 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+  /api/billings/{id}/receipts:
+    parameters:
+    - name: id
+      in: path
+      required: true
+      schema:
+        type: string
+    get:
+      operationId: listBillingReceipts
+      responses:
+        '200':
+          description: 입금 조회 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+    post:
+      operationId: createBillingReceipt
+      responses:
+        '200':
+          description: 입금 등록 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+  /api/billings/{id}/receipts/{receiptId}:
+    parameters:
+    - name: id
+      in: path
+      required: true
+      schema:
+        type: string
+    - name: receiptId
+      in: path
+      required: true
+      schema:
+        type: string
+    put:
+      operationId: updateBillingReceipt
+      responses:
+        '200':
+          description: 입금 수정 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+    delete:
+      operationId: deleteBillingReceipt
+      responses:
+        '200':
+          description: 입금 삭제 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+  /api/costs/allocation:
+    get:
+      operationId: getCostAllocation
+      responses:
+        '200':
+          description: 원가 배분 조회 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+  /api/costs/people/{devId}/breakdown:
+    parameters:
+    - name: devId
+      in: path
+      required: true
+      schema:
+        type: string
+    get:
+      operationId: getCostPersonBreakdown
+      responses:
+        '200':
+          description: 개인 원가 상세 조회 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
   /api/finance/entries:
     get:
       operationId: listFinanceEntries
@@ -10283,8 +11470,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/ApiError'
         '409':
-          description: CLOSED_MONTH, ALREADY_PAID, STALE_PAYMENT, DUPLICATE_SOURCE, INVALID_MONTH 또는 OPENING_BALANCE_REQUIRED
-            (해당 상황)
+          description: CLOSED_MONTH, ALREADY_PAID, STALE_PAYMENT, DUPLICATE_SOURCE,
+            INVALID_MONTH 또는 OPENING_BALANCE_REQUIRED (해당 상황)
           content:
             application/json:
               schema:
@@ -10344,8 +11531,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/ApiError'
         '409':
-          description: CLOSED_MONTH, ALREADY_PAID, STALE_PAYMENT, DUPLICATE_SOURCE, INVALID_MONTH 또는 OPENING_BALANCE_REQUIRED
-            (해당 상황)
+          description: CLOSED_MONTH, ALREADY_PAID, STALE_PAYMENT, DUPLICATE_SOURCE,
+            INVALID_MONTH 또는 OPENING_BALANCE_REQUIRED (해당 상황)
           content:
             application/json:
               schema:
@@ -10404,8 +11591,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/ApiError'
         '409':
-          description: CLOSED_MONTH, ALREADY_PAID, STALE_PAYMENT, DUPLICATE_SOURCE, INVALID_MONTH 또는 OPENING_BALANCE_REQUIRED
-            (해당 상황)
+          description: CLOSED_MONTH, ALREADY_PAID, STALE_PAYMENT, DUPLICATE_SOURCE,
+            INVALID_MONTH 또는 OPENING_BALANCE_REQUIRED (해당 상황)
           content:
             application/json:
               schema:
@@ -10467,8 +11654,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/ApiError'
         '409':
-          description: CLOSED_MONTH, ALREADY_PAID, STALE_PAYMENT, DUPLICATE_SOURCE, INVALID_MONTH 또는 OPENING_BALANCE_REQUIRED
-            (해당 상황)
+          description: CLOSED_MONTH, ALREADY_PAID, STALE_PAYMENT, DUPLICATE_SOURCE,
+            INVALID_MONTH 또는 OPENING_BALANCE_REQUIRED (해당 상황)
           content:
             application/json:
               schema:
@@ -10581,8 +11768,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/ApiError'
         '409':
-          description: CLOSED_MONTH, ALREADY_PAID, STALE_PAYMENT, DUPLICATE_SOURCE, INVALID_MONTH 또는 OPENING_BALANCE_REQUIRED
-            (해당 상황)
+          description: CLOSED_MONTH, ALREADY_PAID, STALE_PAYMENT, DUPLICATE_SOURCE,
+            INVALID_MONTH 또는 OPENING_BALANCE_REQUIRED (해당 상황)
           content:
             application/json:
               schema:
@@ -10725,8 +11912,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/ApiError'
         '409':
-          description: CLOSED_MONTH, ALREADY_PAID, STALE_PAYMENT, DUPLICATE_SOURCE, INVALID_MONTH 또는 OPENING_BALANCE_REQUIRED
-            (해당 상황)
+          description: CLOSED_MONTH, ALREADY_PAID, STALE_PAYMENT, DUPLICATE_SOURCE,
+            INVALID_MONTH 또는 OPENING_BALANCE_REQUIRED (해당 상황)
           content:
             application/json:
               schema:
@@ -10861,8 +12048,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/ApiError'
         '409':
-          description: CLOSED_MONTH, ALREADY_PAID, STALE_PAYMENT, DUPLICATE_SOURCE, INVALID_MONTH 또는 OPENING_BALANCE_REQUIRED
-            (해당 상황)
+          description: CLOSED_MONTH, ALREADY_PAID, STALE_PAYMENT, DUPLICATE_SOURCE,
+            INVALID_MONTH 또는 OPENING_BALANCE_REQUIRED (해당 상황)
           content:
             application/json:
               schema:
@@ -10980,8 +12167,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/ApiError'
         '409':
-          description: CLOSED_MONTH, ALREADY_PAID, STALE_PAYMENT, DUPLICATE_SOURCE, INVALID_MONTH 또는 OPENING_BALANCE_REQUIRED
-            (해당 상황)
+          description: CLOSED_MONTH, ALREADY_PAID, STALE_PAYMENT, DUPLICATE_SOURCE,
+            INVALID_MONTH 또는 OPENING_BALANCE_REQUIRED (해당 상황)
           content:
             application/json:
               schema:
@@ -11089,8 +12276,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/ApiError'
         '409':
-          description: CLOSED_MONTH, ALREADY_PAID, STALE_PAYMENT, DUPLICATE_SOURCE, INVALID_MONTH 또는 OPENING_BALANCE_REQUIRED
-            (해당 상황)
+          description: CLOSED_MONTH, ALREADY_PAID, STALE_PAYMENT, DUPLICATE_SOURCE,
+            INVALID_MONTH 또는 OPENING_BALANCE_REQUIRED (해당 상황)
           content:
             application/json:
               schema:
@@ -11101,11 +12288,22 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/FinanceOpening'
+      x-business-rules:
+      - 저장 대상 월이 CLOSED면 409 CLOSED_MONTH, 현재 OPEN 월 기초 잔액만 수정한다.
+      x-side-effects:
+      - 현재 OPEN 월의 기초 잔액 1건을 저장하고 변경 이력을 기록한다.
+      x-required-tests:
+      - 'happy: 저장 전후 OPEN 월의 기초 잔액이 요청 금액으로 바뀌고 CLOSED 월은 그대로다.'
+      - 'auth: ⑯ 이전 비인증 요청이 권한 거절 없이 처리됨을 확인한다.'
+      - 'validation: 필수 월·파일·사유 등 잘못된 입력은 400이고 업무 원본은 불변이다.'
+      - 'business: CLOSED_MONTH 또는 해당 연산의 마감 충돌은 409이고 원본 수치가 유지된다.'
+      - 'side-effect: 현재 OPEN 월의 기초 잔액 1건을 저장하고 변경 이력을 기록한다. 저장 전후 행과 감사 이력을 비교한다.'
   /api/finance/profit/monthly:
     get:
       operationId: getMonthlyFinanceProfit
       summary: 월 손익·누계·전년 비교; CLOSED 스냅샷 누락 경고, 2025 구성 숨김
-      description: SPEC-REQUEST.md DEC-1502; 월 손익·누계·전년 비교; CLOSED 스냅샷 누락 경고, 2025 구성 숨김
+      description: SPEC-REQUEST.md DEC-1502; 월 손익·누계·전년 비교; CLOSED 스냅샷 누락 경고, 2025
+        구성 숨김
       x-related-requirements:
       - REQ-511
       - REQ-512
@@ -11269,7 +12467,8 @@ paths:
     get:
       operationId: getBusinessPlanComparison
       summary: 누계 실적÷누계 목표; 목표 0은 미산정, 파트 이익 원천 없으면 경고
-      description: SPEC-REQUEST.md DEC-1502; 누계 실적÷누계 목표; 목표 0은 미산정, 파트 이익 원천 없으면 경고
+      description: SPEC-REQUEST.md DEC-1502; 누계 실적÷누계 목표; 목표 0은 미산정, 파트 이익 원천 없으면
+        경고
       x-related-requirements:
       - REQ-526
       - REQ-527
@@ -11424,8 +12623,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/ApiError'
         '409':
-          description: CLOSED_MONTH, ALREADY_PAID, STALE_PAYMENT, DUPLICATE_SOURCE, INVALID_MONTH 또는 OPENING_BALANCE_REQUIRED
-            (해당 상황)
+          description: CLOSED_MONTH, ALREADY_PAID, STALE_PAYMENT, DUPLICATE_SOURCE,
+            INVALID_MONTH 또는 OPENING_BALANCE_REQUIRED (해당 상황)
           content:
             application/json:
               schema:
@@ -11484,8 +12683,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/ApiError'
         '409':
-          description: CLOSED_MONTH, ALREADY_PAID, STALE_PAYMENT, DUPLICATE_SOURCE, INVALID_MONTH 또는 OPENING_BALANCE_REQUIRED
-            (해당 상황)
+          description: CLOSED_MONTH, ALREADY_PAID, STALE_PAYMENT, DUPLICATE_SOURCE,
+            INVALID_MONTH 또는 OPENING_BALANCE_REQUIRED (해당 상황)
           content:
             application/json:
               schema:
@@ -11549,8 +12748,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/ApiError'
         '409':
-          description: CLOSED_MONTH, ALREADY_PAID, STALE_PAYMENT, DUPLICATE_SOURCE, INVALID_MONTH 또는 OPENING_BALANCE_REQUIRED
-            (해당 상황)
+          description: CLOSED_MONTH, ALREADY_PAID, STALE_PAYMENT, DUPLICATE_SOURCE,
+            INVALID_MONTH 또는 OPENING_BALANCE_REQUIRED (해당 상황)
           content:
             application/json:
               schema:
@@ -11602,8 +12801,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/ApiError'
         '409':
-          description: CLOSED_MONTH, ALREADY_PAID, STALE_PAYMENT, DUPLICATE_SOURCE, INVALID_MONTH 또는 OPENING_BALANCE_REQUIRED
-            (해당 상황)
+          description: CLOSED_MONTH, ALREADY_PAID, STALE_PAYMENT, DUPLICATE_SOURCE,
+            INVALID_MONTH 또는 OPENING_BALANCE_REQUIRED (해당 상황)
           content:
             application/json:
               schema:
@@ -11667,8 +12866,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/ApiError'
         '409':
-          description: CLOSED_MONTH, ALREADY_PAID, STALE_PAYMENT, DUPLICATE_SOURCE, INVALID_MONTH 또는 OPENING_BALANCE_REQUIRED
-            (해당 상황)
+          description: CLOSED_MONTH, ALREADY_PAID, STALE_PAYMENT, DUPLICATE_SOURCE,
+            INVALID_MONTH 또는 OPENING_BALANCE_REQUIRED (해당 상황)
           content:
             application/json:
               schema:
@@ -11692,6 +12891,7 @@ paths:
       description: SPEC-REQUEST.md DEC-1502; 다음 미마감 월 이월·재이월; 지급 후 잔액만 생성
       x-related-requirements:
       - REQ-539
+      - REQ-601
       parameters:
       - name: id
         in: path
@@ -11732,8 +12932,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/ApiError'
         '409':
-          description: CLOSED_MONTH, ALREADY_PAID, STALE_PAYMENT, DUPLICATE_SOURCE, INVALID_MONTH 또는 OPENING_BALANCE_REQUIRED
-            (해당 상황)
+          description: CLOSED_MONTH, ALREADY_PAID, STALE_PAYMENT, DUPLICATE_SOURCE,
+            INVALID_MONTH 또는 OPENING_BALANCE_REQUIRED (해당 상황)
           content:
             application/json:
               schema:
@@ -11750,11 +12950,23 @@ paths:
                   pattern: ^[0-9]{4}-(0[1-9]|1[0-2])$
               required:
               - month
+      x-business-rules:
+      - 부분 지급 후 미지급 잔액만 다음 현재 OPEN 월로 재이월하고 최초 원본·이월 링크를 유지한다.
+      x-side-effects:
+      - 새 활성 이월 1건과 감사 이력을 추가하되 PAID 실적과 이전 이력은 보존한다.
+      x-required-tests:
+      - 'happy: 100만 원 중 40만 원 지급 후 60만 원만 재이월하고 실제 현금은 40만 원이다.'
+      - 'auth: ⑯ 이전 비인증 요청이 권한 거절 없이 처리됨을 확인한다.'
+      - 'validation: 필수 월·파일·사유 등 잘못된 입력은 400이고 업무 원본은 불변이다.'
+      - 'business: CLOSED_MONTH 또는 해당 연산의 마감 충돌은 409이고 원본 수치가 유지된다.'
+      - 'side-effect: 새 활성 이월 1건과 감사 이력을 추가하되 PAID 실적과 이전 이력은 보존한다. 저장 전후 행과 감사 이력을
+        비교한다.'
   /api/finance/payments/export:
     get:
       operationId: exportFinancePayments
       summary: 선택 미지급 건의 은행 제출용이 아닌 검토 xlsx; 지급 완료 처리 없음
-      description: SPEC-REQUEST.md DEC-1502; 선택 미지급 건의 은행 제출용이 아닌 검토 xlsx; 지급 완료 처리 없음
+      description: SPEC-REQUEST.md DEC-1502; 선택 미지급 건의 은행 제출용이 아닌 검토 xlsx; 지급 완료 처리
+        없음
       x-related-requirements:
       - REQ-540
       parameters:
@@ -11802,7 +13014,8 @@ paths:
     get:
       operationId: getFinanceCashflow
       summary: 계획·실적 별도 체인; 실제 거래는 원본 참조로 대체, 미연결 실적 별도 반영
-      description: SPEC-REQUEST.md DEC-1502; 계획·실적 별도 체인; 실제 거래는 원본 참조로 대체, 미연결 실적 별도 반영
+      description: SPEC-REQUEST.md DEC-1502; 계획·실적 별도 체인; 실제 거래는 원본 참조로 대체, 미연결 실적
+        별도 반영
       x-related-requirements:
       - REQ-541
       - REQ-544
@@ -11813,6 +13026,9 @@ paths:
       - REQ-549
       - REQ-550
       - REQ-551
+      - REQ-596
+      - REQ-597
+      - REQ-598
       parameters:
       - name: year
         in: query
@@ -11885,8 +13101,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/ApiError'
         '409':
-          description: CLOSED_MONTH, ALREADY_PAID, STALE_PAYMENT, DUPLICATE_SOURCE, INVALID_MONTH 또는 OPENING_BALANCE_REQUIRED
-            (해당 상황)
+          description: CLOSED_MONTH, ALREADY_PAID, STALE_PAYMENT, DUPLICATE_SOURCE,
+            INVALID_MONTH 또는 OPENING_BALANCE_REQUIRED (해당 상황)
           content:
             application/json:
               schema:
@@ -11971,8 +13187,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/ApiError'
         '409':
-          description: CLOSED_MONTH, ALREADY_PAID, STALE_PAYMENT, DUPLICATE_SOURCE, INVALID_MONTH 또는 OPENING_BALANCE_REQUIRED
-            (해당 상황)
+          description: CLOSED_MONTH, ALREADY_PAID, STALE_PAYMENT, DUPLICATE_SOURCE,
+            INVALID_MONTH 또는 OPENING_BALANCE_REQUIRED (해당 상황)
           content:
             application/json:
               schema:
@@ -11983,6 +13199,16 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/FinanceInflow'
+      x-business-rules:
+      - 기타 수입·대여금·상환은 원본 유형과 참조 ID가 명시된 경우에만 연결한다. CLOSED 월 실적은 변경하지 않는다.
+      x-side-effects:
+      - OPEN 월의 새 현금 실적 행과 원본 연결·감사를 기록한다.
+      x-required-tests:
+      - 'happy: 원본 참조가 일치하는 새 실적만 예정과 연결하고 미연결 실적은 별도 합계에 들어간다.'
+      - 'auth: ⑯ 이전 비인증 요청이 권한 거절 없이 처리됨을 확인한다.'
+      - 'validation: 필수 월·파일·사유 등 잘못된 입력은 400이고 업무 원본은 불변이다.'
+      - 'business: CLOSED_MONTH 또는 해당 연산의 마감 충돌은 409이고 원본 수치가 유지된다.'
+      - 'side-effect: OPEN 월의 새 현금 실적 행과 원본 연결·감사를 기록한다. 저장 전후 행과 감사 이력을 비교한다.'
     put:
       operationId: putFinanceOtherInflows
       summary: 기타 수입·대여금·상환 조회 또는 저장
@@ -12023,8 +13249,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/ApiError'
         '409':
-          description: CLOSED_MONTH, ALREADY_PAID, STALE_PAYMENT, DUPLICATE_SOURCE, INVALID_MONTH 또는 OPENING_BALANCE_REQUIRED
-            (해당 상황)
+          description: CLOSED_MONTH, ALREADY_PAID, STALE_PAYMENT, DUPLICATE_SOURCE,
+            INVALID_MONTH 또는 OPENING_BALANCE_REQUIRED (해당 상황)
           content:
             application/json:
               schema:
@@ -12035,12 +13261,23 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/FinanceInflow'
+      x-business-rules:
+      - 기존 기타 수입·대여금·상환의 OPEN 월 실적만 수정한다. CLOSED 월 실적과 원본 참조는 보호한다.
+      x-side-effects:
+      - OPEN 월 현금 실적 변경과 감사 이력을 기록한다.
+      x-required-tests:
+      - 'happy: OPEN 월 수정 후 실제·예상 잔액이 갱신되고 CLOSED 월 수치는 변하지 않는다.'
+      - 'auth: ⑯ 이전 비인증 요청이 권한 거절 없이 처리됨을 확인한다.'
+      - 'validation: 필수 월·파일·사유 등 잘못된 입력은 400이고 업무 원본은 불변이다.'
+      - 'business: CLOSED_MONTH 또는 해당 연산의 마감 충돌은 409이고 원본 수치가 유지된다.'
+      - 'side-effect: OPEN 월 현금 실적 변경과 감사 이력을 기록한다. 저장 전후 행과 감사 이력을 비교한다.'
   /api/uploads/finance-entries/validate:
     post:
       operationId: validateFinanceEntriesUpload
-      summary: xlsx 검사·미리보기 또는 원자 반영; 오류 한 건도 전체 거부. B.10 마감 불일치 거부·미마감만 교체; B.11 CLOSE 존재시 연도 전체 차단
-      description: SPEC-REQUEST.md DEC-1502; xlsx 검사·미리보기 또는 원자 반영; 오류 한 건도 전체 거부. B.10 마감 불일치 거부·미마감만 교체; B.11 CLOSE 존재시 연도
-        전체 차단
+      summary: xlsx 검사·미리보기 또는 원자 반영; 오류 한 건도 전체 거부. B.10 마감 불일치 거부·미마감만 교체; B.11
+        CLOSE 존재시 연도 전체 차단
+      description: SPEC-REQUEST.md DEC-1502; xlsx 검사·미리보기 또는 원자 반영; 오류 한 건도 전체 거부.
+        B.10 마감 불일치 거부·미마감만 교체; B.11 CLOSE 존재시 연도 전체 차단
       x-related-requirements:
       - REQ-497
       parameters: []
@@ -12091,8 +13328,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/ApiError'
         '409':
-          description: CLOSED_MONTH, ALREADY_PAID, STALE_PAYMENT, DUPLICATE_SOURCE, INVALID_MONTH 또는 OPENING_BALANCE_REQUIRED
-            (해당 상황)
+          description: CLOSED_MONTH, ALREADY_PAID, STALE_PAYMENT, DUPLICATE_SOURCE,
+            INVALID_MONTH 또는 OPENING_BALANCE_REQUIRED (해당 상황)
           content:
             application/json:
               schema:
@@ -12106,9 +13343,10 @@ paths:
   /api/uploads/finance-entries/apply:
     post:
       operationId: applyFinanceEntriesUpload
-      summary: xlsx 검사·미리보기 또는 원자 반영; 오류 한 건도 전체 거부. B.10 마감 불일치 거부·미마감만 교체; B.11 CLOSE 존재시 연도 전체 차단
-      description: SPEC-REQUEST.md DEC-1502; xlsx 검사·미리보기 또는 원자 반영; 오류 한 건도 전체 거부. B.10 마감 불일치 거부·미마감만 교체; B.11 CLOSE 존재시 연도
-        전체 차단
+      summary: xlsx 검사·미리보기 또는 원자 반영; 오류 한 건도 전체 거부. B.10 마감 불일치 거부·미마감만 교체; B.11
+        CLOSE 존재시 연도 전체 차단
+      description: SPEC-REQUEST.md DEC-1502; xlsx 검사·미리보기 또는 원자 반영; 오류 한 건도 전체 거부.
+        B.10 마감 불일치 거부·미마감만 교체; B.11 CLOSE 존재시 연도 전체 차단
       x-related-requirements:
       - REQ-498
       parameters: []
@@ -12159,8 +13397,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/ApiError'
         '409':
-          description: CLOSED_MONTH, ALREADY_PAID, STALE_PAYMENT, DUPLICATE_SOURCE, INVALID_MONTH 또는 OPENING_BALANCE_REQUIRED
-            (해당 상황)
+          description: CLOSED_MONTH, ALREADY_PAID, STALE_PAYMENT, DUPLICATE_SOURCE,
+            INVALID_MONTH 또는 OPENING_BALANCE_REQUIRED (해당 상황)
           content:
             application/json:
               schema:
@@ -12174,9 +13412,10 @@ paths:
   /api/uploads/business-plan/validate:
     post:
       operationId: validateBusinessPlanUpload
-      summary: xlsx 검사·미리보기 또는 원자 반영; 오류 한 건도 전체 거부. B.10 마감 불일치 거부·미마감만 교체; B.11 CLOSE 존재시 연도 전체 차단
-      description: SPEC-REQUEST.md DEC-1502; xlsx 검사·미리보기 또는 원자 반영; 오류 한 건도 전체 거부. B.10 마감 불일치 거부·미마감만 교체; B.11 CLOSE 존재시 연도
-        전체 차단
+      summary: xlsx 검사·미리보기 또는 원자 반영; 오류 한 건도 전체 거부. B.10 마감 불일치 거부·미마감만 교체; B.11
+        CLOSE 존재시 연도 전체 차단
+      description: SPEC-REQUEST.md DEC-1502; xlsx 검사·미리보기 또는 원자 반영; 오류 한 건도 전체 거부.
+        B.10 마감 불일치 거부·미마감만 교체; B.11 CLOSE 존재시 연도 전체 차단
       x-related-requirements:
       - REQ-524
       parameters: []
@@ -12227,8 +13466,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/ApiError'
         '409':
-          description: CLOSED_MONTH, ALREADY_PAID, STALE_PAYMENT, DUPLICATE_SOURCE, INVALID_MONTH 또는 OPENING_BALANCE_REQUIRED
-            (해당 상황)
+          description: CLOSED_MONTH, ALREADY_PAID, STALE_PAYMENT, DUPLICATE_SOURCE,
+            INVALID_MONTH 또는 OPENING_BALANCE_REQUIRED (해당 상황)
           content:
             application/json:
               schema:
@@ -12239,14 +13478,26 @@ paths:
           multipart/form-data:
             schema:
               $ref: '#/components/schemas/FinanceUploadValidation'
+      x-business-rules:
+      - xlsx 전체 행을 검사하고 CLOSED 월 값이 기존 값과 다르면 파일 전체를 오류로 표시한다.
+      x-side-effects:
+      - 업무 원본 값은 변경하지 않고 검증 결과와 행별 오류를 반환한다.
+      x-required-tests:
+      - 'happy: CLOSED 월 불일치 1행이면 전량 실패이고 기존 사업계획 값은 유지된다.'
+      - 'auth: ⑯ 이전 비인증 요청이 권한 거절 없이 처리됨을 확인한다.'
+      - 'validation: 필수 월·파일·사유 등 잘못된 입력은 400이고 업무 원본은 불변이다.'
+      - 'business: CLOSED_MONTH 또는 해당 연산의 마감 충돌은 409이고 원본 수치가 유지된다.'
+      - 'side-effect: 업무 원본 값은 변경하지 않고 검증 결과와 행별 오류를 반환한다. 저장 전후 행과 감사 이력을 비교한다.'
   /api/uploads/business-plan/apply:
     post:
       operationId: applyBusinessPlanUpload
-      summary: xlsx 검사·미리보기 또는 원자 반영; 오류 한 건도 전체 거부. B.10 마감 불일치 거부·미마감만 교체; B.11 CLOSE 존재시 연도 전체 차단
-      description: SPEC-REQUEST.md DEC-1502; xlsx 검사·미리보기 또는 원자 반영; 오류 한 건도 전체 거부. B.10 마감 불일치 거부·미마감만 교체; B.11 CLOSE 존재시 연도
-        전체 차단
+      summary: xlsx 검사·미리보기 또는 원자 반영; 오류 한 건도 전체 거부. B.10 마감 불일치 거부·미마감만 교체; B.11
+        CLOSE 존재시 연도 전체 차단
+      description: SPEC-REQUEST.md DEC-1502; xlsx 검사·미리보기 또는 원자 반영; 오류 한 건도 전체 거부.
+        B.10 마감 불일치 거부·미마감만 교체; B.11 CLOSE 존재시 연도 전체 차단
       x-related-requirements:
       - REQ-525
+      - REQ-599
       parameters: []
       responses:
         '200':
@@ -12295,8 +13546,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/ApiError'
         '409':
-          description: CLOSED_MONTH, ALREADY_PAID, STALE_PAYMENT, DUPLICATE_SOURCE, INVALID_MONTH 또는 OPENING_BALANCE_REQUIRED
-            (해당 상황)
+          description: CLOSED_MONTH, ALREADY_PAID, STALE_PAYMENT, DUPLICATE_SOURCE,
+            INVALID_MONTH 또는 OPENING_BALANCE_REQUIRED (해당 상황)
           content:
             application/json:
               schema:
@@ -12307,12 +13558,24 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/FinanceUploadApply'
+      x-business-rules:
+      - CLOSED 월 값이 기존과 다르면 파일 전량 거부한다. 같으면 OPEN 월만 원자 교체한다.
+      x-side-effects:
+      - OPEN 월 사업계획 값만 교체하고 업로드 이력·감사를 기록한다. CLOSED 월 값은 보존한다.
+      x-required-tests:
+      - 'happy: CLOSED 값 동일한 파일에서 OPEN 월만 바뀌며 오류 1행이면 전체 파일이 롤백된다.'
+      - 'auth: ⑯ 이전 비인증 요청이 권한 거절 없이 처리됨을 확인한다.'
+      - 'validation: 필수 월·파일·사유 등 잘못된 입력은 400이고 업무 원본은 불변이다.'
+      - 'business: CLOSED_MONTH 또는 해당 연산의 마감 충돌은 409이고 원본 수치가 유지된다.'
+      - 'side-effect: OPEN 월 사업계획 값만 교체하고 업로드 이력·감사를 기록한다. CLOSED 월 값은 보존한다. 저장 전후
+        행과 감사 이력을 비교한다.'
   /api/uploads/prior-profit/validate:
     post:
       operationId: validatePriorProfitUpload
-      summary: xlsx 검사·미리보기 또는 원자 반영; 오류 한 건도 전체 거부. B.10 마감 불일치 거부·미마감만 교체; B.11 CLOSE 존재시 연도 전체 차단
-      description: SPEC-REQUEST.md DEC-1502; xlsx 검사·미리보기 또는 원자 반영; 오류 한 건도 전체 거부. B.10 마감 불일치 거부·미마감만 교체; B.11 CLOSE 존재시 연도
-        전체 차단
+      summary: xlsx 검사·미리보기 또는 원자 반영; 오류 한 건도 전체 거부. B.10 마감 불일치 거부·미마감만 교체; B.11
+        CLOSE 존재시 연도 전체 차단
+      description: SPEC-REQUEST.md DEC-1502; xlsx 검사·미리보기 또는 원자 반영; 오류 한 건도 전체 거부.
+        B.10 마감 불일치 거부·미마감만 교체; B.11 CLOSE 존재시 연도 전체 차단
       x-related-requirements:
       - REQ-515
       parameters: []
@@ -12363,8 +13626,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/ApiError'
         '409':
-          description: CLOSED_MONTH, ALREADY_PAID, STALE_PAYMENT, DUPLICATE_SOURCE, INVALID_MONTH 또는 OPENING_BALANCE_REQUIRED
-            (해당 상황)
+          description: CLOSED_MONTH, ALREADY_PAID, STALE_PAYMENT, DUPLICATE_SOURCE,
+            INVALID_MONTH 또는 OPENING_BALANCE_REQUIRED (해당 상황)
           content:
             application/json:
               schema:
@@ -12375,14 +13638,26 @@ paths:
           multipart/form-data:
             schema:
               $ref: '#/components/schemas/FinanceUploadValidation'
+      x-business-rules:
+      - 대상 연도에 CLOSE가 한 달이라도 있으면 해당 연도 이관 전체를 거부한다.
+      x-side-effects:
+      - 업무 원본은 변경하지 않고 연도 단위 검증 오류를 반환한다.
+      x-required-tests:
+      - 'happy: CLOSE 1개월이 포함된 연도 파일은 모든 행이 반영 불가로 표시된다.'
+      - 'auth: ⑯ 이전 비인증 요청이 권한 거절 없이 처리됨을 확인한다.'
+      - 'validation: 필수 월·파일·사유 등 잘못된 입력은 400이고 업무 원본은 불변이다.'
+      - 'business: CLOSED_MONTH 또는 해당 연산의 마감 충돌은 409이고 원본 수치가 유지된다.'
+      - 'side-effect: 업무 원본은 변경하지 않고 연도 단위 검증 오류를 반환한다. 저장 전후 행과 감사 이력을 비교한다.'
   /api/uploads/prior-profit/apply:
     post:
       operationId: applyPriorProfitUpload
-      summary: xlsx 검사·미리보기 또는 원자 반영; 오류 한 건도 전체 거부. B.10 마감 불일치 거부·미마감만 교체; B.11 CLOSE 존재시 연도 전체 차단
-      description: SPEC-REQUEST.md DEC-1502; xlsx 검사·미리보기 또는 원자 반영; 오류 한 건도 전체 거부. B.10 마감 불일치 거부·미마감만 교체; B.11 CLOSE 존재시 연도
-        전체 차단
+      summary: xlsx 검사·미리보기 또는 원자 반영; 오류 한 건도 전체 거부. B.10 마감 불일치 거부·미마감만 교체; B.11
+        CLOSE 존재시 연도 전체 차단
+      description: SPEC-REQUEST.md DEC-1502; xlsx 검사·미리보기 또는 원자 반영; 오류 한 건도 전체 거부.
+        B.10 마감 불일치 거부·미마감만 교체; B.11 CLOSE 존재시 연도 전체 차단
       x-related-requirements:
       - REQ-516
+      - REQ-600
       parameters: []
       responses:
         '200':
@@ -12431,8 +13706,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/ApiError'
         '409':
-          description: CLOSED_MONTH, ALREADY_PAID, STALE_PAYMENT, DUPLICATE_SOURCE, INVALID_MONTH 또는 OPENING_BALANCE_REQUIRED
-            (해당 상황)
+          description: CLOSED_MONTH, ALREADY_PAID, STALE_PAYMENT, DUPLICATE_SOURCE,
+            INVALID_MONTH 또는 OPENING_BALANCE_REQUIRED (해당 상황)
           content:
             application/json:
               schema:
@@ -12443,6 +13718,16 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/FinanceUploadApply'
+      x-business-rules:
+      - 대상 연도에 CLOSE가 한 달이라도 있으면 연도 전체 409로 거부하고 일부 월 덮어쓰기를 금지한다.
+      x-side-effects:
+      - CLOSE가 없는 연도만 원자 이관하고 업로드 이력·감사를 기록한다.
+      x-required-tests:
+      - 'happy: CLOSE 1개월이 있으면 연도 전체 409이며 기존 손익과 스냅샷은 불변이다.'
+      - 'auth: ⑯ 이전 비인증 요청이 권한 거절 없이 처리됨을 확인한다.'
+      - 'validation: 필수 월·파일·사유 등 잘못된 입력은 400이고 업무 원본은 불변이다.'
+      - 'business: CLOSED_MONTH 또는 해당 연산의 마감 충돌은 409이고 원본 수치가 유지된다.'
+      - 'side-effect: CLOSE가 없는 연도만 원자 이관하고 업로드 이력·감사를 기록한다. 저장 전후 행과 감사 이력을 비교한다.'
 components:
   schemas:
     ApiResponse:
@@ -19678,6 +20963,17 @@ x-uncovered-requirements:
   owner: UI-12 투입 배정 오른쪽 창
   evidence: 오류 field를 칸아래 표시·입력보존·취소/이탈 CMN-402 확인은 로컬 draft/이탈확인. 서버400만으로 이 동작 완료
     주장 안함.
+- canonical_id: REQ-570
+  status: screen-only
+  evidence: 점검 항목 확인하기는 UI-14에서 기존 대상 화면으로 월을 넘기는 브라우저 이동이며 독립 서버 연산이 아니다. UI 통합 시험에서
+    검증한다.
+- canonical_id: REQ-575
+  status: screen-only
+  evidence: 마감 확인창의 건수·안내와 중복 클릭 방지는 UI-14 동작이며 서버 확정은 confirmClosing이 별도로 검증한다.
+- canonical_id: REQ-589
+  status: screen-only
+  evidence: UI-10 버튼에서 UI-14 조정 탭으로 이동하는 브라우저 경로이고 조정 저장 API는 createClosingAdjustment가
+    담당한다.
 x-developer-upload-change-scope:
   source: SPEC-REQUEST.md 전체401행; requirement-registry.json REQ-130~REQ-226 97행.
   baseline_preservation: 기존16 operations·모든 기존schema·ApiResponse/ApiError·security·REQ-001~129
@@ -19953,7 +21249,6 @@ x-confirmed-assignment-decisions:
     배정·MM·단가·START 이력을 기록하지 않는다. 마감월 MM·단가 효과는 기존 확정값을 유지한다.'
   confirmed_by: mjung
   confirmed_at: '2026-10-27T03:55:43.538164+00:00'
-
 x-finance-change-notes:
   status: 부분 설계; 실제 구현·실행 검증 아님
   open_questions:

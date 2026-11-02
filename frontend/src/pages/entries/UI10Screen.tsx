@@ -46,6 +46,7 @@ export interface EntriesScreenProps {
   taxPanel?: ReactNode;
   taxMonthlyAmount?: number | null;
   onTax?: () => void;
+  onAdjustment?: (month: string) => void;
   refreshVersion?: number;
 }
 export default function UI10Screen(props: EntriesScreenProps) {
@@ -74,6 +75,7 @@ function EntriesDesktop({
   taxPanel,
   taxMonthlyAmount,
   onTax,
+  onAdjustment,
   refreshVersion = 0,
 }: EntriesScreenProps) {
   const [month, setMonth] = useState(initialMonth ?? todayMonth);
@@ -205,6 +207,17 @@ function EntriesDesktop({
                   disabled={write.pending}
                 >
                   지난달 항목 불러오기
+                </Button>
+              </Can>
+            )}
+            {onAdjustment && (
+              <Can perm="UI-14.read">
+                <Button
+                  data-testid="entries-adjustment-button"
+                  disabled={write.pending}
+                  onClick={() => onAdjustment(month)}
+                >
+                  전월 조정 입력
                 </Button>
               </Can>
             )}
