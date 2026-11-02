@@ -90,9 +90,13 @@ class BillingPersistenceTest {
         assertThat(new SqlSessionTemplate(otherSession.getObject()).getMapper(BillingMapper.class).row(id)).isEqualTo(recalculated.billing());
     }
     @Test void virtualPlansAreReadOnlyAndFilteredCountMatches() throws Exception {
+        String before = snapshot();
+        String months = value("SELECT json_agg(c ORDER BY cls_ym)::text FROM fin.mth_cls c");
         var query = BillingQuery.parse(Map.of("year", "2026", "type", "TK", "q", "턴키"), Clock.systemUTC());
         var page = service.list(query);
         assertThat(page.total()).isEqualTo(2); assertThat(page.items()).hasSize(2).allMatch(BillingRow::virtual_plan);
+        assertThat(snapshot()).isEqualTo(before);
+        assertThat(value("SELECT json_agg(c ORDER BY cls_ym)::text FROM fin.mth_cls c")).isEqualTo(months);
         assertThat(value("SELECT count(*) FROM bill.bill")).isEqualTo("0");
         service.create(input("{\"project_id\":2,\"stage_id\":1}", true));
         var after = service.list(query);
@@ -134,6 +138,34 @@ class BillingPersistenceTest {
             assertThatThrownBy(() -> service.create(input("{\"project_id\":2,\"stage_id\":1}", true)))
                 .isInstanceOfSatisfying(ApiException.class, e -> assertThat(e.code()).isEqualTo("ALREADY_BILLED"));
             assertThat(value("SELECT count(*)=count(DISTINCT bill_no) FROM bill.bill")).isEqualTo("t");
+        } finally { pool.shutdownNow(); }
+    }
+    @ParameterizedTest @ValueSource(booleans = {false, true})
+    void closingMissingOrExistingMonthWinsBeforeBillingCreate(boolean existingMonth) throws Exception {
+        sql("DELETE FROM fin.mth_cls WHERE cls_ym='2026-10'");
+        if (existingMonth) sql("INSERT INTO fin.mth_cls(cls_ym) VALUES('2026-10')");
+        String before = snapshot();
+        var pool = Executors.newSingleThreadExecutor();
+        try (var closer = source.getConnection(); var statement = closer.createStatement()) {
+            closer.setAutoCommit(false);
+            statement.execute("LOCK TABLE fin.mth_cls IN SHARE ROW EXCLUSIVE MODE");
+            var result = pool.submit(() -> {
+                try { monthly(); return "CREATED"; }
+                catch (ApiException ex) { return ex.code(); }
+            });
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+            boolean waiting = false;
+            while (System.nanoTime() < deadline && !result.isDone()) {
+                waiting = Boolean.TRUE.equals(new org.springframework.jdbc.core.JdbcTemplate(source).queryForObject(
+                    "SELECT EXISTS(SELECT 1 FROM pg_locks WHERE database=(SELECT oid FROM pg_database WHERE datname=current_database()) AND relation='fin.mth_cls'::regclass AND mode='ShareLock' AND NOT granted)", Boolean.class));
+                if (waiting) break;
+            }
+            assertThat(waiting).as("Billing waits at the closing table guard, including an absent month").isTrue();
+            statement.execute("SELECT prj_id FROM prj.prj WHERE prj_id=1 FOR UPDATE NOWAIT");
+            statement.execute("INSERT INTO fin.mth_cls(cls_ym,cls_stts_cd) VALUES('2026-10','CLOSED') ON CONFLICT(cls_ym) DO UPDATE SET cls_stts_cd='CLOSED'");
+            closer.commit();
+            assertThat(result.get(10, TimeUnit.SECONDS)).isEqualTo("CLOSED_MONTH");
+            assertThat(snapshot()).isEqualTo(before);
         } finally { pool.shutdownNow(); }
     }
     @Test void confirmedAdjustmentAndReceiptsUseRootAdjustedVatIncludedBalance() throws Exception {

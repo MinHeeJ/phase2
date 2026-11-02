@@ -6,8 +6,9 @@ import {
   within,
 } from "@testing-library/react";
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, useNavigate } from "react-router-dom";
 import UI13Screen from "./UI13Screen";
+import ActiveBillingScreen from "../billingsops/UI13Screen";
 import { UI13M1 } from "./UI13M1";
 import { UI13DetailPanel } from "./UI13DetailPanel";
 import type { BillingDetail } from "./client";
@@ -201,6 +202,128 @@ const renderEditor = (edit = false) =>
   );
 
 describe("청구 목록", () => {
+  it("initializes the active yearly route from closing navigation without a new list month parameter", async () => {
+    render(
+      <MemoryRouter
+        initialEntries={[
+          { pathname: "/UI-13", state: { closingMonth: "2025-08" } },
+        ]}
+      >
+        <ActiveBillingScreen />
+      </MemoryRouter>,
+    );
+    await screen.findByTestId("billing-row-7");
+    expect(screen.getByText("2025년")).toBeInTheDocument();
+    expect(screen.queryByTestId("billing-add")).not.toBeInTheDocument();
+    const url = fetcher.mock.calls.find(([u]) =>
+      u.startsWith("/api/billings?"),
+    )![0];
+    const params = new URLSearchParams(url.split("?")[1]);
+    expect(params.get("year")).toBe("2025");
+    expect(params.has("month")).toBe(false);
+  });
+  it.each(["BILL_UNCONFIRMED", "TAX_INVOICE_NO"])(
+    "opens the %s closing check with its selected month",
+    async (closingCheck) => {
+      render(
+        <MemoryRouter initialEntries={[{
+          pathname: "/UI-13",
+          state: { closingMonth: "2026-10", closingCheck },
+        }]}>
+          <ActiveBillingScreen />
+        </MemoryRouter>,
+      );
+      await screen.findByTestId("billing-row-7");
+      const url = fetcher.mock.calls.find(([u]) =>
+        u.startsWith("/api/billings?"),
+      )![0];
+      const params = new URLSearchParams(url.split("?")[1]);
+      expect(params.get("year")).toBe("2026");
+      expect(params.get("month")).toBe("2026-10");
+      expect(params.get("check")).toBe(closingCheck);
+    },
+  );
+  it.each(["2025-13", "0000-01", "2025-1", "2025-08?x=1", 202508])(
+    "ignores invalid closing navigation month %s",
+    async (closingMonth) => {
+      render(
+        <MemoryRouter
+          initialEntries={[{ pathname: "/UI-13", state: { closingMonth } }]}
+        >
+          <ActiveBillingScreen />
+        </MemoryRouter>,
+      );
+      await screen.findByTestId("billing-row-7");
+      expect(screen.getByText("2026년")).toBeInTheDocument();
+      expect(screen.getByTestId("billing-add")).toBeInTheDocument();
+    },
+  );
+  it("passes the selected closing month into the real create editor", async () => {
+    render(
+      <MemoryRouter
+        initialEntries={[
+          { pathname: "/UI-13", state: { closingMonth: "2026-08" } },
+        ]}
+      >
+        <ActiveBillingScreen
+          renderEditor={({
+            projectId,
+            month,
+            stageId,
+            onCancel,
+            onSaved,
+            reload,
+          }) => (
+            <UI13M1
+              projectId={projectId}
+              month={month}
+              stageId={stageId}
+              onCancel={onCancel}
+              onSaved={onSaved}
+              reload={reload}
+            />
+          )}
+        />
+      </MemoryRouter>,
+    );
+    await screen.findByTestId("billing-row-7");
+    fireEvent.click(screen.getByTestId("billing-add"));
+    expect(await screen.findByLabelText("귀속월")).toHaveValue("2026-08");
+  });
+  it("updates an already mounted active screen on closing navigation and passes the month to attendance", async () => {
+    function ClosingLink() {
+      const navigate = useNavigate();
+      return (
+        <button
+          onClick={() =>
+            navigate("/UI-13", { state: { closingMonth: "2026-07" } })
+          }
+        >
+          마감 확인하기
+        </button>
+      );
+    }
+    const attendance = vi.fn(() => <p>근태 창</p>);
+    render(
+      <MemoryRouter
+        initialEntries={[
+          { pathname: "/UI-13", state: { closingMonth: "2025-08" } },
+        ]}
+      >
+        <ClosingLink />
+        <ActiveBillingScreen attendance={attendance} />
+      </MemoryRouter>,
+    );
+    await screen.findByTestId("billing-row-7");
+    fireEvent.click(screen.getByText("마감 확인하기"));
+    await waitFor(() => expect(screen.getByText("2026년")).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId("billing-upload"));
+    expect(attendance).toHaveBeenLastCalledWith(
+      undefined,
+      "2026-07",
+      expect.any(Object),
+    );
+  });
   it("renders API amounts, separate plan/draft figures and the existing UI02 table classes", async () => {
     renderScreen();
     const row = await screen.findByTestId("billing-row-7");

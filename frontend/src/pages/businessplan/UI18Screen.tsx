@@ -252,7 +252,11 @@ export default function UI18Screen({
             }
           >
             {months.map((m) => (
-              <option key={m} value={m}>
+              <option
+                key={m}
+                data-testid={`business-plan-month-option-${m}`}
+                value={m}
+              >
                 {m}월
               </option>
             ))}
@@ -273,7 +277,11 @@ export default function UI18Screen({
           >
             <option value="">전사</option>
             {plans?.parts.map((p) => (
-              <option key={p.id} value={p.id}>
+              <option
+                key={p.id}
+                data-testid={`business-plan-part-option-${p.id}`}
+                value={p.id}
+              >
                 {p.name}
                 {p.active ? "" : " (사용 안 함)"}
               </option>
@@ -396,7 +404,9 @@ export default function UI18Screen({
                 <tr>
                   <th>항목</th>
                   {months.map((m) => (
-                    <th key={m}>{m}월</th>
+                    <th key={m} data-testid={`business-plan-month-header-${m}`}>
+                      {m}월
+                    </th>
                   ))}
                   <th>1~{month}월 누계</th>
                 </tr>
@@ -427,7 +437,11 @@ export default function UI18Screen({
                         }
                       </th>
                       {comparison.comparison.months.map((m) => (
-                        <td key={m.month} className={tables.amount}>
+                        <td
+                          key={m.month}
+                          data-testid={`business-plan-cell-${key.replaceAll("_", "-")}-${field.replaceAll("_", "-")}-${m.month}`}
+                          className={tables.amount}
+                        >
                           {field === "target" && !m.target_present
                             ? "미입력"
                             : field === "achievement_rate"
@@ -482,7 +496,11 @@ export default function UI18Screen({
                     {plans.parts
                       .filter((p) => p.active || p.id === targetPartId)
                       .map((p) => (
-                        <option key={p.id} value={p.id}>
+                        <option
+                          key={p.id}
+                          data-testid={`business-plan-target-part-option-${p.id}`}
+                          value={p.id}
+                        >
                           {p.name}
                         </option>
                       ))}
@@ -498,7 +516,11 @@ export default function UI18Screen({
                     onChange={(e) => chooseTarget(Number(e.target.value))}
                   >
                     {months.map((m) => (
-                      <option key={m} value={m}>
+                      <option
+                        key={m}
+                        data-testid={`business-plan-target-month-option-${m}`}
+                        value={m}
+                      >
                         {m}월
                       </option>
                     ))}
@@ -624,7 +646,7 @@ function BusinessPlanChart({
           {rows.map((row, i) => {
             const x = 45 + i * 75;
             return (
-              <g key={row.month}>
+              <g key={row.month} data-testid={`${testId}-month-${row.month}`}>
                 <text x={x} y="260">
                   {row.month}월
                 </text>
@@ -635,6 +657,7 @@ function BusinessPlanChart({
                   return (
                     <rect
                       key={field}
+                      data-testid={`${testId}-bar-${row.month}-${field}`}
                       className={
                         field === "target" ? styles.target : styles.actual
                       }

@@ -1,6 +1,7 @@
 package com.sicost.people;
 
 import com.sicost.common.api.ApiResponse;
+import com.sicost.common.security.Sensitive;
 import com.sicost.common.validation.CostValues;
 import com.sicost.common.validation.BillingValues;
 import java.nio.charset.StandardCharsets;
@@ -33,6 +34,7 @@ public class PeopleController {
             .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment()
                 .filename("개인원가수익.xlsx", StandardCharsets.UTF_8).build().toString()).body(bytes);
     }
+    @Sensitive
     @GetMapping("/api/costs/people/{devId}/breakdown")
     public ApiResponse<PersonBreakdown> getCostPersonBreakdown(@PathVariable String devId,
             @RequestParam Map<String,String> parameters) {

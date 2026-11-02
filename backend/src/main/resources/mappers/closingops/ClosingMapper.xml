@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sicost.closingops.ClosingMapper">
+  <resultMap id="check" type="com.sicost.closingops.ClosingModels$Check"><constructor>
+    <arg column="code" javaType="string"/><arg column="status" javaType="string"/>
+    <arg column="count" javaType="_int"/><arg column="description" javaType="string"/>
+  </constructor></resultMap>
+  <resultMap id="history" type="com.sicost.closingops.ClosingModels$HistoryRow"><constructor>
+    <arg column="id" javaType="_long"/><arg column="month" javaType="string"/><arg column="action" javaType="string"/>
+    <arg column="processedAt" javaType="java.time.LocalDateTime"/><arg column="actor" javaType="string"/><arg column="reason" javaType="string"/>
+  </constructor></resultMap>
+  <resultMap id="preview" type="com.sicost.closingops.ClosingModels$StoredPreview"><constructor>
+    <arg column="month" javaType="string"/><arg column="profit" javaType="_long"/><arg column="cost" javaType="_long"/>
+    <arg column="tax" javaType="_long"/><arg column="cash" javaType="_long"/>
+
+  </constructor></resultMap>
+  <update id="lockMonths">LOCK TABLE fin.mth_cls IN SHARE ROW EXCLUSIVE MODE</update>
+  <insert id="ensureMonth">INSERT INTO fin.mth_cls(cls_ym) VALUES(#{month}) ON CONFLICT(cls_ym) DO NOTHING</insert>
+  <select id="status" resultType="string" useCache="false" flushCache="true">SELECT cls_stts_cd FROM fin.mth_cls WHERE cls_ym=#{month}</select>
+  <select id="closedMonths" resultType="string">SELECT cls_ym FROM fin.mth_cls WHERE cls_stts_cd='CLOSED' ORDER BY cls_ym</select>
+  <select id="profitSource" resultType="string">SELECT pl_src_cd FROM fin.mth_pl WHERE pl_ym=#{month}</select>
+  <select id="actor" resultType="string">SELECT user_nm FROM sys.user_info WHERE user_id=#{id,jdbcType=BIGINT}</select>
+  <select id="unlinkedTaxPayments" resultType="long">
+    SELECT count(*) FROM fin.corp_tax_pay t WHERE to_char(t.pay_plan_dt,'YYYY-MM')=#{month}
+      AND NOT EXISTS(SELECT 1 FROM fin.pay p WHERE p.pay_src_cd='AUTO_FIN' AND p.pay_se_cd='CORP_TAX'
+        AND p.src_rec_id=t.tax_pay_id AND p.pay_stts_cd!='CANCEL')
+  </select>
+  <select id="sourceChecks" resultMap="check">
+    WITH eligible AS (
+      SELECT d.dev_id FROM mst.dev d WHERE
+        ((d.hire_dt IS NOT NULL OR d.rsgn_dt IS NOT NULL OR d.use_yn='Y')
+          AND (d.hire_dt IS NULL OR d.hire_dt &lt; to_date(#{month},'YYYY-MM')+interval '1 month')
+          AND (d.rsgn_dt IS NULL OR d.rsgn_dt &gt;= to_date(#{month},'YYYY-MM')))
+        OR EXISTS(SELECT 1 FROM asgn.asgn a WHERE a.dev_id=d.dev_id AND a.asgn_stts_cd!='CANCELLED'
+          AND a.bgn_dt &lt; to_date(#{month},'YYYY-MM')+interval '1 month' AND a.end_dt &gt;= to_date(#{month},'YYYY-MM'))
+        OR EXISTS(SELECT 1 FROM cst.mth_cst c WHERE c.dev_id=d.dev_id AND c.cst_ym=#{month})
+    ), monthly_bills AS (
+      SELECT b.* FROM bill.bill b JOIN prj.prj p ON p.prj_id=b.prj_id
+      WHERE CASE WHEN p.cntrct_ty_cd='TK' THEN to_char(b.bill_dt,'YYYY-MM') ELSE b.atrb_ym END=#{month}
+    ), operating_parts AS (
+      SELECT p.bsn_part_id FROM mst.bsn_part p WHERE p.hq_yn='N' AND (
+        EXISTS(SELECT 1 FROM cst.mth_cst c WHERE c.bsn_part_id=p.bsn_part_id AND c.cst_ym=#{month})
+        OR EXISTS(SELECT 1 FROM asgn.asgn a JOIN mst.dev d ON d.dev_id=a.dev_id
+          JOIN asgn.asgn_mth m ON m.asgn_id=a.asgn_id AND m.work_ym=#{month}
+          WHERE d.bsn_part_id=p.bsn_part_id AND a.asgn_stts_cd!='CANCELLED')
+        OR EXISTS(SELECT 1 FROM monthly_bills b JOIN prj.prj j ON j.prj_id=b.prj_id
+          WHERE j.bsn_part_id=p.bsn_part_id AND b.bill_stts_cd!='CANCEL')
+        OR (p.use_yn='Y' AND EXISTS(SELECT 1 FROM mst.dev d JOIN eligible e ON e.dev_id=d.dev_id WHERE d.bsn_part_id=p.bsn_part_id))
+      )
+    ), counts AS (
+      SELECT 'SALARY_UPLOAD'::text AS code,'FAIL'::text AS severity,count(*)::int AS count FROM eligible e
+        WHERE NOT EXISTS(SELECT 1 FROM cst.mth_cst c WHERE c.dev_id=e.dev_id AND c.cst_ym=#{month})
+      UNION ALL SELECT 'MM_OVER','WARN',count(*)::int FROM (
+        SELECT a.dev_id FROM asgn.asgn a JOIN asgn.asgn_mth m ON m.asgn_id=a.asgn_id
+        WHERE m.work_ym=#{month} AND a.asgn_stts_cd!='CANCELLED' GROUP BY a.dev_id HAVING sum(m.mm_qty)&gt;1.00) over_mm
+      UNION ALL SELECT 'DISPATCH_ATT','FAIL',count(*)::int FROM asgn.asgn a JOIN prj.prj p ON p.prj_id=a.prj_id
+        LEFT JOIN bill.dspch_atnd t ON t.prj_id=a.prj_id AND t.dev_id=a.dev_id AND t.work_ym=#{month}
+        WHERE p.cntrct_ty_cd='DP' AND a.untprc_base_cd IN ('DAY','HOUR') AND a.asgn_stts_cd!='CANCELLED'
+          AND a.bgn_dt &lt; to_date(#{month},'YYYY-MM')+interval '1 month' AND a.end_dt &gt;=to_date(#{month},'YYYY-MM')
+          AND (t.atnd_id IS NULL OR (a.untprc_base_cd='DAY' AND t.work_day_qty IS NULL) OR (a.untprc_base_cd='HOUR' AND t.rglr_tm_qty IS NULL))
+      UNION ALL SELECT 'BILL_UNCONFIRMED','FAIL',count(*)::int FROM monthly_bills WHERE bill_stts_cd IN ('PLAN','DRAFT')
+      UNION ALL SELECT 'TAX_INVOICE_NO','WARN',count(*)::int FROM monthly_bills WHERE bill_stts_cd='CONFIRM' AND nullif(btrim(txinv_no),'') IS NULL
+      UNION ALL SELECT 'FIN_ENTRY','WARN',CASE WHEN count(*)=0 THEN 1 ELSE 0 END FROM fin.entry WHERE entry_ym=#{month} AND deleted_yn='N'
+      UNION ALL SELECT 'PART_SETTLE','FAIL',count(*)::int FROM operating_parts p WHERE NOT EXISTS(
+        SELECT 1 FROM fin.part_stlm s WHERE s.bsn_part_id=p.bsn_part_id AND s.stlm_ym=#{month} AND s.stlm_stts_cd='CONFIRM')
+      UNION ALL SELECT 'PAYMENT','WARN',count(*)::int FROM fin.pay p WHERE p.pay_stts_cd IN ('PLAN','UNPAID')
+        AND p.pay_plan_dt &lt; to_date(#{month},'YYYY-MM')+interval '1 month'
+        AND NOT EXISTS(SELECT 1 FROM fin.pay c WHERE c.cry_pay_id=p.pay_id AND c.pay_stts_cd!='CANCEL')
+    ) SELECT c.code,CASE WHEN c.count=0 THEN 'OK' ELSE c.severity END AS status,c.count,
+      CASE WHEN c.code='FIN_ENTRY' THEN
+        (SELECT '재무 항목 '||count(*)||'건 · SGA '||coalesce(sum(entry_amt) FILTER(WHERE fin_se_cd='SGA'),0)
+          ||'원 · NOI '||coalesce(sum(entry_amt) FILTER(WHERE fin_se_cd='NOI'),0)
+          ||'원 · NOE '||coalesce(sum(entry_amt) FILTER(WHERE fin_se_cd='NOE'),0)||'원'
+          ||CASE WHEN count(*)=0 THEN ': 실제 없음인지 확인' ELSE '' END
+          FROM fin.entry WHERE entry_ym=#{month} AND deleted_yn='N')
+        WHEN c.code='SALARY_UPLOAD' THEN (SELECT '급여 대상 '||count(*)||'명 · 미업로드 '||c.count||'명' FROM eligible)
+        WHEN c.code='PART_SETTLE' THEN (SELECT '정산 대상 '||count(*)||'개 · 미확정 '||c.count||'개' FROM operating_parts)
+        WHEN c.count=0 THEN '정상' ELSE '원천 자료를 확인하세요.' END AS description
+    FROM counts c LEFT JOIN cmn.cd_dtl d ON d.cd_grp_id='CLOSE_CHECK' AND d.dtl_cd=c.code ORDER BY d.sort_seq,c.code
+  </select>
+  <insert id="saveChecks">
+    INSERT INTO fin.mth_cls_chk(cls_ym,cls_chk_cd,chk_rslt_cd,issue_cnt,msg_desc,chk_user_id,chk_at) VALUES
+    <foreach collection="checks" item="c" separator=",">(#{month},#{c.code},#{c.status},#{c.count},#{c.description},#{actor},#{at})</foreach>
+    ON CONFLICT(cls_ym,cls_chk_cd) DO UPDATE SET chk_rslt_cd=excluded.chk_rslt_cd,issue_cnt=excluded.issue_cnt,
+      msg_desc=excluded.msg_desc,chk_user_id=excluded.chk_user_id,chk_at=excluded.chk_at
+  </insert>
+  <insert id="archiveChecks">INSERT INTO fin.mth_cls_chk_hist(cls_ym,chk_rslt_json,chk_user_id,chk_at) VALUES(#{month},CAST(#{results} AS jsonb),#{actor},#{at})</insert>
+  <sql id="historyFilter">WHERE left(h.cls_ym,4)=lpad(#{year}::text,4,'0')</sql>
+  <select id="history" resultMap="history">
+    SELECT h.cls_hist_id AS id,h.cls_ym AS month,h.cls_prcs_cd AS action,h.prcs_at AS "processedAt",
+      coalesce(u.user_nm,'시스템 처리') AS actor,h.rsn_desc AS reason FROM fin.mth_cls_hist h
+    LEFT JOIN sys.user_info u ON u.user_id=h.prcs_user_id <include refid="historyFilter"/>
+    ORDER BY h.prcs_at DESC,h.cls_hist_id DESC LIMIT #{size} OFFSET #{offset}
+  </select>
+  <select id="historyCount" resultType="long">SELECT count(*) FROM fin.mth_cls_hist h <include refid="historyFilter"/></select>
+  <select id="preview" resultMap="preview">
+    SELECT p.pl_ym AS month,p.bsn_prft_amt AS profit,p.sls_cst_amt AS cost,t.corp_tax_amt AS tax,b.end_bal_amt AS cash,'[]' AS warnings
+    FROM fin.mth_pl p JOIN fin.corp_tax_mth t ON t.tax_ym=p.pl_ym JOIN fin.cash_bal b ON b.bal_ym=p.pl_ym
+    WHERE p.pl_ym=#{month} AND p.pl_src_cd='CLOSE' AND b.end_bal_amt IS NOT NULL
+  </select>
+  <select id="sgaDetails" resultMap="com.sicost.profit.MonthlyProfitMapper.detail">
+    SELECT 'SGA_ITEM' AS dimension,coalesce(item_cd,'ENTRY-'||entry_id::text) AS code,min(item_nm) AS name,
+      0::bigint AS revenue,sum(entry_amt)::bigint AS cost,0::bigint AS gross_profit FROM fin.entry
+    WHERE entry_ym=#{month} AND fin_se_cd='SGA' AND deleted_yn='N' GROUP BY coalesce(item_cd,'ENTRY-'||entry_id::text)
+  </select>
+  <insert id="allocation">
+    INSERT INTO cst.cst_aloc(cst_ym,dev_id,asgn_id,prj_id,aloc_ty_cd,mm_qty,tot_mm_qty,aloc_rt,lbr_cst_amt,drct_expns_amt,sls_amt,bill_untprc_amt,mm_ovr_yn,free_sprt_yn,pre_cntrct_yn)
+    VALUES(#{cst_ym},#{dev_id},#{asgn_id},#{prj_id},#{aloc_ty_cd},#{mm_qty},#{tot_mm_qty},#{aloc_rt},#{lbr_cst_amt},#{drct_expns_amt},#{sls_amt},#{bill_untprc_amt},#{mm_ovr_yn},#{free_sprt_yn},#{pre_cntrct_yn})
+  </insert>
+  <insert id="profit">
+    INSERT INTO fin.mth_pl(pl_ym,pl_src_cd,sls_amt,aloc_cst_amt,idle_cst_amt,drct_expns_amt,sga_input_amt,indrct_lbr_cst_amt,rnd_cst_amt,prvmn_adj_amt,nop_incm_amt,nop_exp_amt,corp_tax_amt,aloc_sls_amt,cnfrm_user_id,cnfrm_at)
+    VALUES(#{components.month},'CLOSE',#{components.profit.revenue},#{components.profit.project_labor_cost},#{components.profit.idle_cost},#{components.profit.direct_expenses},#{components.profit.sga_input},#{components.profit.indirect_labor_cost},#{components.profit.rnd_cost},#{components.profit.previous_adjustment},#{components.profit.non_operating_income},#{components.profit.non_operating_expenses},#{components.tax},#{components.profit.allocation_revenue_reference},#{actor},#{at})
+  </insert>
+  <insert id="detail">INSERT INTO fin.mth_pl_dtl(pl_ym,dim_ty_cd,dim_val,sls_amt,cst_amt,grs_prft_amt) VALUES(#{month},#{detail.dimension},#{detail.code},#{detail.revenue},#{detail.cost},#{detail.gross_profit})</insert>
+  <insert id="tax">INSERT INTO fin.corp_tax_mth(tax_ym,tax_yr,corp_tax_amt,cnfrm_at) VALUES(#{components.month},left(#{components.month},4),#{components.tax},#{at})</insert>
+  <insert id="cash">INSERT INTO fin.cash_bal(bal_ym,bgn_bal_amt,end_bal_amt,updated_by,updated_at) VALUES(#{components.month},#{components.opening},#{components.cash},#{actor},#{at}) ON CONFLICT(bal_ym) DO UPDATE SET bgn_bal_amt=excluded.bgn_bal_amt,end_bal_amt=excluded.end_bal_amt,updated_by=excluded.updated_by,updated_at=excluded.updated_at</insert>
+  <update id="transition">
+    UPDATE fin.mth_cls SET cls_stts_cd=CASE WHEN #{action}='CLOSE' THEN 'CLOSED' ELSE 'OPEN' END,
+    <choose><when test="action == 'CLOSE'">cls_at=#{at},cls_user_id=#{actor}</when>
+    <otherwise>rls_at=#{at},rls_user_id=#{actor},rls_rsn_desc=#{reason}</otherwise></choose>
+    WHERE cls_ym=#{month} AND cls_stts_cd=CASE WHEN #{action}='CLOSE' THEN 'OPEN' ELSE 'CLOSED' END
+  </update>
+  <insert id="historyWrite">INSERT INTO fin.mth_cls_hist(cls_ym,cls_prcs_cd,rsn_desc,prcs_user_id,prcs_at) VALUES(#{month},#{action},#{reason},#{actor},#{at})</insert>
+  <insert id="audit">INSERT INTO sys.data_chg_hist(tbl_nm,obj_rec_id,data_chg_ty_cd,clmn_nm,bfr_val,aft_val,rsn_desc,chg_user_id,chg_at) VALUES('fin.mth_cls',#{transition.month},'UPDATE','cls_stts_cd',CASE WHEN #{transition.action}='CLOSE' THEN 'OPEN' ELSE 'CLOSED' END,CASE WHEN #{transition.action}='CLOSE' THEN 'CLOSED' ELSE 'OPEN' END,#{transition.reason},#{transition.actor},#{transition.at})</insert>
+  <insert id="access">INSERT INTO sys.acs_hist(acs_ty_cd,scrn_id,user_id,obj_desc,dtl_desc,created_at) VALUES(#{transition.action},'UI-14',#{transition.actor},#{transition.month},#{description},#{transition.at})</insert>
+  <delete id="deleteAllocations">DELETE FROM cst.cst_aloc WHERE cst_ym=#{month}</delete>
+  <delete id="deleteProfit">DELETE FROM fin.mth_pl WHERE pl_ym=#{month} AND pl_src_cd='CLOSE'</delete>
+  <delete id="deleteTax">DELETE FROM fin.corp_tax_mth WHERE tax_ym=#{month}</delete>
+  <update id="clearCash">UPDATE fin.cash_bal SET end_bal_amt=NULL WHERE bal_ym=#{month}</update>
+</mapper>

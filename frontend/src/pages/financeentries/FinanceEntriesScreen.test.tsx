@@ -105,6 +105,25 @@ it("closed months keep upload unavailable", async () => {
   expect(screen.queryByTestId("entries-upload")).not.toBeInTheDocument();
   expect(screen.getByTestId("entries-template")).toBeVisible();
 });
+it("hands the selected closed month to the existing adjustment navigation", async () => {
+  closed = true;
+  const onAdjustment = vi.fn();
+  render(
+    <FinanceEntriesScreen
+      initialMonth="2026-10"
+      todayMonth="2026-10"
+      onAdjustment={onAdjustment}
+    />,
+  );
+  await screen.findByTestId("entry-row-7");
+  fireEvent.click(screen.getByTestId("entries-adjustment-button"));
+  expect(onAdjustment).toHaveBeenCalledWith("2026-10");
+  expect(
+    fetcher.mock.calls.every(
+      ([, init]) => !init?.method || init.method === "GET",
+    ),
+  ).toBe(true);
+});
 it("mobile keeps PC-only boundary", () => {
   Object.defineProperty(window, "innerWidth", { value: 375 });
   render(<FinanceEntriesScreen initialMonth="2026-10" todayMonth="2026-10" />);

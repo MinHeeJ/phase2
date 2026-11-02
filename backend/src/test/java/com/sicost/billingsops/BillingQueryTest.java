@@ -19,6 +19,15 @@ class BillingQueryTest {
     PermissionService permissions=new PermissionService();
     BillingAmountService amounts;
     @BeforeEach void setup() {mapper=mock(BillingMapper.class);amounts=new BillingAmountService(mapper,clock,permissions);}
+    @Test void closingListMonthAndCheckRemainWithinSelectedYear() {
+        var query=com.sicost.billings.BillingQuery.parse(Map.of("year","2026","month","2026-10","check","BILL_UNCONFIRMED"),clock);
+        assertThat(query.month()).isEqualTo("2026-10");
+        assertThat(query.check()).isEqualTo("BILL_UNCONFIRMED");
+        assertThatThrownBy(()->com.sicost.billings.BillingQuery.parse(Map.of("year","2026","month","2025-10"),clock))
+            .isInstanceOf(com.sicost.common.api.ApiException.class);
+        assertThatThrownBy(()->com.sicost.billings.BillingQuery.parse(Map.of("year","2026","check","UNKNOWN"),clock))
+            .isInstanceOf(com.sicost.common.api.ApiException.class);
+    }
     Source source(String kind,Long price,Long attendance,BigDecimal mm,BigDecimal days,BigDecimal hours) {
         return new Source(1,2,3,"계약인력","K-0002",kind,LocalDate.of(2026,10,1),mm,price,attendance,days,hours,BigDecimal.ZERO,new BigDecimal("20"));
     }

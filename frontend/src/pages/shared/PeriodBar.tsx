@@ -15,11 +15,24 @@ export function seoulMonth(now = new Date()): string {
   }).formatToParts(now);
   return `${parts.find((part) => part.type === "year")!.value}-${parts.find((part) => part.type === "month")!.value}`;
 }
-export function PeriodBar({ screenId }: { screenId: string }) {
+export function PeriodBar({
+  screenId,
+  month,
+  onMonthChange,
+  onRefresh,
+  status,
+}: {
+  screenId: string;
+  month?: string;
+  onMonthChange?: (month: string) => void;
+  onRefresh?: () => void;
+  status?: MonthClose["status"] | null;
+}) {
   const type = periodType(screenId);
-  const [period, setPeriod] = useState(
+  const [rememberedPeriod, setPeriod] = useState(
     () => remembered.get(screenId) ?? seoulMonth(),
   );
+  const period = month ?? rememberedPeriod;
   const [rows, setRows] = useState<MonthClose[]>([]);
   const [error, setError] = useState<ApiFailure | null>(null);
   const [loading, setLoading] = useState(false);
@@ -28,7 +41,11 @@ export function PeriodBar({ screenId }: { screenId: string }) {
     setPeriod(remembered.get(screenId) ?? seoulMonth());
   }, [screenId]);
   useEffect(() => {
-    if (type !== "MONTH") return;
+    if (type !== "MONTH" || status !== undefined) {
+      setLoading(false);
+      setError(null);
+      return;
+    }
     const controller = new AbortController();
     setLoading(true);
     setError(null);
@@ -44,11 +61,12 @@ export function PeriodBar({ screenId }: { screenId: string }) {
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [type, period, revision]);
+  }, [type, period, revision, status]);
   if (type === "NONE") return null;
   const update = (value: string) => {
     remembered.set(screenId, value);
     setPeriod(value);
+    onMonthChange?.(value);
   };
   const year = Number(period.slice(0, 4));
   const shiftYear = (amount: number) =>
@@ -59,7 +77,10 @@ export function PeriodBar({ screenId }: { screenId: string }) {
       `${String(Math.floor(index / 12)).padStart(4, "0")}-${String((index % 12) + 1).padStart(2, "0")}`,
     );
   };
-  const closed = !loading && !error && monthStatus(rows, period) === "CLOSED";
+  const closed =
+    status !== undefined
+      ? status === "CLOSED"
+      : !loading && !error && monthStatus(rows, period) === "CLOSED";
   return (
     <section className={styles.period} aria-label="조회 기간">
       <div className={styles.periodControls}>
@@ -140,10 +161,21 @@ export function PeriodBar({ screenId }: { screenId: string }) {
             )}
           </>
         )}
-        {type === "MONTH" && !loading && !error && (
+        {type === "MONTH" && status !== null && !loading && !error && (
           <Badge tone={closed ? "locked" : "info"}>
             {closed ? "마감" : "작업중"}
           </Badge>
+        )}
+        {onRefresh && (
+          <Button
+            data-testid="period-refresh-button"
+            onClick={() => {
+              setRevision((value) => value + 1);
+              onRefresh();
+            }}
+          >
+            새로고침
+          </Button>
         )}
       </div>
       {type === "MONTH" && loading && <Skeleton label="월마감 불러오는 중" />}

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Route, Routes, useNavigate } from "react-router-dom";
+import { Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import UI13Screen from "../pages/billingsops/UI13Screen";
+import ClosingWorkspace from "../pages/closingops/ClosingWorkspace";
 import { UI13M1 } from "../pages/billings/UI13M1";
 import { UI13DetailPanel } from "../pages/billings/UI13DetailPanel";
 import type { BillingDetail } from "../pages/billings/client";
@@ -13,6 +14,7 @@ import { BillingReceiptPanel } from "../pages/receipts/UI13M5";
 import { useAdminWrite } from "../pages/admin/useAdminResource";
 import { ConfirmDialog } from "../shared/Controls";
 import { seoulMonth } from "../pages/shared/PeriodBar";
+import { closingNavigation } from "../pages/shared/closingNavigation";
 import UI27Screen from "../pages/admin/UI27Screen";
 import UI15Screen from "../pages/partners/UI15Screen";
 import SalesPartManagement from "../pages/salespartsops/SalesPartManagement";
@@ -128,6 +130,8 @@ function DevelopersScreen({
   onDirtyChange,
   ...bindings
 }: BusinessScreenBindings) {
+  const location = useLocation();
+  const { month: closingMonth, check: closingCheck } = closingNavigation(location.state);
   const notify = useRef(onDirtyChange);
   notify.current = onDirtyChange;
   const reportDirty = useCallback(
@@ -136,11 +140,17 @@ function DevelopersScreen({
   );
   const [version, setVersion] = useState(0);
   const [disabled, setDisabled] = useState<DeveloperListItem[] | null>(null);
-  const [upload, setUpload] = useState<"B.8" | "B.1" | null>(null);
+  const [upload, setUpload] = useState<"B.8" | "B.1" | null>(
+    closingCheck === "SALARY_UPLOAD" ? "B.1" : null,
+  );
   const [message, setMessage] = useState("");
   const [error, setError] = useState<ApiFailure | null>(null);
   const exporting = useRef(false);
   const readOnly = useDeveloperReadOnly();
+  useEffect(() => {
+    if (location.pathname === "/UI-02" && closingCheck === "SALARY_UPLOAD" && !readOnly)
+      setUpload("B.1");
+  }, [location.key, location.pathname, closingCheck, readOnly]);
   useEffect(() => {
     if (readOnly) {
       setDisabled(null);
@@ -218,8 +228,9 @@ function DevelopersScreen({
             )}
             {!readOnly && upload && (
               <UploadDialogs
-                key={upload}
+                key={`${upload}-${location.key}`}
                 form={upload}
+                initialMonth={upload === "B.1" ? closingMonth : undefined}
                 onClose={() => setUpload(null)}
                 onApplied={async (result) => {
                   await reload();
@@ -776,13 +787,16 @@ function FinanceEntriesPage({
   onDirtyChange,
   ...bindings
 }: BusinessScreenBindings) {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const closingMonth = closingNavigation(location.state).month;
   const notify = useRef(onDirtyChange);
   notify.current = onDirtyChange;
   const reportDirty = useCallback(
     (dirty: boolean) => notify.current(dirty),
     [],
   );
-  const [month, setMonth] = useState(seoulMonth);
+  const [month, setMonth] = useState(() => closingMonth ?? seoulMonth());
   const [showTax, setShowTax] = useState(false);
   const [revision, setRevision] = useState(0);
   const mobile = useDeveloperReadOnly();
@@ -805,8 +819,15 @@ function FinanceEntriesPage({
   return (
     <FinanceEntriesScreen
       {...bindings}
+      initialMonth={closingMonth}
+      navigationKey={location.key}
       onDirtyChange={reportDirty}
       onMonthChange={setMonth}
+      onAdjustment={(selectedMonth) =>
+        navigate("/UI-14", {
+          state: { closingMonth: selectedMonth, closingTab: "adjustments" },
+        })
+      }
       refreshVersion={revision}
       taxMonthlyAmount={selected?.amount}
       onTax={() => setShowTax((value) => !value)}
@@ -975,6 +996,8 @@ export function AppRouter() {
                 <AssignmentsScreen {...bindings} />
               ) : id === "UI-13" ? (
                 <BillingsScreen {...bindings} />
+              ) : id === "UI-14" ? (
+                <ClosingWorkspace {...bindings} />
               ) : id === "UI-31" ? (
                 <ProjectBoardScreen {...bindings} />
               ) : id === "UI-27" ? (

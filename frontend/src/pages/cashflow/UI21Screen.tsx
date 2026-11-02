@@ -249,7 +249,10 @@ export default function UI21Screen({
                 <tr>
                   <th>항목</th>
                   {data.months.map((m) => (
-                    <th key={m.month}>
+                    <th
+                      key={m.month}
+                      data-testid={`cashflow-month-header-${m.month}`}
+                    >
                       {Number(m.month.slice(5))}월 {m.closed ? "실적" : "예정"}
                     </th>
                   ))}
@@ -275,7 +278,11 @@ export default function UI21Screen({
                     >
                       <th scope="row">{label}</th>
                       {data.months.map((m) => (
-                        <td key={m.month} className={tables.amount}>
+                        <td
+                          key={m.month}
+                          data-testid={`cashflow-metric-cell-${key.replaceAll("_", "-")}-${m.month}`}
+                          className={tables.amount}
+                        >
                           {money(m[key] as number | null, unit)}
                         </td>
                       ))}
@@ -292,7 +299,11 @@ export default function UI21Screen({
                           )
                           .map((m) => m[key] as number | null);
                         return (
-                          <td key={start + ":" + end} className={tables.amount}>
+                          <td
+                            key={start + ":" + end}
+                            data-testid={`cashflow-metric-summary-${key.replaceAll("_", "-")}-${start}-${end}`}
+                            className={tables.amount}
+                          >
                             {sum &&
                             values.length &&
                             values.every((v) => v != null)
@@ -321,7 +332,11 @@ export default function UI21Screen({
                     {data.months.map((m) => {
                       const c = m.categories?.find((c) => c.code === code);
                       return (
-                        <td key={m.month} className={tables.amount}>
+                        <td
+                          key={m.month}
+                          data-testid={`cashflow-category-cell-${code.toLowerCase().replaceAll("_", "-")}-${m.month}`}
+                          className={tables.amount}
+                        >
                           {mode !== "ACTUAL" && (
                             <span>
                               예정{" "}
@@ -355,7 +370,10 @@ export default function UI21Screen({
                 <tr data-testid="cashflow-warning-row">
                   <th scope="row">상태</th>
                   {data.months.map((m) => (
-                    <td key={m.month}>
+                    <td
+                      key={m.month}
+                      data-testid={`cashflow-warning-cell-${m.month}`}
+                    >
                       {m.warning ? (
                         <Badge
                           tone={
@@ -416,7 +434,12 @@ export default function UI21Screen({
                     "비고",
                     "작업",
                   ].map((c) => (
-                    <th key={c}>{c}</th>
+                    <th
+                      key={c}
+                      data-testid={`cashflow-inflow-header-${["구분", "항목", "금액", "예정일", "입금일", "비고", "작업"].indexOf(c)}`}
+                    >
+                      {c}
+                    </th>
                   ))}
                 </tr>
               </thead>
@@ -521,7 +544,10 @@ function BalanceChart({ months }: { months: CashFlowMonth[] }) {
         {(
           ["planned_closing", "actual_closing", "forecast_closing"] as const
         ).map((key, i) => (
-          <g key={key}>
+          <g
+            key={key}
+            data-testid={`cashflow-chart-series-${key.replaceAll("_", "-")}`}
+          >
             {months.map((m, n) => {
               const value = m[key],
                 previous = months[n - 1]?.[key];

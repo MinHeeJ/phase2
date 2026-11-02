@@ -514,3 +514,31 @@ export {
   validatePriorProfitUpload,
   applyPriorProfitUpload,
 } from "../pages/priorprofit/client";
+export { getClosing } from "../pages/apiops/closingClient";
+export type { Closing, ClosingCheck } from "../pages/apiops/closingClient";
+export {
+  previewClosing,
+  listClosingHistory,
+  runClosingCheck,
+  confirmClosing,
+  reopenClosing,
+} from "../pages/closingops/client";
+export type {
+  ClosingPreview,
+  ClosingCheckResult,
+  ClosingResult,
+  ClosingHistoryRow,
+  ClosingHistoryPage,
+} from "../pages/closingops/client";
+export {
+  listClosingAdjustments,
+  createClosingAdjustment,
+  cancelClosingAdjustment,
+} from "../pages/adjustments/client";
+export type {
+  AdjustmentType,
+  AdjustmentRow,
+  AdjustmentInput,
+  AdjustmentPage,
+  AdjustmentFilters,
+} from "../pages/adjustments/client";

@@ -6,11 +6,16 @@ import java.time.Clock;
 import java.util.Map;
 import java.util.Set;
 
-public record BillingQuery(int year, String status, String type, Long customerId, String q,
+public record BillingQuery(int year, String month, String check, String status, String type, Long customerId, String q,
         int size, long offset, String orderColumn, String direction, int page) {
     public static BillingQuery parse(Map<String, String> query, Clock clock) {
         try {
             int year = BillingValues.year(integer(query, "year"), clock);
+            String month = value(query, "month"), check = value(query, "check");
+            if (month != null && BillingValues.month(month, "month").getYear() != year)
+                throw BillingValues.invalid("month");
+            if (check != null && !Set.of("BILL_UNCONFIRMED", "TAX_INVOICE_NO").contains(check))
+                throw BillingValues.invalid("check");
             var paging = BillingPaging.of(integer(query, "page"), integer(query, "size"), query.get("sort"));
             var sort = paging.allowedSort(Set.of("bill_dt", "bill_no", "project_name", "customer_name",
                 "contract_type", "atrb_ym", "sply_amt", "vat_amt", "tot_amt", "bill_stts_cd",
@@ -23,7 +28,7 @@ public record BillingQuery(int year, String status, String type, Long customerId
             if (customer != null && customer < 1) throw BillingValues.invalid("customerId");
             String q = value(query, "q");
             if (q != null && q.length() > 200) throw BillingValues.invalid("q");
-            return new BillingQuery(year, status, type, customer, q, paging.size(), paging.offset(),
+            return new BillingQuery(year, month, check, status, type, customer, q, paging.size(), paging.offset(),
                 sort.field().equals("bill_dt") ? "sort_date" : sort.field(),
                 sort.descending() ? "DESC" : "ASC", paging.page());
         } catch (NumberFormatException ex) { throw BillingValues.invalid(null); }

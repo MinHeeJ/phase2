@@ -80,7 +80,7 @@ public class CashFlowService {
             }
             boolean before=cursor.isBefore(start),future=cursor.isAfter(current);var saved=balances.get(month);
             boolean closed=saved!=null&&"CLOSED".equals(saved.status());String warning=null;
-            Long op=before?null:plan,oa=before?null:actual,of=before?null:forecast;
+            Long op=before?null:plan,oa=before?null:actual,of=before?null:actual;
             Long pc=closing(op,pi,po),ac=closing(oa,ai,ao),fc=closing(of,fi,fo);
             if(closed&&!before){ac=saved.closing();fc=saved.closing();if(ac==null)warning="MISSING_CLOSED_SNAPSHOT";}
             if(before)warning="BEFORE_INITIAL_MONTH";

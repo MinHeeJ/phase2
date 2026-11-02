@@ -45,6 +45,9 @@ public class BillingReceivableService {
         if(stage!=null && stage>=3) {roles.add("경영진");roles.add("재무");}
         return List.copyOf(roles);
     }
+    public void authorizeDownload() {
+        permissions.can(BillingActions.DOWNLOAD);
+    }
     public List<Overdue> filtered(OverdueQuery q) {
         permissions.can(BillingActions.READ);
         var sort=q.paging().allowedSort(Set.of("overdue_days","bill_id","project_name","customer_name","receivable_amt","rcpt_plan_dt","stage"),"overdue_days,desc");

@@ -13,6 +13,7 @@ import { Can } from "../../shared/Can";
 import { useAdminRead } from "../admin/useAdminResource";
 import { ScreenHeading } from "../shared/ScreenHeading";
 import { seoulMonth } from "../shared/PeriodBar";
+import { closingNavigation } from "../shared/closingNavigation";
 import { useCodes } from "../shared/useCodes";
 import { listProjectOptions } from "../projects/client";
 import { useDeveloperReadOnly } from "../developers/useDeveloperReadOnly";
@@ -80,14 +81,17 @@ export default function UI12Screen({
 }: AssignmentsScreenProps) {
   const location = useLocation(),
     navigate = useNavigate();
+  const { month: closingMonth, check: closingCheck } = closingNavigation(location.state);
   const handoff = location.state as {
     assignmentProjectId?: number;
     assignmentId?: number;
   } | null;
   const currentYear = Number(seoulMonth().slice(0, 4));
   const [filters, setFilters] = useState<AssignmentFilters>(() => {
-    const year = Number(sessionStorage.getItem("UI-12.year"));
-    return assignmentDefaults(year >= 1 && year <= 9999 ? year : currentYear);
+    const rememberedYear = Number(sessionStorage.getItem("UI-12.year"));
+    const year = closingMonth ? Number(closingMonth.slice(0, 4)) :
+      rememberedYear >= 1 && rememberedYear <= 9999 ? rememberedYear : currentYear;
+    return { ...assignmentDefaults(year), warning: closingCheck === "MM_OVER" ? "OVER_MM" : "" };
   });
   const [draft, setDraft] = useState(filters),
     [creating, setCreating] = useState(
@@ -145,6 +149,14 @@ export default function UI12Screen({
       setCreating(false);
     }
   }, [location.key]);
+  useEffect(() => {
+    if (location.pathname !== "/UI-12" || !closingMonth) return;
+    const year = Number(closingMonth.slice(0, 4));
+    const next = { ...assignmentDefaults(year), warning: closingCheck === "MM_OVER" ? "OVER_MM" : "" };
+    sessionStorage.setItem("UI-12.year", String(year));
+    setFilters(next);
+    setDraft(next);
+  }, [location.key, location.pathname, closingMonth, closingCheck]);
   useEffect(() => {
     setChecked([]);
   }, [filters]);

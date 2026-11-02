@@ -24,11 +24,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @WebMvcTest(controllers=BillingController.class)
 @Import({RequestIdFilter.class,ApiExceptionHandler.class,BillingCommandService.class,
     BillingAmountService.class,BillingGapService.class,BillingReceivableService.class,
-    BillingRevenueQuery.class,CurrentUser.class,PermissionService.class})
+    BillingRevenueQuery.class,CurrentUser.class,PermissionService.class,
+    com.sicost.billings.BillingController.class,com.sicost.billings.BillingService.class,
+    com.sicost.billings.BillingAmountService.class})
 class BillingApiTest {
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper json;
     @MockBean BillingMapper mapper;
+    @MockBean com.sicost.billings.BillingMapper billingRecords;
     @MockBean Clock clock;
     final Map<Long,State> rows=new LinkedHashMap<>();
     final List<Audit> audits=new ArrayList<>();
@@ -166,6 +169,19 @@ class BillingApiTest {
     @Test void invalidSortNeverReachesQueries()throws Exception {
         mvc.perform(get("/api/billings/overdue").param("sort","bill_id;DROP,asc"))
             .andExpect(status().isBadRequest()).andExpect(jsonPath("$.field").value("sort"));
+    }
+    @Test void billingListAndPreviewKeepSeparateControllersAndMappers()throws Exception {
+        mvc.perform(get("/api/billings").param("year","2026"))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.data.items").isEmpty())
+            .andExpect(jsonPath("$.data.total").value(0));
+        verify(billingRecords).list(any(com.sicost.billings.BillingQuery.class));
+        verify(billingRecords).count(any(com.sicost.billings.BillingQuery.class));
+        verifyNoInteractions(mapper);
+
+        mvc.perform(get("/api/billings/preview").param("projectId","1").param("month","2026-10"))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.data.project_id").value(1));
+        verify(mapper).project(1);
+        verify(billingRecords,never()).state(anyLong());
     }
     @Test void absentBillIs404()throws Exception {
         mvc.perform(post("/api/billings/999/confirm")).andExpect(status().isNotFound());

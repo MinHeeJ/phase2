@@ -164,10 +164,12 @@ function MappingDialog({
 
 export function UploadDialogs({
   form = "B.7",
+  initialMonth,
   onClose,
   onApplied,
 }: {
   form?: string;
+  initialMonth?: string;
   onClose: () => void;
   onApplied: (result: UploadApplyResult) => void | Promise<unknown>;
 }) {
@@ -210,6 +212,7 @@ export function UploadDialogs({
         setMonth(
           (m) =>
             m ||
+            initialMonth ||
             rows
               .filter((r) => r.status === "OPEN")
               .map((r) => r.month)

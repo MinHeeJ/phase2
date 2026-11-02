@@ -9,6 +9,7 @@ import { seoulMonth } from "../shared/PeriodBar";
 import { useCodes } from "../shared/useCodes";
 import { listSalesPartOptions } from "../salespartsops/client";
 import { listPartnerOptions } from "../partnersops/client";
+import { AllocationPanel } from "../costsops/AllocationPanel";
 import {
   defaultPeopleFilters,
   downloadCostPeople,
@@ -63,6 +64,7 @@ export const peopleNumber = (value: number | null | undefined, digits = 0) =>
       });
 
 function Breakdown({ id, filters }: { id: number; filters: PeopleFilters }) {
+  const [allocationMonth, setAllocationMonth] = useState<string | null>(null);
   const read = useAdminRead(
     useCallback(
       () => getCostPersonBreakdown(id, filters),
@@ -85,6 +87,14 @@ function Breakdown({ id, filters }: { id: number; filters: PeopleFilters }) {
               월별 원천 금액 · 단위: 원 · 평균 보기에서도 월별 근거는 실제 월
               금액입니다.
             </p>
+            <Badge tone={read.data.closed ? "locked" : "info"}>
+              {read.data.closed ? "마감 스냅샷" : "잠정"}
+            </Badge>
+            {read.data.warnings.map((warning, index) => (
+              <p role="status" key={`${index}-${warning}`}>
+                <Badge tone="warning">자료 점검</Badge> {warning}
+              </p>
+            ))}
             <div className={styles.tableScroll}>
               <table className={styles.table}>
                 <thead>
@@ -111,7 +121,16 @@ function Breakdown({ id, filters }: { id: number; filters: PeopleFilters }) {
                       key={`${r.cst_ym}-${r.asgn_id}-${r.aloc_ty_cd}-${index}`}
                       data-testid={`people-basis-${id}-${index}`}
                     >
-                      <td>{r.cst_ym}</td>
+                      <td>
+                        <Button
+                          data-testid={`people-allocation-${id}-${index}`}
+                          variant="text"
+                          aria-label={`${r.cst_ym} 배분 근거`}
+                          onClick={() => setAllocationMonth(r.cst_ym)}
+                        >
+                          {r.cst_ym}
+                        </Button>
+                      </td>
                       <td>{r.prj_nm ?? r.aloc_ty_cd}</td>
                       <td>{peopleNumber(r.mm_qty, 2)}</td>
                       <td>{peopleNumber(r.bill_untprc_amt)}</td>
@@ -135,6 +154,9 @@ function Breakdown({ id, filters }: { id: number; filters: PeopleFilters }) {
             </div>
           </>
         )
+      )}
+      {!read.loading && !read.error && allocationMonth && (
+        <AllocationPanel month={allocationMonth} developerId={id} />
       )}
     </section>
   );
@@ -558,7 +580,11 @@ export default function UI03Screen({
                       {expanded.includes(r.dev_id) && (
                         <tr>
                           <td colSpan={allColumns.length + 1}>
-                            <Breakdown id={r.dev_id} filters={filters} />
+                            <Breakdown
+                              key={`${r.dev_id}-${filters.year}-${filters.view}`}
+                              id={r.dev_id}
+                              filters={filters}
+                            />
                           </td>
                         </tr>
                       )}

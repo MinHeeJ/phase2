@@ -355,6 +355,7 @@ export function AppShell({
                     tab.id === "UI-11" ||
                     tab.id === "UI-12" ||
                     tab.id === "UI-13" ||
+                    tab.id === "UI-14" ||
                     tab.id === "UI-31" ||
                     tab.id === "UI-03" ||
                     tab.id === "UI-04" ||

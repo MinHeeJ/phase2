@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sicost.apiops.ClosingQueryMapper">
+  <resultMap id="state" type="com.sicost.apiops.ClosingQueryModels$State"><constructor>
+    <arg column="status" javaType="string"/><arg column="processedAt" javaType="java.time.LocalDateTime"/>
+    <arg column="actorId" javaType="java.lang.Long"/><arg column="actorName" javaType="string"/>
+  </constructor></resultMap>
+  <resultMap id="check" type="com.sicost.apiops.ClosingQueryModels$StoredCheck"><constructor>
+    <arg column="code" javaType="string"/><arg column="status" javaType="string"/>
+    <arg column="count" javaType="_int"/><arg column="description" javaType="string"/>
+    <arg column="checkedAt" javaType="java.time.LocalDateTime"/>
+  </constructor></resultMap>
+  <select id="state" resultMap="state">
+    SELECT c.cls_stts_cd AS status,c.cls_at AS "processedAt",c.cls_user_id AS "actorId",u.user_nm AS "actorName"
+    FROM fin.mth_cls c LEFT JOIN sys.user_info u ON u.user_id=c.cls_user_id WHERE c.cls_ym=#{month}
+  </select>
+  <select id="checks" resultMap="check">
+    SELECT c.cls_chk_cd AS code,c.chk_rslt_cd AS status,c.issue_cnt AS count,c.msg_desc AS description,
+      c.chk_at AS "checkedAt" FROM fin.mth_cls_chk c
+    LEFT JOIN cmn.cd_dtl d ON d.cd_grp_id='CLOSE_CHECK' AND d.dtl_cd=c.cls_chk_cd
+    WHERE c.cls_ym=#{month} ORDER BY d.sort_seq NULLS LAST,c.cls_chk_cd
+  </select>
+  <select id="latestClosedMonth" resultType="string">
+    SELECT max(cls_ym) FROM fin.mth_cls WHERE cls_stts_cd='CLOSED'
+  </select>
+  <select id="activeReferences" resultType="long">
+    SELECT count(*) FROM cst.prvmn_adj WHERE orgnl_ym=#{month} AND adj_stts_cd='ACTIVE'
+  </select>
+  <select id="closeManifest" resultType="string">
+    SELECT a.dtl_desc FROM sys.acs_hist a
+    WHERE a.scrn_id='UI-14' AND a.acs_ty_cd='CLOSE' AND a.obj_desc=#{month}
+    ORDER BY a.created_at DESC,a.acs_hist_id DESC LIMIT 1
+  </select>
+  <select id="snapshotEvidence" resultType="string">
+    SELECT jsonb_build_object(
+      'allocation',(SELECT jsonb_build_object('count',count(*),'labor',coalesce(sum(lbr_cst_amt),0),
+        'expenses',coalesce(sum(drct_expns_amt),0),'sales',coalesce(sum(sls_amt),0))
+        FROM cst.cst_aloc WHERE cst_ym=#{month}),
+      'profit',(SELECT to_jsonb(p)-'cnfrm_at'-'cnfrm_user_id'-'upld_id' FROM fin.mth_pl p
+        WHERE p.pl_ym=#{month} AND p.pl_src_cd='CLOSE'),
+      'details',(SELECT jsonb_build_object('count',count(*),'revenue',coalesce(sum(sls_amt),0),
+        'cost',coalesce(sum(cst_amt),0),'grossProfit',coalesce(sum(grs_prft_amt),0))
+        FROM fin.mth_pl_dtl WHERE pl_ym=#{month}),
+      'tax',(SELECT jsonb_build_object('amount',corp_tax_amt) FROM fin.corp_tax_mth WHERE tax_ym=#{month}),
+      'cash',(SELECT jsonb_build_object('opening',bgn_bal_amt,'closing',end_bal_amt) FROM fin.cash_bal
+        WHERE bal_ym=#{month} AND bgn_bal_amt IS NOT NULL AND end_bal_amt IS NOT NULL)
+    )::text
+  </select>
+</mapper>

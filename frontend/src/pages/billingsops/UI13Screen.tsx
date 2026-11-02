@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
+import { billingNavigationMonth } from "../billings/billingNavigationMonth";
+import { closingNavigation } from "../shared/closingNavigation";
 import { Button, Badge, Pagination, Skeleton } from "../../shared/Controls";
 import { ErrorBanner } from "../../shared/ErrorBanner";
 import { api, readData } from "../../shared/api";
@@ -83,9 +85,16 @@ export default function UI13Screen({
   renderDetail,
 }: BillingScreenProps) {
   const navigate = useNavigate();
+  const location = useLocation();
+  const closingMonth = billingNavigationMonth(location.state);
+  const closingCheck = closingNavigation(location.state).check;
+  const listCheck = closingCheck === "BILL_UNCONFIRMED" || closingCheck === "TAX_INVOICE_NO"
+    ? closingCheck : "";
   const currentYear = Number(seoulMonth().slice(0, 4));
-  const [year, setYear] = useState(currentYear),
-    [tab, setTab] = useState<Tab>("list");
+  const [year, setYear] = useState(() =>
+      closingMonth ? Number(closingMonth.slice(0, 4)) : currentYear,
+    ),
+    [tab, setTab] = useState<Tab>(closingCheck === "BILL_MISSING" ? "gaps" : "list");
   const [width, setWidth] = useState(window.innerWidth);
   useEffect(() => {
     const resize = () => setWidth(window.innerWidth);
@@ -95,6 +104,8 @@ export default function UI13Screen({
   const readonly = year < currentYear || width <= 767;
   const defaults: Record<Tab, ScreenFilters> = {
     list: {
+      month: listCheck ? closingMonth ?? "" : "",
+      check: listCheck,
       status: "",
       type: "",
       customerId: "",
@@ -104,7 +115,7 @@ export default function UI13Screen({
       sort: "bill_dt,desc",
     },
     gaps: {
-      month: "",
+      month: closingMonth ?? "",
       judgment: "",
       q: "",
       page: 0,
@@ -123,11 +134,30 @@ export default function UI13Screen({
   };
   const [filters, setFilters] = useState(defaults),
     [applied, setApplied] = useState(defaults);
+  useEffect(() => {
+    if (!closingMonth) return;
+    setYear(Number(closingMonth.slice(0, 4)));
+    setTab(closingCheck === "BILL_MISSING" ? "gaps" : "list");
+    setFilters((f) => ({
+      ...f,
+      list: listCheck ? { ...f.list, month: closingMonth, check: listCheck, page: 0 } : f.list,
+      gaps: { ...f.gaps, month: closingMonth, page: 0 },
+    }));
+    setApplied((f) => ({
+      ...f,
+      list: listCheck ? { ...f.list, month: closingMonth, check: listCheck, page: 0 } : f.list,
+      gaps: { ...f.gaps, month: closingMonth, page: 0 },
+    }));
+  }, [closingMonth, closingCheck, listCheck, location.key]);
   const [selected, setSelected] = useState<number | null>(null);
   const [detailVersion, setDetailVersion] = useState(0);
   const [dialog, setDialog] = useState<
     "new" | "edit" | "cancel" | "amend" | "confirm" | "attendance" | null
-  >(null);
+  >(closingCheck === "DISPATCH_ATT" ? "attendance" : null);
+  useEffect(() => {
+    if (location.pathname === "/UI-13" && closingMonth && closingCheck === "DISPATCH_ATT")
+      setDialog("attendance");
+  }, [location.key, location.pathname, closingMonth, closingCheck]);
   const [createScope, setCreateScope] = useState<{
     projectId?: number;
     month?: string;
@@ -150,6 +180,7 @@ export default function UI13Screen({
       if (tab === "gaps")
         return {
           tab,
+          key,
           data: await listBillingGaps(
             Object.fromEntries(new URLSearchParams(key)),
           ),
@@ -157,19 +188,22 @@ export default function UI13Screen({
       if (tab === "overdue")
         return {
           tab,
+          key,
           data: await listBillingOverdue(
             Object.fromEntries(new URLSearchParams(key)),
           ),
         };
       return {
         tab,
+        key,
         data: await readData<BillingPage<BillingRow>>(`/api/billings?${key}`),
       };
     }, [tab, key]),
   );
   const resource = {
     ...read,
-    data: read.data?.tab === tab ? read.data.data : null,
+    data:
+      read.data?.tab === tab && read.data.key === key ? read.data.data : null,
   };
   const summary = useAdminRead(
     useCallback(() => getBillingSummary(year), [year]),
@@ -211,13 +245,21 @@ export default function UI13Screen({
         page: 0,
       },
     }));
-  const openNew = (projectId?: number, month?: string, stageId?: number) => {
+  const openNew = (
+    projectId?: number,
+    month: string | undefined = closingMonth,
+    stageId?: number,
+  ) => {
     setCreateScope({ projectId, month, stageId });
     setDialog("new");
   };
   const download = async () => {
     setDownloadError(null);
     const values = { ...parameters };
+    if (tab === "gaps") {
+      if (resource.loading || resource.error || !resource.data) return;
+      values.month = (resource.data as GapPage).month;
+    }
     delete values.page;
     delete values.size;
     try {
@@ -397,6 +439,11 @@ export default function UI13Screen({
       >
         {tab === "list" && (
           <>
+            {field("month", "월")}
+            {field("check", "마감 점검", [
+              ["BILL_UNCONFIRMED", "청구 미확정"],
+              ["TAX_INVOICE_NO", "세금계산서 번호 누락"],
+            ])}
             {field("status", "상태", [
               ["PLAN", "예정"],
               ["DRAFT", "작성"],
@@ -486,7 +533,14 @@ export default function UI13Screen({
       )}
       <div className={table.toolbar}>
         <span>총 {resource.data?.total ?? 0}건</span>
-        <Button data-testid="billing-export" onClick={() => void download()}>
+        <Button
+          data-testid="billing-export"
+          disabled={
+            tab === "gaps" &&
+            (resource.loading || !!resource.error || !resource.data)
+          }
+          onClick={() => void download()}
+        >
           엑셀 다운로드
         </Button>
       </div>
@@ -639,20 +693,21 @@ export default function UI13Screen({
                           ))}
                         </td>
                         <td>
-                          {!readonly && (
-                            <Button
-                              data-testid={`billing-gap-action-${r.project_id}`}
-                              onClick={() =>
-                                r.billing_ids.length
-                                  ? setSelected(r.billing_ids[0])
-                                  : openNew(r.project_id, r.month)
-                              }
-                            >
-                              {r.billing_ids.length
-                                ? "청구 고치기"
-                                : "청구 등록"}
-                            </Button>
-                          )}
+                          {!readonly &&
+                            Number(r.month.slice(0, 4)) >= currentYear && (
+                              <Button
+                                data-testid={`billing-gap-action-${r.project_id}`}
+                                onClick={() =>
+                                  r.billing_ids.length
+                                    ? setSelected(r.billing_ids[0])
+                                    : openNew(r.project_id, r.month)
+                                }
+                              >
+                                {r.billing_ids.length
+                                  ? "청구 고치기"
+                                  : "청구 등록"}
+                              </Button>
+                            )}
                         </td>
                       </tr>
                     ))}
@@ -1004,7 +1059,7 @@ export default function UI13Screen({
       )}
       {!readonly &&
         dialog === "attendance" &&
-        attendance?.(initialProjectId, seoulMonth(), {
+        attendance?.(initialProjectId, closingMonth ?? seoulMonth(), {
           onClose: () => setDialog(null),
           reload,
         })}
