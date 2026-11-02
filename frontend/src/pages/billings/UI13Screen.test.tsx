@@ -222,6 +222,27 @@ describe("청구 목록", () => {
     expect(params.get("year")).toBe("2025");
     expect(params.has("month")).toBe(false);
   });
+  it.each(["BILL_UNCONFIRMED", "TAX_INVOICE_NO"])(
+    "opens the %s closing check with its selected month",
+    async (closingCheck) => {
+      render(
+        <MemoryRouter initialEntries={[{
+          pathname: "/UI-13",
+          state: { closingMonth: "2026-10", closingCheck },
+        }]}>
+          <ActiveBillingScreen />
+        </MemoryRouter>,
+      );
+      await screen.findByTestId("billing-row-7");
+      const url = fetcher.mock.calls.find(([u]) =>
+        u.startsWith("/api/billings?"),
+      )![0];
+      const params = new URLSearchParams(url.split("?")[1]);
+      expect(params.get("year")).toBe("2026");
+      expect(params.get("month")).toBe("2026-10");
+      expect(params.get("check")).toBe(closingCheck);
+    },
+  );
   it.each(["2025-13", "0000-01", "2025-1", "2025-08?x=1", 202508])(
     "ignores invalid closing navigation month %s",
     async (closingMonth) => {

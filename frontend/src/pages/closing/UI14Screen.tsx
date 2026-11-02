@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Badge, Button, LockedBanner, Skeleton } from "../../shared/Controls";
 import { ErrorBanner } from "../../shared/ErrorBanner";
+import { formatDateTime } from "../../lib/format";
 import { useAdminRead } from "../admin/useAdminResource";
 import { PeriodBar, seoulMonth } from "../shared/PeriodBar";
 import { ScreenHeading } from "../shared/ScreenHeading";
@@ -117,7 +118,7 @@ export default function UI14Screen({
         <>
           {data.status === "CLOSED" ? (
             <LockedBanner>
-              {month}는 {data.processedAt ?? "일시 미확인"}{" "}
+              {month}는 {data.processedAt ? formatDateTime(data.processedAt) : "일시 미확인"}{" "}
               {data.actorName || "시스템 처리"}가 마감했습니다.
               {!data.canReopen &&
                 " 가장 최근에 마감한 달만 해제할 수 있으며 유효 조정 참조가 없어야 합니다."}
@@ -145,7 +146,7 @@ export default function UI14Screen({
               </div>
             </div>
             <p className={styles.timestamp}>
-              최근 점검: {data.checkedAt ?? "점검 미실행"}
+              최근 점검: {data.checkedAt ? formatDateTime(data.checkedAt) : "점검 미실행"}
             </p>
             {data.checks.length === 0 && (
               <p className={tables.empty}>
@@ -183,7 +184,7 @@ export default function UI14Screen({
                         aria-label={`${code.name} 확인하기`}
                         onClick={() =>
                           navigate(destinations[code.code], {
-                            state: { closingMonth: month },
+                            state: { closingMonth: month, closingCheck: code.code },
                           })
                         }
                       >

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { billingNavigationMonth } from "../billings/billingNavigationMonth";
+import { closingNavigation } from "../shared/closingNavigation";
 import { Button, Badge, Pagination, Skeleton } from "../../shared/Controls";
 import { ErrorBanner } from "../../shared/ErrorBanner";
 import { api, readData } from "../../shared/api";
@@ -86,11 +87,14 @@ export default function UI13Screen({
   const navigate = useNavigate();
   const location = useLocation();
   const closingMonth = billingNavigationMonth(location.state);
+  const closingCheck = closingNavigation(location.state).check;
+  const listCheck = closingCheck === "BILL_UNCONFIRMED" || closingCheck === "TAX_INVOICE_NO"
+    ? closingCheck : "";
   const currentYear = Number(seoulMonth().slice(0, 4));
   const [year, setYear] = useState(() =>
       closingMonth ? Number(closingMonth.slice(0, 4)) : currentYear,
     ),
-    [tab, setTab] = useState<Tab>("list");
+    [tab, setTab] = useState<Tab>(closingCheck === "BILL_MISSING" ? "gaps" : "list");
   const [width, setWidth] = useState(window.innerWidth);
   useEffect(() => {
     const resize = () => setWidth(window.innerWidth);
@@ -100,6 +104,8 @@ export default function UI13Screen({
   const readonly = year < currentYear || width <= 767;
   const defaults: Record<Tab, ScreenFilters> = {
     list: {
+      month: listCheck ? closingMonth ?? "" : "",
+      check: listCheck,
       status: "",
       type: "",
       customerId: "",
@@ -131,20 +137,27 @@ export default function UI13Screen({
   useEffect(() => {
     if (!closingMonth) return;
     setYear(Number(closingMonth.slice(0, 4)));
+    setTab(closingCheck === "BILL_MISSING" ? "gaps" : "list");
     setFilters((f) => ({
       ...f,
+      list: listCheck ? { ...f.list, month: closingMonth, check: listCheck, page: 0 } : f.list,
       gaps: { ...f.gaps, month: closingMonth, page: 0 },
     }));
     setApplied((f) => ({
       ...f,
+      list: listCheck ? { ...f.list, month: closingMonth, check: listCheck, page: 0 } : f.list,
       gaps: { ...f.gaps, month: closingMonth, page: 0 },
     }));
-  }, [closingMonth, location.key]);
+  }, [closingMonth, closingCheck, listCheck, location.key]);
   const [selected, setSelected] = useState<number | null>(null);
   const [detailVersion, setDetailVersion] = useState(0);
   const [dialog, setDialog] = useState<
     "new" | "edit" | "cancel" | "amend" | "confirm" | "attendance" | null
-  >(null);
+  >(closingCheck === "DISPATCH_ATT" ? "attendance" : null);
+  useEffect(() => {
+    if (location.pathname === "/UI-13" && closingMonth && closingCheck === "DISPATCH_ATT")
+      setDialog("attendance");
+  }, [location.key, location.pathname, closingMonth, closingCheck]);
   const [createScope, setCreateScope] = useState<{
     projectId?: number;
     month?: string;
@@ -426,6 +439,11 @@ export default function UI13Screen({
       >
         {tab === "list" && (
           <>
+            {field("month", "월")}
+            {field("check", "마감 점검", [
+              ["BILL_UNCONFIRMED", "청구 미확정"],
+              ["TAX_INVOICE_NO", "세금계산서 번호 누락"],
+            ])}
             {field("status", "상태", [
               ["PLAN", "예정"],
               ["DRAFT", "작성"],

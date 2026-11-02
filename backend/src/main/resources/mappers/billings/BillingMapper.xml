@@ -132,7 +132,9 @@
       NULL::integer AS reminder_stage,b.bill_odr_no,b.amnd_yn,b.rmrk_desc,
       COALESCE(b.bill_dt,s.bill_plan_dt) AS sort_date,
       CASE WHEN p.cntrct_ty_cd='TK' THEN extract(year FROM COALESCE(b.bill_dt,s.bill_plan_dt))::int
-        ELSE substring(b.atrb_ym,1,4)::int END AS row_year
+        ELSE substring(b.atrb_ym,1,4)::int END AS row_year,
+      CASE WHEN p.cntrct_ty_cd='TK' THEN to_char(b.bill_dt,'YYYY-MM')
+        ELSE b.atrb_ym END AS row_month
     FROM bill.bill b
     JOIN prj.prj p ON p.prj_id=b.prj_id
     LEFT JOIN mst.ptnr c ON c.ptnr_id=p.cust_ptnr_id
@@ -147,7 +149,8 @@
     SELECT NULL::bigint,s.bill_stg_id,true,NULL::varchar,s.prj_id,p.prj_nm,p.cust_ptnr_id,c.ptnr_nm,
       p.cntrct_ty_cd,NULL::char(7),NULL::date,s.sply_amt,0::bigint,s.sply_amt,'PLAN',
       NULL::varchar,NULL::date,NULL::date,0::bigint,s.sply_amt,0::bigint,NULL::integer,
-      s.stg_odr_no,'N',NULL::varchar,s.bill_plan_dt,extract(year FROM s.bill_plan_dt)::int
+      s.stg_odr_no,'N',NULL::varchar,s.bill_plan_dt,extract(year FROM s.bill_plan_dt)::int,
+      to_char(s.bill_plan_dt,'YYYY-MM') AS row_month
     FROM prj.bill_stg s
     JOIN prj.prj p ON p.prj_id=s.prj_id
     LEFT JOIN mst.ptnr c ON c.ptnr_id=p.cust_ptnr_id
@@ -156,6 +159,9 @@
   </sql>
   <sql id="filters">
     WHERE x.row_year=#{year}
+    <if test="month != null">AND x.row_month=#{month}</if>
+    <if test="check == 'BILL_UNCONFIRMED'">AND NOT x.virtual_plan AND x.bill_stts_cd IN ('PLAN','DRAFT')</if>
+    <if test="check == 'TAX_INVOICE_NO'">AND x.bill_stts_cd='CONFIRM' AND nullif(btrim(x.txinv_no),'') IS NULL</if>
     <if test="status != null">AND x.bill_stts_cd=#{status}</if>
     <if test="type != null">AND x.contract_type=#{type}</if>
     <if test="customerId != null">AND x.customer_id=#{customerId}</if>

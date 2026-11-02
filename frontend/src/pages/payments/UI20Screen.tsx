@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useLocation } from "react-router-dom";
 import {
   Badge,
   Button,
@@ -12,6 +13,7 @@ import { ApiFailure } from "../../shared/api";
 import { useAdminRead, useAdminWrite } from "../admin/useAdminResource";
 import { ScreenHeading } from "../shared/ScreenHeading";
 import { seoulMonth } from "../shared/PeriodBar";
+import { closingNavigation } from "../shared/closingNavigation";
 import { useSharedMobile } from "../shared/PlaceholderScreen";
 import tables from "../developers/Developers.module.css";
 import * as client from "./client";
@@ -49,10 +51,17 @@ export default function UI20Screen({
     onSaved: () => void;
   }) => ReactNode;
 }) {
+  const location = useLocation();
+  const incomingMonth = closingNavigation(location.state).month;
   const mobile = useSharedMobile();
   const [month, setMonth] = useState(
-    () => sessionStorage.getItem("payments-month") ?? seoulMonth(),
+    () => incomingMonth ?? sessionStorage.getItem("payments-month") ?? seoulMonth(),
   );
+  useEffect(() => {
+    if (location.pathname !== "/UI-20" || !incomingMonth) return;
+    sessionStorage.setItem("payments-month", incomingMonth);
+    setMonth(incomingMonth);
+  }, [location.key, location.pathname, incomingMonth]);
   const [page, setPage] = useState(1),
     [size, setSize] = useState<20 | 50 | 100>(20);
   const [order, setOrder] = useState<number | null>(null),

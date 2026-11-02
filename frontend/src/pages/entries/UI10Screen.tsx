@@ -36,6 +36,7 @@ function currentMonth() {
 }
 export interface EntriesScreenProps {
   initialMonth?: string;
+  navigationKey?: string;
   onMonthChange?: (month: string) => void;
   todayMonth?: string;
   name?: string;
@@ -65,6 +66,7 @@ export default function UI10Screen(props: EntriesScreenProps) {
 }
 function EntriesDesktop({
   initialMonth,
+  navigationKey,
   onMonthChange,
   todayMonth = currentMonth(),
   name = "재무 항목",
@@ -79,6 +81,9 @@ function EntriesDesktop({
   refreshVersion = 0,
 }: EntriesScreenProps) {
   const [month, setMonth] = useState(initialMonth ?? todayMonth);
+  useEffect(() => {
+    if (initialMonth) setMonth(initialMonth);
+  }, [initialMonth, navigationKey]);
   useEffect(() => {
     onMonthChange?.(month);
   }, [month, onMonthChange]);

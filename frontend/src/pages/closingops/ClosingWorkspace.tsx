@@ -18,6 +18,7 @@ import {
 } from "../../shared/Controls";
 import { Can } from "../../shared/Can";
 import { ErrorBanner } from "../../shared/ErrorBanner";
+import { formatDateTime } from "../../lib/format";
 import { ApiFailure } from "../../shared/api";
 import { useAdminRead } from "../admin/useAdminResource";
 import { useSharedMobile } from "../shared/PlaceholderScreen";
@@ -483,7 +484,7 @@ export function ClosingHistory({ month }: { month: string }) {
                       </Badge>
                     </td>
                     <td>{row.actor || "시스템 처리"}</td>
-                    <td>{row.processedAt}</td>
+                    <td>{formatDateTime(row.processedAt)}</td>
                     <td>{row.reason || "–"}</td>
                   </tr>
                 ))}

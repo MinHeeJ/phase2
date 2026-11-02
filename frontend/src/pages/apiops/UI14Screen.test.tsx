@@ -125,7 +125,7 @@ describe("UI-14 stored monthly closing", () => {
     for (const code of codes)
       expect(screen.getByText(code.name)).toBeInTheDocument();
     expect(
-      screen.getByText("최근 점검: 2026-10-28T09:30:00+09:00"),
+      screen.getByText("최근 점검: 2026-10-28 09:30"),
     ).toBeInTheDocument();
     expect(
       within(screen.getByTestId("closing-check-salary-upload")).getByText(
@@ -238,12 +238,15 @@ describe("UI-14 stored monthly closing", () => {
     expect(screen.getByTestId("destination")).toHaveTextContent(
       '"closingMonth":"2026-10"',
     );
+    expect(screen.getByTestId("destination")).toHaveTextContent(
+      '"closingCheck":"FIN_ENTRY"',
+    );
   });
   it("refreshes saved results without issuing a mutation", async () => {
     await open();
     rows["2026-10"] = { ...current(), checkedAt: "2026-10-29T10:00:00+09:00" };
     fireEvent.click(screen.getByRole("button", { name: "새로고침" }));
-    await screen.findByText("최근 점검: 2026-10-29T10:00:00+09:00");
+    await screen.findByText("최근 점검: 2026-10-29 10:00");
   });
   it("supports validated incoming selected month", async () => {
     render(

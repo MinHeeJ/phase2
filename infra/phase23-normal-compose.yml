@@ -1,0 +1,5 @@
+services:
+  backend:
+    image: sicost-phase23-normal-backend:local
+  frontend:
+    image: sicost-phase23-normal-frontend:local

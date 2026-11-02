@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { useLocation } from "react-router-dom";
 import {
   Badge,
   Button,
@@ -12,6 +13,7 @@ import { ApiFailure } from "../../shared/api";
 import { useAdminRead, useAdminWrite } from "../admin/useAdminResource";
 import { ScreenHeading } from "../shared/ScreenHeading";
 import { seoulMonth } from "../shared/PeriodBar";
+import { closingNavigation } from "../shared/closingNavigation";
 import { useSharedMobile } from "../shared/PlaceholderScreen";
 import tables from "../developers/Developers.module.css";
 import {
@@ -59,9 +61,16 @@ export default function UI19Screen({
   groupName?: string;
   onDirtyChange?: (dirty: boolean) => void;
 }) {
+  const location = useLocation();
+  const incomingMonth = closingNavigation(location.state).month;
   const [month, setMonth] = useState(
-    () => sessionStorage.getItem("part-settlement-month") ?? seoulMonth(),
+    () => incomingMonth ?? sessionStorage.getItem("part-settlement-month") ?? seoulMonth(),
   );
+  useEffect(() => {
+    if (location.pathname !== "/UI-19" || !incomingMonth) return;
+    sessionStorage.setItem("part-settlement-month", incomingMonth);
+    setMonth(incomingMonth);
+  }, [location.key, location.pathname, incomingMonth]);
   const [selected, setSelected] = useState<number | null>(null);
   const [exportError, setExportError] = useState<ApiFailure | null>(null);
   const [exporting, setExporting] = useState(false);
