@@ -35,7 +35,7 @@ class ProjectAssignmentMonthApiTest {
         when(mapper.months(any())).thenReturn(cells);
     }
     @Test void anonymousReadReturnsConcreteDataWithoutCredentials() throws Exception {
-        mvc.perform(get(BASE).param("year", "2026")).andExpect(status().isOk())
+        mvc.perform(get("/api/projects/1/assignment-months").param("year", "2026")).andExpect(status().isOk())
             .andExpect(jsonPath("$.success").value(true)).andExpect(jsonPath("$.data.prj_id").value(1))
             .andExpect(jsonPath("$.data.year").value(2026)).andExpect(jsonPath("$.data.items[0].dev_nm").value("개발자 1"));
     }
@@ -67,9 +67,9 @@ class ProjectAssignmentMonthApiTest {
             .andExpect(status().isBadRequest()).andExpect(jsonPath("$.field").value("id"));
         verifyNoInteractions(mapper);
     }
-    @Test void emptyProjectStillHasTwelveZeroMonthTotals() throws Exception {
+    @Test void businessEmptyProjectStillHasTwelveZeroMonthTotals() throws Exception {
         when(mapper.months(any())).thenReturn(Collections.emptyList());
-        mvc.perform(get(BASE).param("year", "2026")).andExpect(status().isOk())
+        mvc.perform(get("/api/projects/1/assignment-months").param("year", "2026")).andExpect(status().isOk())
             .andExpect(jsonPath("$.data.items").isEmpty()).andExpect(jsonPath("$.data.month_totals.length()").value(12))
             .andExpect(jsonPath("$.data.month_totals[0].work_ym").value("2026-01"))
             .andExpect(jsonPath("$.data.month_totals[11].mm_qty").value(0));

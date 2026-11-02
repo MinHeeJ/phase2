@@ -359,6 +359,13 @@ export function AppShell({
                     tab.id === "UI-03" ||
                     tab.id === "UI-04" ||
                     tab.id === "UI-19" ||
+                    tab.id === "UI-07" ||
+                    tab.id === "UI-08" ||
+                    tab.id === "UI-09" ||
+                    tab.id === "UI-10" ||
+                    tab.id === "UI-18" ||
+                    tab.id === "UI-20" ||
+                    tab.id === "UI-21" ||
                     tab.id === "UI-02" ? (
                       <SharedMobileGuard
                         mobileAllowed={location.screen.mobile}

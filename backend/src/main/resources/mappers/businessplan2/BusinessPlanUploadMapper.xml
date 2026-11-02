@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sicost.businessplan2.BusinessPlanUploadMapper">
+  <resultMap id="plan" type="com.sicost.businessplan2.BusinessPlanUploadModels$Plan">
+    <constructor>
+      <arg column="biz_plan_id" javaType="_long"/>
+      <arg column="plan_ym" javaType="java.lang.String"/>
+      <arg column="bsn_part_id" javaType="java.lang.Long"/>
+      <arg column="trgt_sls_amt" javaType="_long"/>
+      <arg column="trgt_bsn_prft_amt" javaType="_long"/>
+      <arg column="trgt_utlz_rt" javaType="java.math.BigDecimal"/>
+    </constructor>
+  </resultMap>
+  <select id="nextUploadId" resultType="long">SELECT nextval('sys.seq_upld_id')</select>
+  <select id="parts" resultType="long">
+    SELECT bsn_part_id FROM mst.bsn_part WHERE use_yn='Y'
+      AND (bsn_part_nm=#{label} OR CAST(bsn_part_id AS text)=#{label}) ORDER BY bsn_part_id
+  </select>
+  <select id="plans" resultMap="plan" useCache="false">
+    SELECT biz_plan_id,plan_ym,bsn_part_id,trgt_sls_amt,trgt_bsn_prft_amt,trgt_utlz_rt
+    FROM fin.biz_plan WHERE plan_yr=#{year} ORDER BY plan_ym,bsn_part_id NULLS FIRST
+  </select>
+  <select id="closedMonths" resultType="string" useCache="false">
+    SELECT cls_ym FROM fin.mth_cls WHERE substring(cls_ym,1,4)=#{year} AND cls_stts_cd='CLOSED' ORDER BY cls_ym
+  </select>
+  <select id="uploadStatus" resultType="string" useCache="false">
+    SELECT upld_stts_cd FROM sys.upld WHERE upld_id=#{id} AND form_cd='B.10'
+  </select>
+  <update id="lockScope">
+    LOCK TABLE fin.mth_cls IN SHARE MODE;
+    LOCK TABLE fin.biz_plan IN SHARE ROW EXCLUSIVE MODE
+  </update>
+  <insert id="saveReview">
+    INSERT INTO sys.upld(upld_id,form_cd,scrn_id,obj_key_val,file_nm,file_path_addr,
+      tot_row_cnt,nrml_row_cnt,err_row_cnt,wrn_row_cnt,upld_stts_cd,ovwr_yn,upld_user_id)
+    VALUES(#{review.id},'B.10','UI-18',#{review.year},#{review.name},#{review.path},
+      #{result.row_count},greatest(0,#{result.row_count}-#{result.error_count}),#{result.error_count},0,#{status},'Y',#{actor})
+    ON CONFLICT(upld_id) DO UPDATE SET upld_stts_cd=EXCLUDED.upld_stts_cd,
+      tot_row_cnt=EXCLUDED.tot_row_cnt,nrml_row_cnt=EXCLUDED.nrml_row_cnt,err_row_cnt=EXCLUDED.err_row_cnt
+  </insert>
+  <delete id="deleteOpen">
+    DELETE FROM fin.biz_plan p WHERE p.biz_plan_id=#{id}
+      AND NOT EXISTS(SELECT 1 FROM fin.mth_cls c WHERE c.cls_ym=p.plan_ym AND c.cls_stts_cd='CLOSED')
+  </delete>
+  <select id="replace" resultType="long" affectData="true" flushCache="true">
+    INSERT INTO fin.biz_plan(plan_yr,plan_ym,bsn_part_id,trgt_sls_amt,trgt_bsn_prft_amt,trgt_utlz_rt,upld_id,created_by)
+    VALUES(substring(#{row.month},1,4),#{row.month},#{row.partId},#{row.revenue},#{row.profit},#{row.utilization},#{uploadId},#{actor})
+    RETURNING biz_plan_id
+  </select>
+  <insert id="audit">
+    INSERT INTO sys.data_chg_hist(tbl_nm,obj_rec_id,data_chg_ty_cd,clmn_nm,bfr_val,aft_val,chg_user_id)
+    VALUES('fin.biz_plan',#{id},#{type},'사업계획',#{before},#{after},#{actor})
+  </insert>
+</mapper>

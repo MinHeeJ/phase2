@@ -25,7 +25,7 @@ public class UploadResultService {
         if (uploadId < 1) throw ApiException.badRequest("검사 결과 번호는 1 이상의 정수여야 합니다.", "uploadId");
         for (var adapter : adapters) {
             if (!adapter.supports(uploadId)) continue;
-            permissions.can("UI-13.upload");
+            permissions.can(adapter.permissionKey("upload"));
             var r=adapter.result(uploadId);
             return new UploadResult(r.upload_id(),r.form_type(),r.month(),r.row_count(),
                 r.error_count(),r.warning_count(),r.can_apply(),r.existing_salary_count(),

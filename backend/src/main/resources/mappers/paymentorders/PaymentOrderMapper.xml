@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sicost.paymentorders.PaymentOrderMapper">
+  <resultMap id="order" type="com.sicost.paymentorders.PaymentOrderModels$Order">
+    <constructor>
+      <arg column="pay_odr_no" javaType="_int"/>
+      <arg column="planned_date" javaType="java.time.LocalDate"/>
+      <arg column="paid" javaType="_boolean"/>
+    </constructor>
+  </resultMap>
+  <select id="list" resultMap="order" useCache="false">
+    WITH defaults AS (
+      SELECT n AS pay_odr_no, CASE n WHEN 1 THEN 10 WHEN 2 THEN 15 WHEN 3 THEN 20 ELSE
+        EXTRACT(DAY FROM (to_date(#{month},'YYYY-MM')+INTERVAL '1 month - 1 day'))::int END AS day
+      FROM generate_series(1,4) n
+    ), orders AS (
+      SELECT d.pay_odr_no,COALESCE(o.pay_dt,to_date(#{month},'YYYY-MM')+d.day-1) AS planned_date
+      FROM defaults d LEFT JOIN fin.pay_odr o ON o.pay_ym=#{month} AND o.pay_odr_no=d.pay_odr_no
+      UNION ALL SELECT pay_odr_no,pay_dt FROM fin.pay_odr WHERE pay_ym=#{month} AND pay_odr_no=5
+    )
+    SELECT o.pay_odr_no,o.planned_date,EXISTS(
+      SELECT 1 FROM fin.pay p WHERE p.pay_ym=#{month} AND p.pay_odr_no=o.pay_odr_no
+        AND (p.pay_stts_cd='PAID' OR (SELECT COALESCE(SUM(e.pay_amt),0) FROM fin.pay_execution e WHERE e.pay_id=p.pay_id)>0)
+    ) AS paid FROM orders o ORDER BY o.pay_odr_no
+  </select>
+  <select id="monthStatus" resultType="string" useCache="false">
+    SELECT cls_stts_cd FROM fin.mth_cls WHERE cls_ym=#{month}
+  </select>
+  <select id="lockMonth" resultType="string" flushCache="true" useCache="false">
+    SELECT pg_advisory_xact_lock(hashtextextended('payment-orders:' || #{month},0))::text
+  </select>
+  <select id="lockPayments" resultType="long" flushCache="true" useCache="false">
+    SELECT pay_id FROM fin.pay WHERE pay_ym=#{month} ORDER BY pay_id FOR UPDATE
+  </select>
+  <insert id="save">
+    INSERT INTO fin.pay_odr(pay_ym,pay_odr_no,pay_dt)
+    VALUES(#{month},#{order.pay_odr_no},#{order.planned_date})
+    ON CONFLICT(pay_ym,pay_odr_no) DO UPDATE SET pay_dt=EXCLUDED.pay_dt
+  </insert>
+  <select id="reschedule" resultType="int" affectData="true" flushCache="true">
+    WITH old AS MATERIALIZED (
+      SELECT pay_id,pay_plan_dt FROM fin.pay WHERE pay_ym=#{month} AND pay_odr_no=#{order.pay_odr_no}
+        AND pay_stts_cd='PLAN' AND pay_plan_dt &lt;&gt; #{order.planned_date} FOR UPDATE
+    ), changed AS (
+      UPDATE fin.pay p SET pay_plan_dt=#{order.planned_date},updated_at=CURRENT_TIMESTAMP,updated_by=#{actor}
+      FROM old WHERE p.pay_id=old.pay_id RETURNING p.pay_id
+    ), history AS (
+      INSERT INTO sys.data_chg_hist(tbl_nm,obj_rec_id,data_chg_ty_cd,clmn_nm,bfr_val,aft_val,chg_user_id)
+      SELECT 'fin.pay',old.pay_id::text,'UPDATE','pay_plan_dt',old.pay_plan_dt::text,
+        CAST(#{order.planned_date} AS text),#{actor} FROM old JOIN changed USING(pay_id) RETURNING data_chg_hist_id
+    ) SELECT COUNT(*)::int FROM history
+  </select>
+  <insert id="audit">
+    INSERT INTO sys.data_chg_hist(tbl_nm,obj_rec_id,data_chg_ty_cd,clmn_nm,bfr_val,aft_val,chg_user_id)
+    VALUES('fin.pay_odr',#{key},#{type},'pay_dt',#{before},#{after},#{actor})
+  </insert>
+</mapper>

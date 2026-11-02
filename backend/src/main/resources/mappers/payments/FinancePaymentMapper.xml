@@ -1,0 +1,153 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sicost.payments.FinancePaymentMapper">
+  <resultMap id="payment" type="com.sicost.payments.FinancePaymentModels$Payment">
+    <constructor>
+      <arg column="pay_id" javaType="_long"/><arg column="pay_ym" javaType="string"/>
+      <arg column="pay_odr_no" javaType="java.lang.Integer"/><arg column="pay_se_cd" javaType="string"/>
+      <arg column="rcvr_se_cd" javaType="string"/><arg column="dev_id" javaType="java.lang.Long"/>
+      <arg column="ptnr_id" javaType="java.lang.Long"/><arg column="recipient" javaType="string"/>
+      <arg column="sply_amt" javaType="_long"/><arg column="vat_amt" javaType="_long"/>
+      <arg column="ddct_amt" javaType="_long"/><arg column="pay_amt" javaType="_long"/>
+      <arg column="pay_plan_dt" javaType="java.time.LocalDate"/><arg column="pay_dt" javaType="java.time.LocalDate"/>
+      <arg column="pay_stts_cd" javaType="string"/><arg column="pay_src_cd" javaType="string"/>
+      <arg column="src_rec_id" javaType="java.lang.Long"/><arg column="cry_pay_id" javaType="java.lang.Long"/>
+      <arg column="bank" javaType="string"/><arg column="account" javaType="string"/>
+      <arg column="dpstr_nm" javaType="string"/><arg column="remark" javaType="string"/>
+      <arg column="updated_at" javaType="java.time.LocalDateTime"/><arg column="executed_amt" javaType="_long"/>
+    </constructor>
+  </resultMap>
+  <resultMap id="choice" type="com.sicost.payments.FinancePaymentModels$PaymentChoice">
+    <constructor><arg column="code" javaType="string"/><arg column="name" javaType="string"/></constructor>
+  </resultMap>
+  <resultMap id="execution" type="com.sicost.payments.FinancePaymentModels$PaymentExecution">
+    <constructor><arg column="id" javaType="_long"/><arg column="pay_id" javaType="_long"/>
+      <arg column="pay_dt" javaType="java.time.LocalDate"/><arg column="pay_amt" javaType="_long"/>
+      <arg column="reversal_of_id" javaType="java.lang.Long"/><arg column="rsn_desc" javaType="string"/></constructor>
+  </resultMap>
+  <sql id="columns">p.pay_id,p.pay_ym,p.pay_odr_no,p.pay_se_cd,p.rcvr_se_cd,p.dev_id,p.ptnr_id,
+    p.rcvr_nm AS recipient,p.sply_amt,p.vat_amt,p.ddct_amt,p.pay_amt,p.pay_plan_dt,p.pay_dt,
+    p.pay_stts_cd,p.pay_src_cd,p.src_rec_id,p.cry_pay_id,p.bank_cd AS bank,p.acnt_no AS account,p.dpstr_nm,
+    p.rmrk_desc AS remark,COALESCE(p.updated_at,p.created_at) AS updated_at,
+    COALESCE((SELECT sum(e.pay_amt) FROM fin.pay_execution e WHERE e.pay_id=p.pay_id),0)::bigint AS executed_amt</sql>
+  <select id="list" resultMap="payment">
+    SELECT <include refid="columns"/> FROM fin.pay p WHERE p.pay_ym=#{month} ORDER BY p.pay_odr_no NULLS LAST,p.pay_id
+  </select>
+  <select id="row" resultMap="payment" useCache="false">
+    SELECT <include refid="columns"/> FROM fin.pay p WHERE p.pay_id=#{id}
+  </select>
+  <select id="root" resultType="java.lang.Long" useCache="false">
+    WITH RECURSIVE ancestors AS (SELECT pay_id,cry_pay_id FROM fin.pay WHERE pay_id=#{id}
+      UNION ALL SELECT p.pay_id,p.cry_pay_id FROM fin.pay p JOIN ancestors a ON a.cry_pay_id=p.pay_id)
+    SELECT pay_id FROM ancestors WHERE cry_pay_id IS NULL
+  </select>
+  <select id="lock" resultType="java.lang.Long" useCache="false" flushCache="true">
+    SELECT pay_id FROM fin.pay WHERE pay_id=#{id} FOR UPDATE
+  </select>
+  <select id="chain" resultMap="payment" useCache="false">
+    WITH RECURSIVE descendants AS (SELECT pay_id FROM fin.pay WHERE pay_id=#{root}
+      UNION ALL SELECT p.pay_id FROM fin.pay p JOIN descendants d ON p.cry_pay_id=d.pay_id)
+    SELECT <include refid="columns"/> FROM fin.pay p JOIN descendants d USING(pay_id) ORDER BY p.pay_id
+  </select>
+  <select id="monthStatus" resultType="string">SELECT cls_stts_cd FROM fin.mth_cls WHERE cls_ym=#{month}</select>
+  <select id="nextOpen" resultType="string">
+    WITH RECURSIVE months AS (
+      SELECT (#{month}||'-01')::date + interval '1 month' AS day
+      UNION ALL SELECT day+interval '1 month' FROM months
+      WHERE EXISTS(SELECT 1 FROM fin.mth_cls WHERE cls_ym=to_char(day,'YYYY-MM') AND cls_stts_cd='CLOSED'))
+    SELECT to_char(day,'YYYY-MM') FROM months ORDER BY day DESC LIMIT 1
+  </select>
+  <select id="activeCategory" resultType="boolean">SELECT EXISTS(SELECT 1 FROM cmn.cd_dtl WHERE cd_grp_id='PAY_CATEGORY' AND dtl_cd=#{code} AND use_yn='Y')</select>
+  <select id="activeBank" resultType="boolean">SELECT EXISTS(SELECT 1 FROM cmn.cd_dtl WHERE cd_grp_id='BANK' AND dtl_cd=#{code} AND use_yn='Y')</select>
+  <select id="developer" resultType="boolean">SELECT EXISTS(SELECT 1 FROM mst.dev WHERE dev_id=#{id} AND use_yn='Y')</select>
+  <select id="partner" resultType="boolean">SELECT EXISTS(SELECT 1 FROM mst.ptnr WHERE ptnr_id=#{id} AND use_yn='Y')</select>
+  <select id="categories" resultMap="choice">SELECT dtl_cd AS code,cd_nm AS name FROM cmn.cd_dtl WHERE cd_grp_id='PAY_CATEGORY' AND use_yn='Y' ORDER BY sort_seq,dtl_cd</select>
+  <select id="banks" resultMap="choice">SELECT dtl_cd AS code,cd_nm AS name FROM cmn.cd_dtl WHERE cd_grp_id='BANK' AND use_yn='Y' ORDER BY sort_seq,dtl_cd</select>
+  <select id="missingSources" resultType="string">
+    SELECT '급여 자료 없음' WHERE NOT EXISTS(SELECT 1 FROM cst.mth_cst WHERE cst_ym=#{month})
+    UNION ALL SELECT '세금·보험 원천 자료 없음' WHERE NOT EXISTS(SELECT 1 FROM cst.mth_cst
+      WHERE cst_ym=to_char((#{month}||'-01')::date-interval '1 month','YYYY-MM'))
+    UNION ALL SELECT '직접 경비 자료 없음' WHERE NOT EXISTS(SELECT 1 FROM cst.drct_expns WHERE expns_ym=#{month})
+  </select>
+  <select id="insert" resultType="long" affectData="true" flushCache="true">
+    INSERT INTO fin.pay(pay_ym,pay_odr_no,pay_se_cd,rcvr_se_cd,dev_id,ptnr_id,rcvr_nm,sply_amt,vat_amt,ddct_amt,pay_amt,
+      pay_plan_dt,bank_cd,acnt_no,dpstr_nm,rmrk_desc,pay_src_cd,src_rec_id,cry_pay_id,created_by,updated_at)
+    VALUES(#{input.pay_ym},#{input.pay_odr_no},#{input.pay_se_cd},#{input.rcvr_se_cd},#{input.dev_id},#{input.ptnr_id},#{input.recipient},
+      #{input.sply_amt},#{input.vat_amt},#{input.ddct_amt},#{input.sply_amt}+#{input.vat_amt}-#{input.ddct_amt},
+      #{input.pay_plan_dt},#{input.bank},#{input.account},#{input.dpstr_nm},#{input.remark},#{source},#{sourceId},#{parentId},#{actor},clock_timestamp()) RETURNING pay_id
+  </select>
+  <update id="update">
+    UPDATE fin.pay SET pay_ym=#{input.pay_ym},pay_odr_no=#{input.pay_odr_no},pay_se_cd=#{input.pay_se_cd},rcvr_se_cd=#{input.rcvr_se_cd},
+      dev_id=#{input.dev_id},ptnr_id=#{input.ptnr_id},rcvr_nm=#{input.recipient},sply_amt=#{input.sply_amt},vat_amt=#{input.vat_amt},ddct_amt=#{input.ddct_amt},
+      pay_amt=#{input.sply_amt}+#{input.vat_amt}-#{input.ddct_amt},pay_plan_dt=#{input.pay_plan_dt},bank_cd=#{input.bank},acnt_no=#{input.account},
+      dpstr_nm=#{input.dpstr_nm},rmrk_desc=#{input.remark},updated_at=clock_timestamp(),updated_by=#{actor}
+    WHERE pay_id=#{id} AND pay_stts_cd='PLAN'
+  </update>
+  <update id="state">UPDATE fin.pay SET pay_stts_cd=#{status},pay_dt=#{date},updated_at=clock_timestamp(),updated_by=#{actor} WHERE pay_id=#{id}</update>
+  <insert id="execute">INSERT INTO fin.pay_execution(pay_id,pay_dt,pay_amt) VALUES(#{payId},#{date},#{amount})</insert>
+  <select id="executions" resultMap="execution" useCache="false">
+    SELECT e.pay_execution_id AS id,e.pay_id,e.pay_dt,e.pay_amt,e.reversal_of_id,e.rsn_desc FROM fin.pay_execution e
+    WHERE e.pay_id=#{id} AND e.reversal_of_id IS NULL AND NOT EXISTS(SELECT 1 FROM fin.pay_execution r WHERE r.reversal_of_id=e.pay_execution_id)
+  </select>
+  <insert id="reverse">INSERT INTO fin.pay_execution(pay_id,pay_dt,pay_amt,reversal_of_id,rsn_desc) VALUES(#{payId},#{date},#{amount},#{reversalId},#{reason})</insert>
+  <insert id="audit">
+    INSERT INTO sys.data_chg_hist(tbl_nm,obj_rec_id,data_chg_ty_cd,clmn_nm,bfr_val,aft_val,rsn_desc)
+    VALUES('fin.pay',#{id}::text,#{type},#{field},#{before},#{after},#{reason})
+  </insert>
+  <insert id="access">INSERT INTO sys.acs_hist(acs_ty_cd,scrn_id,obj_desc) VALUES('DOWNLOAD','UI-20',#{description})</insert>
+  <select id="source" resultType="java.lang.Long" useCache="false">
+    SELECT pay_id FROM fin.pay WHERE pay_src_cd=#{pay_src_cd} AND src_rec_id=#{src_rec_id} AND pay_se_cd=#{pay_se_cd} AND pay_ym=#{pay_ym} AND cry_pay_id IS NULL
+  </select>
+  <insert id="generate">
+    INSERT INTO fin.pay(pay_ym,pay_odr_no,pay_se_cd,rcvr_se_cd,dev_id,ptnr_id,rcvr_nm,sply_amt,vat_amt,ddct_amt,pay_amt,
+      pay_plan_dt,pay_src_cd,src_rec_id,bank_cd,acnt_no,dpstr_nm,updated_at)
+    VALUES(#{pay_ym},#{pay_odr_no},#{pay_se_cd},#{rcvr_se_cd},#{dev_id},#{ptnr_id},#{recipient},#{sply_amt},#{vat_amt},#{ddct_amt},#{pay_amt},
+      #{pay_plan_dt},#{pay_src_cd},#{src_rec_id},#{bank},#{account},#{dpstr_nm},clock_timestamp())
+    ON CONFLICT(pay_src_cd,src_rec_id,pay_se_cd,pay_ym) WHERE cry_pay_id IS NULL AND src_rec_id IS NOT NULL AND pay_src_cd != 'MANUAL'
+    DO UPDATE SET sply_amt=EXCLUDED.sply_amt,vat_amt=EXCLUDED.vat_amt,ddct_amt=EXCLUDED.ddct_amt,pay_amt=EXCLUDED.pay_amt,updated_at=clock_timestamp()
+    WHERE fin.pay.pay_stts_cd='PLAN' AND NOT EXISTS(SELECT 1 FROM fin.pay_execution WHERE pay_id=fin.pay.pay_id)
+  </insert>
+  <update id="taxActual">
+    WITH RECURSIVE chain AS (SELECT pay_id,pay_src_cd,src_rec_id,pay_se_cd FROM fin.pay WHERE pay_id=#{root}
+      UNION ALL SELECT p.pay_id,p.pay_src_cd,p.src_rec_id,p.pay_se_cd FROM fin.pay p JOIN chain c ON p.cry_pay_id=c.pay_id),
+    actual AS (SELECT sum(e.pay_amt) AS amount,max(e.pay_dt) FILTER(WHERE e.reversal_of_id IS NULL AND NOT EXISTS
+      (SELECT 1 FROM fin.pay_execution r WHERE r.reversal_of_id=e.pay_execution_id)) AS day FROM fin.pay_execution e JOIN chain c USING(pay_id))
+    UPDATE fin.corp_tax_pay SET pay_amt=CASE WHEN actual.amount=0 THEN NULL ELSE actual.amount END,pay_dt=actual.day
+    FROM actual WHERE tax_pay_id IN(SELECT src_rec_id FROM chain WHERE pay_src_cd='AUTO_FIN' AND pay_se_cd='CORP_TAX')
+  </update>
+  <select id="candidates" resultMap="payment">
+    WITH raw AS (
+      SELECT c.cst_ym AS month,c.mth_cst_id AS source_id,'AUTO_COST'::text AS source,
+        CASE WHEN c.emp_se_cd='OS' THEN 'SERVICE' WHEN c.emp_se_cd='FL' THEN 'FREELANCE' ELSE 'SALARY' END AS category,
+        CASE WHEN c.emp_se_cd='OS' THEN 'PARTNER' ELSE 'DEV' END AS receiver,c.dev_id,d.vndr_ptnr_id AS ptnr_id,d.dev_nm AS name,
+        CASE WHEN c.emp_se_cd='OS' THEN c.slry_amt ELSE c.slry_amt+c.alwnc_amt END AS supply,c.vat_amt AS vat,
+        CASE WHEN c.emp_se_cd='OS' THEN 0 ELSE c.sins_emp_amt+c.whtax_amt+c.ern_tax_amt END AS deduction,
+        (#{month}||'-01')::date AS plan,p.bank_cd,p.acnt_no,p.dpstr_nm
+      FROM cst.mth_cst c JOIN mst.dev d USING(dev_id) LEFT JOIN mst.ptnr p ON p.ptnr_id=d.vndr_ptnr_id
+      WHERE c.cst_ym=#{month}
+      UNION ALL
+      SELECT #{month},c.mth_cst_id,'AUTO_TAX',v.category,'AGENCY',NULL,NULL,k.cd_nm,v.amount,0,0,
+        (#{month}||'-10')::date,NULL,NULL,NULL
+      FROM cst.mth_cst c CROSS JOIN LATERAL(VALUES('TAX',c.whtax_amt+c.ern_tax_amt),('INSURANCE',c.sins_cmpny_amt+c.sins_emp_amt)) v(category,amount)
+      JOIN cmn.cd_dtl k ON k.cd_grp_id='PAY_CATEGORY' AND k.dtl_cd=v.category
+      WHERE c.cst_ym=to_char((#{month}||'-01')::date-interval '1 month','YYYY-MM') AND v.amount>0
+      UNION ALL
+      SELECT e.expns_ym,e.expns_id,'AUTO_EXP','EXPENSE',CASE WHEN e.dev_id IS NULL THEN 'ETC' ELSE 'DEV' END,e.dev_id,NULL,
+        COALESCE(d.dev_nm,k.cd_nm),e.expns_amt,e.vat_amt,0,COALESCE(e.pay_dt,(#{month}||'-01')::date),NULL,NULL,NULL
+      FROM cst.drct_expns e LEFT JOIN mst.dev d USING(dev_id)
+      JOIN cmn.cd_dtl k ON k.cd_grp_id='EXPENSE_ITEM' AND k.dtl_cd=e.expns_item_cd WHERE e.expns_ym=#{month}
+      UNION ALL
+      SELECT e.entry_ym,e.entry_id,'AUTO_FIN',CASE WHEN e.fin_se_cd='SGA' THEN 'SGA' ELSE 'ETC' END,'ETC',NULL,NULL,e.item_nm,
+        e.entry_amt,e.vat_amt,0,COALESCE(e.inout_dt,(#{month}||'-01')::date),NULL,NULL,NULL
+      FROM fin.entry e WHERE e.entry_ym=#{month} AND e.fin_se_cd IN('SGA','NOE') AND e.deleted_yn='N' AND e.inout_cmpl_yn='N'
+      UNION ALL
+      SELECT #{month},t.tax_pay_id,'AUTO_FIN','CORP_TAX','AGENCY',NULL,NULL,k.cd_nm,t.plan_amt,0,0,t.pay_plan_dt,NULL,NULL,NULL
+      FROM fin.corp_tax_pay t JOIN cmn.cd_dtl k ON k.cd_grp_id='PAY_CATEGORY' AND k.dtl_cd='CORP_TAX'
+      WHERE to_char(t.pay_plan_dt,'YYYY-MM')=#{month} AND t.plan_amt IS NOT NULL AND t.pay_dt IS NULL
+    ) SELECT 0::bigint AS pay_id,month AS pay_ym,NULL::integer AS pay_odr_no,category AS pay_se_cd,receiver AS rcvr_se_cd,dev_id,ptnr_id,
+      name AS recipient,supply AS sply_amt,vat AS vat_amt,deduction AS ddct_amt,supply+vat-deduction AS pay_amt,plan AS pay_plan_dt,
+      NULL::date AS pay_dt,'PLAN' AS pay_stts_cd,source AS pay_src_cd,source_id AS src_rec_id,NULL::bigint AS cry_pay_id,
+      bank_cd AS bank,acnt_no AS account,dpstr_nm,NULL::text AS remark,NULL::timestamp AS updated_at,0::bigint AS executed_amt
+    FROM raw WHERE supply+vat-deduction>=0
+  </select>
+</mapper>

@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sicost.priorprofit.PriorProfitUploadMapper">
+  <resultMap id="snapshot" type="com.sicost.priorprofit.PriorProfitUploadModels$Snapshot">
+    <constructor>
+      <arg column="pl_ym" javaType="java.lang.String"/>
+      <arg column="sls_amt" javaType="_long"/>
+      <arg column="aloc_cst_amt" javaType="_long"/>
+      <arg column="idle_cst_amt" javaType="_long"/>
+      <arg column="drct_expns_amt" javaType="_long"/>
+      <arg column="sga_input_amt" javaType="_long"/>
+      <arg column="indrct_lbr_cst_amt" javaType="_long"/>
+      <arg column="rnd_cst_amt" javaType="_long"/>
+      <arg column="prvmn_adj_amt" javaType="_long"/>
+      <arg column="nop_incm_amt" javaType="_long"/>
+      <arg column="nop_exp_amt" javaType="_long"/>
+      <arg column="corp_tax_amt" javaType="_long"/>
+      <arg column="aloc_sls_amt" javaType="java.lang.Long"/>
+    </constructor>
+  </resultMap>
+  <resultMap id="detail" type="com.sicost.priorprofit.PriorProfitUploadModels$Detail">
+    <constructor>
+      <arg column="pl_ym" javaType="java.lang.String"/>
+      <arg column="dim_val" javaType="java.lang.String"/>
+      <arg column="cst_amt" javaType="_long"/>
+    </constructor>
+  </resultMap>
+  <select id="nextUploadId" resultType="long">SELECT nextval('sys.seq_upld_id')</select>
+  <resultMap id="code" type="com.sicost.uploadsops.UploadModels$UploadCode">
+    <constructor><arg column="grp" javaType="java.lang.String"/><arg column="code" javaType="java.lang.String"/><arg column="name" javaType="java.lang.String"/></constructor>
+  </resultMap>
+  <resultMap id="mapping" type="com.sicost.uploadsops.UploadModels$UploadMapping">
+    <constructor><arg column="grp" javaType="java.lang.String"/><arg column="label" javaType="java.lang.String"/><arg column="code" javaType="java.lang.String"/></constructor>
+  </resultMap>
+  <select id="codes" resultMap="code" useCache="false">
+    SELECT d.cd_grp_id AS grp,d.dtl_cd AS code,d.cd_nm AS name FROM cmn.cd_dtl d JOIN cmn.cd_grp g USING(cd_grp_id)
+    WHERE d.cd_grp_id='SGA_ITEM' AND d.use_yn='Y' AND g.use_yn='Y' ORDER BY d.sort_seq,d.dtl_cd
+  </select>
+  <select id="mappings" resultMap="mapping" useCache="false">
+    SELECT m.trns_cd_grp_id AS grp,m.excel_lbl_nm AS label,m.trns_cd AS code FROM cmn.excel_map m
+    JOIN cmn.cd_dtl d ON d.cd_grp_id=m.trns_cd_grp_id AND d.dtl_cd=m.trns_cd JOIN cmn.cd_grp g ON g.cd_grp_id=d.cd_grp_id
+    WHERE m.trns_cd_grp_id='SGA_ITEM' AND m.use_yn='Y' AND d.use_yn='Y' AND g.use_yn='Y' ORDER BY m.map_id
+  </select>
+  <select id="hasClose" resultType="boolean" useCache="false">
+    SELECT EXISTS(SELECT 1 FROM fin.mth_pl WHERE pl_ym BETWEEN '2025-01' AND '2025-12' AND pl_src_cd='CLOSE')
+  </select>
+  <select id="snapshots" resultMap="snapshot" useCache="false">
+    SELECT pl_ym,sls_amt,aloc_cst_amt,idle_cst_amt,drct_expns_amt,sga_input_amt,indrct_lbr_cst_amt,
+      rnd_cst_amt,prvmn_adj_amt,nop_incm_amt,nop_exp_amt,corp_tax_amt,aloc_sls_amt
+    FROM fin.mth_pl WHERE pl_ym BETWEEN '2025-01' AND '2025-12' AND pl_src_cd='IMPORT' ORDER BY pl_ym
+  </select>
+  <select id="details" resultMap="detail" useCache="false">
+    SELECT d.pl_ym,d.dim_val,d.cst_amt FROM fin.mth_pl_dtl d JOIN fin.mth_pl p ON p.pl_ym=d.pl_ym
+    WHERE p.pl_ym BETWEEN '2025-01' AND '2025-12' AND p.pl_src_cd='IMPORT' AND d.dim_ty_cd='SGA_ITEM'
+    ORDER BY d.pl_ym,d.dim_val
+  </select>
+  <select id="uploadStatus" resultType="string" useCache="false">
+    SELECT upld_stts_cd FROM sys.upld WHERE upld_id=#{id} AND form_cd='B.11'
+  </select>
+  <update id="lockScope">
+    LOCK TABLE fin.mth_cls IN SHARE MODE;
+    LOCK TABLE fin.mth_pl IN SHARE ROW EXCLUSIVE MODE;
+    LOCK TABLE fin.mth_pl_dtl IN SHARE ROW EXCLUSIVE MODE
+  </update>
+  <insert id="saveReview">
+    INSERT INTO sys.upld(upld_id,form_cd,scrn_id,obj_key_val,file_nm,file_path_addr,
+      tot_row_cnt,nrml_row_cnt,err_row_cnt,wrn_row_cnt,upld_stts_cd,ovwr_yn,upld_user_id)
+    VALUES(#{review.id},'B.11','UI-08','2025',#{review.name},#{review.path},#{result.row_count},
+      greatest(0,#{result.row_count}-#{result.error_count}),#{result.error_count},0,#{status},'Y',#{actor})
+    ON CONFLICT(upld_id) DO UPDATE SET upld_stts_cd=EXCLUDED.upld_stts_cd,
+      tot_row_cnt=EXCLUDED.tot_row_cnt,nrml_row_cnt=EXCLUDED.nrml_row_cnt,err_row_cnt=EXCLUDED.err_row_cnt
+  </insert>
+  <delete id="deleteImports">
+    DELETE FROM fin.mth_pl_dtl d USING fin.mth_pl p WHERE d.pl_ym=p.pl_ym
+      AND p.pl_ym BETWEEN '2025-01' AND '2025-12' AND p.pl_src_cd='IMPORT';
+    DELETE FROM fin.mth_pl WHERE pl_ym BETWEEN '2025-01' AND '2025-12' AND pl_src_cd='IMPORT'
+  </delete>
+  <insert id="insertSnapshot">
+    INSERT INTO fin.mth_pl(pl_ym,pl_src_cd,sls_amt,aloc_cst_amt,idle_cst_amt,drct_expns_amt,sga_input_amt,
+      indrct_lbr_cst_amt,rnd_cst_amt,prvmn_adj_amt,nop_incm_amt,nop_exp_amt,corp_tax_amt,aloc_sls_amt,upld_id,cnfrm_user_id)
+    VALUES(#{row.month},'IMPORT',#{row.revenue},#{row.allocatedCost},#{row.idleCost},#{row.directExpense},#{row.sgaInput},
+      #{row.indirectLabor},#{row.researchCost},#{row.adjustment},#{row.nonOperatingIncome},#{row.nonOperatingExpense},
+      #{row.corporateTax},#{row.allocatedRevenue},#{uploadId},#{actor})
+  </insert>
+  <insert id="insertDetail">
+    INSERT INTO fin.mth_pl_dtl(pl_ym,dim_ty_cd,dim_val,cst_amt) VALUES(#{month},'SGA_ITEM',#{code},#{amount})
+  </insert>
+  <insert id="audit">
+    INSERT INTO sys.data_chg_hist(tbl_nm,obj_rec_id,data_chg_ty_cd,clmn_nm,bfr_val,aft_val,chg_user_id)
+    VALUES(#{table},#{id},#{type},'과거 손익',#{before},#{after},#{actor})
+  </insert>
+  <insert id="access">
+    INSERT INTO sys.acs_hist(user_id,acs_ty_cd,scrn_id,obj_desc,dtl_desc)
+    VALUES(#{actor},#{type},'UI-08',#{display},#{detail})
+  </insert>
+</mapper>

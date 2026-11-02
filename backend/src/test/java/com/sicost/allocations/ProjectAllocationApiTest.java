@@ -96,7 +96,9 @@ class ProjectAllocationApiTest {
     }
     @Test void allStagePriorityAndMismatchNeverBlocksSave() throws Exception {
         for (String stage : List.of("EST", "FINAL", "ACTUAL")) save(stage, item(600000000)).andExpect(status().isOk());
-        save("ACTUAL", item(590000000)).andExpect(status().isOk());
+        mvc.perform(put("/api/projects/1/allocations").param("stage", "ACTUAL")
+            .contentType(MediaType.APPLICATION_JSON).content(item(590000000)))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.data.activeStage").value("ACTUAL"));
         read().andExpect(jsonPath("$.data.activeStage").value("ACTUAL"))
                 .andExpect(jsonPath("$.data.cur_cntrct_amt").value(600000000))
                 .andExpect(jsonPath("$.data.items[0].months[0].aloc_amt").value(590000000));

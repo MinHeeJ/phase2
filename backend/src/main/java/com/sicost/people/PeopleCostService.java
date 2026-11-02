@@ -48,6 +48,23 @@ public class PeopleCostService {
     }
     public PeopleList list(Query q) { return list(q, false); }
     public PeopleList full(Query q) { return list(q, true); }
+    public Summary monthlyUtilization(String month, Long partId) {
+        permissions.can(CostActions.PEOPLE_READ);
+        String selected = CostValues.month(month, clock).toString();
+        if (partId != null) CostValues.id(partId, "partId");
+        var period = new Period(selected, selected);
+        var people = mapper.people(period).stream()
+            .filter(p -> partId == null || Objects.equals(partId, p.bsn_part_id())).toList();
+        var allocationMonth = allocation.calculate(selected, null);
+        var data = new Data(List.of(selected), people, mapper.projects(period),
+            List.of(allocationMonth), allocationMonth.warnings());
+        var q = PeopleInput.query(Map.of("year", selected.substring(0, 4)), clock);
+        var grouped = new TreeMap<Long,List<PersonMonth>>();
+        people.forEach(p -> grouped.computeIfAbsent(p.dev_id(), k -> new ArrayList<>()).add(p));
+        var rows = grouped.entrySet().stream().map(e -> row(q, data, e.getValue(),
+            data.links().stream().filter(l -> l.dev_id() == e.getKey()).toList())).toList();
+        return summary(rows, data);
+    }
     private PeopleList list(Query q, boolean full) {
         permissions.can(CostActions.PEOPLE_READ);
         var data = data(q);

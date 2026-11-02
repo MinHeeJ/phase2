@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sicost.cashflow.CashFlowMapper">
+  <resultMap id="balance" type="com.sicost.cashflow.CashFlowModels$Balance"><constructor>
+    <arg column="month" javaType="java.lang.String"/><arg column="amount" javaType="java.lang.Long"/>
+    <arg column="closing" javaType="java.lang.Long"/><arg column="minimum" javaType="java.lang.Long"/>
+    <arg column="initial" javaType="java.lang.String"/><arg column="status" javaType="java.lang.String"/>
+  </constructor></resultMap>
+  <resultMap id="inflow" type="com.sicost.cashflow.CashFlowModels$Inflow"><constructor>
+    <arg column="inflw_id" javaType="java.lang.Long"/><arg column="month" javaType="java.lang.String"/>
+    <arg column="amount" javaType="_long"/><arg column="inflw_se_cd" javaType="java.lang.String"/>
+    <arg column="inflw_item_nm" javaType="java.lang.String"/><arg column="planned_date" javaType="java.time.LocalDate"/>
+    <arg column="actual_date" javaType="java.time.LocalDate"/><arg column="remark" javaType="java.lang.String"/>
+  </constructor></resultMap>
+  <resultMap id="event" type="com.sicost.cashflow.CashFlowModels$Event"><constructor>
+    <arg column="planned_date" javaType="java.time.LocalDate"/><arg column="planned_amount" javaType="_long"/>
+    <arg column="actual_date" javaType="java.time.LocalDate"/><arg column="actual_amount" javaType="_long"/>
+    <arg column="remaining_amount" javaType="_long"/><arg column="inflow" javaType="_boolean"/><arg column="category" javaType="java.lang.String"/>
+  </constructor></resultMap>
+  <select id="initial" resultMap="balance" useCache="false">
+    SELECT b.bal_ym AS month,b.bgn_bal_amt AS amount,b.end_bal_amt AS closing,b.min_oprt_fund_amt AS minimum,
+      b.init_yn AS initial,c.cls_stts_cd AS status FROM fin.cash_bal b LEFT JOIN fin.mth_cls c ON c.cls_ym=b.bal_ym WHERE b.init_yn='Y'
+  </select>
+  <select id="balances" resultMap="balance">
+    SELECT COALESCE(c.cls_ym,b.bal_ym) AS month,b.bgn_bal_amt AS amount,b.end_bal_amt AS closing,b.min_oprt_fund_amt AS minimum,
+      b.init_yn AS initial,c.cls_stts_cd AS status FROM fin.mth_cls c FULL JOIN fin.cash_bal b ON c.cls_ym=b.bal_ym
+  </select>
+  <select id="monthStatus" resultType="string">SELECT cls_stts_cd FROM fin.mth_cls WHERE cls_ym=#{month}</select>
+  <update id="lockOpening">LOCK TABLE fin.cash_bal IN SHARE ROW EXCLUSIVE MODE</update>
+  <insert id="saveOpening">
+    INSERT INTO fin.cash_bal(bal_ym,bgn_bal_amt,init_yn,updated_by,updated_at)
+    VALUES(#{input.month},#{input.amount},'Y',#{actor},CURRENT_TIMESTAMP)
+    ON CONFLICT(bal_ym) DO UPDATE SET bgn_bal_amt=EXCLUDED.bgn_bal_amt,init_yn='Y',updated_by=EXCLUDED.updated_by,updated_at=CURRENT_TIMESTAMP
+  </insert>
+  <sql id="inflowColumns">inflw_id,to_char(COALESCE(inflw_plan_dt,rcpt_dt),'YYYY-MM') AS month,inflw_amt AS amount,inflw_se_cd,inflw_item_nm,inflw_plan_dt AS planned_date,rcpt_dt AS actual_date,rmrk_desc AS remark</sql>
+  <select id="inflows" resultMap="inflow">SELECT <include refid="inflowColumns"/> FROM fin.etc_inflw ORDER BY COALESCE(inflw_plan_dt,rcpt_dt) DESC,inflw_id DESC</select>
+  <select id="inflow" resultMap="inflow" useCache="false" flushCache="true">SELECT <include refid="inflowColumns"/> FROM fin.etc_inflw WHERE inflw_id=#{id} FOR UPDATE</select>
+  <select id="insertInflow" resultType="long" affectData="true" flushCache="true">
+    INSERT INTO fin.etc_inflw(inflw_se_cd,inflw_item_nm,inflw_amt,inflw_plan_dt,rcpt_dt,rmrk_desc,created_by)
+    VALUES(#{input.inflw_se_cd},#{input.inflw_item_nm},#{input.amount},#{input.planned_date},#{input.actual_date},#{input.remark},#{actor}) RETURNING inflw_id
+  </select>
+  <update id="updateInflow">UPDATE fin.etc_inflw SET inflw_se_cd=#{input.inflw_se_cd},inflw_item_nm=#{input.inflw_item_nm},inflw_amt=#{input.amount},inflw_plan_dt=#{input.planned_date},rcpt_dt=#{input.actual_date},rmrk_desc=#{input.remark} WHERE inflw_id=#{input.inflw_id}</update>
+  <insert id="audit">INSERT INTO sys.data_chg_hist(tbl_nm,obj_rec_id,data_chg_ty_cd,clmn_nm,bfr_val,aft_val,chg_user_id) VALUES(#{table},#{id},#{type},'자금 입력',#{before},#{after},#{actor})</insert>
+  <select id="events" resultMap="event">
+    SELECT inflw_plan_dt AS planned_date,inflw_amt AS planned_amount,rcpt_dt AS actual_date,
+      CASE WHEN rcpt_dt IS NULL THEN 0 ELSE inflw_amt END AS actual_amount,
+      CASE WHEN rcpt_dt IS NULL THEN inflw_amt ELSE 0 END AS remaining_amount,true AS inflow,inflw_se_cd AS category FROM fin.etc_inflw
+    UNION ALL
+    SELECT p.pay_plan_dt,
+      CASE WHEN EXISTS(SELECT 1 FROM fin.pay child WHERE child.cry_pay_id=p.pay_id AND child.pay_stts_cd!='CANCEL')
+        THEN COALESCE((SELECT sum(x.pay_amt) FROM fin.pay_execution x WHERE x.pay_id=p.pay_id),0) ELSE p.pay_amt END,
+      NULL::date,0,
+      CASE WHEN p.pay_stts_cd='PAID' OR EXISTS(SELECT 1 FROM fin.pay child WHERE child.cry_pay_id=p.pay_id AND child.pay_stts_cd!='CANCEL') THEN 0
+        ELSE GREATEST(p.pay_amt-COALESCE((SELECT sum(x.pay_amt) FROM fin.pay_execution x WHERE x.pay_id=p.pay_id),0),0) END,false,p.pay_se_cd
+      FROM fin.pay p WHERE p.pay_stts_cd!='CANCEL'
+    UNION ALL
+    SELECT NULL::date,0,x.pay_dt,x.pay_amt,0,false,p.pay_se_cd FROM fin.pay_execution x JOIN fin.pay p ON p.pay_id=x.pay_id
+    UNION ALL
+    SELECT e.inout_dt,e.entry_amt+e.vat_amt,
+      CASE WHEN e.inout_cmpl_yn='Y' THEN e.inout_dt END,
+      CASE WHEN e.inout_cmpl_yn='Y' THEN e.entry_amt+e.vat_amt ELSE 0 END,
+      CASE WHEN e.inout_cmpl_yn='Y' THEN 0 ELSE e.entry_amt+e.vat_amt END,e.fin_se_cd='NOI',e.fin_se_cd
+      FROM fin.entry e WHERE e.deleted_yn='N' AND e.inout_dt IS NOT NULL
+        AND NOT EXISTS(SELECT 1 FROM fin.pay p WHERE p.pay_src_cd='AUTO_FIN' AND p.src_rec_id=e.entry_id AND p.pay_se_cd IN ('SGA','ETC') AND p.pay_stts_cd!='CANCEL')
+    UNION ALL
+    SELECT t.pay_plan_dt,COALESCE(t.plan_amt,0),t.pay_dt,COALESCE(t.pay_amt,0),
+      CASE WHEN t.pay_dt IS NULL THEN COALESCE(t.plan_amt,0) ELSE 0 END,false,'CORP_TAX'
+      FROM fin.corp_tax_pay t WHERE NOT EXISTS(SELECT 1 FROM fin.pay p WHERE p.pay_src_cd='AUTO_FIN'
+        AND p.pay_se_cd='CORP_TAX' AND p.src_rec_id=t.tax_pay_id AND p.pay_stts_cd!='CANCEL')
+    UNION ALL
+    SELECT b.rcpt_plan_dt,
+      b.tot_amt+COALESCE((SELECT sum(a.tot_amt) FROM bill.bill a WHERE a.orgnl_bill_id=b.bill_id AND a.amnd_yn='Y' AND a.bill_stts_cd='CONFIRM'),0),
+      NULL::date,0,
+      GREATEST(b.tot_amt+COALESCE((SELECT sum(a.tot_amt) FROM bill.bill a WHERE a.orgnl_bill_id=b.bill_id AND a.amnd_yn='Y' AND a.bill_stts_cd='CONFIRM'),0)
+        -COALESCE((SELECT sum(r.rcpt_amt) FROM bill.rcpt r WHERE r.bill_id=b.bill_id),0),0),true,'BILLING'
+      FROM bill.bill b WHERE b.amnd_yn='N' AND b.bill_stts_cd='CONFIRM'
+  </select>
+</mapper>

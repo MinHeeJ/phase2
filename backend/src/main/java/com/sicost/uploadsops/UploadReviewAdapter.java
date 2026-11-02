@@ -6,6 +6,7 @@ import static com.sicost.uploadsops.PersonnelUploadModels.*;
 import static com.sicost.uploadsops.UploadModels.*;
 
 public interface UploadReviewAdapter {
+    default String permissionKey(String action) { return "UI-13." + action; }
     boolean supports(long id);
     boolean supportsForm(String form);
     Result result(long id);

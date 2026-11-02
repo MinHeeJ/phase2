@@ -78,7 +78,7 @@ class AssignmentApiTest {
         mvc.perform(get("/api/assignments").param("year","2026").param("q","없는 이름"))
             .andExpect(status().isOk()).andExpect(jsonPath("$.data.items").isEmpty()).andExpect(jsonPath("$.data.total").value(0));
     }
-    @Test void warningFilterUsesFreshCausesAndSameTotal() throws Exception {
+    @Test void businessWarningFilterUsesFreshCausesAndSameTotal() throws Exception {
         row=row("ACTIVE",true,true,true,true,7000000L);
         mvc.perform(get("/api/assignments").param("year","2026").param("warning","OVER_MM"))
             .andExpect(status().isOk()).andExpect(jsonPath("$.data.items[0].warnings.length()").value(4)).andExpect(jsonPath("$.data.total").value(1));
@@ -102,7 +102,10 @@ class AssignmentApiTest {
         verify(mapper,never()).insert(any()); verify(mapper,never()).start(any());
     }
     @Test void anonymousCreateWritesParentRateOpenMmAndStart() throws Exception {
-        save(input()).andExpect(status().isOk()).andExpect(jsonPath("$.success").value(true)).andExpect(jsonPath("$.data.assignment.asgn_no").value("A-0001"));
+        mvc.perform(post("/api/assignments").contentType("application/json").content(json.writeValueAsString(input())))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.success").value(true))
+            .andExpect(jsonPath("$.data.assignment.asgn_stts_cd").value("ACTIVE"))
+            .andExpect(jsonPath("$.data.assignment.asgn_no").value("A-0001"));
         var order=inOrder(concurrency,mapper); order.verify(concurrency).lockProject(1); order.verify(mapper).project(1);
         verify(mapper).insert(argThat(w -> w.id()==1 && w.number().equals("A-0001")));
         verify(mapper).month(argThat(w -> w.month().equals("2026-10") && w.quantity().compareTo(new BigDecimal("0.52"))==0));

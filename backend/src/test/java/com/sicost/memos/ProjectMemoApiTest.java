@@ -117,7 +117,7 @@ class ProjectMemoApiTest {
             .andExpect(jsonPath("$.code").value("NOT_FOUND"));
         noWrites();
     }
-    @Test void anonymousTodayInsertUsesSeoulDateNullActorAndExactEnvelope() throws Exception {
+    @Test void anonymousTodayInsertSideEffectUsesSeoulDateNullActorAndExactEnvelope() throws Exception {
         mvc.perform(post("/api/projects/1/memos").contentType(MediaType.APPLICATION_JSON)
             .content(json.writeValueAsString(input()))).andExpect(status().isOk()).andExpect(jsonPath("$.success").value(true))
             .andExpect(jsonPath("$.meta").isMap()).andExpect(jsonPath("$.data.memo_id").value(1))
@@ -134,7 +134,7 @@ class ProjectMemoApiTest {
             .andExpect(jsonPath("$.data.cmpl_work_desc").value("두번째 내용")).andExpect(jsonPath("$.data.actl_prgs_rt").value(0));
         assertThat(rows).hasSize(1); verify(mapper,times(1)).insert(any());
     }
-    @Test void anonymousLatestPutPreservesOldDateAndIdentity() throws Exception {
+    @Test void anonymousLatestPutSideEffectPreservesOldDateAndIdentity() throws Exception {
         oldRow();
         var body = input(); body.put("plan_work_desc","바꾼 할 일");
         mvc.perform(put("/api/projects/1/memos/7").contentType(MediaType.APPLICATION_JSON)

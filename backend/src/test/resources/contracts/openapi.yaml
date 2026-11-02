@@ -8,1338 +8,6 @@ info:
     봉투와 OQ-010 입력/성공 세부가 미해결이므로 build-ready가 아니다. 생성 완료는 구현·실행·사용자 승인이 아니다.
 security: []
 paths:
-  /api/billings:
-    get:
-      summary: 연도 청구 목록
-      description: 인증 및 권한 제한 없이 호출한다. operationId 및 DTO는 OQ-004 승인 보류 제안.
-      security: []
-      x-related-requirements: [REQ-495, REQ-496, REQ-563, REQ-564, REQ-554, REQ-560]
-      x-permission-keys: [UI-13.read]
-      x-design-decision: &billing-design {status: 승인 보류 제안, open_question: OQ-004, reason: operationId 및 구체 wire 미명시}
-      parameters:
-      - {name: year, in: query, required: false, schema: {type: integer}}
-      - {name: status, in: query, required: false, schema: {type: string}}
-      - {name: type, in: query, required: false, schema: {type: string, enum: [TK, MO, DP]}}
-      - {name: customerId, in: query, required: false, schema: {type: integer, format: int64}}
-      - {name: q, in: query, required: false, schema: {type: string}}
-      - &billing-page {name: page, in: query, required: false, schema: {type: integer}, description: 시작 기준 OQ-010}
-      - &billing-size {name: size, in: query, required: false, schema: {type: integer, enum: [20, 50, 100]}}
-      - &billing-sort {name: sort, in: query, required: false, schema: {type: string}, description: 허용 필드 및 문법 OQ-010}
-      responses:
-        '200':
-          description: 성공
-          headers: &billing-headers
-            X-Request-Id: {description: 문의 추적 번호, schema: {type: string}}
-          content:
-            application/json:
-              schema:
-                allOf:
-                - {$ref: '#/components/schemas/ApiResponse'}
-                - {type: object, properties: {data: {$ref: '#/components/schemas/BillingPage'}}, required: [data]}
-        '400': &billing-validation
-          description: 'VALIDATION_ERROR: 필수값·형식·업무 입력 오류'
-          headers: *billing-headers
-          content: &billing-error-content
-            application/json: {schema: {$ref: '#/components/schemas/ApiError'}}
-        '500': &billing-server-error
-          description: 서버 오류; 쓰기 실패 시 트랜잭션 롤백
-          headers: *billing-headers
-          content: *billing-error-content
-      x-business-rules:
-      - TK 미연결 단계는 물리 행 없는 가상 PLAN; TK 확정은 bill_dt 연도, MO/DP atrb_ym 연도. 가상 단계 연도 판단은 원천 예정일 기준 여부 미정.
-      - 취소 행 포함 가능; 매출·미수는 CONFIRM만.
-      operationId: listBillings
-    post:
-      summary: 청구 DRAFT 생성
-      description: 인증 및 권한 제한 없이 호출한다. operationId 및 DTO는 OQ-004 승인 보류 제안.
-      security: []
-      x-related-requirements: [REQ-491, REQ-497, REQ-499, REQ-501, REQ-543, REQ-569, REQ-500, REQ-504, REQ-512, REQ-513, REQ-514, REQ-519, REQ-561, REQ-544, REQ-551, REQ-552]
-      x-permission-keys: [UI-13.create]
-      x-design-decision: {status: 승인 보류 제안, open_question: OQ-004, reason: operationId 및 구체 wire 미명시}
-      parameters: []
-      responses:
-        '200': &billing-detail-response
-          description: 성공
-          headers:
-            X-Request-Id: {description: 문의 추적 번호, schema: {type: string}}
-          content:
-            application/json:
-              schema:
-                allOf:
-                - {$ref: '#/components/schemas/ApiResponse'}
-                - {type: object, properties: {data: {$ref: '#/components/schemas/BillingDetail'}}, required: [data]}
-        '400': {description: 'VALIDATION_ERROR: 필수값·형식·업무 입력 오류', headers: {X-Request-Id: {description: 문의 추적 번호, schema: {type: string}}}, content: {application/json: {schema: {$ref: '#/components/schemas/ApiError'}}}}
-        '500': {description: 서버 오류; 쓰기 실패 시 트랜잭션 롤백, headers: {X-Request-Id: {description: 문의 추적 번호, schema: {type: string}}}, content: {application/json: {schema: {$ref: '#/components/schemas/ApiError'}}}}
-        '409':
-          description: CLOSED_MONTH, ALREADY_BILLED 및 동월 중복 충돌; 구체 후자 code 미정
-          headers:
-            X-Request-Id: {description: 문의 추적 번호, schema: {type: string}}
-          content:
-            application/json: {schema: {$ref: '#/components/schemas/ApiError'}}
-      x-business-rules:
-      - TK stage_id 또는 MO/DP month 필요. IN 400. TK 동일 유효 단계 ALREADY_BILLED. MO/DP 기존 DRAFT/CONFIRM에는 기존 청구 열기 안내; 추가는 명시 flag와 증가 차수 필수.
-      - 단가 없는 인력은 자동 생성 차단; 근태 누락 인력은 경고 후 제외. 번호 B-YYMM-월 일련번호, 100부터 3자리; 잠금으로 중복 방지.
-      requestBody:
-        required: true
-        content:
-          application/json: {schema: {$ref: '#/components/schemas/BillingCreate'}}
-      x-side-effects: &billing-side-effects
-      - 업무 데이터와 sys.data_chg_hist를 한 트랜잭션으로 기록; 실패 시 롤백. CurrentUser 없으면 기존 사용자 자리 사용.
-      operationId: createBilling
-      x-required-tests:
-      - 'happy: 유효 TK 단계 또는 MO·DP 귀속월로 생성하면 고유 B-YYMM-일련번호와 DRAFT 상세가 저장된다.'
-      - &billing-auth-test 'auth: 인증 헤더 없는 요청도 동일 업무 검증을 수행하며 로그인 이동·임의 401/403을 추가하지 않는다.'
-      - 'validation: IN 청구는 400, 유효하지 않은 단계·귀속월·금액은 필드 오류이고 행을 만들지 않는다.'
-      - 'business: 중복 단계 및 추가청구 flag 없는 중복 귀속은 거부하고 동시 요청 청구번호는 겹치지 않는다.'
-      - 'side-effect: bill.bill·bill_dtl·번호 발급·감사 기록 중 하나가 실패하면 전체 트랜잭션을 롤백한다.'
-  /api/billings/preview:
-    get:
-      summary: 청구 원천 미리보기
-      description: 인증 및 권한 제한 없이 호출한다. operationId 및 DTO는 OQ-004 승인 보류 제안.
-      security: []
-      x-related-requirements: [REQ-499, REQ-501, REQ-503, REQ-505, REQ-507, REQ-568, REQ-575, REQ-576, REQ-500]
-      x-permission-keys: [UI-13.read]
-      x-design-decision: {status: 승인 보류 제안, open_question: OQ-004, reason: operationId 및 구체 wire 미명시}
-      parameters:
-      - {name: projectId, in: query, required: true, schema: {type: integer, format: int64}}
-      - {name: month, in: query, required: false, schema: {$ref: '#/components/schemas/YearMonth'}}
-      - {name: stageId, in: query, required: false, schema: {type: integer, format: int64}}
-      responses:
-        '200':
-          description: 성공
-          headers: *billing-headers
-          content:
-            application/json:
-              schema:
-                allOf:
-                - {$ref: '#/components/schemas/ApiResponse'}
-                - {type: object, properties: {data: {$ref: '#/components/schemas/BillingPreview'}}, required: [data]}
-        '400': {description: 'VALIDATION_ERROR: 필수값·형식·업무 입력 오류', headers: {X-Request-Id: {description: 문의 추적 번호, schema: {type: string}}}, content: {application/json: {schema: {$ref: '#/components/schemas/ApiError'}}}}
-        '500': {description: 서버 오류; 쓰기 실패 시 트랜잭션 롤백, headers: {X-Request-Id: {description: 문의 추적 번호, schema: {type: string}}}, content: {application/json: {schema: {$ref: '#/components/schemas/ApiError'}}}}
-      x-business-rules:
-      - 저장 없음. TK 단계 또는 MO/DP 월 선택. MONTH는 MM×해당월 단가, DAY는 일수×일 단가, HOUR는 정규시간×시간 단가+수동 초과금액; 원 단위 버림, 무상 0.
-      - 월 시작일 단가 이력, 계약상 표기 인력/실제 추적 인력; 단가 부재는 생성 차단, 근태 부재는 경고·상세 제외. VAT_RATE 기본 10%, 사용자 수정 가능.
-      operationId: previewBilling
-  /api/billings/{id}:
-    get:
-      summary: 청구 상세
-      description: 인증 및 권한 제한 없이 호출한다. operationId 및 DTO는 OQ-004 승인 보류 제안.
-      security: []
-      x-related-requirements: [REQ-505, REQ-565, REQ-577, REQ-579, REQ-504, REQ-506, REQ-566]
-      x-permission-keys: [UI-13.read]
-      x-design-decision: {status: 승인 보류 제안, open_question: OQ-004, reason: operationId 및 구체 wire 미명시}
-      parameters: &billing-id
-      - {name: id, in: path, required: true, schema: {type: integer, format: int64}}
-      responses:
-        '200': {description: 성공, headers: {X-Request-Id: {description: 문의 추적 번호, schema: {type: string}}}, content: {application/json: {schema: {allOf: [{$ref: '#/components/schemas/ApiResponse'}, {type: object, properties: {data: {$ref: '#/components/schemas/BillingDetail'}}, required: [data]}]}}}}
-        '400': {description: 'VALIDATION_ERROR: 필수값·형식·업무 입력 오류', headers: {X-Request-Id: {description: 문의 추적 번호, schema: {type: string}}}, content: {application/json: {schema: {$ref: '#/components/schemas/ApiError'}}}}
-        '500': {description: 서버 오류; 쓰기 실패 시 트랜잭션 롤백, headers: {X-Request-Id: {description: 문의 추적 번호, schema: {type: string}}}, content: {application/json: {schema: {$ref: '#/components/schemas/ApiError'}}}}
-      x-business-rules:
-      - 확정 상세 스냅샷, 입금, 수정 연관과 감사 이력 제공.
-      operationId: getBilling
-    put:
-      summary: DRAFT 수정
-      description: 인증 및 권한 제한 없이 호출한다. operationId 및 DTO는 OQ-004 승인 보류 제안.
-      security: []
-      x-related-requirements: [REQ-502, REQ-508, REQ-515, REQ-570, REQ-572, REQ-512, REQ-519, REQ-561]
-      x-permission-keys: [UI-13.update]
-      x-design-decision: {status: 승인 보류 제안, open_question: OQ-004, reason: operationId 및 구체 wire 미명시}
-      parameters: *billing-id
-      responses:
-        '200': {description: 성공, headers: {X-Request-Id: {description: 문의 추적 번호, schema: {type: string}}}, content: {application/json: {schema: {allOf: [{$ref: '#/components/schemas/ApiResponse'}, {type: object, properties: {data: {$ref: '#/components/schemas/BillingDetail'}}, required: [data]}]}}}}
-        '400': {description: 'VALIDATION_ERROR: 필수값·형식·업무 입력 오류', headers: {X-Request-Id: {description: 문의 추적 번호, schema: {type: string}}}, content: {application/json: {schema: {$ref: '#/components/schemas/ApiError'}}}}
-        '500': {description: 서버 오류; 쓰기 실패 시 트랜잭션 롤백, headers: {X-Request-Id: {description: 문의 추적 번호, schema: {type: string}}}, content: {application/json: {schema: {$ref: '#/components/schemas/ApiError'}}}}
-        '409': &billing-state-conflict
-          description: CLOSED_MONTH, STALE_BILL 및 해당 업무 충돌
-          headers:
-            X-Request-Id: {description: 문의 추적 번호, schema: {type: string}}
-          content:
-            application/json: {schema: {$ref: '#/components/schemas/ApiError'}}
-      x-business-rules:
-      - DRAFT만 수정; 명시 recalculate=true만 상세 재생성. tot_amt 직접 쓰기 금지. 원천 상세 합과 공급가 차이는 경고하되 확정 허용.
-      requestBody:
-        required: true
-        content:
-          application/json: {schema: {$ref: '#/components/schemas/BillingUpdate'}}
-      x-side-effects: *billing-side-effects
-      operationId: updateBilling
-      x-required-tests:
-      - 'happy: DRAFT 필드 수정은 입력 값을 보존하고 명시 재계산 요청만 원천 상세를 재생성한다.'
-      - *billing-auth-test
-      - 'validation: 잘못된 날짜·양수/음수 구분·부가세 입력을 400으로 거절한다.'
-      - 'business: CONFIRM 원본 금액·프로젝트·귀속월 변경과 CLOSED 월 변경은 409이며 기존 상세가 보존된다.'
-      - 'side-effect: 명시 재계산 전에는 asgn MM·단가 변경을 자동 반영하지 않고 변경 감사와 본행을 원자 저장한다.'
-  /api/billings/{id}/confirm:
-    post:
-      summary: DRAFT 확정
-      description: 인증 및 권한 제한 없이 호출한다. operationId 및 DTO는 OQ-004 승인 보류 제안.
-      security: []
-      x-related-requirements: [REQ-509, REQ-510, REQ-511, REQ-515, REQ-525, REQ-550, REQ-571, REQ-572, REQ-506, REQ-512, REQ-519, REQ-561, REQ-544]
-      x-permission-keys: [UI-13.confirm]
-      x-design-decision: {status: 승인 보류 제안, open_question: OQ-004, reason: operationId 및 구체 wire 미명시}
-      parameters: *billing-id
-      responses:
-        '200': {description: 성공, headers: {X-Request-Id: {description: 문의 추적 번호, schema: {type: string}}}, content: {application/json: {schema: {allOf: [{$ref: '#/components/schemas/ApiResponse'}, {type: object, properties: {data: {$ref: '#/components/schemas/BillingDetail'}}, required: [data]}]}}}}
-        '400': {description: 'VALIDATION_ERROR: 필수값·형식·업무 입력 오류', headers: {X-Request-Id: {description: 문의 추적 번호, schema: {type: string}}}, content: {application/json: {schema: {$ref: '#/components/schemas/ApiError'}}}}
-        '500': {description: 서버 오류; 쓰기 실패 시 트랜잭션 롤백, headers: {X-Request-Id: {description: 문의 추적 번호, schema: {type: string}}}, content: {application/json: {schema: {$ref: '#/components/schemas/ApiError'}}}}
-        '409': &billing-refund-conflict
-          description: CLOSED_MONTH, STALE_BILL, REFUND_REQUIRED
-          headers:
-            X-Request-Id: {description: 문의 추적 번호, schema: {type: string}}
-          content:
-            application/json: {schema: {$ref: '#/components/schemas/ApiError'}}
-      x-business-rules:
-      - 청구일 필수, 일반 공급가 양수, 수정 공급가 음수 및 VAT 0 이하; 번호 누락 경고 후 허용. 세금계산서는 기록만.
-      - 마감·상태 및 수정액 한도·입금 합 재검증. REFUND_REQUIRED는 조정 총액이 입금 합보다 작을 때. 행 잠금과 조건부 변경; 상세 스냅샷 불변.
-      x-side-effects: *billing-side-effects
-      operationId: confirmBilling
-      x-required-tests:
-      - 'happy: 양수 일반 DRAFT는 청구일을 검증한 후 CONFIRM이 되고 상세 스냅샷이 잠긴다.'
-      - *billing-auth-test
-      - 'validation: 청구일 누락·일반 공급가 0·허용하지 않은 부가세 부호는 400이다.'
-      - 'business: 원천 기준 합과 수동 공급가 차이는 경고하되 확정 허용; 세금계산서 번호 없음도 경고로 유지한다.'
-      - 'side-effect: 원천 asgn·단가 이력은 수정하지 않으며 확정 상태·금액·스냅샷·감사 기록은 함께 커밋 또는 롤백한다.'
-      x-no-request-body-reason: FR-058 및 CMN-1306·1308에 따라 경로 id로 식별한 저장된 DRAFT를 확정한다. 청구일·공급가·부가세·세금계산서 정보는 기존 PUT /api/billings/{id}로 먼저 저장하며 확정 시 저장값을 검증하고 상세 스냅샷을 잠근다. 확정 요청은 이 필드를 덮어쓰지 않으므로 추가 본문 입력이 없다.
-  /api/billings/{id}/cancel:
-    post:
-      summary: 청구 취소
-      description: 인증 및 권한 제한 없이 호출한다. operationId 및 DTO는 OQ-004 승인 보류 제안.
-      security: []
-      x-related-requirements: [REQ-517, REQ-518, REQ-550, REQ-578, REQ-512, REQ-519, REQ-561]
-      x-permission-keys: [UI-13.cancel]
-      x-design-decision: {status: 승인 보류 제안, open_question: OQ-004, reason: operationId 및 구체 wire 미명시}
-      parameters: *billing-id
-      responses:
-        '200': {description: 성공, headers: {X-Request-Id: {description: 문의 추적 번호, schema: {type: string}}}, content: {application/json: {schema: {allOf: [{$ref: '#/components/schemas/ApiResponse'}, {type: object, properties: {data: {$ref: '#/components/schemas/BillingDetail'}}, required: [data]}]}}}}
-        '400': {description: 'VALIDATION_ERROR: 필수값·형식·업무 입력 오류', headers: {X-Request-Id: {description: 문의 추적 번호, schema: {type: string}}}, content: {application/json: {schema: {$ref: '#/components/schemas/ApiError'}}}}
-        '500': {description: 서버 오류; 쓰기 실패 시 트랜잭션 롤백, headers: {X-Request-Id: {description: 문의 추적 번호, schema: {type: string}}}, content: {application/json: {schema: {$ref: '#/components/schemas/ApiError'}}}}
-        '409': *billing-state-conflict
-      x-business-rules:
-      - 사유 필수, 입금 0건 및 미마감만 취소; 행은 삭제하지 않는다.
-      requestBody:
-        required: true
-        content:
-          application/json: {schema: {$ref: '#/components/schemas/BillingCancel'}}
-      x-side-effects: *billing-side-effects
-      operationId: cancelBilling
-      x-required-tests:
-      - 'happy: 미마감·입금 0건인 청구를 사유와 함께 취소하면 CANCEL로 남고 원본은 삭제되지 않는다.'
-      - *billing-auth-test
-      - 'validation: 취소 사유 누락은 400이며 청구 상태와 금액은 이전 값을 유지한다.'
-      - 'business: 입금이 있거나 귀속월 또는 TK 청구월이 CLOSED이면 409로 거절한다.'
-      - 'side-effect: 취소 상태와 이력은 원자 저장하고 CONFIRM 매출·미수·중복 판정의 취소 제외 결과를 확인한다.'
-      x-state-transitions:
-      - {from: DRAFT, to: CANCEL, condition: '입금 0건, 미마감, 취소 사유 필수; 삭제하지 않음'}
-      - {from: CONFIRM, to: CANCEL, condition: '입금 0건, 미마감, 취소 사유 필수; 원본 금액·상세 보존'}
-  /api/billings/{id}/amendments:
-    post:
-      summary: 음수 수정 청구 DRAFT
-      description: 인증 및 권한 제한 없이 호출한다. operationId 및 DTO는 OQ-004 승인 보류 제안.
-      security: []
-      x-related-requirements: [REQ-509, REQ-516, REQ-523, REQ-524, REQ-525, REQ-577, REQ-498, REQ-513, REQ-514]
-      x-permission-keys: [UI-13.create]
-      x-design-decision: {status: 승인 보류 제안, open_question: OQ-004, reason: operationId 및 구체 wire 미명시}
-      parameters: *billing-id
-      responses:
-        '200': {description: 성공, headers: {X-Request-Id: {description: 문의 추적 번호, schema: {type: string}}}, content: {application/json: {schema: {allOf: [{$ref: '#/components/schemas/ApiResponse'}, {type: object, properties: {data: {$ref: '#/components/schemas/BillingDetail'}}, required: [data]}]}}}}
-        '400': {description: 'VALIDATION_ERROR: 필수값·형식·업무 입력 오류', headers: {X-Request-Id: {description: 문의 추적 번호, schema: {type: string}}}, content: {application/json: {schema: {$ref: '#/components/schemas/ApiError'}}}}
-        '500': {description: 서버 오류; 쓰기 실패 시 트랜잭션 롤백, headers: {X-Request-Id: {description: 문의 추적 번호, schema: {type: string}}}, content: {application/json: {schema: {$ref: '#/components/schemas/ApiError'}}}}
-        '409': *billing-refund-conflict
-      x-business-rules:
-      - 확정 원본을 참조하고 새 번호 및 사유를 기록. 수정액 누적 한도·REFUND_REQUIRED는 생성과 확정 시 재검증. 원본 단계·상세 불변.
-      requestBody:
-        required: true
-        content:
-          application/json: {schema: {$ref: '#/components/schemas/BillingAmendmentCreate'}}
-      x-side-effects: *billing-side-effects
-      operationId: createBillingAmendment
-      x-required-tests:
-      - 'happy: 확정 원 청구에 연결된 음수 수정청구 DRAFT가 새로운 청구번호로 생성되고 원본 단계·금액은 불변이다.'
-      - *billing-auth-test
-      - 'validation: 공급가가 음수가 아니거나 부가세가 양수이면 400이다.'
-      - 'business: 수정 절댓값이 현재 청구금액을 초과하면 거절; 조정 총액이 기입금액보다 작아지면 409 REFUND_REQUIRED이다.'
-      - 'side-effect: 확정 전 수정액은 미수에 반영하지 않으며 새 상세·링크·번호·감사를 하나의 트랜잭션으로 기록한다.'
-  /api/billings/{id}/receipts:
-    get:
-      summary: 입금 목록
-      description: 인증 및 권한 제한 없이 호출한다. operationId 및 DTO는 OQ-004 승인 보류 제안.
-      security: []
-      x-related-requirements: [REQ-520, REQ-521, REQ-579]
-      x-permission-keys: [UI-13.read]
-      x-design-decision: {status: 승인 보류 제안, open_question: OQ-004, reason: operationId 및 구체 wire 미명시}
-      parameters: *billing-id
-      responses:
-        '200': {description: 성공, headers: {X-Request-Id: {description: 문의 추적 번호, schema: {type: string}}}, content: {application/json: {schema: {allOf: [{$ref: '#/components/schemas/ApiResponse'}, {type: object, properties: {data: {$ref: '#/components/schemas/BillingDetail'}}, required: [data]}]}}}}
-        '400': {description: 'VALIDATION_ERROR: 필수값·형식·업무 입력 오류', headers: {X-Request-Id: {description: 문의 추적 번호, schema: {type: string}}}, content: {application/json: {schema: {$ref: '#/components/schemas/ApiError'}}}}
-        '500': {description: 서버 오류; 쓰기 실패 시 트랜잭션 롤백, headers: {X-Request-Id: {description: 문의 추적 번호, schema: {type: string}}}, content: {application/json: {schema: {$ref: '#/components/schemas/ApiError'}}}}
-      x-business-rules:
-      - 해당 청구 입금과 조정 후 잔액을 반환한다.
-      operationId: listBillingReceipts
-    post:
-      summary: 입금 등록
-      description: 인증 및 권한 제한 없이 호출한다. operationId 및 DTO는 OQ-004 승인 보류 제안.
-      security: []
-      x-related-requirements: [REQ-520, REQ-521, REQ-522, REQ-549, REQ-550, REQ-579, REQ-519, REQ-561, REQ-551, REQ-552]
-      x-permission-keys: [UI-13.receipt]
-      x-design-decision: {status: 승인 보류 제안, open_question: OQ-004, reason: operationId 및 구체 wire 미명시}
-      parameters: *billing-id
-      responses:
-        '200': {description: 성공, headers: {X-Request-Id: {description: 문의 추적 번호, schema: {type: string}}}, content: {application/json: {schema: {allOf: [{$ref: '#/components/schemas/ApiResponse'}, {type: object, properties: {data: {$ref: '#/components/schemas/BillingDetail'}}, required: [data]}]}}}}
-        '400': {description: 'VALIDATION_ERROR: 필수값·형식·업무 입력 오류', headers: {X-Request-Id: {description: 문의 추적 번호, schema: {type: string}}}, content: {application/json: {schema: {$ref: '#/components/schemas/ApiError'}}}}
-        '500': {description: 서버 오류; 쓰기 실패 시 트랜잭션 롤백, headers: {X-Request-Id: {description: 문의 추적 번호, schema: {type: string}}}, content: {application/json: {schema: {$ref: '#/components/schemas/ApiError'}}}}
-        '409':
-          description: CLOSED_MONTH, OVER_RECEIPT, STALE_BILL; 취소·미확정·수정 청구는 409
-          headers:
-            X-Request-Id: {description: 문의 추적 번호, schema: {type: string}}
-          content:
-            application/json: {schema: {$ref: '#/components/schemas/ApiError'}}
-      x-business-rules:
-      - 확정 원본만; 금액은 부가세 포함 양수. 입금일 월 마감은 청구 월과 독립 검사. 청구 잠금 후 누계와 조정 총액을 검증.
-      requestBody:
-        required: true
-        content:
-          application/json: {schema: {$ref: '#/components/schemas/BillingReceipt'}}
-      x-side-effects: *billing-side-effects
-      operationId: createBillingReceipt
-      x-required-tests:
-      - 'happy: 확정 원본 총액 110에 양수 입금 30을 등록하면 잔액 80이고 매출 공급가는 그대로다.'
-      - *billing-auth-test
-      - 'validation: 입금일 누락·입금액 0 또는 음수는 400이며 입금행이 생성되지 않는다.'
-      - 'business: 초과입금은 409 OVER_RECEIPT; CANCEL·DRAFT·수정청구 입금은 거절한다.'
-      - 'side-effect: 청구별 잠금으로 동시 초과입금을 막고 입금·감사·잔액 검증은 원자 처리하되 청구 귀속월은 바꾸지 않는다.'
-  /api/billings/{id}/receipts/{receiptId}:
-    put:
-      summary: 입금 수정
-      description: 인증 및 권한 제한 없이 호출한다. operationId 및 DTO는 OQ-004 승인 보류 제안.
-      security: []
-      x-related-requirements: [REQ-526, REQ-527, REQ-549, REQ-579, REQ-519, REQ-561, REQ-522]
-      x-permission-keys: [UI-13.receipt]
-      x-design-decision: {status: 승인 보류 제안, open_question: OQ-004, reason: operationId 및 구체 wire 미명시}
-      parameters: &billing-receipt-id
-      - {name: id, in: path, required: true, schema: {type: integer, format: int64}}
-      - {name: receiptId, in: path, required: true, schema: {type: integer, format: int64}}
-      responses:
-        '200': {description: 성공, headers: {X-Request-Id: {description: 문의 추적 번호, schema: {type: string}}}, content: {application/json: {schema: {allOf: [{$ref: '#/components/schemas/ApiResponse'}, {type: object, properties: {data: {$ref: '#/components/schemas/BillingDetail'}}, required: [data]}]}}}}
-        '400': {description: 'VALIDATION_ERROR: 필수값·형식·업무 입력 오류', headers: {X-Request-Id: {description: 문의 추적 번호, schema: {type: string}}}, content: {application/json: {schema: {$ref: '#/components/schemas/ApiError'}}}}
-        '500': {description: 서버 오류; 쓰기 실패 시 트랜잭션 롤백, headers: {X-Request-Id: {description: 문의 추적 번호, schema: {type: string}}}, content: {application/json: {schema: {$ref: '#/components/schemas/ApiError'}}}}
-        '409': &billing-receipt-conflict
-          description: CLOSED_MONTH, OVER_RECEIPT, STALE_BILL
-          headers:
-            X-Request-Id: {description: 문의 추적 번호, schema: {type: string}}
-          content:
-            application/json: {schema: {$ref: '#/components/schemas/ApiError'}}
-      x-business-rules: &billing-receipt-rules
-      - 기존 입금일 월 및 변경 시 새 입금일 월 마감 검사. 청구 행 잠금, 잔액 재검증 및 감사 이력.
-      requestBody:
-        required: true
-        content:
-          application/json: {schema: {$ref: '#/components/schemas/BillingReceipt'}}
-      x-side-effects: *billing-side-effects
-      operationId: updateBillingReceipt
-      x-required-tests:
-      - 'happy: 미마감 입금 날짜·금액 수정 후 조정 총액에서 입금 합을 뺀 잔액을 재계산한다.'
-      - *billing-auth-test
-      - 'validation: 수정 금액 0·음수·날짜 누락은 400이며 이전 기록을 유지한다.'
-      - 'business: 입금 귀속월 CLOSED 또는 수정 후 누계 초과는 409이다.'
-      - 'side-effect: 입금 변경과 before/after 감사 기록을 원자 저장하고 bill.bill 확정 공급가·매출월은 보존한다.'
-      x-requirement-mapping-reason: REQ-522는 수정 입금액의 0·음수 및 누계 초과 검증을 포함하므로 PUT에 적용한다. DELETE는 금액 입력을 받지 않으므로 이 입력 검증을 수행하지 않는다. 두 연산 모두 REQ-526·527의 마감·감사·잠금 정책은 공유한다.
-    delete:
-      summary: 입금 삭제
-      description: 인증 및 권한 제한 없이 호출한다. operationId 및 DTO는 OQ-004 승인 보류 제안.
-      security: []
-      x-related-requirements: [REQ-526, REQ-527, REQ-549, REQ-579, REQ-519, REQ-561]
-      x-permission-keys: [UI-13.receipt]
-      x-design-decision: {status: 승인 보류 제안, open_question: OQ-004, reason: operationId 및 구체 wire 미명시}
-      parameters: *billing-receipt-id
-      responses:
-        '200': {description: 성공, headers: {X-Request-Id: {description: 문의 추적 번호, schema: {type: string}}}, content: {application/json: {schema: {allOf: [{$ref: '#/components/schemas/ApiResponse'}, {type: object, properties: {data: {$ref: '#/components/schemas/BillingDetail'}}, required: [data]}]}}}}
-        '400': {description: 'VALIDATION_ERROR: 필수값·형식·업무 입력 오류', headers: {X-Request-Id: {description: 문의 추적 번호, schema: {type: string}}}, content: {application/json: {schema: {$ref: '#/components/schemas/ApiError'}}}}
-        '500': {description: 서버 오류; 쓰기 실패 시 트랜잭션 롤백, headers: {X-Request-Id: {description: 문의 추적 번호, schema: {type: string}}}, content: {application/json: {schema: {$ref: '#/components/schemas/ApiError'}}}}
-        '409': *billing-receipt-conflict
-      x-business-rules: *billing-receipt-rules
-      x-side-effects: *billing-side-effects
-      operationId: deleteBillingReceipt
-      x-required-tests:
-      - 'happy: 미마감 입금 한 줄 삭제 후 남은 입금 합과 미수 잔액이 증가한 결과를 조회한다.'
-      - *billing-auth-test
-      - 'validation: 없는 원본/입금 연결은 오류로 반환하고 다른 청구의 입금을 삭제하지 않는다.'
-      - 'business: 마감 월 입금 삭제는 409이고 모든 입금·잔액·감사는 불변이다.'
-      - 'side-effect: 원본 청구 잠금 아래 삭제와 삭제 전 감사 값을 함께 커밋하며 원본 공급가와 귀속월을 유지한다.'
-  /api/dispatch-attendance:
-    get:
-      summary: 파견 근태 조회
-      description: 인증 및 권한 제한 없이 호출한다. operationId 및 DTO는 OQ-004 승인 보류 제안.
-      security: []
-      x-related-requirements: [REQ-503, REQ-545, REQ-546, REQ-573, REQ-576]
-      x-permission-keys: [UI-13.read]
-      x-design-decision: {status: 승인 보류 제안, open_question: OQ-004, reason: operationId 및 구체 wire 미명시}
-      parameters: &attendance-parameters
-      - {name: month, in: query, required: true, schema: {$ref: '#/components/schemas/YearMonth'}}
-      - {name: projectId, in: query, required: true, schema: {type: integer, format: int64}}
-      responses:
-        '200': &attendance-response
-          description: 성공
-          headers: *billing-headers
-          content:
-            application/json:
-              schema:
-                allOf:
-                - {$ref: '#/components/schemas/ApiResponse'}
-                - {type: object, properties: {data: {$ref: '#/components/schemas/DispatchAttendanceResult'}}, required: [data]}
-        '400': {description: 'VALIDATION_ERROR: 필수값·형식·업무 입력 오류', headers: {X-Request-Id: {description: 문의 추적 번호, schema: {type: string}}}, content: {application/json: {schema: {$ref: '#/components/schemas/ApiError'}}}}
-        '500': {description: 서버 오류; 쓰기 실패 시 트랜잭션 롤백, headers: {X-Request-Id: {description: 문의 추적 번호, schema: {type: string}}}, content: {application/json: {schema: {$ref: '#/components/schemas/ApiError'}}}}
-      x-business-rules: &attendance-rules
-      - month와 projectId 필수. DP DAY/HOUR 유효 배정만; DAY 일수, HOUR 정규시간 필수, 분모 양수, 음수 금지, 0시간/0일 허용.
-      - 근태 MM=일수/월 근무일수 소수 둘째 반올림, ⑦ MM 비교만; asgn_mth 변경 금지. 단가 없으면 저장 가능, 청구 생성 차단.
-      operationId: getDispatchAttendance
-    put:
-      summary: 파견 근태 수동 저장
-      description: 인증 및 권한 제한 없이 호출한다. operationId 및 DTO는 OQ-004 승인 보류 제안.
-      security: []
-      x-related-requirements: [REQ-503, REQ-545, REQ-546, REQ-573, REQ-576, REQ-504, REQ-519, REQ-561, REQ-551, REQ-552]
-      x-permission-keys: [UI-13.update]
-      x-design-decision: {status: 승인 보류 제안, open_question: OQ-004, reason: operationId 및 구체 wire 미명시}
-      parameters: *attendance-parameters
-      responses:
-        '200': *attendance-response
-        '400': {description: 'VALIDATION_ERROR: 필수값·형식·업무 입력 오류', headers: {X-Request-Id: {description: 문의 추적 번호, schema: {type: string}}}, content: {application/json: {schema: {$ref: '#/components/schemas/ApiError'}}}}
-        '500': {description: 서버 오류; 쓰기 실패 시 트랜잭션 롤백, headers: {X-Request-Id: {description: 문의 추적 번호, schema: {type: string}}}, content: {application/json: {schema: {$ref: '#/components/schemas/ApiError'}}}}
-        '409': &attendance-conflict
-          description: CLOSED_MONTH, ATTENDANCE_BILLED
-          headers:
-            X-Request-Id: {description: 문의 추적 번호, schema: {type: string}}
-          content:
-            application/json: {schema: {$ref: '#/components/schemas/ApiError'}}
-      x-business-rules: *attendance-rules
-      requestBody:
-        required: true
-        content:
-          application/json: {schema: {$ref: '#/components/schemas/DispatchAttendanceBatch'}}
-      x-side-effects: *billing-side-effects
-      operationId: saveDispatchAttendance
-      x-required-tests:
-      - 'happy: 유효 DP·DAY/HOUR 배정에 월 근무일수와 해당 방식의 필수 값을 입력하면 근태가 저장된다.'
-      - *billing-auth-test
-      - 'validation: 월 근무일수 0·누락·그달 범위 초과·음수·DAY 필수일수/HOUR 필수시간 누락은 필드 400이다.'
-      - 'business: 마감 월과 확정 청구 연결 근태 수정은 409; 단가가 없어도 근태 수동 저장은 가능하다.'
-      - 'side-effect: 근태 MM은 소수 둘째 자리 반올림하며 bill_dtl용 값만 제공하고 asgn.asgn_mth·단가 이력을 수정하지 않는다.'
-  /api/uploads/dispatch-attendance/validate:
-    post:
-      summary: B.3 근태 검사
-      description: 인증 및 권한 제한 없이 호출한다. operationId 및 DTO는 OQ-004 승인 보류 제안.
-      security: []
-      x-related-requirements: [REQ-545, REQ-555, REQ-556, REQ-557, REQ-558, REQ-559, REQ-574]
-      x-permission-keys: [UI-13.upload]
-      x-design-decision: {status: 승인 보류 제안, open_question: OQ-004, reason: operationId 및 구체 wire 미명시}
-      parameters: []
-      responses:
-        '200':
-          description: 성공
-          headers: *billing-headers
-          content:
-            application/json:
-              schema:
-                allOf:
-                - {$ref: '#/components/schemas/ApiResponse'}
-                - {type: object, properties: {data: {$ref: '#/components/schemas/UploadValidationResult'}}, required: [data]}
-        '400': {description: 'VALIDATION_ERROR: 필수값·형식·업무 입력 오류', headers: {X-Request-Id: {description: 문의 추적 번호, schema: {type: string}}}, content: {application/json: {schema: {$ref: '#/components/schemas/ApiError'}}}}
-        '500': {description: 서버 오류; 쓰기 실패 시 트랜잭션 롤백, headers: {X-Request-Id: {description: 문의 추적 번호, schema: {type: string}}}, content: {application/json: {schema: {$ref: '#/components/schemas/ApiError'}}}}
-        '409': *attendance-conflict
-      x-business-rules:
-      - ③ 공통 검사/결과/행 오류/오류 파일 계약 재사용. xlsx 10MB/1만 행, 실제 행 번호.
-      - '열: 연월, 프로젝트ID, 관리번호, 이름, 근무일수, 정규 근무시간, 초과 근무시간, 해당 월 근무일수. 유효 배정 필수, 파일 내 프로젝트+개발자+월 중복은 전체 REJECTED. 빈 초과시간 0.'
-      - 동월 선택 범위 전체 교체 전 검사 결과 제시, 오류 1개라도 업무 반영 금지.
-      x-side-effects: *billing-side-effects
-      operationId: validateDispatchAttendanceUpload
-      requestBody:
-        required: true
-        content:
-          multipart/form-data:
-            schema:
-              type: object
-              properties:
-                file: {type: string, format: binary}
-                month: {$ref: '#/components/schemas/YearMonth'}
-                projectId: {type: integer, format: int64}
-              required: [file, month, projectId]
-      x-required-tests:
-      - 'happy: 유효 B.3 xlsx를 검사하면 실제 행 번호·대응·월별 MM 미리보기 및 반영 가능 상태를 반환한다.'
-      - *billing-auth-test
-      - 'validation: 10MB·1만행 초과·제목 누락·잘못된 관리번호·월 근무일수 누락은 파일/행 오류다.'
-      - 'business: DP DAY/HOUR 외 양식, 유효 배정 없음, 마감 월·확정 연결 근태는 오류이며 부분 반영하지 않는다.'
-      - 'side-effect: 검사만으로 bill.dspch_atnd나 청구 상세를 변경하지 않고 기존 공통 업로드 검사 기록만 남긴다.'
-  /api/uploads/dispatch-attendance/apply:
-    post:
-      summary: B.3 근태 반영
-      description: 인증 및 권한 제한 없이 호출한다. operationId 및 DTO는 OQ-004 승인 보류 제안.
-      security: []
-      x-related-requirements: [REQ-545, REQ-558, REQ-559, REQ-562, REQ-574, REQ-519, REQ-561]
-      x-permission-keys: [UI-13.upload]
-      x-design-decision: {status: 승인 보류 제안, open_question: OQ-004, reason: operationId 및 구체 wire 미명시}
-      parameters: []
-      responses:
-        '200':
-          description: 성공
-          headers: *billing-headers
-          content:
-            application/json:
-              schema:
-                allOf:
-                - {$ref: '#/components/schemas/ApiResponse'}
-                - {type: object, properties: {data: {$ref: '#/components/schemas/BillingUploadApplyResult'}}, required: [data]}
-        '400': {description: 'VALIDATION_ERROR: 필수값·형식·업무 입력 오류', headers: {X-Request-Id: {description: 문의 추적 번호, schema: {type: string}}}, content: {application/json: {schema: {$ref: '#/components/schemas/ApiError'}}}}
-        '500': {description: 서버 오류; 쓰기 실패 시 트랜잭션 롤백, headers: {X-Request-Id: {description: 문의 추적 번호, schema: {type: string}}}, content: {application/json: {schema: {$ref: '#/components/schemas/ApiError'}}}}
-        '409': *attendance-conflict
-      x-business-rules:
-      - 검사 결과 기반 오류 없는 파일만 원자 반영; 선택 월·범위 전체 교체, 마감 또는 확정 사용 근태는 거부. 연결 DRAFT는 자동 재계산하지 않음. 공통 결과·이슈·오류 파일 경로 재사용.
-      requestBody:
-        required: true
-        content:
-          application/json: {schema: {$ref: '#/components/schemas/BillingUploadApply'}}
-      x-side-effects: *billing-side-effects
-      operationId: applyDispatchAttendanceUpload
-      x-required-tests:
-      - 'happy: 검사를 통과한 B.3의 동일 연월·선택 범위 미확정 근태를 한 트랜잭션으로 전체 교체한다.'
-      - *billing-auth-test
-      - 'validation: 행 오류·누락된 월 근무일수·검사 결과 변경은 반영을 거절하고 기존 근태를 유지한다.'
-      - 'business: 반영 직전 마감 또는 확정청구 연결이 생기면 409; 연결 DRAFT 상세는 다시 계산 전까지 불변이다.'
-      - 'side-effect: 교체·업로드·감사 저장 도중 한 건이라도 실패하면 전체 범위를 롤백하고 asgn MM·단가·원본 확정 상세는 보존한다.'
-  /api/billings/gaps:
-    get:
-      summary: 청구 누락 점검
-      description: 인증 및 권한 제한 없이 호출한다. operationId 및 DTO는 OQ-004 승인 보류 제안.
-      security: []
-      x-related-requirements: [REQ-536, REQ-537, REQ-538, REQ-539, REQ-540, REQ-541, REQ-542, REQ-580, REQ-581, REQ-547, REQ-560]
-      x-permission-keys: [UI-13.read]
-      x-design-decision: {status: 승인 보류 제안, open_question: OQ-004, reason: operationId 및 구체 wire 미명시}
-      parameters:
-      - {name: month, in: query, required: false, schema: {$ref: '#/components/schemas/YearMonth'}}
-      - {name: judgment, in: query, required: false, schema: {type: string}, description: 점검 판정 필터}
-      - {name: q, in: query, required: false, schema: {type: string}}
-      - *billing-page
-      - *billing-size
-      - *billing-sort
-      responses:
-        '200':
-          description: 성공
-          headers: *billing-headers
-          content:
-            application/json:
-              schema:
-                allOf:
-                - {$ref: '#/components/schemas/ApiResponse'}
-                - {type: object, properties: {data: {$ref: '#/components/schemas/BillingGapResult'}}, required: [data]}
-        '400': {description: 'VALIDATION_ERROR: 필수값·형식·업무 입력 오류', headers: {X-Request-Id: {description: 문의 추적 번호, schema: {type: string}}}, content: {application/json: {schema: {$ref: '#/components/schemas/ApiError'}}}}
-        '500': {description: 서버 오류; 쓰기 실패 시 트랜잭션 롤백, headers: {X-Request-Id: {description: 문의 추적 번호, schema: {type: string}}}, content: {application/json: {schema: {$ref: '#/components/schemas/ApiError'}}}}
-      x-business-rules:
-      - BillingGapService 원본 공유, 조회로 데이터 변경 없음. 기본 월은 마지막 CLOSED, 없으면 이번 달. MO/DP 사용 중 프로젝트×월, 유효 투입 또는 확정 청구.
-      - 근태 누락은 경고·맞음 아님; 유상 기준 0·확정 0은 누락 제외; 무료만·확정 0은 맞음(무상). CONFIRM 공급가 합에 음수 수정 포함.
-      - 차이=기준−청구. 확정 0건·기준 양수는 청구 없음; 그 외 허용차 max(10000, abs(기준)×0.005), 초과 시 적게/많이. 신규 투입자 일치 시 의심 안내.
-      operationId: listBillingGaps
-  /api/billings/overdue:
-    get:
-      summary: 미수와 알림 단계
-      description: 인증 및 권한 제한 없이 호출한다. operationId 및 DTO는 OQ-004 승인 보류 제안.
-      security: []
-      x-related-requirements: [REQ-521, REQ-528, REQ-529, REQ-530, REQ-531, REQ-534, REQ-535, REQ-548, REQ-582, REQ-583, REQ-560]
-      x-permission-keys: [UI-13.read]
-      x-design-decision: {status: 승인 보류 제안, open_question: OQ-004, reason: operationId 및 구체 wire 미명시}
-      parameters:
-      - {name: year, in: query, required: false, schema: {type: integer}}
-      - {name: stage, in: query, required: false, schema: {type: integer, minimum: 0, maximum: 3}}
-      - {name: customerId, in: query, required: false, schema: {type: integer, format: int64}}
-      - {name: overDays, in: query, required: false, schema: {type: integer, enum: [30, 60, 90]}, description: 엄격히 초과}
-      - {name: q, in: query, required: false, schema: {type: string}}
-      - *billing-page
-      - *billing-size
-      - *billing-sort
-      responses:
-        '200':
-          description: 성공
-          headers: *billing-headers
-          content:
-            application/json:
-              schema:
-                allOf:
-                - {$ref: '#/components/schemas/ApiResponse'}
-                - {type: object, properties: {data: {$ref: '#/components/schemas/BillingOverdueResult'}}, required: [data]}
-        '400': {description: 'VALIDATION_ERROR: 필수값·형식·업무 입력 오류', headers: {X-Request-Id: {description: 문의 추적 번호, schema: {type: string}}}, content: {application/json: {schema: {$ref: '#/components/schemas/ApiError'}}}}
-        '500': {description: 서버 오류; 쓰기 실패 시 트랜잭션 롤백, headers: {X-Request-Id: {description: 문의 추적 번호, schema: {type: string}}}, content: {application/json: {schema: {$ref: '#/components/schemas/ApiError'}}}}
-      x-business-rules:
-      - 조정 총액−입금 합 잔액 양수인 확정 원본만; 예정일 없는 잔액은 목록에 남고 단계 null. 완납 제외.
-      - Asia/Seoul 기준 예정일 초과 7/30/60일 이상 1/2/3단계, 이전 역할 포함; 30/60/90 초과 필터는 엄격한 >. 수신 역할만 계산하며 발송·계정 조회·dun_hist 쓰기 없음.
-      - OQ-003 다음 알림 산식 미정, 임의 날짜 산출 금지. 다시 알림 비활성; 보낸 기록 없으면 빈 배열.
-      - 미수 알림의 다음 알림 예정일은 입금 예정일에 아직 도달하지 않은 다음 단계 기준(7·30·60일)을 더한 날짜로 표시한다. Asia/Seoul 오늘 기준 연체 7일 미만은 +7일, 7일 이상 30일 미만은 +30일, 30일 이상 60일 미만은 +60일이며 60일 이상 3단계에서는 다음 예정일 없음(null)으로 표시한다. 입금 예정일이 없거나 미수 잔액이 0이면 다음 알림 예정일 없음이다. 실제 발송·재발송·dun_hist 저장은 구현하지 않는다.
-      operationId: listBillingOverdue
-  /api/billings/summary:
-    get:
-      summary: 청구·매출·입금·미수 집계
-      description: 인증 및 권한 제한 없이 호출한다. operationId 및 DTO는 OQ-004 승인 보류 제안.
-      security: []
-      x-related-requirements: [REQ-492, REQ-493, REQ-494, REQ-495, REQ-553, REQ-564, REQ-590]
-      x-permission-keys: [UI-13.read]
-      x-design-decision: {status: 승인 보류 제안, open_question: OQ-004, reason: operationId 및 구체 wire 미명시}
-      parameters:
-      - {name: year, in: query, required: false, schema: {type: integer}}
-      responses:
-        '200':
-          description: 성공
-          headers: *billing-headers
-          content:
-            application/json:
-              schema:
-                allOf:
-                - {$ref: '#/components/schemas/ApiResponse'}
-                - {type: object, properties: {data: {$ref: '#/components/schemas/BillingSummary'}}, required: [data]}
-        '400': {description: 'VALIDATION_ERROR: 필수값·형식·업무 입력 오류', headers: {X-Request-Id: {description: 문의 추적 번호, schema: {type: string}}}, content: {application/json: {schema: {$ref: '#/components/schemas/ApiError'}}}}
-        '500': {description: 서버 오류; 쓰기 실패 시 트랜잭션 롤백, headers: {X-Request-Id: {description: 문의 추적 번호, schema: {type: string}}}, content: {application/json: {schema: {$ref: '#/components/schemas/ApiError'}}}}
-      x-business-rules:
-      - CONFIRM만 집계, TK 청구일 월/MO·DP 귀속월 공급가와 입금일 기준 부가세 포함 현금 별도. 수정 청구 음수 포함, PLAN/DRAFT 별도.
-      - ⑩ BillingRevenueQuery 공급가, ⑪ 입금일 현금, ⑫ 번호 누락 경고, ⑭ 누락/미수 조회 재사용.
-      operationId: getBillingSummary
-  /api/costs/people:
-    get:
-      operationId: listCostPeople
-      summary: 개인 누계/평균·필터·합계·경고
-      security: []
-      parameters:
-      - name: year
-        in: query
-        required: true
-        schema:
-          type: integer
-      - name: view
-        in: query
-        required: false
-        schema:
-          type: string
-          enum:
-          - TOTAL
-          - AVERAGE
-      - name: empType
-        in: query
-        required: false
-        schema:
-          type: string
-      - name: partId
-        in: query
-        required: false
-        schema:
-          type: string
-      - name: vendorId
-        in: query
-        required: false
-        schema:
-          type: string
-      - name: contractType
-        in: query
-        required: false
-        schema:
-          type: string
-      - name: job
-        in: query
-        required: false
-        schema:
-          type: string
-      - name: lossOnly
-        in: query
-        required: false
-        schema:
-          type: boolean
-      - name: overlapOnly
-        in: query
-        required: false
-        schema:
-          type: boolean
-      - name: excludeTurnkeyPrice
-        in: query
-        required: false
-        schema:
-          type: boolean
-      - name: page
-        in: query
-        required: false
-        schema:
-          type: integer
-      - name: size
-        in: query
-        required: false
-        schema:
-          type: integer
-      - name: sort
-        in: query
-        required: false
-        schema:
-          type: string
-      x-related-requirements:
-      - REQ-607
-      x-design-decision: operationId와 성공 상태/입출력 JSON 형태는 OQ-01 승인 전 제안; 기존 인증 없는 정책
-        유지, 권한키는 향후 연계 메타데이터
-      responses:
-        '200':
-          description: 성공 (상태 및 JSON 형태 확인 필요; OQ-01)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiResponse'
-        '400':
-          description: VALIDATION_ERROR
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiError'
-        '404':
-          description: NOT_FOUND
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiError'
-        '409':
-          description: 해당 시 CLOSED_MONTH, PART_ALREADY_CONFIRMED, STALE_SETTLEMENT
-            또는 PART_STANDARD_MISSING
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiError'
-  /api/costs/people/{devId}/breakdown:
-    get:
-      operationId: getCostPersonBreakdown
-      summary: 사람별 프로젝트·대기 및 월별 근거
-      security: []
-      parameters:
-      - name: devId
-        in: path
-        required: true
-        schema:
-          type: string
-      - name: year
-        in: query
-        required: true
-        schema:
-          type: integer
-      - name: view
-        in: query
-        required: false
-        schema:
-          type: string
-          enum:
-          - TOTAL
-          - AVERAGE
-      x-related-requirements:
-      - REQ-608
-      x-design-decision: operationId와 성공 상태/입출력 JSON 형태는 OQ-01 승인 전 제안; 기존 인증 없는 정책
-        유지, 권한키는 향후 연계 메타데이터
-      responses:
-        '200':
-          description: 성공 (상태 및 JSON 형태 확인 필요; OQ-01)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiResponse'
-        '400':
-          description: VALIDATION_ERROR
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiError'
-        '404':
-          description: NOT_FOUND
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiError'
-        '409':
-          description: 해당 시 CLOSED_MONTH, PART_ALREADY_CONFIRMED, STALE_SETTLEMENT
-            또는 PART_STANDARD_MISSING
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiError'
-  /api/costs/projects:
-    get:
-      operationId: listCostProjects
-      summary: 프로젝트 수익·예산·마진·원인
-      security: []
-      parameters:
-      - name: year
-        in: query
-        required: true
-        schema:
-          type: integer
-      - name: type
-        in: query
-        required: false
-        schema:
-          type: string
-      - name: partId
-        in: query
-        required: false
-        schema:
-          type: string
-      - name: status
-        in: query
-        required: false
-        schema:
-          type: string
-      - name: q
-        in: query
-        required: false
-        schema:
-          type: string
-      - name: page
-        in: query
-        required: false
-        schema:
-          type: integer
-      - name: size
-        in: query
-        required: false
-        schema:
-          type: integer
-      - name: sort
-        in: query
-        required: false
-        schema:
-          type: string
-      x-related-requirements:
-      - REQ-609
-      x-design-decision: operationId와 성공 상태/입출력 JSON 형태는 OQ-01 승인 전 제안; 기존 인증 없는 정책
-        유지, 권한키는 향후 연계 메타데이터
-      responses:
-        '200':
-          description: 성공 (상태 및 JSON 형태 확인 필요; OQ-01)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiResponse'
-        '400':
-          description: VALIDATION_ERROR
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiError'
-        '404':
-          description: NOT_FOUND
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiError'
-        '409':
-          description: 해당 시 CLOSED_MONTH, PART_ALREADY_CONFIRMED, STALE_SETTLEMENT
-            또는 PART_STANDARD_MISSING
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiError'
-  /api/costs/projects/{id}:
-    get:
-      operationId: getCostProject
-      summary: 월별 원가·인력·계약·진척
-      security: []
-      parameters:
-      - name: id
-        in: path
-        required: true
-        schema:
-          type: string
-      - name: year
-        in: query
-        required: true
-        schema:
-          type: integer
-      x-related-requirements:
-      - REQ-610
-      x-design-decision: operationId와 성공 상태/입출력 JSON 형태는 OQ-01 승인 전 제안; 기존 인증 없는 정책
-        유지, 권한키는 향후 연계 메타데이터
-      responses:
-        '200':
-          description: 성공 (상태 및 JSON 형태 확인 필요; OQ-01)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiResponse'
-        '400':
-          description: VALIDATION_ERROR
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiError'
-        '404':
-          description: NOT_FOUND
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiError'
-        '409':
-          description: 해당 시 CLOSED_MONTH, PART_ALREADY_CONFIRMED, STALE_SETTLEMENT
-            또는 PART_STANDARD_MISSING
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiError'
-  /api/costs/projects/{id}/simulate:
-    post:
-      operationId: simulateCostProject
-      summary: 인원/월 원가/개월/단가 가상 계산; simulated=true, DB 미저장
-      security: []
-      parameters:
-      - name: id
-        in: path
-        required: true
-        schema:
-          type: string
-      x-related-requirements:
-      - REQ-611
-      x-design-decision: operationId와 성공 상태/입출력 JSON 형태는 OQ-01 승인 전 제안; 기존 인증 없는 정책
-        유지, 권한키는 향후 연계 메타데이터
-      responses:
-        '200':
-          description: 성공 (상태 및 JSON 형태 확인 필요; OQ-01)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiResponse'
-        '400':
-          description: VALIDATION_ERROR
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiError'
-        '404':
-          description: NOT_FOUND
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiError'
-        '409':
-          description: 해당 시 CLOSED_MONTH, PART_ALREADY_CONFIRMED, STALE_SETTLEMENT
-            또는 PART_STANDARD_MISSING
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiError'
-      x-contract-blockers:
-      - 'OQ-01: 요청 본문 필드명과 필수성 및 성공 응답 스키마 미확정; 본 계약은 구현 준비 완료가 아니다.'
-  /api/costs/projects/{id}/causes:
-    get:
-      operationId: getCostProjectCauses
-      summary: 세 원인·잔차·주원인·이동 정보
-      security: []
-      parameters:
-      - name: id
-        in: path
-        required: true
-        schema:
-          type: string
-      - name: year
-        in: query
-        required: true
-        schema:
-          type: integer
-      x-related-requirements:
-      - REQ-612
-      x-design-decision: operationId와 성공 상태/입출력 JSON 형태는 OQ-01 승인 전 제안; 기존 인증 없는 정책
-        유지, 권한키는 향후 연계 메타데이터
-      responses:
-        '200':
-          description: 성공 (상태 및 JSON 형태 확인 필요; OQ-01)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiResponse'
-        '400':
-          description: VALIDATION_ERROR
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiError'
-        '404':
-          description: NOT_FOUND
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiError'
-        '409':
-          description: 해당 시 CLOSED_MONTH, PART_ALREADY_CONFIRMED, STALE_SETTLEMENT
-            또는 PART_STANDARD_MISSING
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiError'
-  /api/settlements/parts:
-    get:
-      operationId: listPartSettlements
-      summary: 본사 제외 파트 상태 및 요약
-      security: []
-      parameters:
-      - name: month
-        in: query
-        required: true
-        schema:
-          type: string
-      x-related-requirements:
-      - REQ-613
-      x-design-decision: operationId와 성공 상태/입출력 JSON 형태는 OQ-01 승인 전 제안; 기존 인증 없는 정책
-        유지, 권한키는 향후 연계 메타데이터
-      responses:
-        '200':
-          description: 성공 (상태 및 JSON 형태 확인 필요; OQ-01)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiResponse'
-        '400':
-          description: VALIDATION_ERROR
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiError'
-        '404':
-          description: NOT_FOUND
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiError'
-        '409':
-          description: 해당 시 CLOSED_MONTH, PART_ALREADY_CONFIRMED, STALE_SETTLEMENT
-            또는 PART_STANDARD_MISSING
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiError'
-  /api/settlements/parts/{partId}:
-    get:
-      operationId: getPartSettlement
-      summary: 당월 인력 또는 1월~선택월 추이
-      security: []
-      parameters:
-      - name: partId
-        in: path
-        required: true
-        schema:
-          type: string
-      - name: month
-        in: query
-        required: true
-        schema:
-          type: string
-      - name: view
-        in: query
-        required: false
-        schema:
-          type: string
-          enum:
-          - MONTH
-          - TREND
-      x-related-requirements:
-      - REQ-614
-      x-design-decision: operationId와 성공 상태/입출력 JSON 형태는 OQ-01 승인 전 제안; 기존 인증 없는 정책
-        유지, 권한키는 향후 연계 메타데이터
-      responses:
-        '200':
-          description: 성공 (상태 및 JSON 형태 확인 필요; OQ-01)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiResponse'
-        '400':
-          description: VALIDATION_ERROR
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiError'
-        '404':
-          description: NOT_FOUND
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiError'
-        '409':
-          description: 해당 시 CLOSED_MONTH, PART_ALREADY_CONFIRMED, STALE_SETTLEMENT
-            또는 PART_STANDARD_MISSING
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiError'
-  /api/settlements/parts/{partId}/card:
-    put:
-      operationId: updatePartSettlementCard
-      summary: DRAFT 카드액·비고; 확정·마감 변경 불가
-      security: []
-      parameters:
-      - name: partId
-        in: path
-        required: true
-        schema:
-          type: string
-      - name: month
-        in: query
-        required: true
-        schema:
-          type: string
-      x-related-requirements:
-      - REQ-615
-      x-design-decision: operationId와 성공 상태/입출력 JSON 형태는 OQ-01 승인 전 제안; 기존 인증 없는 정책
-        유지, 권한키는 향후 연계 메타데이터
-      responses:
-        '200':
-          description: 성공 (상태 및 JSON 형태 확인 필요; OQ-01)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiResponse'
-        '400':
-          description: VALIDATION_ERROR
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiError'
-        '404':
-          description: NOT_FOUND
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiError'
-        '409':
-          description: 해당 시 CLOSED_MONTH, PART_ALREADY_CONFIRMED, STALE_SETTLEMENT
-            또는 PART_STANDARD_MISSING
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiError'
-      x-contract-blockers:
-      - 'OQ-01: 요청 본문 필드명과 필수성 및 성공 응답 스키마 미확정; 본 계약은 구현 준비 완료가 아니다.'
-  /api/settlements/parts/{partId}/confirm:
-    post:
-      operationId: confirmPartSettlement
-      summary: 원천 재검증·상세 스냅샷·CONFIRM 및 이력 원자 처리; 운영 승인 전 보류
-      security: []
-      parameters:
-      - name: partId
-        in: path
-        required: true
-        schema:
-          type: string
-      - name: month
-        in: query
-        required: true
-        schema:
-          type: string
-      x-related-requirements:
-      - REQ-616
-      x-design-decision: operationId와 성공 상태/입출력 JSON 형태는 OQ-01 승인 전 제안; 기존 인증 없는 정책
-        유지, 권한키는 향후 연계 메타데이터
-      responses:
-        '200':
-          description: 성공 (상태 및 JSON 형태 확인 필요; OQ-01)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiResponse'
-        '400':
-          description: VALIDATION_ERROR
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiError'
-        '404':
-          description: NOT_FOUND
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiError'
-        '409':
-          description: 해당 시 CLOSED_MONTH, PART_ALREADY_CONFIRMED, STALE_SETTLEMENT
-            또는 PART_STANDARD_MISSING
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiError'
-      x-contract-blockers:
-      - 'OQ-01: 요청 본문 필드명과 필수성 및 성공 응답 스키마 미확정; 본 계약은 구현 준비 완료가 아니다.'
-  /api/settlements/parts/{partId}/cancel:
-    post:
-      operationId: cancelPartSettlement
-      summary: 사유 필수; 미마감 CONFIRM만 DRAFT로 취소하고 이력 보존
-      security: []
-      parameters:
-      - name: partId
-        in: path
-        required: true
-        schema:
-          type: string
-      - name: month
-        in: query
-        required: true
-        schema:
-          type: string
-      x-related-requirements:
-      - REQ-617
-      x-design-decision: operationId와 성공 상태/입출력 JSON 형태는 OQ-01 승인 전 제안; 기존 인증 없는 정책
-        유지, 권한키는 향후 연계 메타데이터
-      responses:
-        '200':
-          description: 성공 (상태 및 JSON 형태 확인 필요; OQ-01)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiResponse'
-        '400':
-          description: VALIDATION_ERROR
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiError'
-        '404':
-          description: NOT_FOUND
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiError'
-        '409':
-          description: 해당 시 CLOSED_MONTH, PART_ALREADY_CONFIRMED, STALE_SETTLEMENT
-            또는 PART_STANDARD_MISSING
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiError'
-      x-contract-blockers:
-      - 'OQ-01: 요청 본문 필드명과 필수성 및 성공 응답 스키마 미확정; 본 계약은 구현 준비 완료가 아니다.'
-  /api/costs/renegotiations:
-    get:
-      operationId: listCostRenegotiations
-      summary: 유상 MO/DP 활성 투입 조회와 저장 없는 가정 계산
-      security: []
-      parameters:
-      - name: windowMonths
-        in: query
-        required: false
-        schema:
-          type: integer
-          enum:
-          - 3
-          - 6
-          - 12
-          default: 6
-      - name: marginBelow
-        in: query
-        required: false
-        schema:
-          type: number
-          enum:
-          - 10
-          - 15
-          - 20
-          default: 15
-      - name: raiseRate
-        in: query
-        required: false
-        schema:
-          type: number
-          minimum: 0
-          maximum: 50
-          default: 5
-      - name: empType
-        in: query
-        required: false
-        schema:
-          type: string
-      - name: projectId
-        in: query
-        required: false
-        schema:
-          type: string
-      - name: page
-        in: query
-        required: false
-        schema:
-          type: integer
-      - name: size
-        in: query
-        required: false
-        schema:
-          type: integer
-      - name: sort
-        in: query
-        required: false
-        schema:
-          type: string
-      x-related-requirements:
-      - REQ-618
-      x-design-decision: operationId와 성공 상태/입출력 JSON 형태는 OQ-01 승인 전 제안; 기존 인증 없는 정책
-        유지, 권한키는 향후 연계 메타데이터
-      responses:
-        '200':
-          description: 성공 (상태 및 JSON 형태 확인 필요; OQ-01)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiResponse'
-        '400':
-          description: VALIDATION_ERROR
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiError'
-        '404':
-          description: NOT_FOUND
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiError'
-        '409':
-          description: 해당 시 CLOSED_MONTH, PART_ALREADY_CONFIRMED, STALE_SETTLEMENT
-            또는 PART_STANDARD_MISSING
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiError'
-  /api/costs/allocation:
-    get:
-      operationId: getCostAllocation
-      summary: 월별 배분 조회; 마감은 스냅샷만, 없으면 오류
-      security: []
-      parameters:
-      - name: month
-        in: query
-        required: true
-        schema:
-          type: string
-      - name: projectId
-        in: query
-        required: false
-        schema:
-          type: string
-      x-related-requirements:
-      - REQ-619
-      x-design-decision: operationId와 성공 상태/입출력 JSON 형태는 OQ-01 승인 전 제안; 기존 인증 없는 정책
-        유지, 권한키는 향후 연계 메타데이터
-      responses:
-        '200':
-          description: 성공 (상태 및 JSON 형태 확인 필요; OQ-01)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiResponse'
-        '400':
-          description: VALIDATION_ERROR
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiError'
-        '404':
-          description: NOT_FOUND
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiError'
-        '409':
-          description: 해당 시 CLOSED_MONTH, PART_ALREADY_CONFIRMED, STALE_SETTLEMENT
-            또는 PART_STANDARD_MISSING
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiError'
   /api/menus:
     get:
       operationId: getMenus
@@ -11509,298 +10177,2274 @@ paths:
         usage: 사용중 비퇴사 인력 선택 및 주직무 기본값 재사용.
       - operationId: getCodeOptions
         usage: JOB·ASSIGN_KIND·RATE_BASIS·EXT_POSSIBILITY·ASGN_CHG_RSN 공통 선택 재사용.
+  /api/finance/entries:
+    get:
+      operationId: listFinanceEntries
+      summary: 월별 목록·저장 건수·자동 반복 초안 조회; 초안은 집계 제외
+      description: SPEC-REQUEST.md DEC-1502; 월별 목록·저장 건수·자동 반복 초안 조회; 초안은 집계 제외
+      x-related-requirements:
+      - REQ-491
+      - REQ-495
+      parameters:
+      - name: year
+        in: query
+        required: true
+        schema:
+          type: integer
+          minimum: 1
+      - name: month
+        in: query
+        required: true
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 12
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  required:
+                  - data
+                  properties:
+                    data:
+                      type: object
+                      properties:
+                        items:
+                          type: array
+                          items:
+                            $ref: '#/components/schemas/FinanceEntry'
+                        saved_count:
+                          type: integer
+                        drafts:
+                          type: array
+                          items:
+                            $ref: '#/components/schemas/FinanceEntry'
+        '400':
+          description: VALIDATION_ERROR; field에 입력 필드
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: NOT_FOUND
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '500':
+          description: INTERNAL_ERROR
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+    post:
+      operationId: createFinanceEntry
+      summary: 미마감 수기 항목 저장; 법인세 직접 등록 금지
+      description: SPEC-REQUEST.md DEC-1502; 미마감 수기 항목 저장; 법인세 직접 등록 금지
+      x-related-requirements:
+      - REQ-492
+      - REQ-494
+      parameters: []
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  required:
+                  - data
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/FinanceEntry'
+        '400':
+          description: VALIDATION_ERROR; field에 입력 필드
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: NOT_FOUND
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '500':
+          description: INTERNAL_ERROR
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '409':
+          description: CLOSED_MONTH, ALREADY_PAID, STALE_PAYMENT, DUPLICATE_SOURCE, INVALID_MONTH 또는 OPENING_BALANCE_REQUIRED
+            (해당 상황)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FinanceEntry'
+  /api/finance/entries/{id}:
+    put:
+      operationId: updateFinanceEntry
+      summary: 미마감 항목 수정 또는 삭제
+      description: SPEC-REQUEST.md DEC-1502; 미마감 항목 수정 또는 삭제
+      x-related-requirements:
+      - REQ-493
+      - REQ-494
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  required:
+                  - data
+                  properties:
+                    data:
+                      type: object
+                      properties: {}
+        '400':
+          description: VALIDATION_ERROR; field에 입력 필드
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: NOT_FOUND
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '500':
+          description: INTERNAL_ERROR
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '409':
+          description: CLOSED_MONTH, ALREADY_PAID, STALE_PAYMENT, DUPLICATE_SOURCE, INVALID_MONTH 또는 OPENING_BALANCE_REQUIRED
+            (해당 상황)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FinanceEntry'
+    delete:
+      operationId: deleteFinanceEntry
+      summary: 미마감 항목 수정 또는 삭제
+      description: SPEC-REQUEST.md DEC-1502; 미마감 항목 수정 또는 삭제
+      x-related-requirements:
+      - REQ-493
+      - REQ-494
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  required:
+                  - data
+                  properties:
+                    data:
+                      type: object
+                      properties: {}
+        '400':
+          description: VALIDATION_ERROR; field에 입력 필드
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: NOT_FOUND
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '500':
+          description: INTERNAL_ERROR
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '409':
+          description: CLOSED_MONTH, ALREADY_PAID, STALE_PAYMENT, DUPLICATE_SOURCE, INVALID_MONTH 또는 OPENING_BALANCE_REQUIRED
+            (해당 상황)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+  /api/finance/entries/copy-previous:
+    post:
+      operationId: previewPreviousFinanceEntries
+      summary: 전월 선택 복제 미리보기; 중복 표시, 확정 저장 별도
+      description: SPEC-REQUEST.md DEC-1502; 전월 선택 복제 미리보기; 중복 표시, 확정 저장 별도
+      x-related-requirements:
+      - REQ-496
+      parameters:
+      - name: month
+        in: query
+        required: true
+        schema:
+          type: string
+          pattern: ^[0-9]{4}-(0[1-9]|1[0-2])$
+      - name: includeNonRecurring
+        in: query
+        required: true
+        schema:
+          type: boolean
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  required:
+                  - data
+                  properties:
+                    data:
+                      type: object
+                      properties:
+                        items:
+                          type: array
+                          items:
+                            $ref: '#/components/schemas/FinanceEntry'
+        '400':
+          description: VALIDATION_ERROR; field에 입력 필드
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: NOT_FOUND
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '500':
+          description: INTERNAL_ERROR
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '409':
+          description: CLOSED_MONTH, ALREADY_PAID, STALE_PAYMENT, DUPLICATE_SOURCE, INVALID_MONTH 또는 OPENING_BALANCE_REQUIRED
+            (해당 상황)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                entry_ids:
+                  type: array
+                  items:
+                    type: integer
+                    format: int64
+  /api/finance/tax/plan:
+    get:
+      operationId: getTaxPlan
+      summary: 조회
+      description: SPEC-REQUEST.md DEC-1502; 조회
+      x-related-requirements:
+      - REQ-499
+      - REQ-500
+      - REQ-501
+      parameters:
+      - name: year
+        in: query
+        required: true
+        schema:
+          type: integer
+          minimum: 1
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  required:
+                  - data
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/FinanceTaxPlan'
+        '400':
+          description: VALIDATION_ERROR; field에 입력 필드
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: NOT_FOUND
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '500':
+          description: INTERNAL_ERROR
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+    put:
+      operationId: saveTaxPlan
+      summary: 저장; 마감 월 보호
+      description: SPEC-REQUEST.md DEC-1502; 저장; 마감 월 보호
+      x-related-requirements:
+      - REQ-499
+      - REQ-500
+      - REQ-501
+      parameters:
+      - name: year
+        in: query
+        required: true
+        schema:
+          type: integer
+          minimum: 1
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  required:
+                  - data
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/FinanceTaxPlan'
+        '400':
+          description: VALIDATION_ERROR; field에 입력 필드
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: NOT_FOUND
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '500':
+          description: INTERNAL_ERROR
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '409':
+          description: CLOSED_MONTH, ALREADY_PAID, STALE_PAYMENT, DUPLICATE_SOURCE, INVALID_MONTH 또는 OPENING_BALANCE_REQUIRED
+            (해당 상황)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FinanceTaxPlan'
+  /api/finance/tax/payments:
+    get:
+      operationId: getTaxPayments
+      summary: 조회
+      description: SPEC-REQUEST.md DEC-1502; 조회
+      x-related-requirements:
+      - REQ-502
+      parameters:
+      - name: year
+        in: query
+        required: true
+        schema:
+          type: integer
+          minimum: 1
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  required:
+                  - data
+                  properties:
+                    data:
+                      type: object
+                      properties:
+                        payments:
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              planned_date:
+                                type: string
+                                format: date
+                              planned_amount:
+                                type: integer
+                                format: int64
+                                minimum: 0
+                              actual_date:
+                                type: string
+                                format: date
+                              actual_amount:
+                                type: integer
+                                format: int64
+                                minimum: 0
+        '400':
+          description: VALIDATION_ERROR; field에 입력 필드
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: NOT_FOUND
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '500':
+          description: INTERNAL_ERROR
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+    put:
+      operationId: saveTaxPayments
+      summary: 저장; 마감 월 보호
+      description: SPEC-REQUEST.md DEC-1502; 저장; 마감 월 보호
+      x-related-requirements:
+      - REQ-502
+      parameters:
+      - name: year
+        in: query
+        required: true
+        schema:
+          type: integer
+          minimum: 1
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  required:
+                  - data
+                  properties:
+                    data:
+                      type: object
+                      properties:
+                        payments:
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              planned_date:
+                                type: string
+                                format: date
+                              planned_amount:
+                                type: integer
+                                format: int64
+                                minimum: 0
+                              actual_date:
+                                type: string
+                                format: date
+                              actual_amount:
+                                type: integer
+                                format: int64
+                                minimum: 0
+        '400':
+          description: VALIDATION_ERROR; field에 입력 필드
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: NOT_FOUND
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '500':
+          description: INTERNAL_ERROR
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '409':
+          description: CLOSED_MONTH, ALREADY_PAID, STALE_PAYMENT, DUPLICATE_SOURCE, INVALID_MONTH 또는 OPENING_BALANCE_REQUIRED
+            (해당 상황)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                payments:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      planned_date:
+                        type: string
+                        format: date
+                      planned_amount:
+                        type: integer
+                        format: int64
+                        minimum: 0
+                      actual_date:
+                        type: string
+                        format: date
+                      actual_amount:
+                        type: integer
+                        format: int64
+                        minimum: 0
+  /api/finance/business-plan:
+    get:
+      operationId: getBusinessPlan
+      summary: 조회
+      description: SPEC-REQUEST.md DEC-1502; 조회
+      x-related-requirements:
+      - REQ-522
+      - REQ-523
+      parameters:
+      - name: year
+        in: query
+        required: true
+        schema:
+          type: integer
+          minimum: 1
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  required:
+                  - data
+                  properties:
+                    data:
+                      type: object
+                      properties:
+                        items:
+                          type: array
+                          items:
+                            $ref: '#/components/schemas/FinanceBusinessPlan'
+        '400':
+          description: VALIDATION_ERROR; field에 입력 필드
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: NOT_FOUND
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '500':
+          description: INTERNAL_ERROR
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+    put:
+      operationId: saveBusinessPlan
+      summary: 저장; 마감 월 보호
+      description: SPEC-REQUEST.md DEC-1502; 저장; 마감 월 보호
+      x-related-requirements:
+      - REQ-522
+      - REQ-523
+      parameters:
+      - name: year
+        in: query
+        required: true
+        schema:
+          type: integer
+          minimum: 1
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  required:
+                  - data
+                  properties:
+                    data:
+                      type: object
+                      properties:
+                        items:
+                          type: array
+                          items:
+                            $ref: '#/components/schemas/FinanceBusinessPlan'
+        '400':
+          description: VALIDATION_ERROR; field에 입력 필드
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: NOT_FOUND
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '500':
+          description: INTERNAL_ERROR
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '409':
+          description: CLOSED_MONTH, ALREADY_PAID, STALE_PAYMENT, DUPLICATE_SOURCE, INVALID_MONTH 또는 OPENING_BALANCE_REQUIRED
+            (해당 상황)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                items:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/FinanceBusinessPlan'
+  /api/finance/payment-orders:
+    get:
+      operationId: getPaymentOrders
+      summary: 조회
+      description: SPEC-REQUEST.md DEC-1502; 조회
+      x-related-requirements:
+      - REQ-531
+      parameters:
+      - name: month
+        in: query
+        required: true
+        schema:
+          type: string
+          pattern: ^[0-9]{4}-(0[1-9]|1[0-2])$
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  required:
+                  - data
+                  properties:
+                    data:
+                      type: object
+                      properties:
+                        items:
+                          type: array
+                          items:
+                            $ref: '#/components/schemas/FinanceOrder'
+        '400':
+          description: VALIDATION_ERROR; field에 입력 필드
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: NOT_FOUND
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '500':
+          description: INTERNAL_ERROR
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+    put:
+      operationId: savePaymentOrders
+      summary: 저장; 마감 월 보호
+      description: SPEC-REQUEST.md DEC-1502; 저장; 마감 월 보호
+      x-related-requirements:
+      - REQ-531
+      parameters:
+      - name: month
+        in: query
+        required: true
+        schema:
+          type: string
+          pattern: ^[0-9]{4}-(0[1-9]|1[0-2])$
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  required:
+                  - data
+                  properties:
+                    data:
+                      type: object
+                      properties:
+                        items:
+                          type: array
+                          items:
+                            $ref: '#/components/schemas/FinanceOrder'
+        '400':
+          description: VALIDATION_ERROR; field에 입력 필드
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: NOT_FOUND
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '500':
+          description: INTERNAL_ERROR
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '409':
+          description: CLOSED_MONTH, ALREADY_PAID, STALE_PAYMENT, DUPLICATE_SOURCE, INVALID_MONTH 또는 OPENING_BALANCE_REQUIRED
+            (해당 상황)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                items:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/FinanceOrder'
+  /api/finance/cashflow/opening:
+    get:
+      operationId: getCashOpening
+      summary: 조회
+      description: SPEC-REQUEST.md DEC-1502; 조회
+      x-related-requirements:
+      - REQ-542
+      parameters:
+      - name: month
+        in: query
+        required: true
+        schema:
+          type: string
+          pattern: ^[0-9]{4}-(0[1-9]|1[0-2])$
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  required:
+                  - data
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/FinanceOpening'
+        '400':
+          description: VALIDATION_ERROR; field에 입력 필드
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: NOT_FOUND
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '500':
+          description: INTERNAL_ERROR
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+    put:
+      operationId: saveCashOpening
+      summary: 저장; 마감 월 보호
+      description: SPEC-REQUEST.md DEC-1502; 저장; 마감 월 보호
+      x-related-requirements:
+      - REQ-542
+      parameters:
+      - name: month
+        in: query
+        required: true
+        schema:
+          type: string
+          pattern: ^[0-9]{4}-(0[1-9]|1[0-2])$
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  required:
+                  - data
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/FinanceOpening'
+        '400':
+          description: VALIDATION_ERROR; field에 입력 필드
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: NOT_FOUND
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '500':
+          description: INTERNAL_ERROR
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '409':
+          description: CLOSED_MONTH, ALREADY_PAID, STALE_PAYMENT, DUPLICATE_SOURCE, INVALID_MONTH 또는 OPENING_BALANCE_REQUIRED
+            (해당 상황)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FinanceOpening'
+  /api/finance/profit/monthly:
+    get:
+      operationId: getMonthlyFinanceProfit
+      summary: 월 손익·누계·전년 비교; CLOSED 스냅샷 누락 경고, 2025 구성 숨김
+      description: SPEC-REQUEST.md DEC-1502; 월 손익·누계·전년 비교; CLOSED 스냅샷 누락 경고, 2025 구성 숨김
+      x-related-requirements:
+      - REQ-511
+      - REQ-512
+      - REQ-513
+      - REQ-517
+      - REQ-518
+      - REQ-519
+      - REQ-520
+      parameters:
+      - name: year
+        in: query
+        required: true
+        schema:
+          type: integer
+          minimum: 1
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  required:
+                  - data
+                  properties:
+                    data:
+                      type: object
+                      properties:
+                        months:
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              revenue:
+                                type: integer
+                                format: int64
+                                minimum: 0
+                              cost:
+                                type: integer
+                                format: int64
+                                minimum: 0
+                              gross_profit:
+                                type: integer
+                                format: int64
+                              operating_profit:
+                                type: integer
+                                format: int64
+                              net_profit:
+                                type: integer
+                                format: int64
+                              warning:
+                                type: string
+        '400':
+          description: VALIDATION_ERROR; field에 입력 필드
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: NOT_FOUND
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '500':
+          description: INTERNAL_ERROR
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+  /api/finance/profit/structure:
+    get:
+      operationId: getFinanceProfitStructure
+      summary: 기간별 수익 구조 및 전기 비교; B.11 구성 숨김
+      description: SPEC-REQUEST.md DEC-1502; 기간별 수익 구조 및 전기 비교; B.11 구성 숨김
+      x-related-requirements:
+      - REQ-504
+      - REQ-505
+      - REQ-506
+      - REQ-507
+      - REQ-508
+      - REQ-509
+      parameters:
+      - name: year
+        in: query
+        required: true
+        schema:
+          type: integer
+          minimum: 1
+      - name: month
+        in: query
+        required: true
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 12
+      - name: period
+        in: query
+        required: true
+        schema:
+          type: string
+          enum:
+          - MONTH
+          - QUARTER
+          - YTD
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  required:
+                  - data
+                  properties:
+                    data:
+                      type: object
+                      properties:
+                        revenue:
+                          type: integer
+                          format: int64
+                          minimum: 0
+                        cost:
+                          type: integer
+                          format: int64
+                          minimum: 0
+                        gross_profit:
+                          type: integer
+                          format: int64
+                        operating_profit:
+                          type: integer
+                          format: int64
+                        net_profit:
+                          type: integer
+                          format: int64
+                        warning:
+                          type: string
+        '400':
+          description: VALIDATION_ERROR; field에 입력 필드
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: NOT_FOUND
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '500':
+          description: INTERNAL_ERROR
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+  /api/finance/business-plan/comparison:
+    get:
+      operationId: getBusinessPlanComparison
+      summary: 누계 실적÷누계 목표; 목표 0은 미산정, 파트 이익 원천 없으면 경고
+      description: SPEC-REQUEST.md DEC-1502; 누계 실적÷누계 목표; 목표 0은 미산정, 파트 이익 원천 없으면 경고
+      x-related-requirements:
+      - REQ-526
+      - REQ-527
+      - REQ-528
+      parameters:
+      - name: year
+        in: query
+        required: true
+        schema:
+          type: integer
+          minimum: 1
+      - name: month
+        in: query
+        required: true
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 12
+      - name: partId
+        in: query
+        required: false
+        schema:
+          type: string
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  required:
+                  - data
+                  properties:
+                    data:
+                      type: object
+                      properties:
+                        items:
+                          type: array
+                          items:
+                            $ref: '#/components/schemas/FinanceBusinessPlan'
+                        warning:
+                          type: string
+        '400':
+          description: VALIDATION_ERROR; field에 입력 필드
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: NOT_FOUND
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '500':
+          description: INTERNAL_ERROR
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+  /api/finance/payments:
+    get:
+      operationId: listFinancePayments
+      summary: 지급 목록·차수별 요약
+      description: SPEC-REQUEST.md DEC-1502; 지급 목록·차수별 요약
+      x-related-requirements:
+      - REQ-530
+      parameters:
+      - name: month
+        in: query
+        required: true
+        schema:
+          type: string
+          pattern: ^[0-9]{4}-(0[1-9]|1[0-2])$
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  required:
+                  - data
+                  properties:
+                    data:
+                      type: object
+                      properties:
+                        items:
+                          type: array
+                          items:
+                            $ref: '#/components/schemas/FinancePayment'
+        '400':
+          description: VALIDATION_ERROR; field에 입력 필드
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: NOT_FOUND
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '500':
+          description: INTERNAL_ERROR
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+    post:
+      operationId: createFinancePayment
+      summary: 수기 지급 생성; 지급액 공급+VAT−공제
+      description: SPEC-REQUEST.md DEC-1502; 수기 지급 생성; 지급액 공급+VAT−공제
+      x-related-requirements:
+      - REQ-534
+      - REQ-535
+      parameters: []
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  required:
+                  - data
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/FinancePayment'
+        '400':
+          description: VALIDATION_ERROR; field에 입력 필드
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: NOT_FOUND
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '500':
+          description: INTERNAL_ERROR
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '409':
+          description: CLOSED_MONTH, ALREADY_PAID, STALE_PAYMENT, DUPLICATE_SOURCE, INVALID_MONTH 또는 OPENING_BALANCE_REQUIRED
+            (해당 상황)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FinancePayment'
+  /api/finance/payments/{id}:
+    put:
+      operationId: updateFinancePayment
+      summary: 미지급 지급 수정; PAID 불변
+      description: SPEC-REQUEST.md DEC-1502; 미지급 지급 수정; PAID 불변
+      x-related-requirements:
+      - REQ-535
+      - REQ-536
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  required:
+                  - data
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/FinancePayment'
+        '400':
+          description: VALIDATION_ERROR; field에 입력 필드
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: NOT_FOUND
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '500':
+          description: INTERNAL_ERROR
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '409':
+          description: CLOSED_MONTH, ALREADY_PAID, STALE_PAYMENT, DUPLICATE_SOURCE, INVALID_MONTH 또는 OPENING_BALANCE_REQUIRED
+            (해당 상황)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FinancePayment'
+  /api/finance/payments/generate:
+    post:
+      operationId: generateFinancePayments
+      summary: 원천·유형·월 멱등 생성; PAID 불변
+      description: SPEC-REQUEST.md DEC-1502; 원천·유형·월 멱등 생성; PAID 불변
+      x-related-requirements:
+      - REQ-532
+      - REQ-533
+      parameters:
+      - name: month
+        in: query
+        required: true
+        schema:
+          type: string
+          pattern: ^[0-9]{4}-(0[1-9]|1[0-2])$
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  required:
+                  - data
+                  properties:
+                    data:
+                      type: object
+                      properties:
+                        items:
+                          type: array
+                          items:
+                            $ref: '#/components/schemas/FinancePayment'
+        '400':
+          description: VALIDATION_ERROR; field에 입력 필드
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: NOT_FOUND
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '500':
+          description: INTERNAL_ERROR
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '409':
+          description: CLOSED_MONTH, ALREADY_PAID, STALE_PAYMENT, DUPLICATE_SOURCE, INVALID_MONTH 또는 OPENING_BALANCE_REQUIRED
+            (해당 상황)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+  /api/finance/payments/{id}/complete:
+    post:
+      operationId: completeFinancePayment
+      summary: 조건부 완료; 동시 완료 409 ALREADY_PAID
+      description: SPEC-REQUEST.md DEC-1502; 조건부 완료; 동시 완료 409 ALREADY_PAID
+      x-related-requirements:
+      - REQ-537
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  required:
+                  - data
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/FinancePayment'
+        '400':
+          description: VALIDATION_ERROR; field에 입력 필드
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: NOT_FOUND
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '500':
+          description: INTERNAL_ERROR
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '409':
+          description: CLOSED_MONTH, ALREADY_PAID, STALE_PAYMENT, DUPLICATE_SOURCE, INVALID_MONTH 또는 OPENING_BALANCE_REQUIRED
+            (해당 상황)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                pay_dt:
+                  type: string
+                  format: date
+              required:
+              - pay_dt
+  /api/finance/payments/{id}/reopen:
+    post:
+      operationId: reopenFinancePayment
+      summary: 사유 필수; 미마감만 PLAN 복귀
+      description: SPEC-REQUEST.md DEC-1502; 사유 필수; 미마감만 PLAN 복귀
+      x-related-requirements:
+      - REQ-538
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  required:
+                  - data
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/FinancePayment'
+        '400':
+          description: VALIDATION_ERROR; field에 입력 필드
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: NOT_FOUND
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '500':
+          description: INTERNAL_ERROR
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '409':
+          description: CLOSED_MONTH, ALREADY_PAID, STALE_PAYMENT, DUPLICATE_SOURCE, INVALID_MONTH 또는 OPENING_BALANCE_REQUIRED
+            (해당 상황)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+                  minLength: 1
+              required:
+              - reason
+  /api/finance/payments/{id}/carry:
+    post:
+      operationId: carryFinancePayment
+      summary: 다음 미마감 월 이월·재이월; 지급 후 잔액만 생성
+      description: SPEC-REQUEST.md DEC-1502; 다음 미마감 월 이월·재이월; 지급 후 잔액만 생성
+      x-related-requirements:
+      - REQ-539
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  required:
+                  - data
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/FinancePayment'
+        '400':
+          description: VALIDATION_ERROR; field에 입력 필드
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: NOT_FOUND
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '500':
+          description: INTERNAL_ERROR
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '409':
+          description: CLOSED_MONTH, ALREADY_PAID, STALE_PAYMENT, DUPLICATE_SOURCE, INVALID_MONTH 또는 OPENING_BALANCE_REQUIRED
+            (해당 상황)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                month:
+                  type: string
+                  pattern: ^[0-9]{4}-(0[1-9]|1[0-2])$
+              required:
+              - month
+  /api/finance/payments/export:
+    get:
+      operationId: exportFinancePayments
+      summary: 선택 미지급 건의 은행 제출용이 아닌 검토 xlsx; 지급 완료 처리 없음
+      description: SPEC-REQUEST.md DEC-1502; 선택 미지급 건의 은행 제출용이 아닌 검토 xlsx; 지급 완료 처리 없음
+      x-related-requirements:
+      - REQ-540
+      parameters:
+      - name: month
+        in: query
+        required: true
+        schema:
+          type: string
+          pattern: ^[0-9]{4}-(0[1-9]|1[0-2])$
+      - name: ids
+        in: query
+        required: true
+        schema:
+          type: array
+          items:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: 검토용 xlsx; 전송 wire는 미확정
+          content:
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema:
+                type: string
+                format: binary
+        '400':
+          description: VALIDATION_ERROR; field에 입력 필드
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: NOT_FOUND
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '500':
+          description: INTERNAL_ERROR
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+  /api/finance/cashflow:
+    get:
+      operationId: getFinanceCashflow
+      summary: 계획·실적 별도 체인; 실제 거래는 원본 참조로 대체, 미연결 실적 별도 반영
+      description: SPEC-REQUEST.md DEC-1502; 계획·실적 별도 체인; 실제 거래는 원본 참조로 대체, 미연결 실적 별도 반영
+      x-related-requirements:
+      - REQ-541
+      - REQ-544
+      - REQ-545
+      - REQ-546
+      - REQ-547
+      - REQ-548
+      - REQ-549
+      - REQ-550
+      - REQ-551
+      parameters:
+      - name: year
+        in: query
+        required: true
+        schema:
+          type: integer
+          minimum: 1
+      - name: mode
+        in: query
+        required: true
+        schema:
+          type: string
+          enum:
+          - PLAN
+          - ACTUAL
+          - BOTH
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  required:
+                  - data
+                  properties:
+                    data:
+                      type: object
+                      properties:
+                        months:
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              month:
+                                type: string
+                                pattern: ^[0-9]{4}-(0[1-9]|1[0-2])$
+                              planned_opening:
+                                type: integer
+                                format: int64
+                              planned_closing:
+                                type: integer
+                                format: int64
+                              actual_closing:
+                                type: integer
+                                format: int64
+                              forecast_closing:
+                                type: integer
+                                format: int64
+                              warning:
+                                type: string
+        '400':
+          description: VALIDATION_ERROR; field에 입력 필드
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: NOT_FOUND
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '500':
+          description: INTERNAL_ERROR
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '409':
+          description: CLOSED_MONTH, ALREADY_PAID, STALE_PAYMENT, DUPLICATE_SOURCE, INVALID_MONTH 또는 OPENING_BALANCE_REQUIRED
+            (해당 상황)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+  /api/finance/cashflow/other-inflows:
+    get:
+      operationId: getFinanceOtherInflows
+      summary: 기타 수입·대여금·상환 조회 또는 저장
+      description: SPEC-REQUEST.md DEC-1502; 기타 수입·대여금·상환 조회 또는 저장
+      x-related-requirements:
+      - REQ-543
+      parameters: []
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  required:
+                  - data
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/FinanceInflow'
+        '400':
+          description: VALIDATION_ERROR; field에 입력 필드
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: NOT_FOUND
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '500':
+          description: INTERNAL_ERROR
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+    post:
+      operationId: postFinanceOtherInflows
+      summary: 기타 수입·대여금·상환 조회 또는 저장
+      description: SPEC-REQUEST.md DEC-1502; 기타 수입·대여금·상환 조회 또는 저장
+      x-related-requirements:
+      - REQ-543
+      parameters: []
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  required:
+                  - data
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/FinanceInflow'
+        '400':
+          description: VALIDATION_ERROR; field에 입력 필드
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: NOT_FOUND
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '500':
+          description: INTERNAL_ERROR
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '409':
+          description: CLOSED_MONTH, ALREADY_PAID, STALE_PAYMENT, DUPLICATE_SOURCE, INVALID_MONTH 또는 OPENING_BALANCE_REQUIRED
+            (해당 상황)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FinanceInflow'
+    put:
+      operationId: putFinanceOtherInflows
+      summary: 기타 수입·대여금·상환 조회 또는 저장
+      description: SPEC-REQUEST.md DEC-1502; 기타 수입·대여금·상환 조회 또는 저장
+      x-related-requirements:
+      - REQ-543
+      parameters: []
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  required:
+                  - data
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/FinanceInflow'
+        '400':
+          description: VALIDATION_ERROR; field에 입력 필드
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: NOT_FOUND
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '500':
+          description: INTERNAL_ERROR
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '409':
+          description: CLOSED_MONTH, ALREADY_PAID, STALE_PAYMENT, DUPLICATE_SOURCE, INVALID_MONTH 또는 OPENING_BALANCE_REQUIRED
+            (해당 상황)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FinanceInflow'
+  /api/uploads/finance-entries/validate:
+    post:
+      operationId: validateFinanceEntriesUpload
+      summary: xlsx 검사·미리보기 또는 원자 반영; 오류 한 건도 전체 거부. B.10 마감 불일치 거부·미마감만 교체; B.11 CLOSE 존재시 연도 전체 차단
+      description: SPEC-REQUEST.md DEC-1502; xlsx 검사·미리보기 또는 원자 반영; 오류 한 건도 전체 거부. B.10 마감 불일치 거부·미마감만 교체; B.11 CLOSE 존재시 연도
+        전체 차단
+      x-related-requirements:
+      - REQ-497
+      parameters: []
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  required:
+                  - data
+                  properties:
+                    data:
+                      type: object
+                      properties:
+                        upload_id:
+                          type: string
+                        error_count:
+                          type: integer
+                        items:
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              field:
+                                type: string
+                              message:
+                                type: string
+        '400':
+          description: VALIDATION_ERROR; field에 입력 필드
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: NOT_FOUND
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '500':
+          description: INTERNAL_ERROR
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '409':
+          description: CLOSED_MONTH, ALREADY_PAID, STALE_PAYMENT, DUPLICATE_SOURCE, INVALID_MONTH 또는 OPENING_BALANCE_REQUIRED
+            (해당 상황)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/FinanceUploadValidation'
+  /api/uploads/finance-entries/apply:
+    post:
+      operationId: applyFinanceEntriesUpload
+      summary: xlsx 검사·미리보기 또는 원자 반영; 오류 한 건도 전체 거부. B.10 마감 불일치 거부·미마감만 교체; B.11 CLOSE 존재시 연도 전체 차단
+      description: SPEC-REQUEST.md DEC-1502; xlsx 검사·미리보기 또는 원자 반영; 오류 한 건도 전체 거부. B.10 마감 불일치 거부·미마감만 교체; B.11 CLOSE 존재시 연도
+        전체 차단
+      x-related-requirements:
+      - REQ-498
+      parameters: []
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  required:
+                  - data
+                  properties:
+                    data:
+                      type: object
+                      properties:
+                        upload_id:
+                          type: string
+                        error_count:
+                          type: integer
+                        items:
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              field:
+                                type: string
+                              message:
+                                type: string
+        '400':
+          description: VALIDATION_ERROR; field에 입력 필드
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: NOT_FOUND
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '500':
+          description: INTERNAL_ERROR
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '409':
+          description: CLOSED_MONTH, ALREADY_PAID, STALE_PAYMENT, DUPLICATE_SOURCE, INVALID_MONTH 또는 OPENING_BALANCE_REQUIRED
+            (해당 상황)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FinanceUploadApply'
+  /api/uploads/business-plan/validate:
+    post:
+      operationId: validateBusinessPlanUpload
+      summary: xlsx 검사·미리보기 또는 원자 반영; 오류 한 건도 전체 거부. B.10 마감 불일치 거부·미마감만 교체; B.11 CLOSE 존재시 연도 전체 차단
+      description: SPEC-REQUEST.md DEC-1502; xlsx 검사·미리보기 또는 원자 반영; 오류 한 건도 전체 거부. B.10 마감 불일치 거부·미마감만 교체; B.11 CLOSE 존재시 연도
+        전체 차단
+      x-related-requirements:
+      - REQ-524
+      parameters: []
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  required:
+                  - data
+                  properties:
+                    data:
+                      type: object
+                      properties:
+                        upload_id:
+                          type: string
+                        error_count:
+                          type: integer
+                        items:
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              field:
+                                type: string
+                              message:
+                                type: string
+        '400':
+          description: VALIDATION_ERROR; field에 입력 필드
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: NOT_FOUND
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '500':
+          description: INTERNAL_ERROR
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '409':
+          description: CLOSED_MONTH, ALREADY_PAID, STALE_PAYMENT, DUPLICATE_SOURCE, INVALID_MONTH 또는 OPENING_BALANCE_REQUIRED
+            (해당 상황)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/FinanceUploadValidation'
+  /api/uploads/business-plan/apply:
+    post:
+      operationId: applyBusinessPlanUpload
+      summary: xlsx 검사·미리보기 또는 원자 반영; 오류 한 건도 전체 거부. B.10 마감 불일치 거부·미마감만 교체; B.11 CLOSE 존재시 연도 전체 차단
+      description: SPEC-REQUEST.md DEC-1502; xlsx 검사·미리보기 또는 원자 반영; 오류 한 건도 전체 거부. B.10 마감 불일치 거부·미마감만 교체; B.11 CLOSE 존재시 연도
+        전체 차단
+      x-related-requirements:
+      - REQ-525
+      parameters: []
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  required:
+                  - data
+                  properties:
+                    data:
+                      type: object
+                      properties:
+                        upload_id:
+                          type: string
+                        error_count:
+                          type: integer
+                        items:
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              field:
+                                type: string
+                              message:
+                                type: string
+        '400':
+          description: VALIDATION_ERROR; field에 입력 필드
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: NOT_FOUND
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '500':
+          description: INTERNAL_ERROR
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '409':
+          description: CLOSED_MONTH, ALREADY_PAID, STALE_PAYMENT, DUPLICATE_SOURCE, INVALID_MONTH 또는 OPENING_BALANCE_REQUIRED
+            (해당 상황)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FinanceUploadApply'
+  /api/uploads/prior-profit/validate:
+    post:
+      operationId: validatePriorProfitUpload
+      summary: xlsx 검사·미리보기 또는 원자 반영; 오류 한 건도 전체 거부. B.10 마감 불일치 거부·미마감만 교체; B.11 CLOSE 존재시 연도 전체 차단
+      description: SPEC-REQUEST.md DEC-1502; xlsx 검사·미리보기 또는 원자 반영; 오류 한 건도 전체 거부. B.10 마감 불일치 거부·미마감만 교체; B.11 CLOSE 존재시 연도
+        전체 차단
+      x-related-requirements:
+      - REQ-515
+      parameters: []
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  required:
+                  - data
+                  properties:
+                    data:
+                      type: object
+                      properties:
+                        upload_id:
+                          type: string
+                        error_count:
+                          type: integer
+                        items:
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              field:
+                                type: string
+                              message:
+                                type: string
+        '400':
+          description: VALIDATION_ERROR; field에 입력 필드
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: NOT_FOUND
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '500':
+          description: INTERNAL_ERROR
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '409':
+          description: CLOSED_MONTH, ALREADY_PAID, STALE_PAYMENT, DUPLICATE_SOURCE, INVALID_MONTH 또는 OPENING_BALANCE_REQUIRED
+            (해당 상황)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/FinanceUploadValidation'
+  /api/uploads/prior-profit/apply:
+    post:
+      operationId: applyPriorProfitUpload
+      summary: xlsx 검사·미리보기 또는 원자 반영; 오류 한 건도 전체 거부. B.10 마감 불일치 거부·미마감만 교체; B.11 CLOSE 존재시 연도 전체 차단
+      description: SPEC-REQUEST.md DEC-1502; xlsx 검사·미리보기 또는 원자 반영; 오류 한 건도 전체 거부. B.10 마감 불일치 거부·미마감만 교체; B.11 CLOSE 존재시 연도
+        전체 차단
+      x-related-requirements:
+      - REQ-516
+      parameters: []
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiResponse'
+                - type: object
+                  required:
+                  - data
+                  properties:
+                    data:
+                      type: object
+                      properties:
+                        upload_id:
+                          type: string
+                        error_count:
+                          type: integer
+                        items:
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              field:
+                                type: string
+                              message:
+                                type: string
+        '400':
+          description: VALIDATION_ERROR; field에 입력 필드
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: NOT_FOUND
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '500':
+          description: INTERNAL_ERROR
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '409':
+          description: CLOSED_MONTH, ALREADY_PAID, STALE_PAYMENT, DUPLICATE_SOURCE, INVALID_MONTH 또는 OPENING_BALANCE_REQUIRED
+            (해당 상황)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FinanceUploadApply'
 components:
   schemas:
-    BillingDetailLine:
-      type: object
-      properties:
-        asgn_id: {type: integer, format: int64}
-        dev_id: {type: integer, format: int64, description: 실제 인력}
-        cntrct_dev_id: {type: integer, format: int64, description: 계약상 인력; 없으면 실제 dev_id}
-        display_name: {type: string}
-        work_ym: {allOf: [{$ref: '#/components/schemas/YearMonth'}], nullable: true}
-        mm_qty: {type: number}
-        source_mm_qty: {type: number, nullable: true}
-        untprc_amt: {type: integer, format: int64}
-        work_day_qty: {type: number}
-        work_tm_qty: {type: number}
-        ovtm_tm_qty: {type: number}
-        ovtm_amt: {type: integer, format: int64, description: 수동 입력; 배율 미적용}
-        bill_amt: {type: integer, format: int64}
-        rmrk_desc: {type: string}
-    BillingRow:
-      type: object
-      properties:
-        bill_id: {type: integer, format: int64, nullable: true, description: 가상 TK 예정은 null}
-        bill_stg_id: {type: integer, format: int64, nullable: true}
-        virtual_plan: {type: boolean}
-        bill_no: {type: string, nullable: true}
-        prj_id: {type: integer, format: int64}
-        project_name: {type: string}
-        customer_id: {type: integer, format: int64}
-        customer_name: {type: string}
-        contract_type: {type: string, enum: [TK, MO, DP]}
-        atrb_ym: {allOf: [{$ref: '#/components/schemas/YearMonth'}], nullable: true}
-        bill_dt: {type: string, format: date, nullable: true}
-        sply_amt: {type: integer, format: int64, description: 공급가 원}
-        vat_amt: {type: integer, format: int64}
-        tot_amt: {type: integer, format: int64, description: 서버 계산 공급가+부가세; 쓰기 금지}
-        bill_stts_cd: {type: string, enum: [PLAN, DRAFT, CONFIRM, CANCEL]}
-        txinv_no: {type: string, nullable: true}
-        txinv_dt: {type: string, format: date, nullable: true}
-        rcpt_plan_dt: {type: string, format: date, nullable: true}
-        received_amt: {type: integer, format: int64, description: 부가세 포함}
-        adjusted_total_amt: {type: integer, format: int64, description: 확정 수정 총액 포함}
-        receivable_amt: {type: integer, format: int64, description: 부가세 포함}
-        reminder_stage: {type: integer, minimum: 0, maximum: 3, nullable: true}
-    BillingReceipt:
-      type: object
-      properties:
-        receipt_id: {type: integer, format: int64}
-        rcpt_dt: {type: string, format: date}
-        rcpt_amt: {type: integer, format: int64, minimum: 1}
-        rmrk_desc: {type: string, nullable: true}
-      required: [rcpt_dt, rcpt_amt]
-    BillingDetail:
-      type: object
-      properties:
-        billing: {$ref: '#/components/schemas/BillingRow'}
-        details: {type: array, items: {$ref: '#/components/schemas/BillingDetailLine'}}
-        receipts: {type: array, items: {$ref: '#/components/schemas/BillingReceipt'}}
-        amendments: {type: array, items: {$ref: '#/components/schemas/BillingRow'}}
-        original_bill_id: {type: integer, nullable: true}
-        change_history:
-          type: array
-          items:
-            type: object
-            properties:
-              description: {type: string}
-              changed_at: {type: string, format: date-time}
-              user_id: {type: string, nullable: true}
-        warnings: {type: array, items: {type: string}}
-      required: [billing, details, receipts, amendments, change_history, warnings]
-    BillingPage:
-      type: object
-      properties:
-        items: {type: array, items: {$ref: '#/components/schemas/BillingRow'}}
-        total: {type: integer, format: int64}
-        page: {type: integer}
-        size: {type: integer}
-      required: [items, total, page, size]
-    BillingPreview:
-      type: object
-      properties:
-        project_id: {type: integer, format: int64}
-        bill_stg_id: {type: integer, nullable: true}
-        month: {allOf: [{$ref: '#/components/schemas/YearMonth'}], nullable: true}
-        sply_amt: {type: integer, format: int64}
-        suggested_vat_amt: {type: integer, format: int64}
-        rcpt_plan_dt: {type: string, format: date, nullable: true}
-        details: {type: array, items: {$ref: '#/components/schemas/BillingDetailLine'}}
-        warnings: {type: array, items: {type: string}}
-        missing_price_assignments: {type: array, items: {type: integer, format: int64}}
-      required: [project_id, details, warnings, missing_price_assignments]
-    BillingCreate:
-      type: object
-      properties:
-        project_id: {type: integer, format: int64}
-        stage_id: {type: integer, format: int64}
-        month: {allOf: [{$ref: '#/components/schemas/YearMonth'}], nullable: true}
-        additional: {type: boolean, description: MO/DP 명시 추가 청구}
-        bill_odr_no: {type: integer, format: int64, description: 추가 청구 시 차수 증가}
-        bill_dt: {type: string, format: date, nullable: true}
-        sply_amt: {type: integer, format: int64}
-        vat_amt: {type: integer, format: int64}
-        rcpt_plan_dt: {type: string, format: date, nullable: true}
-        txinv_no: {type: string}
-        txinv_dt: {type: string, format: date, nullable: true}
-        details:
-          type: array
-          items:
-            type: object
-            properties:
-              asgn_id: {type: integer, format: int64}
-              ovtm_amt: {type: integer, format: int64, description: 수동 초과근무금액}
-      required: [project_id]
-    BillingUpdate:
-      type: object
-      properties:
-        bill_dt: {type: string, format: date, nullable: true}
-        sply_amt: {type: integer, format: int64}
-        vat_amt: {type: integer, format: int64}
-        rcpt_plan_dt: {type: string, format: date, nullable: true}
-        txinv_no: {type: string, nullable: true}
-        txinv_dt: {type: string, format: date, nullable: true}
-        rmrk_desc: {type: string}
-        recalculate: {type: boolean, description: true일 때만 원천 상세 재생성}
-        details:
-          type: array
-          items:
-            type: object
-            properties:
-              asgn_id: {type: integer, format: int64}
-              ovtm_amt: {type: integer, format: int64}
-    BillingAmendmentCreate:
-      type: object
-      properties:
-        sply_amt: {type: integer, maximum: -1}
-        vat_amt: {type: integer, maximum: 0}
-        reason: {type: string, minLength: 1}
-        bill_dt: {type: string, format: date, nullable: true}
-        rcpt_plan_dt: {type: string, format: date, nullable: true}
-        txinv_no: {type: string}
-        txinv_dt: {type: string, format: date, nullable: true}
-      required: [sply_amt, vat_amt, reason]
-    BillingCancel:
-      type: object
-      properties:
-        reason: {type: string, minLength: 1}
-      required: [reason]
-    DispatchAttendanceInput:
-      type: object
-      properties:
-        asgn_id: {type: integer, format: int64}
-        dev_id: {type: integer, format: int64}
-        work_day_qty: {type: number, minimum: 0}
-        rglr_tm_qty: {type: number, minimum: 0}
-        ovtm_tm_qty: {type: number, minimum: 0}
-        mth_work_day_qty: {type: number, exclusiveMinimum: true, minimum: 0}
-      required: [asgn_id, dev_id, mth_work_day_qty]
-    DispatchAttendanceRow:
-      allOf:
-      - $ref: '#/components/schemas/DispatchAttendanceInput'
-      - type: object
-        properties:
-          calculated_mm: {type: number, nullable: true}
-          assignment_mm: {type: number, nullable: true}
-          price_available: {type: boolean}
-          warnings: {type: array, items: {type: string}}
-    DispatchAttendanceBatch:
-      type: object
-      properties:
-        items: {type: array, items: {$ref: '#/components/schemas/DispatchAttendanceInput'}}
-      required: [items]
-    DispatchAttendanceResult:
-      type: object
-      properties:
-        month: {$ref: '#/components/schemas/YearMonth'}
-        project_id: {type: integer, format: int64}
-        items: {type: array, items: {$ref: '#/components/schemas/DispatchAttendanceRow'}}
-        warnings: {type: array, items: {type: string}}
-      required: [month, project_id, items, warnings]
-    BillingGapRow:
-      type: object
-      properties:
-        project_id: {type: integer, format: int64}
-        project_name: {type: string}
-        month: {$ref: '#/components/schemas/YearMonth'}
-        basis_supply_amt: {type: integer, format: int64}
-        confirmed_supply_amt: {type: integer, format: int64}
-        difference_amt: {type: integer, format: int64}
-        tolerance: {type: number}
-        judgment: {type: string, description: '맞음, 적게 청구, 많이 청구, 청구 없음, 맞음(무상); 근태 미입력은 맞음 아님'}
-        explanation: {type: string}
-        attendance_missing: {type: boolean}
-        suspected_people:
-          type: array
-          items:
-            type: object
-            properties:
-              name: {type: string}
-              management_number: {type: string}
-        billing_ids: {type: array, items: {type: integer, format: int64}}
-    BillingGapResult:
-      type: object
-      properties:
-        month: {$ref: '#/components/schemas/YearMonth'}
-        total_difference_amt: {type: integer, format: int64}
-        items: {type: array, items: {$ref: '#/components/schemas/BillingGapRow'}}
-        total: {type: integer, format: int64}
-        page: {type: integer}
-        size: {type: integer}
-      required: [month, items, total_difference_amt, total, page, size]
-    BillingOverdueRow:
-      type: object
-      properties:
-        billing: {$ref: '#/components/schemas/BillingRow'}
-        overdue_days: {type: integer, nullable: true}
-        stage: {type: integer, minimum: 0, maximum: 3, nullable: true}
-        due_status: {type: string, description: '예정일 미입력, 예정, 당일 또는 연체'}
-        recipient_roles: {type: array, items: {type: string}}
-        next_notification_date:
-          type: string
-          format: date
-          nullable: true
-          description: 미수 알림의 다음 알림 예정일은 입금 예정일에 아직 도달하지 않은 다음 단계 기준(7·30·60일)을 더한 날짜로 표시한다. Asia/Seoul 오늘 기준 연체 7일 미만은 +7일, 7일 이상 30일 미만은 +30일, 30일 이상 60일 미만은 +60일이며 60일 이상 3단계에서는 다음 예정일 없음(null)으로 표시한다. 입금 예정일이 없거나 미수 잔액이 0이면 다음 알림 예정일 없음이다. 실제 발송·재발송·dun_hist 저장은 구현하지 않는다.
-        sent_history:
-          type: array
-          items:
-            type: object
-            properties:
-              sent_at: {type: string, format: date-time}
-        sales_part: {type: string, nullable: true}
-    BillingOverdueResult:
-      type: object
-      properties:
-        items: {type: array, items: {$ref: '#/components/schemas/BillingOverdueRow'}}
-        customer_totals:
-          type: array
-          items:
-            type: object
-            properties:
-              customer_id: {type: integer, format: int64}
-              customer_name: {type: string}
-              receivable_amt: {type: integer, format: int64}
-        stage_counts:
-          type: array
-          items:
-            type: object
-            properties:
-              stage: {type: integer}
-              count: {type: integer, format: int64}
-        total: {type: integer, format: int64}
-        page: {type: integer}
-        size: {type: integer}
-      required: [items, customer_totals, stage_counts, total, page, size]
-    BillingSummary:
-      type: object
-      properties:
-        year: {type: integer}
-        annual_confirmed_supply_amt: {type: integer, format: int64}
-        current_month_confirmed_supply_amt: {type: integer, format: int64}
-        confirmed_receivable_amt: {type: integer, format: int64}
-        overdue_amt: {type: integer, format: int64}
-        cash_receipts_vat_included_amt: {type: integer, format: int64}
-        planned_supply_amt: {type: integer, format: int64}
-        draft_supply_amt: {type: integer, format: int64}
-        monthly_revenue:
-          type: array
-          items:
-            type: object
-            properties:
-              month: {$ref: '#/components/schemas/YearMonth'}
-              confirmed_supply_amt: {type: integer, format: int64}
-        receipts_by_date:
-          type: array
-          items:
-            type: object
-            properties:
-              rcpt_dt: {type: string, format: date}
-              rcpt_amt: {type: integer, format: int64}
-    BillingUploadApply:
-      type: object
-      properties:
-        upload_id: {type: integer, format: int64}
-        confirm: {type: boolean, enum: [true]}
-      required: [upload_id, confirm]
-    BillingUploadApplyResult:
-      type: object
-      properties:
-        upload_id: {type: integer, format: int64}
-        form_type: {type: string, enum: [B.3]}
-        applied_count: {type: integer, format: int64}
-        message: {type: string}
-      required: [upload_id, form_type, applied_count]
     ApiResponse:
       type: object
       properties:
@@ -16714,6 +17358,210 @@ components:
       - applied_count
       - assignment_ids
       description: B.5 파일행 순서 신규 투입 식별자. 기존 결과 봉투 확장; 지급/초과근무 단가·급여 없음.
+    FinanceEntry:
+      type: object
+      properties:
+        entry_ym:
+          type: string
+          pattern: ^[0-9]{4}-(0[1-9]|1[0-2])$
+        fin_se_cd:
+          type: string
+          enum:
+          - SGA
+          - NOI
+          - NOE
+        item_nm:
+          type: string
+          minLength: 1
+          maxLength: 100
+        entry_amt:
+          type: integer
+          format: int64
+          minimum: 0
+        vat_amt:
+          type: integer
+          format: int64
+          minimum: 0
+        inout_dt:
+          type: string
+          format: date
+        rpt_yn:
+          type: string
+          enum:
+          - Y
+          - N
+        inout_cmpl_yn:
+          type: string
+          enum:
+          - Y
+          - N
+        remark:
+          type: string
+          maxLength: 500
+        copy_entry_id:
+          type: integer
+          format: int64
+      required:
+      - entry_ym
+      - fin_se_cd
+      - item_nm
+      - entry_amt
+    FinancePayment:
+      type: object
+      properties:
+        pay_ym:
+          type: string
+          pattern: ^[0-9]{4}-(0[1-9]|1[0-2])$
+        pay_odr_no:
+          type: integer
+          minimum: 1
+          maximum: 5
+        sply_amt:
+          type: integer
+          format: int64
+          minimum: 0
+        vat_amt:
+          type: integer
+          format: int64
+          minimum: 0
+        ddct_amt:
+          type: integer
+          format: int64
+          minimum: 0
+        pay_amt:
+          type: integer
+          format: int64
+          minimum: 0
+          readOnly: true
+          description: 공급+VAT−공제. 음수 결과 거부.
+        recipient:
+          type: string
+        bank:
+          type: string
+        account:
+          type: string
+          x-sensitive: true
+        pay_dt:
+          type: string
+          format: date
+        pay_src_cd:
+          type: string
+        src_rec_id:
+          type: integer
+          format: int64
+        cry_pay_id:
+          type: integer
+          format: int64
+      required:
+      - pay_ym
+      - sply_amt
+      - vat_amt
+      - ddct_amt
+    FinanceBusinessPlan:
+      type: object
+      properties:
+        year:
+          type: integer
+          minimum: 1
+        month:
+          type: integer
+          minimum: 1
+          maximum: 12
+        partId:
+          type: integer
+          format: int64
+        target_revenue:
+          type: integer
+          format: int64
+        target_operating_profit:
+          type: integer
+          format: int64
+        target_utilization_rate:
+          type: number
+      required:
+      - year
+      - month
+      - partId
+      - target_revenue
+      - target_operating_profit
+      - target_utilization_rate
+    FinanceTaxPlan:
+      type: object
+      properties:
+        year:
+          type: integer
+          minimum: 1
+        annual_amount:
+          type: integer
+          format: int64
+          minimum: 0
+        reason:
+          type: string
+      required:
+      - annual_amount
+      - reason
+    FinanceOpening:
+      type: object
+      properties:
+        month:
+          type: string
+          pattern: ^[0-9]{4}-(0[1-9]|1[0-2])$
+        amount:
+          type: integer
+          format: int64
+          minimum: 0
+      required:
+      - amount
+    FinanceInflow:
+      type: object
+      properties:
+        month:
+          type: string
+          pattern: ^[0-9]{4}-(0[1-9]|1[0-2])$
+        amount:
+          type: integer
+          format: int64
+          minimum: 0
+        planned_date:
+          type: string
+          format: date
+        actual_date:
+          type: string
+          format: date
+      required:
+      - month
+      - amount
+    FinanceOrder:
+      type: object
+      properties:
+        pay_odr_no:
+          type: integer
+          minimum: 1
+          maximum: 5
+        planned_date:
+          type: string
+          format: date
+      required:
+      - pay_odr_no
+      - planned_date
+    FinanceUploadValidation:
+      type: object
+      properties:
+        file:
+          type: string
+          format: binary
+      required:
+      - file
+    FinanceUploadApply:
+      type: object
+      properties:
+        upload_id:
+          type: string
+        confirm:
+          type: boolean
+      required:
+      - upload_id
+      - confirm
 x-security-policy:
   related_requirements:
   - REQ-001
@@ -19105,3 +19953,16 @@ x-confirmed-assignment-decisions:
     배정·MM·단가·START 이력을 기록하지 않는다. 마감월 MM·단가 효과는 기존 확정값을 유지한다.'
   confirmed_by: mjung
   confirmed_at: '2026-10-27T03:55:43.538164+00:00'
+
+x-finance-change-notes:
+  status: 부분 설계; 실제 구현·실행 검증 아님
+  open_questions:
+  - 응답 DTO의 완전한 필드, 월별 상태·차트·이력·목표/실적 결과, 상세 이동 wire는 원문만으로 확정 불가; 승인 전 확장 필요.
+  - ③ 업로드 ID·확인·파일 wire와 2xx 상태는 제안이며 기존 공통 계약 확인 필요.
+  - 조회 Excel의 구체 경로는 원문에 없으며 REQ-510/514/521/529/552 미완료.
+  - 법인세와 지급 연결의 기존 DB 식별자 확인 필요; 없다면 연결 구조 신규 설계 필요.
+  - 부분 지급·재이월 세부 요청 필드 및 금액 처리 wire 미확정.
+  - other-inflows PUT 식별자·차수 날짜·납부 실적 필드 및 각종 DTO 명칭은 설계 투영; 승인 필요.
+  tests:
+  - EDGE-01~14 및 CMN-1501~1540 서비스 단위·PostgreSQL16 통합 시험 필요; 미실행.
+  - CLOSED 충돌·400 field·무인증·중복 생성·동시 완료·업로드 원자성·엑셀 일치 회귀 필요; 미실행.

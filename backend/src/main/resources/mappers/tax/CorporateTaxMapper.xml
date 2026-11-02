@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sicost.tax.CorporateTaxMapper">
+  <resultMap id="annual" type="com.sicost.tax.CorporateTaxModels$Annual"><constructor>
+    <arg column="annl_expc_amt" javaType="java.lang.Long"/><arg column="rmrk_desc" javaType="string"/>
+  </constructor></resultMap>
+  <resultMap id="snapshot" type="com.sicost.tax.CorporateTaxModels$Snapshot"><constructor>
+    <arg column="cls_ym" javaType="string"/><arg column="closed" javaType="_boolean"/>
+    <arg column="corp_tax_amt" javaType="java.lang.Long"/>
+  </constructor></resultMap>
+  <resultMap id="history" type="com.sicost.tax.CorporateTaxModels$History"><constructor>
+    <arg column="bfr_expc_amt" javaType="java.lang.Long"/><arg column="aft_expc_amt" javaType="_long"/>
+    <arg column="rsn_desc" javaType="string"/><arg column="chg_at" javaType="java.time.LocalDateTime"/>
+  </constructor></resultMap>
+  <resultMap id="payment" type="com.sicost.tax.CorporateTaxModels$Payment"><constructor>
+    <arg column="tax_pay_id" javaType="java.lang.Long"/><arg column="tax_pay_se_cd" javaType="string"/>
+    <arg column="pay_plan_dt" javaType="java.time.LocalDate"/><arg column="plan_amt" javaType="java.lang.Long"/>
+    <arg column="pay_dt" javaType="java.time.LocalDate"/><arg column="pay_amt" javaType="java.lang.Long"/>
+  </constructor></resultMap>
+  <select id="lockYear" resultType="object" useCache="false" flushCache="true">
+    SELECT pg_advisory_xact_lock(16420,CAST(#{year} AS integer))
+  </select>
+  <select id="plan" resultMap="annual">SELECT annl_expc_amt,rmrk_desc FROM fin.corp_tax_plan WHERE tax_yr=#{year}</select>
+  <select id="snapshots" resultMap="snapshot" useCache="false">
+    SELECT c.cls_ym,c.cls_stts_cd='CLOSED' AS closed,t.corp_tax_amt
+    FROM fin.mth_cls c LEFT JOIN fin.corp_tax_mth t ON t.tax_ym=c.cls_ym AND t.tax_yr=#{year}
+    WHERE c.cls_ym LIKE #{year} || '-%' ORDER BY c.cls_ym
+  </select>
+  <select id="history" resultMap="history">
+    SELECT bfr_expc_amt,aft_expc_amt,rsn_desc,chg_at FROM fin.corp_tax_expc_hist
+    WHERE tax_yr=#{year} ORDER BY chg_at DESC,expc_hist_id DESC
+  </select>
+  <insert id="savePlan">
+    INSERT INTO fin.corp_tax_plan(tax_yr,annl_expc_amt,rmrk_desc,updated_at,updated_by)
+    VALUES(#{year},#{input.annual_amount},#{input.reason},CURRENT_TIMESTAMP,#{actor})
+    ON CONFLICT(tax_yr) DO UPDATE SET annl_expc_amt=EXCLUDED.annl_expc_amt,rmrk_desc=EXCLUDED.rmrk_desc,
+      updated_at=CURRENT_TIMESTAMP,updated_by=EXCLUDED.updated_by
+  </insert>
+  <insert id="appendHistory">
+    INSERT INTO fin.corp_tax_expc_hist(tax_yr,bfr_expc_amt,aft_expc_amt,rsn_desc,chg_user_id)
+    VALUES(#{year},#{before},#{input.annual_amount},#{input.reason},#{actor})
+  </insert>
+  <sql id="paymentColumns">tax_pay_id,tax_pay_se_cd,pay_plan_dt,plan_amt,pay_dt,pay_amt</sql>
+  <select id="payments" resultMap="payment">
+    SELECT <include refid="paymentColumns"/> FROM fin.corp_tax_pay WHERE tax_yr=#{year} ORDER BY pay_plan_dt,tax_pay_id
+  </select>
+  <select id="lockPayments" resultMap="payment" useCache="false" flushCache="true">
+    SELECT <include refid="paymentColumns"/> FROM fin.corp_tax_pay WHERE tax_yr=#{year} ORDER BY tax_pay_id FOR UPDATE
+  </select>
+  <select id="monthStatus" resultType="string">SELECT cls_stts_cd FROM fin.mth_cls WHERE cls_ym=#{month}</select>
+  <select id="savePayment" resultType="long" affectData="true" flushCache="true">
+    INSERT INTO fin.corp_tax_pay(tax_yr,tax_pay_se_cd,pay_plan_dt,plan_amt,created_by)
+    VALUES(#{year},#{input.tax_pay_se_cd},#{input.planned_date},#{input.planned_amount},#{actor})
+    ON CONFLICT(tax_yr,tax_pay_se_cd) DO UPDATE SET pay_plan_dt=EXCLUDED.pay_plan_dt,plan_amt=EXCLUDED.plan_amt
+    RETURNING tax_pay_id
+  </select>
+  <insert id="auditPayment">
+    INSERT INTO sys.data_chg_hist(tbl_nm,obj_rec_id,data_chg_ty_cd,clmn_nm,bfr_val,aft_val,chg_user_id)
+    VALUES('fin.corp_tax_pay',CAST(#{id} AS text),<choose><when test="before == null">'INSERT'</when><otherwise>'UPDATE'</otherwise></choose>,
+      '납부 일정·실적',#{before},#{after},#{actor})
+  </insert>
+</mapper>

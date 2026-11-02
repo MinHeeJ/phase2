@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sicost.businessplan.BusinessPlanMapper">
+  <resultMap id="plan" type="com.sicost.businessplan.BusinessPlanModels$Plan">
+    <constructor>
+      <arg column="year" javaType="_int"/>
+      <arg column="month" javaType="_int"/>
+      <arg column="part_id" javaType="java.lang.Long"/>
+      <arg column="revenue" javaType="_long"/>
+      <arg column="profit" javaType="_long"/>
+      <arg column="utilization" javaType="java.math.BigDecimal"/>
+    </constructor>
+  </resultMap>
+  <resultMap id="part" type="com.sicost.businessplan.BusinessPlanModels$Part">
+    <constructor>
+      <arg column="id" javaType="_long"/>
+      <arg column="name" javaType="java.lang.String"/>
+      <arg column="active" javaType="_boolean"/>
+    </constructor>
+  </resultMap>
+  <resultMap id="attribution" type="com.sicost.businessplan.BusinessPlanModels$Attribution">
+    <constructor>
+      <arg column="project_id" javaType="_long"/>
+      <arg column="month" javaType="java.lang.String"/>
+      <arg column="part_id" javaType="java.lang.Long"/>
+    </constructor>
+  </resultMap>
+  <resultMap id="actual" type="com.sicost.businessplan.BusinessPlanModels$ClosedActual">
+    <constructor>
+      <arg column="month" javaType="_int"/>
+      <arg column="revenue" javaType="java.lang.Long"/>
+      <arg column="profit" javaType="java.lang.Long"/>
+    </constructor>
+  </resultMap>
+  <select id="list" resultMap="plan">
+    SELECT plan_yr::int AS year,substring(plan_ym,6,2)::int AS month,bsn_part_id AS part_id,
+      trgt_sls_amt AS revenue,trgt_bsn_prft_amt AS profit,trgt_utlz_rt AS utilization
+    FROM fin.biz_plan WHERE plan_yr=lpad(CAST(#{year} AS text),4,'0')
+    ORDER BY plan_ym,bsn_part_id NULLS FIRST
+  </select>
+  <select id="parts" resultMap="part">
+    SELECT bsn_part_id AS id,bsn_part_nm AS name,use_yn='Y' AS active
+    FROM mst.bsn_part ORDER BY sort_seq,bsn_part_id
+  </select>
+  <select id="closedMonths" resultType="string">
+    SELECT cls_ym FROM fin.mth_cls WHERE substring(cls_ym,1,4)=lpad(CAST(#{year} AS text),4,'0')
+      AND cls_stts_cd='CLOSED' ORDER BY cls_ym
+  </select>
+  <select id="lockYear" resultType="string" flushCache="true" useCache="false">
+    SELECT pg_advisory_xact_lock(hashtextextended('fin.biz_plan:' || CAST(#{year} AS text),0))::text
+  </select>
+  <select id="lockMonths" resultType="string" flushCache="true" useCache="false">
+    SELECT cls_ym FROM fin.mth_cls WHERE substring(cls_ym,1,4)=lpad(CAST(#{year} AS text),4,'0') ORDER BY cls_ym FOR SHARE
+  </select>
+  <select id="upsert" resultType="long" affectData="true" flushCache="true">
+    INSERT INTO fin.biz_plan(plan_yr,plan_ym,bsn_part_id,trgt_sls_amt,trgt_bsn_prft_amt,trgt_utlz_rt,created_by)
+    VALUES(lpad(CAST(#{input.year} AS text),4,'0'),#{planMonth},#{input.partId},#{input.target_revenue},
+      #{input.target_operating_profit},#{input.target_utilization_rate},#{actor})
+    ON CONFLICT ON CONSTRAINT uk_biz_plan_plan_ym_bsn_part_id DO UPDATE SET
+      trgt_sls_amt=EXCLUDED.trgt_sls_amt,trgt_bsn_prft_amt=EXCLUDED.trgt_bsn_prft_amt,
+      trgt_utlz_rt=EXCLUDED.trgt_utlz_rt,updated_by=#{actor},updated_at=CURRENT_TIMESTAMP
+    RETURNING biz_plan_id
+  </select>
+  <insert id="audit">
+    INSERT INTO sys.data_chg_hist(tbl_nm,obj_rec_id,data_chg_ty_cd,clmn_nm,bfr_val,aft_val,chg_user_id)
+    VALUES('fin.biz_plan',#{id},#{type},'사업계획 목표',#{before},#{after},#{actor})
+  </insert>
+  <select id="attributions" resultMap="attribution">
+    SELECT p.prj_id AS project_id,m.month,h.bsn_part_id AS part_id
+    FROM prj.prj p CROSS JOIN (
+      SELECT lpad(CAST(#{year} AS text),4,'0')||'-'||lpad(n::text,2,'0') AS month FROM generate_series(1,12) n
+    ) m LEFT JOIN LATERAL (
+      SELECT bsn_part_id FROM prj.prj_part_hist h WHERE h.prj_id=p.prj_id AND h.aply_bgn_ym &lt;= m.month
+      ORDER BY h.aply_bgn_ym DESC,h.part_hist_id DESC LIMIT 1
+    ) h ON true ORDER BY p.prj_id,m.month
+  </select>
+  <select id="closedActual" resultMap="actual">
+    SELECT substring(pl_ym,6,2)::int AS month,sls_amt AS revenue,bsn_prft_amt AS profit
+    FROM fin.mth_pl WHERE pl_ym=#{month} AND pl_src_cd='CLOSE'
+  </select>
+</mapper>

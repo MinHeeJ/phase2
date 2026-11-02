@@ -150,7 +150,12 @@ class BillingApiTest {
         var order=inOrder(mapper);order.verify(mapper).lockBill(7);order.verify(mapper).lockBill(8);
     }
     @Test void allReadsAreAnonymousAndDoNotWrite()throws Exception {
-        for(String path:List.of("gaps","overdue","summary"))mvc.perform(get("/api/billings/"+path)).andExpect(status().isOk()).andExpect(jsonPath("$.success").value(true));
+        mvc.perform(get("/api/billings/gaps")).andExpect(status().isOk())
+            .andExpect(jsonPath("$.success").value(true)).andExpect(jsonPath("$.data").exists());
+        mvc.perform(get("/api/billings/overdue")).andExpect(status().isOk())
+            .andExpect(jsonPath("$.success").value(true)).andExpect(jsonPath("$.data").exists());
+        mvc.perform(get("/api/billings/summary")).andExpect(status().isOk())
+            .andExpect(jsonPath("$.success").value(true)).andExpect(jsonPath("$.data").exists());
         mvc.perform(get("/api/billings/preview").param("projectId","1").param("month","2026-10"))
             .andExpect(status().isOk()).andExpect(jsonPath("$.data.details").isArray());
         verify(mapper,never()).transition(any());verify(mapper,never()).audit(any());

@@ -108,7 +108,7 @@ class ProjectStaffPlanApiTest {
             .andExpect(status().isOk()).andExpect(jsonPath("$.data.items.length()").value(1))
             .andExpect(jsonPath("$.data.items[0].need_psn_cnt").value(3));
     }
-    @Test void sourcedRowsPreservedWhileOnlyManualRowsAreReplaced() throws Exception {
+    @Test void businessSourcedRowsPreservedWhileOnlyManualRowsAreReplaced() throws Exception {
         var sourced = plan("2026-10", "FE", "SENIOR", "1", 7L); plans.add(sourced);
         plans.add(plan("2026-10", "BE", "", "8", null));
         mvc.perform(put("/api/projects/1/staff-plans").contentType(MediaType.APPLICATION_JSON)

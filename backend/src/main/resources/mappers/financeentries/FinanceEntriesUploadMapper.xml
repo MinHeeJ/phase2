@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sicost.financeentries.FinanceEntriesUploadMapper">
+  <resultMap id="code" type="com.sicost.uploadsops.UploadModels$UploadCode"><constructor>
+    <arg column="grp" javaType="java.lang.String"/><arg column="code" javaType="java.lang.String"/><arg column="name" javaType="java.lang.String"/>
+  </constructor></resultMap>
+  <resultMap id="mapping" type="com.sicost.uploadsops.UploadModels$UploadMapping"><constructor>
+    <arg column="grp" javaType="java.lang.String"/><arg column="label" javaType="java.lang.String"/><arg column="code" javaType="java.lang.String"/>
+  </constructor></resultMap>
+  <select id="codes" resultMap="code">
+    SELECT d.cd_grp_id AS grp,d.dtl_cd AS code,d.cd_nm AS name
+    FROM cmn.cd_dtl d JOIN cmn.cd_grp g USING(cd_grp_id)
+    WHERE d.cd_grp_id='FIN_CATEGORY' AND d.use_yn='Y' AND g.use_yn='Y' ORDER BY d.sort_seq,d.dtl_cd
+  </select>
+  <select id="mappings" resultMap="mapping">
+    SELECT m.trns_cd_grp_id AS grp,m.excel_lbl_nm AS label,m.trns_cd AS code
+    FROM cmn.excel_map m JOIN cmn.cd_dtl d ON d.cd_grp_id=m.trns_cd_grp_id AND d.dtl_cd=m.trns_cd
+    JOIN cmn.cd_grp g ON g.cd_grp_id=d.cd_grp_id
+    WHERE m.trns_cd_grp_id='FIN_CATEGORY' AND m.use_yn='Y' AND d.use_yn='Y' AND g.use_yn='Y'
+  </select>
+  <select id="nextUploadId" resultType="long">SELECT nextval('sys.seq_upld_id')</select>
+  <select id="uploadStatus" resultType="string" useCache="false">
+    SELECT upld_stts_cd FROM sys.upld WHERE upld_id=#{id} AND form_cd='B.2'
+  </select>
+  <update id="lockScope">
+    LOCK TABLE fin.mth_cls IN SHARE MODE;
+    LOCK TABLE fin.entry IN SHARE ROW EXCLUSIVE MODE
+  </update>
+  <insert id="saveReview">
+    INSERT INTO sys.upld(upld_id,form_cd,scrn_id,obj_ym,file_nm,file_path_addr,
+      tot_row_cnt,nrml_row_cnt,err_row_cnt,wrn_row_cnt,upld_stts_cd,ovwr_yn,upld_user_id)
+    VALUES(#{review.id},'B.2','UI-10',#{review.month},#{review.name},#{review.path},
+      #{result.row_count},greatest(0,#{result.row_count}-#{result.error_count}),#{result.error_count},#{result.warning_count},#{status},'Y',#{actor})
+    ON CONFLICT(upld_id) DO UPDATE SET upld_stts_cd=EXCLUDED.upld_stts_cd,
+      tot_row_cnt=EXCLUDED.tot_row_cnt,nrml_row_cnt=EXCLUDED.nrml_row_cnt,
+      err_row_cnt=EXCLUDED.err_row_cnt,wrn_row_cnt=EXCLUDED.wrn_row_cnt
+  </insert>
+  <select id="insert" resultType="long" affectData="true" flushCache="true">
+    INSERT INTO fin.entry(entry_ym,fin_se_cd,item_nm,entry_amt,vat_amt,inout_dt,rpt_yn,
+      inout_cmpl_yn,rmrk_desc,copy_entry_id,auto_fill_yn,upld_id,created_by)
+    VALUES(#{input.entry_ym},#{input.fin_se_cd},#{input.item_nm},#{input.entry_amt},#{input.vat_amt},
+      #{input.inout_dt},#{input.rpt_yn},'N',#{input.remark},NULL,'N',#{uploadId},#{actor}) RETURNING entry_id
+  </select>
+  <insert id="access">
+    INSERT INTO sys.acs_hist(user_id,acs_ty_cd,scrn_id,obj_desc,dtl_desc)
+    VALUES(#{actor},#{type},'UI-10',#{display},#{detail})
+  </insert>
+</mapper>
