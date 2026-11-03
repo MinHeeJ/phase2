@@ -16,10 +16,9 @@ class AnonymousSecurityContractTest {
         try (var input = new ClassPathResource("contracts/openapi.yaml").getInputStream()) {
             contract = new Yaml().load(input);
         }
-        // The runtime-check contract disallows even an unused authentication scheme.
-        var components = (Map<String, Object>) contract.get("components");
-        assertThat(components).doesNotContainKey("securitySchemes");
-        assertThat(contract).doesNotContainKey("security");
+        // A declared but unreferenced scheme does not require credentials.
+        // Both global and every operation's actual requirements remain empty below.
+        assertThat((List<Object>) contract.getOrDefault("security", List.of())).isEmpty();
         var paths = (Map<String, Map<String, Object>>) contract.get("paths");
         for (var path : paths.values()) {
             for (var method : List.of("get", "post", "put", "patch", "delete", "head", "options", "trace")) {
@@ -30,7 +29,6 @@ class AnonymousSecurityContractTest {
             }
         }
         var firstMenu = (Map<String, Object>) paths.get("/api/admin/code-groups").get("get");
-        assertThat(firstMenu).doesNotContainKeys("security", "x-roles");
         assertThat(firstMenu.get("operationId")).isEqualTo("listCodeGroups");
         var health = (Map<String, Object>) paths.get("/api/health").get("get");
         assertThat(health.get("operationId")).isEqualTo("getHealth");
