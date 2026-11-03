@@ -43,9 +43,20 @@ export default function UI33Screen({
         name="프로젝트 등록"
         groupName="프로젝트·투입 > 프로젝트"
         actions={
-          <Button data-testid="project-back" onClick={leave}>
-            목록
-          </Button>
+          <>
+            <Button
+              data-testid="project-candidate-workspace"
+              disabled={dirty}
+              onClick={() =>
+                navigate("/UI-33", { state: { workspace: "candidates" } })
+              }
+            >
+              외부 인력 후보
+            </Button>
+            <Button data-testid="project-back" onClick={leave}>
+              목록
+            </Button>
+          </>
         }
       />
       <Can perm="UI-01.create">

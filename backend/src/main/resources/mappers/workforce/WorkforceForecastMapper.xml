@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sicost.workforce.WorkforceForecastMapper">
+  <resultMap id="source" type="com.sicost.workforce.WorkforceForecastModels$Source"><constructor>
+    <arg column="month" javaType="java.lang.String"/><arg column="job_cd" javaType="java.lang.String"/><arg column="grd_cd" javaType="java.lang.String"/>
+    <arg column="supply_mm" javaType="java.math.BigDecimal"/><arg column="demand_mm" javaType="java.math.BigDecimal"/>
+    <arg column="available_mm" javaType="java.math.BigDecimal"/><arg column="confirmed_mm" javaType="java.math.BigDecimal"/>
+    <arg column="extension_mm" javaType="java.math.BigDecimal"/><arg column="temporary_mm" javaType="java.math.BigDecimal"/>
+    <arg column="idle_cost" javaType="java.math.BigDecimal"/><arg column="average_labor_cost" javaType="java.math.BigDecimal"/>
+    <arg column="over_one_mm" javaType="_boolean"/><arg column="missing_cost" javaType="_boolean"/>
+  </constructor></resultMap>
+  <select id="forecast" resultMap="source">
+    WITH months AS (
+      SELECT d::date AS start_dt,(d+interval '1 month - 1 day')::date AS end_dt,to_char(d,'YYYY-MM') AS month
+      FROM generate_series(to_date(#{from},'YYYY-MM'),to_date(#{to},'YYYY-MM'),interval '1 month') d
+    ), people AS (
+      SELECT d.dev_id,d.main_job_cd AS job_cd,coalesce(d.grd_cd,'') AS grd_cd,d.emp_se_cd,m.*,
+        (SELECT count(*)::numeric FROM generate_series(m.start_dt,m.end_dt,interval '1 day') day
+          WHERE (d.hire_dt IS NULL OR day::date&gt;=d.hire_dt) AND (d.rsgn_dt IS NULL OR day::date&lt;d.rsgn_dt)
+            AND NOT EXISTS(SELECT 1 FROM mst.dev_work_stts_hist h WHERE h.dev_id=d.dev_id
+              AND h.bgn_dt&lt;=day::date AND (h.end_dt IS NULL OR h.end_dt&gt;=day::date)))
+          /extract(day FROM m.end_dt) AS available,
+        coalesce((SELECT sum(a.mm_qty) FROM asgn.asgn_mth a JOIN asgn.asgn x ON x.asgn_id=a.asgn_id
+          WHERE x.dev_id=d.dev_id AND x.asgn_stts_cd!='CANCELLED' AND a.work_ym=m.month),0) AS confirmed,
+        coalesce((SELECT sum(t.mm_qty) FROM asgn.tmpr_asgn t WHERE t.dev_id=d.dev_id AND t.tmpr_asgn_stts_cd='ACTIVE'
+          AND t.bgn_ym&lt;=m.month AND (t.end_ym IS NULL OR t.end_ym&gt;=m.month)),0) AS temporary,
+        salary.indv_lbr_cst_amt AS labor,
+        coalesce((SELECT sum(last_mm.mm_qty*prob.num_val/100) FROM asgn.asgn x
+          JOIN LATERAL(SELECT mm_qty FROM asgn.asgn_mth a WHERE a.asgn_id=x.asgn_id AND a.work_ym=to_char(x.end_dt,'YYYY-MM')) last_mm ON true
+          JOIN LATERAL(SELECT num_val FROM cmn.oprt_std s WHERE s.oprt_std_id='EXT_PROB_'||x.ext_psblty_cd AND s.aply_bgn_ym&lt;=m.month ORDER BY s.aply_bgn_ym DESC LIMIT 1) prob ON true
+          WHERE x.dev_id=d.dev_id AND x.asgn_stts_cd='ACTIVE' AND x.end_dt&lt;m.start_dt
+            AND NOT EXISTS(SELECT 1 FROM asgn.asgn newer WHERE newer.dev_id=d.dev_id AND newer.asgn_stts_cd!='CANCELLED'
+              AND newer.bgn_dt&gt;x.end_dt AND newer.bgn_dt&lt;=m.end_dt)),0) AS extension
+      FROM mst.dev d CROSS JOIN months m
+      LEFT JOIN LATERAL(SELECT c.indv_lbr_cst_amt FROM cst.mth_cst c WHERE c.dev_id=d.dev_id AND c.cst_ym&lt;=to_char(#{today}::date,'YYYY-MM') ORDER BY c.cst_ym DESC LIMIT 1) salary ON true
+      WHERE d.use_yn='Y' AND d.duty_se_cd='DIRECT'
+    ), supply AS (
+      SELECT month,job_cd,grd_cd,sum(greatest(available-confirmed-extension,0)) AS supply,
+        sum(available) AS available,sum(confirmed) AS confirmed,sum(extension) AS extension,sum(temporary) AS temporary,
+        sum(CASE WHEN emp_se_cd IN ('FT','CT') THEN greatest(available-confirmed,0)*coalesce(labor,0) ELSE 0 END) AS idle_cost,
+        avg(labor) AS average_labor_cost,bool_or(confirmed&gt;1) AS over_one_mm,bool_or(labor IS NULL) AS missing_cost
+      FROM people GROUP BY month,job_cd,grd_cd
+    ), project_demand AS (
+      SELECT p.plan_ym AS month,p.job_cd,p.grd_cd,
+        greatest(sum(p.need_mm_qty)-coalesce((SELECT sum(a.mm_qty) FROM asgn.asgn_mth a JOIN asgn.asgn x ON x.asgn_id=a.asgn_id
+          JOIN mst.dev d ON d.dev_id=x.dev_id WHERE x.prj_id=p.prj_id AND x.job_cd=p.job_cd
+          AND coalesce(d.grd_cd,'')=p.grd_cd AND x.asgn_stts_cd!='CANCELLED' AND a.work_ym=p.plan_ym),0),0) AS demand
+      FROM prj.psn_plan p JOIN prj.prj j ON j.prj_id=p.prj_id
+      WHERE p.plan_ym BETWEEN #{from} AND #{to} AND j.use_yn='Y' AND j.prj_stts_cd NOT IN ('END','LOST')
+      GROUP BY p.prj_id,p.plan_ym,p.job_cd,p.grd_cd
+    ), opportunity_demand AS (
+      SELECT m.month,n.job_cd,coalesce(n.grd_cd,'') AS grd_cd,sum(n.psn_cnt*n.mth_mm_qty*o.win_prblt_rt/100) AS demand
+      FROM bsn.oppt_need n JOIN bsn.oppt o ON o.oppt_id=n.oppt_id JOIN months m
+        ON m.start_dt&gt;=to_date(n.bgn_ym,'YYYY-MM') AND m.start_dt&lt;to_date(n.bgn_ym,'YYYY-MM')+n.mnth_qty*interval '1 month'
+      WHERE o.oppt_stts_cd='OPEN' GROUP BY m.month,n.job_cd,coalesce(n.grd_cd,'')
+    ), demand AS (
+      SELECT month,job_cd,grd_cd,sum(demand) AS demand FROM (
+        SELECT * FROM project_demand UNION ALL SELECT * FROM opportunity_demand
+      ) d GROUP BY month,job_cd,grd_cd
+    )
+    SELECT coalesce(s.month,d.month) AS month,coalesce(s.job_cd,d.job_cd) AS job_cd,nullif(coalesce(s.grd_cd,d.grd_cd),'') AS grd_cd,
+      coalesce(s.supply,0) AS supply_mm,coalesce(d.demand,0) AS demand_mm,coalesce(s.available,0) AS available_mm,
+      coalesce(s.confirmed,0) AS confirmed_mm,coalesce(s.extension,0) AS extension_mm,coalesce(s.temporary,0) AS temporary_mm,
+      coalesce(s.idle_cost,0) AS idle_cost,coalesce(s.average_labor_cost,0) AS average_labor_cost,
+      coalesce(s.over_one_mm,false) AS over_one_mm,coalesce(s.missing_cost,true) AS missing_cost
+    FROM supply s FULL OUTER JOIN demand d ON s.month=d.month AND s.job_cd=d.job_cd AND s.grd_cd=d.grd_cd
+    <where>
+      <if test="job != null">coalesce(s.job_cd,d.job_cd)=#{job}</if>
+      <if test="grade != null">AND coalesce(s.grd_cd,d.grd_cd)=#{grade}</if>
+    </where>
+    ORDER BY month,job_cd,grd_cd
+  </select>
+  <select id="candidateCount" resultType="long">
+    SELECT count(*) FROM hr.cand WHERE use_yn='Y' AND cntct_stts_cd IN ('NONE','DONE','INTV')
+      AND job_cd=#{job} AND asgn_psbl_dt&lt;=#{availableBy}
+      <if test="grade != null">AND grd_cd=#{grade}</if>
+  </select>
+  <select id="utilizationTarget" resultType="java.math.BigDecimal">SELECT num_val FROM cmn.oprt_std WHERE oprt_std_id='TARGET_UTIL_RATE' AND aply_bgn_ym&lt;=#{month} ORDER BY aply_bgn_ym DESC LIMIT 1</select>
+</mapper>

@@ -1,0 +1,76 @@
+{
+  "schema_version": 1,
+  "status": "partial_implementation_awaiting_runner_verification",
+  "acceptance_complete": false,
+  "preserved_behavior": [
+    "Public APIs without new authentication or role enforcement",
+    "ApiResponse and ApiError envelopes and RequestIdFilter",
+    "Legacy direct /UI-33 project-registration entry and existing ProjectService/DeveloperService",
+    "Existing UI-02 table CSS, shared shell, controls, period navigation, mobile read-only behavior",
+    "Existing V1-V7 migrations and caller-owned runtime OpenAPI fixture",
+    "Existing progress, dispatch and plan-gap operating parameters"
+  ],
+  "implemented_entrypoints": [
+    { "operation_id": "listCandidates", "method": "GET", "path": "/api/candidates", "entrypoint": "CandidateController.list", "service": "CandidateService.list" },
+    { "operation_id": "createCandidate", "method": "POST", "path": "/api/candidates", "entrypoint": "CandidateController.create", "service": "CandidateService.create" },
+    { "operation_id": "getCandidate", "method": "GET", "path": "/api/candidates/{id}", "entrypoint": "CandidateController.get", "service": "CandidateService.get" },
+    { "operation_id": "updateCandidate", "method": "PUT", "path": "/api/candidates/{id}", "entrypoint": "CandidateController.update", "service": "CandidateService.update" },
+    { "operation_id": "createCandidateContact", "method": "POST", "path": "/api/candidates/{id}/contacts", "entrypoint": "CandidateController.contact", "service": "CandidateService.contact" },
+    { "operation_id": "createCandidateConversion", "method": "POST", "path": "/api/candidates/{id}/convert", "entrypoint": "CandidateController.convert", "service": "CandidateService.convert -> DeveloperService.create" },
+    { "operation_id": "getWorkforceForecast", "method": "GET", "path": "/api/workforce/forecast", "entrypoint": "WorkforceController.forecast", "service": "WorkforceForecastService.forecast" },
+    { "operation_id": "getCandidateShortages", "method": "GET", "path": "/api/candidates/shortages", "entrypoint": "WorkforceController.shortages", "service": "WorkforceForecastService.shortages" },
+    { "operation_id": "getParams", "method": "GET", "path": "/api/params", "change": "Existing mapper includes quote keys while preserving legacy keys" }
+  ],
+  "principal": {
+    "access": "public",
+    "actor": "Existing CurrentUser.userId(), NULL in current mode",
+    "enforcement": "Existing PermissionService future permission hooks; no new authentication filter"
+  },
+  "persistence": {
+    "adapter": "XML MyBatis with explicit record constructor result maps",
+    "tables": ["hr.cand", "hr.cand_skl", "hr.cand_cntct_hist", "mst.dev", "mst.dev_work_stts_hist", "cst.mth_cst", "cmn.oprt_std", "prj.prj", "prj.psn_plan", "asgn.asgn", "asgn.asgn_mth", "asgn.tmpr_asgn", "bsn.oppt", "bsn.oppt_need", "sys.data_chg_hist"],
+    "write_boundary": "Candidate commands are transactional; conversion calls the existing proxied DeveloperService. Contacts lock the candidate and project the greatest contact date, creation timestamp and history ID. Forecasts only read business tables.",
+    "migration": "backend/src/main/resources/db/migration/V8__workforce_planning_integrity.sql",
+    "migration_note": "Includes preparatory quote metadata and source-plan/project uniqueness for still-unimplemented opportunity workflows. These additions are not proof of implemented win/approval operations.",
+    "selected_engine_execution": "not_run",
+    "live_flyway_state": "not_inspected"
+  },
+  "ui_contract_checklist": {
+    "UI-17": ["YEAR future-month selection", "API job/grade options", "Monthly supply/demand chart and table", "Strict shortage threshold and hiring lead display", "Filter-preserving candidate navigation", "Loading/empty/error and explicit unavailable-profit warning"],
+    "UI-33": ["Same-path candidate workspace selected by router state; legacy direct entry remains projects", "API-backed filters and page-independent KPIs", "Candidate editor with FL/OS vendor validation", "Basic/matching-slot/append-only contact tabs", "Masked phone roundtrip preservation", "Conversion using candidate identity plus developer registration fields", "Save/readback recovery and dirty cancellation", "Mobile read-only behavior"]
+  },
+  "tests_authored_not_executed": [
+    "backend/src/test/java/com/sicost/apiops/ProjectBoardApiTest.java",
+    "backend/src/test/java/com/sicost/candidates/CandidateApiTest.java",
+    "backend/src/test/java/com/sicost/candidates/CandidatePersistenceTest.java",
+    "backend/src/test/java/com/sicost/workforce/WorkforceForecastApiTest.java",
+    "backend/src/test/java/com/sicost/workforce/WorkforceForecastPersistenceTest.java",
+    "frontend/src/pages/candidates/UI33Screen.test.tsx",
+    "frontend/src/pages/workforce/UI17Screen.test.tsx",
+    "frontend/src/pages/shared/AppShell.test.tsx",
+    "e2e/tests/workforce-planning.spec.ts"
+  ],
+  "static_checks_executed": {
+    "git_diff_check": "passed",
+    "mapper_xml_well_formed": "passed",
+    "new_mapper_statement_ids_match_interface_methods": "passed",
+    "explicit_record_constructor_argument_counts": "passed",
+    "existing_migration_edits": [],
+    "frontend_npm_lockfile": "already_present_unchanged",
+    "new_source_input_directory_references": [],
+    "approval_hash_check": "data-model, OpenAPI, research and quickstart match server-decision metadata; architecture and ui-design do not"
+  },
+  "execution_not_claimed": ["Java compilation", "JUnit execution", "PostgreSQL migration startup", "SQL execution/materialization", "Concurrent conversion", "Frontend typecheck", "Vitest execution", "Frontend build", "Playwright execution", "Container startup"],
+  "remaining_scope": [
+    "UI-29 opportunity list/editor, quote calculations, approval/rejection, win/loss/disable and JSON exports",
+    "UI-05 deterministic next-slot recommendations and recommendation summaries",
+    "Temporary-assignment commands, warnings, release, concurrency and conversion during win",
+    "UI-28 annual calendar/board, read/export API and browser scenarios",
+    "Opportunity/project revenue forecast API and UI-29 forecast tab",
+    "Shared forecast cross-screen verification, source-preserving financial regression and concurrent win rollback integration",
+    "Actual-zero evidence policy approval and commercial zero/IN contract review",
+    "Source-backed future operating-profit baseline and historical job/grade classification"
+  ],
+  "delegation_attempt": "Codex CLI returned HTTP 401; no delegated edits or successful verification were produced. Implementation was authored in the current session.",
+  "runner_verification": "awaiting runner verification"
+}

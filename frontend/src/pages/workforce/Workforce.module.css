@@ -1,0 +1,26 @@
+.graph {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--space-4);
+  margin: var(--space-4) 0;
+}
+.graph > div {
+  min-width: 0;
+  padding: var(--space-4);
+  background: var(--surface);
+  border: 1px solid var(--divider);
+  border-radius: var(--radius-panel);
+}
+.bar {
+  min-width: max-content;
+  margin-top: var(--space-2);
+  padding: var(--space-2);
+  background: var(--primary-bg);
+  color: var(--text);
+  box-sizing: border-box;
+  font-variant-numeric: tabular-nums;
+}
+.demand {
+  background: var(--header-bg);
+  border-inline-start: 3px solid var(--border);
+}

@@ -87,6 +87,19 @@ class ProjectBoardApiTest {
             .andExpect(jsonPath("$.data[0].oprt_std_id").value("SIG_DELAY_WARN"));
         verify(mapper).params("2026-10");
     }
+    @Test void quoteParametersArePreservedAlongsideExistingProgressParameters() throws Exception {
+        var rows = new ArrayList<>(params());
+        rows.add(new OperatingParam("QUOTE_APPROVAL_RATE", "2000-01", "견적 승인", n("15"), null, "%", null));
+        rows.add(new OperatingParam("QUOTE_TARGET_MARGIN", "2000-01", "견적 목표", n("20"), null, "%", null));
+        rows.add(new OperatingParam("QUOTE_APPROVAL_TOLERANCE", "2000-01", "견적 허용", n("0.50"), null, "%p", null));
+        when(mapper.params(anyString())).thenReturn(rows);
+        mvc.perform(get("/api/params")).andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.length()").value(9))
+            .andExpect(jsonPath("$.data[0].oprt_std_id").value("SIG_DELAY_WARN"))
+            .andExpect(jsonPath("$.data[8].oprt_std_id").value("QUOTE_APPROVAL_TOLERANCE"))
+            .andExpect(jsonPath("$.data[8].num_val").value(0.50));
+        verify(mapper).params("2026-10");
+    }
     @Test void requestedMonthIsPassedWithoutSubstitution() throws Exception {
         mvc.perform(get("/api/params").param("month", "2025-02")).andExpect(status().isOk());
         verify(mapper).params("2025-02");
