@@ -111,12 +111,34 @@ export async function downloadPlanComparison(filters: PlanComparisonFilters) {
   const name = /filename\*=UTF-8''([^;]+)/i.exec(disposition)?.[1];
   if (!name)
     throw new ApiFailure("파일명을 확인할 수 없습니다.", response.status, null);
-  const url = URL.createObjectURL(await response.blob());
+  let filename: string;
+  try {
+    filename = decodeURIComponent(name);
+  } catch {
+    throw new ApiFailure("파일명을 확인할 수 없습니다.", response.status, null);
+  }
+  if (
+    filename.length > 200 ||
+    /[\x00-\x1f\x7f/\\]/.test(filename) ||
+    !filename.endsWith(".xlsx")
+  )
+    throw new ApiFailure("파일명을 확인할 수 없습니다.", response.status, null);
+  const blob = await response.blob();
+  if (!blob.size)
+    throw new ApiFailure(
+      "엑셀 응답을 확인할 수 없습니다.",
+      response.status,
+      null,
+    );
+  const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
-  link.href = url;
-  link.download = decodeURIComponent(name);
-  document.body.append(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
+  try {
+    link.href = url;
+    link.download = filename;
+    document.body.append(link);
+    link.click();
+  } finally {
+    link.remove();
+    URL.revokeObjectURL(url);
+  }
 }

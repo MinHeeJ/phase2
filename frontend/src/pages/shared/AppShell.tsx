@@ -50,12 +50,16 @@ export function AppShell({
     bindings: BusinessScreenBindings,
   ) => ReactNode;
 }) {
-  const { pathname, search: locationSearch } = useLocation();
+  const {
+    pathname,
+    search: locationSearch,
+    state: navigationState,
+  } = useLocation();
   const navigate = useNavigate();
   const id =
     pathname === "/UI-32"
       ? "UI-02"
-      : pathname === "/UI-33"
+      : pathname === "/UI-33" && navigationState?.workspace !== "candidates"
         ? "UI-01"
         : pathname.slice(1);
   const { menus, loading, error, retry } = useMenus();
@@ -83,18 +87,32 @@ export function AppShell({
   if (id === "UI-02") developerRoute.current = pathname;
   const projectRoute = useRef(pathname === "/UI-33" ? "/UI-33" : "/UI-01");
   if (id === "UI-01") projectRoute.current = pathname + locationSearch;
+  const candidateState = useRef(
+    navigationState?.workspace === "candidates"
+      ? navigationState
+      : { workspace: "candidates", candidateFilters: {} },
+  );
+  if (id === "UI-33") candidateState.current = navigationState;
   const navigationMenus = menus
     .map((group) => ({
       ...group,
       children: group.children.filter(
-        (child) => child.screenId !== "UI-32" && child.screenId !== "UI-33",
+        (child) =>
+          child.screenId !== "UI-32" &&
+          (child.screenId !== "UI-33" || child.name.includes("후보")),
       ),
     }))
     .filter(
-      (group) => group.screenId !== "UI-32" && group.screenId !== "UI-33",
+      (group) =>
+        group.screenId !== "UI-32" &&
+        (group.screenId !== "UI-33" || group.name.includes("후보")),
     );
   const navigateTo = useCallback(
     (next: string) => {
+      if (next === "UI-33") {
+        navigate("/UI-33", { state: candidateState.current });
+        return;
+      }
       navigate(
         next === "UI-02"
           ? developerRoute.current
@@ -128,7 +146,16 @@ export function AppShell({
         .filter((tab) => tab.id !== "UI-16")
         .reduce((old, tab) => (tab.viewed < old.viewed ? tab : old));
       setConfirm({ kind: "overflow", candidate: candidate.id, next: id });
-      navigate(`/${lastRoute.current}`, { replace: true });
+      navigate(
+        lastRoute.current === "UI-01"
+          ? projectRoute.current
+          : `/${lastRoute.current}`,
+        {
+          replace: true,
+          state:
+            lastRoute.current === "UI-33" ? candidateState.current : undefined,
+        },
+      );
       return;
     }
     lastRoute.current = id;
@@ -367,6 +394,10 @@ export function AppShell({
                     tab.id === "UI-18" ||
                     tab.id === "UI-20" ||
                     tab.id === "UI-21" ||
+                    tab.id === "UI-17" ||
+                    tab.id === "UI-28" ||
+                    tab.id === "UI-29" ||
+                    tab.id === "UI-33" ||
                     tab.id === "UI-02" ? (
                       <SharedMobileGuard
                         mobileAllowed={location.screen.mobile}

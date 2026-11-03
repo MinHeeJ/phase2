@@ -114,6 +114,19 @@ class ProjectWireContractTest {
             if (!path.startsWith("/api/projects") && !path.startsWith("/api/uploads")) continue;
             // Dispatch attendance uploads are billing-owned (UI-13); BillingCommonContractTest checks them.
             if (path.startsWith("/api/uploads/dispatch-attendance")) continue;
+            if (path.startsWith("/api/uploads/finance-entries")
+                || path.startsWith("/api/uploads/business-plan")
+                || path.startsWith("/api/uploads/prior-profit")) {
+                for (String method : List.of("get", "post", "put", "delete")) {
+                    if (!((Map<?, ?>)pathEntry.getValue()).containsKey(method)) continue;
+                    var operation=(Map<?, ?>)((Map<?, ?>)pathEntry.getValue()).get(method);
+                    assertThat((List<?>)operation.get("security")).isNullOrEmpty();
+                    assertThat(operation.get("x-roles")).isNull();
+                    assertThat(operation.get("operationId")).isIn("validateFinanceEntriesUpload", "applyFinanceEntriesUpload",
+                        "validateBusinessPlanUpload", "applyBusinessPlanUpload", "validatePriorProfitUpload", "applyPriorProfitUpload");
+                }
+                continue;
+            }
             var methods = (Map<?, ?>) pathEntry.getValue();
             for (String method : List.of("get", "post", "put", "delete")) {
                 if (!(methods.get(method) instanceof Map<?, ?> operation)) continue;

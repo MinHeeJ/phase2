@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sicost.opportunitiesops.OpportunityForecastMapper">
+  <resultMap id="developer" type="com.sicost.opportunitiesops.OpportunityForecastModels$Developer"><constructor>
+    <arg column="id" javaType="_long"/><arg column="job" javaType="string"/><arg column="grade" javaType="string"/><arg column="employee" javaType="string"/>
+    <arg column="hire" javaType="java.time.LocalDate"/><arg column="resign" javaType="java.time.LocalDate"/><arg column="labor" javaType="java.lang.Long"/>
+  </constructor></resultMap>
+  <resultMap id="leave" type="com.sicost.opportunitiesops.OpportunityForecastModels$Leave"><constructor><arg column="developer" javaType="_long"/><arg column="start" javaType="java.time.LocalDate"/><arg column="end" javaType="java.time.LocalDate"/></constructor></resultMap>
+  <resultMap id="assignment" type="com.sicost.opportunitiesops.OpportunityForecastModels$Assignment"><constructor>
+    <arg column="id" javaType="_long"/><arg column="project" javaType="_long"/><arg column="developer" javaType="_long"/><arg column="job" javaType="string"/>
+    <arg column="grade" javaType="string"/><arg column="start" javaType="java.time.LocalDate"/><arg column="end" javaType="java.time.LocalDate"/><arg column="extension" javaType="string"/>
+  </constructor></resultMap>
+  <resultMap id="assignedMonth" type="com.sicost.opportunitiesops.OpportunityForecastModels$AssignedMonth"><constructor><arg column="assignment" javaType="_long"/><arg column="month" javaType="string"/><arg column="mm" javaType="java.math.BigDecimal"/><arg column="price" javaType="java.lang.Long"/></constructor></resultMap>
+  <resultMap id="project" type="com.sicost.opportunitiesops.OpportunityForecastModels$Project"><constructor><arg column="id" javaType="_long"/><arg column="type" javaType="string"/><arg column="start" javaType="java.time.LocalDate"/><arg column="end" javaType="java.time.LocalDate"/><arg column="amount" javaType="java.lang.Long"/></constructor></resultMap>
+  <resultMap id="plan" type="com.sicost.opportunitiesops.OpportunityForecastModels$ProjectPlan"><constructor><arg column="project" javaType="_long"/><arg column="month" javaType="string"/><arg column="job" javaType="string"/><arg column="grade" javaType="string"/><arg column="mm" javaType="java.math.BigDecimal"/></constructor></resultMap>
+  <resultMap id="opportunity" type="com.sicost.opportunitiesops.OpportunityForecastModels$Opportunity"><constructor><arg column="id" javaType="_long"/><arg column="amount" javaType="_long"/><arg column="start" javaType="string"/><arg column="months" javaType="_int"/><arg column="probability" javaType="java.math.BigDecimal"/></constructor></resultMap>
+  <resultMap id="demand" type="com.sicost.opportunitiesops.OpportunityForecastModels$Demand"><constructor>
+    <arg column="opportunity" javaType="_long"/><arg column="job" javaType="string"/><arg column="grade" javaType="string"/><arg column="start" javaType="string"/>
+    <arg column="months" javaType="_int"/><arg column="people" javaType="_int"/><arg column="mm" javaType="java.math.BigDecimal"/><arg column="probability" javaType="java.math.BigDecimal"/>
+  </constructor></resultMap>
+  <resultMap id="temporary" type="com.sicost.opportunitiesops.OpportunityForecastModels$Temporary"><constructor><arg column="job" javaType="string"/><arg column="grade" javaType="string"/><arg column="start" javaType="string"/><arg column="end" javaType="string"/><arg column="mm" javaType="java.math.BigDecimal"/></constructor></resultMap>
+  <select id="developers" resultMap="developer">SELECT d.dev_id AS id,coalesce(d.main_job_cd,'') AS job,coalesce(d.grd_cd,'') AS grade,d.emp_se_cd AS employee,d.hire_dt AS hire,d.rsgn_dt AS resign,
+    (SELECT c.indv_lbr_cst_amt FROM cst.mth_cst c WHERE c.dev_id=d.dev_id AND c.cst_ym&lt;=#{month}
+      AND c.emp_se_cd IN ('FT','CT') AND c.duty_se_cd='DIRECT' ORDER BY c.cst_ym DESC LIMIT 1) AS labor
+    FROM mst.dev d WHERE d.use_yn='Y' AND d.duty_se_cd='DIRECT' ORDER BY d.dev_id</select>
+  <select id="leaves" resultMap="leave">SELECT dev_id AS developer,bgn_dt AS start,end_dt AS end FROM mst.dev_work_stts_hist WHERE work_stts_cd IN ('VACATION','PARENTAL','UNPAID','LEAVE','RESIGN')</select>
+  <select id="assignments" resultMap="assignment">SELECT a.asgn_id AS id,a.prj_id AS project,a.dev_id AS developer,a.job_cd AS job,coalesce(d.grd_cd,'') AS grade,
+    a.bgn_dt AS start,a.end_dt AS end,a.ext_psblty_cd AS extension FROM asgn.asgn a JOIN mst.dev d ON d.dev_id=a.dev_id WHERE a.asgn_stts_cd!='CANCELLED' ORDER BY a.asgn_id</select>
+  <select id="assignmentMonths" resultMap="assignedMonth">SELECT m.asgn_id AS assignment,m.work_ym AS month,m.mm_qty AS mm,
+    CASE WHEN a.asgn_se_cd='FREE' THEN 0 ELSE (SELECT u.bill_untprc_amt FROM asgn.untprc_hist u WHERE u.asgn_id=a.asgn_id
+      AND u.aply_bgn_dt&lt;=(to_date(m.work_ym||'-01','YYYY-MM-DD')+interval '1 month - 1 day')::date ORDER BY u.aply_bgn_dt DESC LIMIT 1) END AS price
+    FROM asgn.asgn_mth m JOIN asgn.asgn a ON a.asgn_id=m.asgn_id WHERE a.asgn_stts_cd!='CANCELLED'</select>
+  <select id="projects" resultMap="project">SELECT prj_id AS id,cntrct_ty_cd AS type,coalesce(prfm_bgn_dt,cntrct_bgn_dt) AS start,
+    coalesce(cur_end_dt,cntrct_end_dt) AS end,cur_cntrct_amt AS amount FROM prj.prj WHERE use_yn='Y' AND prj_stts_cd IN ('RUN','HOLD')</select>
+  <select id="plans" resultMap="plan">SELECT s.prj_id AS project,s.plan_ym AS month,s.job_cd AS job,s.grd_cd AS grade,sum(s.need_mm_qty) AS mm
+    FROM prj.psn_plan s JOIN prj.prj p ON p.prj_id=s.prj_id WHERE p.use_yn='Y' AND p.prj_stts_cd IN ('RUN','HOLD') GROUP BY s.prj_id,s.plan_ym,s.job_cd,s.grd_cd</select>
+  <select id="opportunities" resultMap="opportunity">SELECT o.oppt_id AS id,o.expc_amt AS amount,o.expc_bgn_ym AS start,o.expc_mnth_qty AS months,o.win_prblt_rt AS probability
+    FROM bsn.oppt o WHERE o.oppt_stts_cd='OPEN' AND o.expc_bgn_ym IS NOT NULL AND o.expc_mnth_qty&gt;0
+    <if test="job != null or grade != null">AND EXISTS(SELECT 1 FROM bsn.oppt_need n WHERE n.oppt_id=o.oppt_id AND n.use_yn='Y'
+      <if test="job != null">AND n.job_cd=#{job}</if><if test="grade != null">AND n.grd_cd=#{grade}</if>)</if>
+    ORDER BY o.oppt_id</select>
+  <select id="needs" resultMap="demand">SELECT n.oppt_id AS opportunity,n.job_cd AS job,coalesce(n.grd_cd,'') AS grade,n.bgn_ym AS start,n.mnth_qty AS months,n.psn_cnt AS people,n.mth_mm_qty AS mm,o.win_prblt_rt AS probability
+    FROM bsn.oppt_need n JOIN bsn.oppt o ON o.oppt_id=n.oppt_id WHERE o.oppt_stts_cd='OPEN' AND n.use_yn='Y'</select>
+  <select id="temporary" resultMap="temporary">SELECT n.job_cd AS job,coalesce(n.grd_cd,'') AS grade,t.bgn_ym AS start,coalesce(t.end_ym,t.bgn_ym) AS end,t.mm_qty AS mm
+    FROM asgn.tmpr_asgn t JOIN bsn.oppt_need n ON n.need_id=t.need_id JOIN bsn.oppt o ON o.oppt_id=n.oppt_id WHERE t.tmpr_asgn_stts_cd='ACTIVE' AND o.oppt_stts_cd='OPEN' AND n.use_yn='Y'</select>
+  <select id="candidates" resultType="long">SELECT count(DISTINCT cand_id) FROM hr.cand WHERE use_yn='Y' AND cntct_stts_cd IN ('NONE','DONE','INTV') AND job_cd=#{job}
+    <if test="grade != null and grade != ''">AND grd_cd=#{grade}</if>
+    AND asgn_psbl_dt&lt;=(to_date(#{available}||'-01','YYYY-MM-DD')+interval '1 month - 1 day')::date</select>
+  <select id="code" resultType="boolean">SELECT EXISTS(SELECT 1 FROM cmn.cd_dtl WHERE cd_grp_id=#{job} AND dtl_cd=#{grade} AND use_yn='Y')</select>
+</mapper>

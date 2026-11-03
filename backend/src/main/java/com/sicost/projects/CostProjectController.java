@@ -34,11 +34,11 @@ public class CostProjectController {
     }
     @GetMapping("/api/costs/projects/{id}")
     public ApiResponse<Detail> getCostProject(@PathVariable String id,@RequestParam Map<String,String> q) {
-        return ApiResponse.ok(projects.detail(CostProjectInput.id(id),CostProjectInput.year(q,clock)));
+        return ApiResponse.ok(projects.detail(CostProjectInput.id(id),CostProjectInput.detailYear(q,clock)));
     }
     @GetMapping("/api/costs/projects/{id}/causes")
     public ApiResponse<Causes> getCostProjectCauses(@PathVariable String id,@RequestParam Map<String,String> q) {
-        return ApiResponse.ok(projects.causes(CostProjectInput.id(id),CostProjectInput.year(q,clock)));
+        return ApiResponse.ok(projects.causes(CostProjectInput.id(id),CostProjectInput.detailYear(q,clock)));
     }
     @PostMapping("/api/costs/projects/{id}/simulate")
     public ApiResponse<Simulation> simulateCostProject(@PathVariable String id,@RequestBody String body) {

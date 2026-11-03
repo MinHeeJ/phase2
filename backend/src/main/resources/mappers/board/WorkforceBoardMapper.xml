@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sicost.board.WorkforceBoardMapper">
+  <resultMap id="person" type="com.sicost.board.WorkforceBoardModels$Person"><constructor>
+    <arg column="dev_id" javaType="_long"/><arg column="dev_nm" javaType="string"/>
+    <arg column="mng_no" javaType="string"/><arg column="job_cd" javaType="string"/>
+    <arg column="grd_cd" javaType="string"/><arg column="rsgn_dt" javaType="java.time.LocalDate"/>
+  </constructor></resultMap>
+  <resultMap id="leave" type="com.sicost.board.WorkforceBoardModels$Leave"><constructor>
+    <arg column="dev_id" javaType="_long"/><arg column="work_stts_cd" javaType="string"/>
+    <arg column="bgn_dt" javaType="java.time.LocalDate"/><arg column="end_dt" javaType="java.time.LocalDate"/>
+  </constructor></resultMap>
+  <resultMap id="month" type="com.sicost.board.WorkforceBoardModels$MonthlyAssignment"><constructor>
+    <arg column="asgn_id" javaType="_long"/><arg column="month" javaType="string"/>
+    <arg column="mm" javaType="java.math.BigDecimal"/>
+  </constructor></resultMap>
+  <resultMap id="temporary" type="com.sicost.board.WorkforceBoardModels$TemporarySource"><constructor>
+    <arg column="id" javaType="_long"/><arg column="need_id" javaType="_long"/>
+    <arg column="dev_id" javaType="_long"/><arg column="bgn_ym" javaType="string"/>
+    <arg column="end_ym" javaType="string"/><arg column="mth_mm_qty" javaType="java.math.BigDecimal"/>
+    <arg column="tmpr_asgn_src_cd" javaType="string"/><arg column="mtch_scr" javaType="java.math.BigDecimal"/>
+    <arg column="status" javaType="string"/><arg column="asgn_id" javaType="java.lang.Long"/>
+    <arg column="oppt_nm" javaType="string"/>
+  </constructor></resultMap>
+  <select id="people" resultMap="person">
+    SELECT d.dev_id,d.dev_nm,d.mng_no,coalesce(d.main_job_cd,'') AS job_cd,d.grd_cd,d.rsgn_dt
+    FROM mst.dev d WHERE d.use_yn='Y' AND (d.hire_dt IS NULL OR d.hire_dt&lt;=#{end})
+    <if test="job != null">AND d.main_job_cd=#{job}</if>
+    <if test="grade != null">AND d.grd_cd=#{grade}</if>
+    <if test="skill != null">AND EXISTS(SELECT 1 FROM mst.dev_skl s WHERE s.dev_id=d.dev_id AND s.skl_cd=#{skill})</if>
+    <if test="emp_se_cd != null">AND d.emp_se_cd=#{emp_se_cd}</if>
+    ORDER BY d.dev_id
+  </select>
+  <select id="leaves" resultMap="leave">
+    SELECT h.dev_id,h.work_stts_cd,h.bgn_dt,h.end_dt FROM mst.dev_work_stts_hist h
+    WHERE h.bgn_dt&lt;=#{end} AND (h.end_dt IS NULL OR h.end_dt&gt;=#{start})
+      AND h.work_stts_cd IN ('RESIGN','VACATION','PARENTAL','UNPAID','LEAVE')
+    ORDER BY h.dev_id,h.bgn_dt,h.work_stts_hist_id
+  </select>
+  <select id="months" resultMap="month">
+    SELECT m.asgn_id,m.work_ym AS month,m.mm_qty AS mm FROM asgn.asgn_mth m
+    JOIN asgn.asgn a ON a.asgn_id=m.asgn_id WHERE a.asgn_stts_cd!='CANCELLED'
+      AND m.work_ym BETWEEN to_char(#{start}::date,'YYYY-MM') AND to_char(#{end}::date,'YYYY-MM')
+    ORDER BY m.asgn_id,m.work_ym
+  </select>
+  <select id="temporary" resultMap="temporary">
+    SELECT t.tmpr_asgn_id AS id,t.need_id,t.dev_id,t.bgn_ym,
+      coalesce(t.end_ym,to_char(to_date(n.bgn_ym || '-01','YYYY-MM-DD')
+        + (n.mnth_qty-1)*interval '1 month','YYYY-MM')) AS end_ym,
+      t.mm_qty AS mth_mm_qty,t.tmpr_asgn_src_cd,t.mtch_scr,t.tmpr_asgn_stts_cd AS status,t.asgn_id,o.oppt_nm
+    FROM asgn.tmpr_asgn t JOIN bsn.oppt_need n ON n.need_id=t.need_id
+    JOIN bsn.oppt o ON o.oppt_id=n.oppt_id
+    WHERE t.tmpr_asgn_stts_cd='ACTIVE' AND t.bgn_ym&lt;=to_char(#{end}::date,'YYYY-MM')
+      AND coalesce(t.end_ym,to_char(to_date(n.bgn_ym || '-01','YYYY-MM-DD')
+        + (n.mnth_qty-1)*interval '1 month','YYYY-MM'))&gt;=to_char(#{start}::date,'YYYY-MM')
+    ORDER BY t.tmpr_asgn_id
+  </select>
+  <insert id="download">
+    INSERT INTO sys.acs_hist(user_id,acs_ty_cd,scrn_id,obj_desc,dtl_desc)
+    VALUES(#{actor,jdbcType=BIGINT},'DOWNLOAD','UI-28',#{filename},#{detail})
+  </insert>
+</mapper>

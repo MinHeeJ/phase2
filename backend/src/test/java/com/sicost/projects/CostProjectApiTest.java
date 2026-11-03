@@ -143,8 +143,26 @@ class CostProjectApiTest {
             .andExpect(status().isBadRequest()).andExpect(jsonPath("$.field").value("monthly_price_amt"));
     }
     @ParameterizedTest @ValueSource(strings={"/7","/7/causes"})
-    void missingYearIsRejected(String suffix) throws Exception {
-        mvc.perform(get("/api/costs/projects"+suffix)).andExpect(status().isBadRequest());
+    void optionalYearDefaultsToCurrentSeoulYear(String suffix) throws Exception {
+        mvc.perform(get("/api/costs/projects"+suffix))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.success").value(true))
+            .andExpect(jsonPath("$.data").isMap());
+        verify(allocations).year(2026,7L);
+        verify(mapper).plans(argThat(p->p.fromMonth().equals("2026-01") && p.throughMonth().equals("2026-10")));
+    }
+    @ParameterizedTest @ValueSource(strings={"/7","/7/causes"})
+    void optionalYearUsesSeoulAtUtcYearBoundary(String suffix) throws Exception {
+        Clock boundary=Clock.fixed(Instant.parse("2025-12-31T15:00:00Z"),ZoneOffset.UTC);
+        doAnswer(i->boundary.withZone(i.getArgument(0))).when(clock).withZone(any());
+        mvc.perform(get("/api/costs/projects"+suffix)).andExpect(status().isOk());
+        verify(allocations).year(2026,7L);
+        verify(mapper).plans(argThat(p->p.throughMonth().equals("2026-01")));
+    }
+    @ParameterizedTest @CsvSource({"/7,0","/7,2027","/7,abc","/7/causes,0","/7/causes,2027","/7/causes,abc"})
+    void explicitInvalidDetailYearIsNotDefaulted(String suffix,String year) throws Exception {
+        mvc.perform(get("/api/costs/projects"+suffix).param("year",year))
+            .andExpect(status().isBadRequest()).andExpect(jsonPath("$.field").value("year"));
+        verifyNoInteractions(allocations);
     }
     @ParameterizedTest @ValueSource(strings={"/0","/-1","/abc","/9223372036854775808"})
     void invalidIdentifierIsValidationError(String suffix) throws Exception {

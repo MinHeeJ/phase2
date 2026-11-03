@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sicost.opportunities.OpportunityMapper">
+  <resultMap id="row" type="com.sicost.opportunities.OpportunityModels$Row"><constructor>
+    <arg column="oppt_id" javaType="_long"/><arg column="oppt_no" javaType="string"/><arg column="oppt_nm" javaType="string"/>
+    <arg column="cust_ptnr_id" javaType="java.lang.Long"/><arg column="bsn_part_id" javaType="java.lang.Long"/><arg column="owner_user_id" javaType="java.lang.Long"/>
+    <arg column="bsn_stg_cd" javaType="string"/><arg column="win_prblt_rt" javaType="java.math.BigDecimal"/><arg column="expc_amt" javaType="_long"/>
+    <arg column="cntrct_ty_cd" javaType="string"/><arg column="bgn_ym" javaType="string"/><arg column="mth_cnt" javaType="_int"/>
+    <arg column="next_action" javaType="string"/><arg column="next_action_dt" javaType="java.time.LocalDate"/><arg column="rmrk_desc" javaType="string"/>
+    <arg column="amount_difference_reason" javaType="string"/><arg column="oppt_stts_cd" javaType="string"/><arg column="win_prj_id" javaType="java.lang.Long"/>
+    <arg column="updated_at" javaType="java.time.LocalDateTime"/><arg column="created_at" javaType="java.time.LocalDateTime"/>
+    <arg column="approval_state" javaType="string"/><arg column="expc_sls_amt" javaType="java.lang.Long"/><arg column="expc_cst_amt" javaType="java.lang.Long"/>
+    <arg column="expc_mrgn_rt" javaType="java.math.BigDecimal"/><arg column="aprv_mrgn_rt" javaType="java.math.BigDecimal"/>
+    <arg column="zero_cost_evidence" javaType="string"/><arg column="zero_cost_validation" javaType="string"/>
+  </constructor></resultMap>
+  <resultMap id="need" type="com.sicost.opportunities.OpportunityModels$NeedRow"><constructor>
+    <arg column="need_id" javaType="_long"/><arg column="job_cd" javaType="string"/><arg column="grd_cd" javaType="string"/>
+    <arg column="psn_cnt" javaType="_int"/><arg column="bgn_ym" javaType="string"/><arg column="mth_cnt" javaType="_int"/>
+    <arg column="mth_mm_qty" javaType="java.math.BigDecimal"/><arg column="expc_untprc_amt" javaType="_long"/><arg column="rmrk_desc" javaType="string"/>
+    <arg column="psn_mth_cst_amt" javaType="_long"/><arg column="min_untprc_amt" javaType="_long"/><arg column="trgt_untprc_amt" javaType="_long"/>
+  </constructor></resultMap>
+  <resultMap id="approval" type="com.sicost.opportunities.OpportunityModels$Approval"><constructor>
+    <arg column="action" javaType="string"/><arg column="opinion" javaType="string"/><arg column="user_id" javaType="java.lang.Long"/>
+    <arg column="created_at" javaType="java.time.LocalDateTime"/><arg column="expc_mrgn_rt" javaType="java.math.BigDecimal"/>
+  </constructor></resultMap>
+  <resultMap id="cost" type="com.sicost.opportunities.OpportunityModels$CostSource"><constructor>
+    <arg column="dev_id" javaType="_long"/><arg column="job_cd" javaType="string"/><arg column="grd_cd" javaType="string"/>
+    <arg column="mth_cst_id" javaType="_long"/><arg column="cst_ym" javaType="string"/><arg column="amount" javaType="java.math.BigDecimal"/>
+  </constructor></resultMap>
+  <sql id="columns">o.oppt_id,o.oppt_no,o.oppt_nm,o.cust_ptnr_id,o.bsn_part_id,o.bsn_chrg_user_id AS owner_user_id,
+    o.bsn_stg_cd,o.win_prblt_rt,o.expc_amt,o.cntrct_ty_cd,o.expc_bgn_ym AS bgn_ym,o.expc_mnth_qty AS mth_cnt,
+    o.next_work_desc AS next_action,o.next_work_ddln_dt AS next_action_dt,o.rmrk_desc,o.amount_difference_reason,
+    o.oppt_stts_cd,o.win_prj_id,o.updated_at,o.created_at,o.quot_aprv_stts_cd AS approval_state,
+    o.expc_sls_amt,o.expc_cst_amt,o.expc_mrgn_rt,o.aprv_mrgn_rt,o.zero_cost_evidence,o.zero_cost_validation</sql>
+  <sql id="filter">WHERE o.oppt_stts_cd=#{status}
+    <if test="stage != null">AND o.bsn_stg_cd=#{stage}</if>
+    <if test="customer != null">AND o.cust_ptnr_id=#{customer}</if>
+    <if test="part != null">AND o.bsn_part_id=#{part}</if>
+    <if test="from != null">AND to_char(to_date(o.expc_bgn_ym,'YYYY-MM')+(o.expc_mnth_qty-1)*interval '1 month','YYYY-MM') &gt;= #{from}</if>
+    <if test="to != null">AND o.expc_bgn_ym &lt;= #{to}</if>
+    <if test="q != null">AND (strpos(lower(o.oppt_nm),lower(#{q}))&gt;0 OR EXISTS(SELECT 1 FROM mst.ptnr c WHERE c.ptnr_id=o.cust_ptnr_id AND strpos(lower(c.ptnr_nm),lower(#{q}))&gt;0))</if>
+  </sql>
+  <select id="list" resultMap="row">SELECT <include refid="columns"/> FROM bsn.oppt o <include refid="filter"/> ORDER BY ${order} LIMIT #{size} OFFSET #{offset}</select>
+  <select id="matching" resultMap="row">SELECT <include refid="columns"/> FROM bsn.oppt o <include refid="filter"/> ORDER BY o.oppt_id</select>
+  <select id="count" resultType="long">SELECT count(*) FROM bsn.oppt o <include refid="filter"/></select>
+  <select id="row" resultMap="row">SELECT <include refid="columns"/> FROM bsn.oppt o WHERE o.oppt_id=#{id}</select>
+  <select id="lock" resultMap="row" flushCache="true" useCache="false">SELECT <include refid="columns"/> FROM bsn.oppt o WHERE o.oppt_id=#{id} FOR UPDATE</select>
+  <select id="needs" resultMap="need">SELECT need_id,job_cd,grd_cd,psn_cnt,bgn_ym,mnth_qty AS mth_cnt,mth_mm_qty,
+    coalesce(expc_untprc_amt,0) AS expc_untprc_amt,rmrk_desc,coalesce(psn_mth_cst_amt,0) AS psn_mth_cst_amt,
+    coalesce(min_untprc_amt,0) AS min_untprc_amt,coalesce(trgt_untprc_amt,0) AS trgt_untprc_amt
+    FROM bsn.oppt_need WHERE oppt_id=#{id} AND use_yn='Y' ORDER BY sort_seq,need_id</select>
+  <select id="approvals" resultMap="approval">SELECT aprv_prcs_cd AS action,opnn_desc AS opinion,prcs_user_id AS user_id,prcs_at AS created_at,mrgn_rt AS expc_mrgn_rt
+    FROM bsn.quot_aprv_hist WHERE oppt_id=#{id} ORDER BY prcs_at DESC,aprv_hist_id DESC</select>
+  <select id="costs" resultMap="cost">SELECT d.dev_id,d.main_job_cd AS job_cd,d.grd_cd,c.mth_cst_id,c.cst_ym,
+    CAST(c.indv_lbr_cst_amt AS numeric)+coalesce((SELECT sum(e.expns_amt) FROM cst.drct_expns e WHERE e.dev_id=d.dev_id AND e.expns_ym=c.cst_ym),0) AS amount
+    FROM mst.dev d JOIN LATERAL (SELECT m.mth_cst_id,m.cst_ym,m.indv_lbr_cst_amt FROM cst.mth_cst m WHERE m.dev_id=d.dev_id AND m.cst_ym&lt;=to_char(#{today},'YYYY-MM') ORDER BY m.cst_ym DESC LIMIT 1) c ON true
+    WHERE d.use_yn='Y' AND (d.rsgn_dt IS NULL OR d.rsgn_dt&gt;#{today}) AND NOT EXISTS(SELECT 1 FROM mst.dev_work_stts_hist h WHERE h.dev_id=d.dev_id
+      AND h.work_stts_cd IN ('VACATION','PARENTAL','UNPAID','LEAVE') AND h.bgn_dt&lt;=#{today} AND (h.end_dt IS NULL OR h.end_dt&gt;=#{today})) ORDER BY d.dev_id</select>
+  <select id="criterion" resultType="java.math.BigDecimal">SELECT num_val FROM cmn.oprt_std WHERE oprt_std_id=#{key} AND aply_bgn_ym&lt;=#{month} ORDER BY aply_bgn_ym DESC LIMIT 1</select>
+  <select id="defaultPrice" resultType="java.lang.Long">SELECT CASE WHEN attr1_val ~ '^[0-9]{1,18}$' THEN CAST(attr1_val AS bigint) ELSE NULL END FROM cmn.cd_dtl WHERE cd_grp_id='JOB' AND dtl_cd=#{job} AND use_yn='Y'</select>
+  <select id="activeCode" resultType="boolean">SELECT EXISTS(SELECT 1 FROM cmn.cd_dtl d JOIN cmn.cd_grp g ON g.cd_grp_id=d.cd_grp_id WHERE d.cd_grp_id=#{group} AND d.dtl_cd=#{code} AND d.use_yn='Y' AND g.use_yn='Y')</select>
+  <select id="activeCustomer" resultType="boolean">SELECT EXISTS(SELECT 1 FROM mst.ptnr WHERE ptnr_id=#{id} AND use_yn='Y' AND ptnr_se_cd IN ('CUST','BOTH'))</select>
+  <select id="activePart" resultType="boolean">SELECT EXISTS(SELECT 1 FROM mst.bsn_part WHERE bsn_part_id=#{id} AND use_yn='Y')</select>
+  <select id="nextId" resultType="long">SELECT nextval('bsn.seq_oppt_id')</select>
+  <insert id="insert">INSERT INTO bsn.oppt(oppt_id,oppt_no,oppt_nm,cust_ptnr_id,bsn_part_id,bsn_chrg_user_id,bsn_stg_cd,win_prblt_rt,expc_amt,cntrct_ty_cd,expc_bgn_ym,expc_mnth_qty,next_work_desc,next_work_ddln_dt,rmrk_desc,amount_difference_reason,oppt_stts_cd,quot_aprv_stts_cd,expc_sls_amt,expc_cst_amt,expc_mrgn_rt,created_by)
+    VALUES(#{id},'O-'||CASE WHEN #{id}&lt;10 THEN '0'||CAST(#{id} AS text) ELSE CAST(#{id} AS text) END,#{input.oppt_nm},#{input.cust_ptnr_id},#{input.bsn_part_id},#{input.owner_user_id},#{input.bsn_stg_cd},#{probability},#{input.expc_amt},#{input.cntrct_ty_cd},#{input.bgn_ym},#{input.mth_cnt},#{input.next_action},#{input.next_action_dt},#{input.rmrk_desc},#{input.amount_difference_reason},'OPEN',#{quote.approval_state},#{quote.expc_sls_amt},#{quote.expc_cst_amt},#{quote.expc_mrgn_rt},#{actor})</insert>
+  <update id="update">UPDATE bsn.oppt SET oppt_nm=#{input.oppt_nm},cust_ptnr_id=#{input.cust_ptnr_id},bsn_part_id=#{input.bsn_part_id},bsn_chrg_user_id=#{input.owner_user_id},bsn_stg_cd=#{input.bsn_stg_cd},win_prblt_rt=#{probability},expc_amt=#{input.expc_amt},cntrct_ty_cd=#{input.cntrct_ty_cd},expc_bgn_ym=#{input.bgn_ym},expc_mnth_qty=#{input.mth_cnt},next_work_desc=#{input.next_action},next_work_ddln_dt=#{input.next_action_dt},rmrk_desc=#{input.rmrk_desc},amount_difference_reason=#{input.amount_difference_reason},quot_aprv_stts_cd=#{quote.approval_state},expc_sls_amt=#{quote.expc_sls_amt},expc_cst_amt=#{quote.expc_cst_amt},expc_mrgn_rt=#{quote.expc_mrgn_rt},updated_by=#{actor},updated_at=CURRENT_TIMESTAMP
+    <if test="!retainApproval">,aprv_mrgn_rt=NULL,aprv_user_id=NULL,aprv_at=NULL,zero_cost_evidence=NULL,zero_cost_validation=NULL,rjct_rsn_desc=NULL</if>
+    WHERE oppt_id=#{id} AND oppt_stts_cd='OPEN'</update>
+  <insert id="insertNeed">INSERT INTO bsn.oppt_need(oppt_id,job_cd,grd_cd,psn_cnt,bgn_ym,mnth_qty,mth_mm_qty,expc_untprc_amt,psn_mth_cst_amt,min_untprc_amt,trgt_untprc_amt,sort_seq,rmrk_desc)
+    VALUES(#{id},#{input.job_cd},#{input.grd_cd},#{input.psn_cnt},#{input.bgn_ym},#{input.mth_cnt},#{input.mth_mm_qty},#{input.expc_untprc_amt},#{cost},#{cost},#{target},#{sequence},#{input.rmrk_desc})</insert>
+  <update id="updateNeed">UPDATE bsn.oppt_need SET job_cd=#{input.job_cd},grd_cd=#{input.grd_cd},psn_cnt=#{input.psn_cnt},bgn_ym=#{input.bgn_ym},mnth_qty=#{input.mth_cnt},mth_mm_qty=#{input.mth_mm_qty},expc_untprc_amt=#{input.expc_untprc_amt},psn_mth_cst_amt=#{cost},min_untprc_amt=#{cost},trgt_untprc_amt=#{target},sort_seq=#{sequence},rmrk_desc=#{input.rmrk_desc},updated_at=CURRENT_TIMESTAMP WHERE need_id=#{needId} AND oppt_id=#{id} AND use_yn='Y'</update>
+  <update id="releaseNeed">UPDATE asgn.tmpr_asgn SET tmpr_asgn_stts_cd='RELEASED',updated_at=CURRENT_TIMESTAMP WHERE need_id=#{id} AND tmpr_asgn_stts_cd='ACTIVE'</update>
+  <update id="retireNeed">UPDATE bsn.oppt_need SET use_yn='N',updated_at=CURRENT_TIMESTAMP WHERE need_id=#{id}</update>
+  <insert id="appendHistory">INSERT INTO sys.data_chg_hist(tbl_nm,obj_rec_id,data_chg_ty_cd,clmn_nm,bfr_val,aft_val,chg_user_id) VALUES('bsn.oppt',#{id},#{type},'opportunity',#{before},#{after},#{actor})</insert>
+  <insert id="requestApproval">INSERT INTO bsn.quot_aprv_hist(oppt_id,aprv_prcs_cd,mrgn_rt,expc_amt,prcs_user_id) VALUES(#{id},'REQUEST',#{margin},#{amount},#{actor})</insert>
+</mapper>

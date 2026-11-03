@@ -1,0 +1,32 @@
+.toolbar,
+.actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.actions {
+  justify-content: flex-end;
+  margin-top: 16px;
+}
+.form {
+  display: grid;
+  gap: 16px;
+}
+.info,
+.warning {
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.info {
+  background: var(--info-bg);
+  color: var(--info);
+}
+.warning {
+  background: var(--warning-bg);
+  color: var(--warning);
+  margin: 4px 0;
+}

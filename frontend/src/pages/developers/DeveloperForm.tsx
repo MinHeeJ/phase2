@@ -61,15 +61,23 @@ export function DeveloperForm({
   onSaved,
   onDirtyChange,
   reload,
+  initialDraft,
+  lockedFields,
+  submitDraft,
+  submitLabel = "저장",
 }: {
   initial?: DeveloperDetail;
   onCancel: () => void;
   onSaved: (row: DeveloperDetail | null, changed: boolean) => void;
   onDirtyChange: (dirty: boolean) => void;
   reload: () => Promise<unknown>;
+  initialDraft?: DeveloperInput;
+  lockedFields?: ReadonlySet<keyof DeveloperInput>;
+  submitDraft?: (draft: DeveloperInput) => Promise<DeveloperDetail>;
+  submitLabel?: string;
 }) {
   const [draft, setDraft] = useState<DeveloperInput>(() =>
-    developerPayload(initial ?? emptyDeveloper),
+    developerPayload(initial ?? initialDraft ?? emptyDeveloper),
   );
   const [localError, setLocalError] = useState<{
     field: string;
@@ -81,7 +89,7 @@ export function DeveloperForm({
     parts = useAdminRead(listSalesPartOptions),
     write = useAdminWrite(reload);
   const normalized = developerPayload(draft),
-    original = developerPayload(initial ?? emptyDeveloper);
+    original = developerPayload(initial ?? initialDraft ?? emptyDeveloper);
   const dirty = JSON.stringify(normalized) !== JSON.stringify(original);
   useEffect(() => {
     onDirtyChange(dirty);
@@ -110,6 +118,7 @@ export function DeveloperForm({
     key: K,
     value: DeveloperInput[K],
   ) => {
+    if (lockedFields?.has(key)) return;
     setLocalError(null);
     write.clear();
     setDraft((d) => ({
@@ -143,7 +152,7 @@ export function DeveloperForm({
         label={label}
         value={value ?? ""}
         required={required}
-        disabled={write.pending || source.loading}
+        disabled={write.pending || source.loading || lockedFields?.has(key)}
         options={options}
         onValueChange={(v) => change(key, v)}
         error={fieldError(key)}
@@ -161,7 +170,7 @@ export function DeveloperForm({
       label={label}
       maxLength={maxLength}
       required={required}
-      readOnly={key === "mng_no" && !!initial}
+      readOnly={(key === "mng_no" && !!initial) || lockedFields?.has(key)}
       disabled={write.pending}
       value={draft[key] ?? ""}
       onValueChange={(v) => change(key, v)}
@@ -183,7 +192,10 @@ export function DeveloperForm({
         name: initial?.code_names?.[`${group}:${code}`] ?? code,
       }));
     return (
-      <fieldset className={styles.multiple} disabled={write.pending}>
+      <fieldset
+        className={styles.multiple}
+        disabled={write.pending || lockedFields?.has(key)}
+      >
         <legend>{label}</legend>
         {[...options, ...missing].map((c) => (
           <label
@@ -230,7 +242,8 @@ export function DeveloperForm({
       changed = true;
     void write.save(
       async () => {
-        if (initial) {
+        if (submitDraft) saved = await submitDraft(developerPayload(draft));
+        else if (initial) {
           const result = await updateDeveloper(initial.dev_id, draft);
           saved = result.developer;
           changed = result.changed;
@@ -286,7 +299,11 @@ export function DeveloperForm({
               label="소속"
               required
               value={draft.vndr_ptnr_id?.toString() ?? ""}
-              disabled={write.pending || partners.loading}
+              disabled={
+                write.pending ||
+                partners.loading ||
+                lockedFields?.has("vndr_ptnr_id")
+              }
               options={(partners.data ?? []).map((p) => ({
                 value: p.id,
                 label: p.name,
@@ -371,7 +388,7 @@ export function DeveloperForm({
           pending={write.pending}
           disabled={unavailable || write.uncertain}
         >
-          저장
+          {submitLabel}
         </Button>
       </div>
     </form>

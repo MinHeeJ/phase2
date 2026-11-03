@@ -1,4 +1,5 @@
 import {
+  act,
   fireEvent,
   render,
   screen,
@@ -418,6 +419,54 @@ describe("detail tabs and navigation", () => {
 });
 
 describe("nonpersistent simulation", () => {
+  it("keeps the submitted inputs fixed and prevents duplicate calculations while pending", async () => {
+    let finish!: (value: Response) => void;
+    fetcher.mockImplementation(
+      () =>
+        new Promise<Response>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    render(<CostProjectSimulation id={7} type="MO" />);
+    fireEvent.change(screen.getByLabelText("1인 월 원가"), {
+      target: { value: "20" },
+    });
+    fireEvent.change(screen.getByLabelText("1인 월 단가"), {
+      target: { value: "30" },
+    });
+    const form = screen.getByTestId("simulation-run").closest("form")!;
+    fireEvent.submit(form);
+    expect(screen.getByLabelText("인원 증감")).toBeDisabled();
+    expect(screen.getByLabelText("1인 월 원가")).toBeDisabled();
+    expect(screen.getByLabelText("적용 개월")).toBeDisabled();
+    expect(screen.getByLabelText("1인 월 단가")).toBeDisabled();
+    expect(screen.getByTestId("simulation-run")).toBeDisabled();
+    fireEvent.submit(form);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    await act(async () =>
+      finish(
+        response({
+          simulated: true,
+          baseline_cost_amt: 320,
+          additional_cost_amt: 0,
+          simulated_cost_amt: 320,
+          additional_revenue_amt: 0,
+          simulated_revenue_amt: 200,
+          simulated_profit_amt: -120,
+          simulated_margin_rt: -60,
+          warnings: [],
+        }),
+      ),
+    );
+    expect(await screen.findByTestId("simulation-result")).toHaveTextContent(
+      "예상 원가 320",
+    );
+    expect(screen.getByLabelText("1인 월 원가")).toBeEnabled();
+    fireEvent.change(screen.getByLabelText("1인 월 원가"), {
+      target: { value: "40" },
+    });
+    expect(screen.queryByTestId("simulation-result")).not.toBeInTheDocument();
+  });
   it.each(["TK", "IN"])("hides monthly price input for %s", (type) => {
     render(<CostProjectSimulation id={7} type={type} />);
     expect(screen.queryByLabelText("1인 월 단가")).not.toBeInTheDocument();

@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sicost.opportunitiesops.OpportunityLifecycleMapper">
+  <resultMap id="opportunity" type="com.sicost.opportunitiesops.OpportunityLifecycleModels$Row"><constructor>
+    <arg column="oppt_id" javaType="_long"/><arg column="oppt_no" javaType="string"/><arg column="oppt_nm" javaType="string"/>
+    <arg column="cust_ptnr_id" javaType="_long"/><arg column="bsn_part_id" javaType="java.lang.Long"/><arg column="owner_user_id" javaType="java.lang.Long"/>
+    <arg column="bsn_stg_cd" javaType="string"/><arg column="win_prblt_rt" javaType="java.math.BigDecimal"/><arg column="expc_amt" javaType="_long"/>
+    <arg column="cntrct_ty_cd" javaType="string"/><arg column="bgn_ym" javaType="string"/><arg column="mth_cnt" javaType="java.lang.Integer"/>
+    <arg column="next_action" javaType="string"/><arg column="next_action_dt" javaType="java.time.LocalDate"/><arg column="rmrk_desc" javaType="string"/>
+    <arg column="oppt_stts_cd" javaType="string"/><arg column="win_prj_id" javaType="java.lang.Long"/><arg column="created_at" javaType="java.time.LocalDateTime"/>
+    <arg column="updated_at" javaType="java.time.LocalDateTime"/><arg column="amount_difference_reason" javaType="string"/><arg column="approval" javaType="string"/>
+    <arg column="revenue" javaType="java.lang.Long"/><arg column="cost" javaType="java.lang.Long"/><arg column="margin" javaType="java.math.BigDecimal"/>
+    <arg column="approved_margin" javaType="java.math.BigDecimal"/><arg column="approved_at" javaType="java.time.LocalDateTime"/>
+    <arg column="evidence" javaType="string"/><arg column="validation" javaType="string"/><arg column="lost_rsn_desc" javaType="string"/><arg column="rjct_rsn_desc" javaType="string"/>
+  </constructor></resultMap>
+  <resultMap id="need" type="com.sicost.opportunitiesops.OpportunityLifecycleModels$Need"><constructor>
+    <arg column="need_id" javaType="_long"/><arg column="job_cd" javaType="string"/><arg column="grd_cd" javaType="string"/><arg column="psn_cnt" javaType="_int"/>
+    <arg column="bgn_ym" javaType="string"/><arg column="mth_cnt" javaType="_int"/><arg column="mth_mm_qty" javaType="java.math.BigDecimal"/>
+    <arg column="expc_untprc_amt" javaType="java.lang.Long"/><arg column="psn_mth_cst_amt" javaType="java.lang.Long"/><arg column="min_untprc_amt" javaType="java.lang.Long"/>
+    <arg column="trgt_untprc_amt" javaType="java.lang.Long"/><arg column="rmrk_desc" javaType="string"/>
+  </constructor></resultMap>
+  <resultMap id="approvalHistory" type="com.sicost.opportunitiesops.OpportunityLifecycleModels$ApprovalHistory"><constructor>
+    <arg column="action" javaType="string"/><arg column="opinion" javaType="string"/><arg column="user_id" javaType="java.lang.Long"/>
+    <arg column="created_at" javaType="java.time.LocalDateTime"/><arg column="expc_mrgn_rt" javaType="java.math.BigDecimal"/>
+  </constructor></resultMap>
+  <resultMap id="source" type="com.sicost.opportunitiesops.OpportunityLifecycleModels$CostSource"><constructor>
+    <arg column="id" javaType="_long"/><arg column="developer" javaType="_long"/><arg column="month" javaType="string"/>
+    <arg column="labor" javaType="java.math.BigDecimal"/><arg column="expense" javaType="java.math.BigDecimal"/><arg column="job" javaType="string"/><arg column="grade" javaType="string"/>
+  </constructor></resultMap>
+  <resultMap id="temp" type="com.sicost.opportunitiesops.OpportunityLifecycleModels$Temp"><constructor>
+    <arg column="id" javaType="_long"/><arg column="need_id" javaType="_long"/><arg column="dev_id" javaType="_long"/>
+    <arg column="bgn_ym" javaType="string"/><arg column="end_ym" javaType="string"/><arg column="mm_qty" javaType="java.math.BigDecimal"/>
+    <arg column="job_cd" javaType="string"/><arg column="price" javaType="java.lang.Long"/>
+  </constructor></resultMap>
+  <resultMap id="exportRow" type="com.sicost.opportunitiesops.OpportunityLifecycleModels$ExportRow"><constructor>
+    <arg column="oppt_id" javaType="_long"/><arg column="oppt_no" javaType="string"/><arg column="oppt_nm" javaType="string"/><arg column="customer" javaType="string"/>
+    <arg column="part" javaType="string"/><arg column="bsn_stg_cd" javaType="string"/><arg column="win_prblt_rt" javaType="java.math.BigDecimal"/><arg column="expc_amt" javaType="_long"/>
+    <arg column="cntrct_ty_cd" javaType="string"/><arg column="bgn_ym" javaType="string"/><arg column="mth_cnt" javaType="java.lang.Integer"/><arg column="next_action" javaType="string"/>
+    <arg column="next_action_dt" javaType="java.time.LocalDate"/><arg column="oppt_stts_cd" javaType="string"/><arg column="approval_state" javaType="string"/>
+    <arg column="win_prj_id" javaType="java.lang.Long"/><arg column="project" javaType="string"/><arg column="needed_people" javaType="_long"/><arg column="last_update" javaType="java.time.LocalDateTime"/>
+  </constructor></resultMap>
+  <sql id="header">SELECT oppt_id,oppt_no,oppt_nm,cust_ptnr_id,bsn_part_id,bsn_chrg_user_id AS owner_user_id,
+    bsn_stg_cd,win_prblt_rt,expc_amt,cntrct_ty_cd,expc_bgn_ym AS bgn_ym,expc_mnth_qty AS mth_cnt,
+    next_work_desc AS next_action,next_work_ddln_dt AS next_action_dt,rmrk_desc,oppt_stts_cd,win_prj_id,created_at,updated_at,
+    amount_difference_reason,quot_aprv_stts_cd AS approval,expc_sls_amt AS revenue,expc_cst_amt AS cost,expc_mrgn_rt AS margin,
+    aprv_mrgn_rt AS approved_margin,aprv_at AS approved_at,zero_cost_evidence AS evidence,zero_cost_validation AS validation,lost_rsn_desc,rjct_rsn_desc
+    FROM bsn.oppt WHERE oppt_id=#{id}</sql>
+  <select id="row" resultMap="opportunity"><include refid="header"/></select>
+  <select id="lock" resultMap="opportunity" flushCache="true" useCache="false"><include refid="header"/> FOR UPDATE</select>
+  <select id="needs" resultMap="need">SELECT need_id,job_cd,grd_cd,psn_cnt,bgn_ym,mnth_qty AS mth_cnt,mth_mm_qty,
+    expc_untprc_amt,psn_mth_cst_amt,min_untprc_amt,trgt_untprc_amt,rmrk_desc FROM bsn.oppt_need WHERE oppt_id=#{id} AND use_yn='Y' ORDER BY sort_seq,need_id</select>
+  <select id="history" resultMap="approvalHistory">SELECT aprv_prcs_cd AS action,opnn_desc AS opinion,prcs_user_id AS user_id,
+    prcs_at AS created_at,mrgn_rt AS expc_mrgn_rt FROM bsn.quot_aprv_hist WHERE oppt_id=#{id} ORDER BY prcs_at,aprv_hist_id</select>
+  <select id="costSources" resultMap="source">SELECT c.mth_cst_id AS id,c.dev_id AS developer,c.cst_ym AS month,
+    c.indv_lbr_cst_amt::numeric AS labor,coalesce((SELECT sum(e.expns_amt) FROM cst.drct_expns e WHERE e.dev_id=c.dev_id AND e.expns_ym=c.cst_ym),0)::numeric AS expense,
+    d.main_job_cd AS job,d.grd_cd AS grade FROM mst.dev d
+    JOIN LATERAL (SELECT m.mth_cst_id,m.dev_id,m.cst_ym,m.indv_lbr_cst_amt FROM cst.mth_cst m
+      WHERE m.dev_id=d.dev_id AND m.cst_ym&lt;=to_char(#{today},'YYYY-MM') ORDER BY m.cst_ym DESC LIMIT 1) c ON true
+    WHERE d.use_yn='Y' AND (d.rsgn_dt IS NULL OR d.rsgn_dt&gt;#{today}) AND NOT EXISTS(SELECT 1 FROM mst.dev_work_stts_hist h WHERE h.dev_id=d.dev_id
+      AND h.work_stts_cd IN ('VACATION','PARENTAL','UNPAID','LEAVE') AND h.bgn_dt&lt;=#{today} AND (h.end_dt IS NULL OR h.end_dt&gt;=#{today})) ORDER BY d.dev_id</select>
+  <select id="approvalRate" resultType="java.math.BigDecimal">SELECT num_val FROM cmn.oprt_std WHERE oprt_std_id='QUOTE_APPROVAL_RATE' AND aply_bgn_ym&lt;=#{month} ORDER BY aply_bgn_ym DESC LIMIT 1</select>
+  <update id="change">UPDATE bsn.oppt <set><foreach collection="values" index="column" item="value">${column}=#{value},</foreach>updated_at=CURRENT_TIMESTAMP,updated_by=#{actor}</set> WHERE oppt_id=#{id} AND oppt_stts_cd='OPEN'</update>
+  <insert id="audit">INSERT INTO sys.data_chg_hist(tbl_nm,obj_rec_id,data_chg_ty_cd,clmn_nm,bfr_val,aft_val,chg_user_id)
+    VALUES(#{table},#{id},'UPDATE',#{column},#{before},#{after},#{actor})</insert>
+  <insert id="approval">INSERT INTO bsn.quot_aprv_hist(oppt_id,aprv_prcs_cd,mrgn_rt,expc_amt,opnn_desc,prcs_user_id)
+    VALUES(#{id},#{action},#{margin},#{amount},#{opinion},#{actor})</insert>
+  <select id="lockNeeds" resultType="long" flushCache="true" useCache="false">SELECT need_id FROM bsn.oppt_need WHERE oppt_id=#{id} ORDER BY need_id FOR UPDATE</select>
+  <select id="closedMonths" resultType="string">SELECT cls_ym FROM fin.mth_cls WHERE cls_stts_cd='CLOSED'</select>
+  <update id="release">UPDATE asgn.tmpr_asgn t SET tmpr_asgn_stts_cd='RELEASED',updated_at=CURRENT_TIMESTAMP,updated_by=#{actor}
+    FROM bsn.oppt_need n WHERE n.need_id=t.need_id AND n.oppt_id=#{id} AND t.tmpr_asgn_stts_cd='ACTIVE'</update>
+  <select id="temporary" resultMap="temp" flushCache="true" useCache="false">SELECT t.tmpr_asgn_id AS id,t.need_id,t.dev_id,t.bgn_ym,t.end_ym,t.mm_qty,n.job_cd,n.expc_untprc_amt AS price
+    FROM asgn.tmpr_asgn t JOIN bsn.oppt_need n ON n.need_id=t.need_id WHERE n.oppt_id=#{id} AND t.tmpr_asgn_stts_cd='ACTIVE' ORDER BY t.tmpr_asgn_id FOR UPDATE OF t</select>
+  <update id="convert">UPDATE asgn.tmpr_asgn SET tmpr_asgn_stts_cd='CONVERTED',asgn_id=#{assignment},updated_by=#{actor},updated_at=CURRENT_TIMESTAMP WHERE tmpr_asgn_id=#{id} AND tmpr_asgn_stts_cd='ACTIVE'</update>
+  <update id="link">UPDATE prj.prj SET oppt_id=#{id},updated_by=#{actor} WHERE prj_id=#{project}</update>
+  <insert id="plan">INSERT INTO prj.psn_plan(prj_id,plan_ym,job_cd,grd_cd,need_psn_cnt,need_mm_qty,expc_mth_cst_amt,src_need_id,created_by)
+    VALUES(#{project},#{month},#{need.job_cd},coalesce(#{need.grd_cd},''),#{need.psn_cnt},#{mm},#{cost},#{need.need_id},#{actor})</insert>
+  <select id="exportRows" resultMap="exportRow">SELECT o.oppt_id,o.oppt_no,o.oppt_nm,c.ptnr_nm AS customer,b.bsn_part_nm AS part,
+    o.bsn_stg_cd,o.win_prblt_rt,o.expc_amt,o.cntrct_ty_cd,o.expc_bgn_ym AS bgn_ym,o.expc_mnth_qty AS mth_cnt,
+    o.next_work_desc AS next_action,o.next_work_ddln_dt AS next_action_dt,o.oppt_stts_cd,o.quot_aprv_stts_cd AS approval_state,o.win_prj_id,p.prj_no AS project,
+    coalesce((SELECT sum(n.psn_cnt) FROM bsn.oppt_need n WHERE n.oppt_id=o.oppt_id AND n.use_yn='Y'),0) AS needed_people,
+    coalesce(o.updated_at,o.created_at) AS last_update
+    FROM bsn.oppt o JOIN mst.ptnr c ON c.ptnr_id=o.cust_ptnr_id LEFT JOIN mst.bsn_part b ON b.bsn_part_id=o.bsn_part_id LEFT JOIN prj.prj p ON p.prj_id=o.win_prj_id
+    WHERE o.oppt_stts_cd=#{status}
+    <if test="q != null">AND (strpos(lower(o.oppt_nm),lower(#{q}))&gt;0 OR strpos(lower(c.ptnr_nm),lower(#{q}))&gt;0)</if>
+    <if test="stage != null">AND o.bsn_stg_cd=#{stage}</if><if test="customer != null">AND o.cust_ptnr_id=#{customer}</if>
+    <if test="part != null">AND o.bsn_part_id=#{part}</if>
+    <if test="from != null">AND to_char(to_date(o.expc_bgn_ym,'YYYY-MM')+(o.expc_mnth_qty-1)*interval '1 month','YYYY-MM') &gt;= #{from}</if>
+    <if test="to != null">AND o.expc_bgn_ym&lt;=#{to}</if>
+    ORDER BY o.oppt_id
+  </select>
+  <insert id="download">INSERT INTO sys.acs_hist(acs_ty_cd,scrn_id,user_id,obj_desc,dtl_desc) VALUES('DOWNLOAD','UI-29',#{actor},#{filename},#{detail})</insert>
+</mapper>

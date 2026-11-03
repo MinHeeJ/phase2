@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sicost.tempassignments.TempAssignmentMapper">
+  <resultMap id="row" type="com.sicost.tempassignments.TempAssignmentModels$Row"><constructor>
+    <arg column="id" javaType="_long"/><arg column="need_id" javaType="_long"/>
+    <arg column="dev_id" javaType="_long"/><arg column="bgn_ym" javaType="java.lang.String"/>
+    <arg column="end_ym" javaType="java.lang.String"/><arg column="mth_mm_qty" javaType="java.math.BigDecimal"/>
+    <arg column="tmpr_asgn_src_cd" javaType="java.lang.String"/><arg column="mtch_scr" javaType="java.math.BigDecimal"/>
+    <arg column="status" javaType="java.lang.String"/><arg column="asgn_id" javaType="java.lang.Long"/>
+  </constructor></resultMap>
+  <resultMap id="need" type="com.sicost.tempassignments.TempAssignmentModels$Need"><constructor>
+    <arg column="need_id" javaType="_long"/><arg column="oppt_id" javaType="_long"/>
+    <arg column="use_yn" javaType="java.lang.String"/>
+  </constructor></resultMap>
+  <sql id="endMonth">coalesce(t.end_ym,to_char(to_date(n.bgn_ym,'YYYY-MM')+(n.mnth_qty-1)*interval '1 month','YYYY-MM'))</sql>
+  <sql id="projection">
+    t.tmpr_asgn_id AS id,t.need_id,t.dev_id,t.bgn_ym,<include refid="endMonth"/> AS end_ym,
+    t.mm_qty AS mth_mm_qty,t.tmpr_asgn_src_cd,t.mtch_scr,t.tmpr_asgn_stts_cd AS status,t.asgn_id
+  </sql>
+  <sql id="from">FROM asgn.tmpr_asgn t JOIN bsn.oppt_need n ON n.need_id=t.need_id</sql>
+  <sql id="filter"><where>
+    <if test="need_id != null">AND t.need_id=#{need_id}</if>
+    <if test="dev_id != null">AND t.dev_id=#{dev_id}</if>
+    <if test="oppt_id != null">AND n.oppt_id=#{oppt_id}</if>
+    <if test="status != null">AND t.tmpr_asgn_stts_cd=#{status}</if>
+    <if test="from != null">AND <include refid="endMonth"/> &gt;= #{from}</if>
+    <if test="to != null">AND t.bgn_ym &lt;= #{to}</if>
+  </where></sql>
+  <select id="list" resultMap="row">
+    SELECT <include refid="projection"/> <include refid="from"/><include refid="filter"/>
+    ORDER BY ${order} LIMIT #{size} OFFSET #{offset}
+  </select>
+  <select id="count" resultType="long">SELECT count(*) <include refid="from"/><include refid="filter"/></select>
+  <select id="row" resultMap="row">SELECT <include refid="projection"/> <include refid="from"/> WHERE t.tmpr_asgn_id=#{id}</select>
+  <select id="opportunityId" resultType="java.lang.Long">SELECT oppt_id FROM bsn.oppt_need WHERE need_id=#{needId}</select>
+  <select id="lockOpportunity" resultType="string" flushCache="true" useCache="false">
+    SELECT oppt_stts_cd FROM bsn.oppt WHERE oppt_id=#{id} FOR UPDATE
+  </select>
+  <select id="lockNeed" resultMap="need" flushCache="true" useCache="false">
+    SELECT need_id,oppt_id,use_yn FROM bsn.oppt_need WHERE need_id=#{id} FOR UPDATE
+  </select>
+  <select id="lockDeveloper" resultType="java.lang.Long" flushCache="true" useCache="false">
+    SELECT dev_id FROM mst.dev WHERE dev_id=#{id} AND use_yn='Y' FOR UPDATE
+  </select>
+  <select id="duplicate" resultType="boolean">
+    SELECT EXISTS(SELECT 1 <include refid="from"/> WHERE t.need_id=#{need_id} AND t.dev_id=#{dev_id}
+      AND t.tmpr_asgn_stts_cd='ACTIVE' AND t.bgn_ym &lt;= #{end_ym}
+      AND <include refid="endMonth"/> &gt;= #{bgn_ym})
+  </select>
+  <select id="recommendationScore" resultType="java.math.BigDecimal">
+    WITH grades AS (SELECT dtl_cd,row_number() OVER(ORDER BY sort_seq,dtl_cd) AS position
+      FROM cmn.cd_dtl WHERE cd_grp_id='GRADE' AND use_yn='Y')
+    SELECT CAST(
+      CASE WHEN d.main_job_cd=n.job_cd OR EXISTS(SELECT 1 FROM mst.dev_sub_job j WHERE j.dev_id=d.dev_id AND j.job_cd=n.job_cd) THEN 40 ELSE 0 END
+      + CASE WHEN d.grd_cd=n.grd_cd THEN 20 WHEN abs(dg.position-ng.position)=1 THEN 10 ELSE 0 END
+      + CASE greatest(0,(extract(year FROM to_date(n.bgn_ym,'YYYY-MM'))::int-extract(year FROM a.end_dt)::int)*12
+        +extract(month FROM to_date(n.bgn_ym,'YYYY-MM'))::int-extract(month FROM a.end_dt)::int-1)
+          WHEN 0 THEN 25 WHEN 1 THEN 15 WHEN 2 THEN 8 WHEN 3 THEN 3 ELSE 0 END
+      + CASE WHEN p.cust_ptnr_id=o.cust_ptnr_id THEN 10 ELSE 0 END
+      + CASE WHEN o.win_prblt_rt &gt;= 60 THEN 5 ELSE 0 END AS DECIMAL(6,2))
+    FROM bsn.oppt_need n JOIN bsn.oppt o ON o.oppt_id=n.oppt_id
+    JOIN mst.dev d ON d.dev_id=#{dev_id}
+    JOIN LATERAL (SELECT x.end_dt,x.prj_id FROM asgn.asgn x
+      WHERE x.dev_id=d.dev_id AND x.asgn_stts_cd IN ('ACTIVE','REPLACED')
+      ORDER BY x.end_dt DESC,x.asgn_id ASC LIMIT 1) a ON true
+    JOIN prj.prj p ON p.prj_id=a.prj_id
+    LEFT JOIN grades dg ON dg.dtl_cd=d.grd_cd LEFT JOIN grades ng ON ng.dtl_cd=n.grd_cd
+    WHERE n.need_id=#{need_id}
+  </select>
+  <select id="insert" resultType="long" affectData="true" flushCache="true">
+    INSERT INTO asgn.tmpr_asgn(need_id,dev_id,bgn_ym,end_ym,mm_qty,tmpr_asgn_src_cd,mtch_scr,tmpr_asgn_stts_cd,created_by)
+    VALUES(#{input.need_id},#{input.dev_id},#{input.bgn_ym},#{input.end_ym},#{input.mth_mm_qty},#{input.tmpr_asgn_src_cd},#{score},'ACTIVE',#{actor})
+    RETURNING tmpr_asgn_id
+  </select>
+  <update id="release">
+    UPDATE asgn.tmpr_asgn SET tmpr_asgn_stts_cd='RELEASED',updated_by=#{actor},updated_at=CURRENT_TIMESTAMP
+    WHERE tmpr_asgn_id=#{id} AND tmpr_asgn_stts_cd='ACTIVE'
+  </update>
+  <select id="warnings" resultType="string">
+    WITH months AS (SELECT to_char(m,'YYYY-MM') AS month FROM generate_series(
+      to_date(#{bgn_ym},'YYYY-MM'),to_date(#{end_ym},'YYYY-MM'),interval '1 month') m),
+    active AS (SELECT t.*,<include refid="endMonth"/> AS effective_end <include refid="from"/>
+      WHERE t.tmpr_asgn_stts_cd='ACTIVE'),
+    totals AS (SELECT m.month,
+      coalesce((SELECT sum(x.mm_qty) FROM asgn.asgn_mth x JOIN asgn.asgn a ON a.asgn_id=x.asgn_id
+        WHERE a.dev_id=#{dev_id} AND a.asgn_stts_cd!='CANCELLED' AND x.work_ym=m.month),0)
+      +coalesce((SELECT sum(t.mm_qty) FROM active t WHERE t.dev_id=#{dev_id} AND t.bgn_ym &lt;= m.month AND t.effective_end &gt;= m.month),0) AS total
+      FROM months m)
+    SELECT message FROM (
+      SELECT month||' 확정+가배정 MM '||to_char(total,'FM999990.00')||' (1.00 초과)' AS message FROM totals WHERE total &gt; 1
+      UNION ALL
+      SELECT '다른 필요 인력과 가배정 기간이 겹칩니다.' WHERE EXISTS(SELECT 1 FROM active t
+        WHERE t.dev_id=#{dev_id} AND t.tmpr_asgn_id!=#{id} AND t.bgn_ym &lt;= #{end_ym} AND t.effective_end &gt;= #{bgn_ym})
+      UNION ALL
+      SELECT '필요 인원을 초과한 가배정입니다.' WHERE EXISTS(SELECT 1 FROM months m JOIN bsn.oppt_need n ON n.need_id=#{need_id}
+        WHERE (SELECT count(DISTINCT t.dev_id) FROM active t WHERE t.need_id=n.need_id
+          AND t.bgn_ym &lt;= m.month AND t.effective_end &gt;= m.month) &gt; n.psn_cnt)
+      UNION ALL
+      SELECT '퇴사 기간 가배정입니다.' WHERE EXISTS(SELECT 1 FROM mst.dev d WHERE d.dev_id=#{dev_id}
+        AND d.rsgn_dt &lt; (to_date(#{end_ym},'YYYY-MM')+interval '1 month'))
+        OR EXISTS(SELECT 1 FROM mst.dev_work_stts_hist h WHERE h.dev_id=#{dev_id} AND h.work_stts_cd='RESIGN'
+          AND h.bgn_dt &lt; (to_date(#{end_ym},'YYYY-MM')+interval '1 month'))
+      UNION ALL
+      SELECT '휴직 기간 가배정입니다.' WHERE EXISTS(SELECT 1 FROM mst.dev_work_stts_hist h WHERE h.dev_id=#{dev_id}
+        AND h.work_stts_cd IN ('VACATION','PARENTAL','UNPAID','LEAVE')
+        AND h.bgn_dt &lt; (to_date(#{end_ym},'YYYY-MM')+interval '1 month')
+        AND (h.end_dt IS NULL OR h.end_dt &gt;= to_date(#{bgn_ym},'YYYY-MM')))
+    ) notices WHERE #{status}='ACTIVE' ORDER BY message
+  </select>
+  <insert id="appendHistory">
+    INSERT INTO sys.data_chg_hist(tbl_nm,obj_rec_id,data_chg_ty_cd,clmn_nm,bfr_val,aft_val,chg_user_id)
+    VALUES('asgn.tmpr_asgn',#{id},#{type},'tmpr_asgn',#{before},#{after},#{actor})
+  </insert>
+</mapper>

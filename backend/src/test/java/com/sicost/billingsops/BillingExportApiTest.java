@@ -67,9 +67,12 @@ class BillingExportApiTest {
         verifyNoInteractions(gaps,receivables,mapper);
     }
     @Test void overdueExportValidationDoesNotQueryOrAudit() throws Exception {
+        var service=new BillingReceivableService(mapper,clock,new PermissionService());
+        when(receivables.filtered(any())).thenAnswer(invocation->service.filtered(invocation.getArgument(0)));
         mvc.perform(get("/api/billings/overdue/export").param("sort","invalid,asc"))
             .andExpect(status().isBadRequest()).andExpect(jsonPath("$.field").value("sort"))
             .andExpect(jsonPath("$.requestId").isNotEmpty());
-        verifyNoInteractions(gaps,receivables,mapper);
+        verify(receivables).filtered(any());
+        verifyNoInteractions(gaps,mapper);
     }
 }

@@ -163,6 +163,40 @@ class DispatchAttendanceApiTest {
             .content(json.writeValueAsString(Map.of("items", List.of(row(), row())))))
             .andExpect(status().isBadRequest()); untouched();
     }
+    @Test void invalidSecondAssignmentRejectsEntireBatchBeforeAnyWrite() throws Exception {
+        rows.put(11L, new Stored(31, 21L, 11, BigDecimal.ZERO, null, BigDecimal.ZERO, BigDecimal.TEN, null));
+        var original = Map.copyOf(rows);
+        var foreign = row(); foreign.put("asgn_id", 99); foreign.put("dev_id", 12);
+        mvc.perform(put("/api/dispatch-attendance?month=2026-10&projectId=1").contentType("application/json")
+            .content(json.writeValueAsString(Map.of("items", List.of(row(), foreign)))))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.field").value("items[1].asgn_id"));
+        untouched();
+        assertThat(rows).isEqualTo(original);
+    }
+    @Test void billedSecondPersonRejectsEntireBatchBeforeAnyWrite() throws Exception {
+        when(mapper.sources(any())).thenReturn(List.of(
+            new Source(21, 11, BigDecimal.ONE, true, 1, false, null, null, null, null),
+            new Source(22, 12, BigDecimal.ONE, true, 1, true, null, null, null, null)));
+        var confirmed = row(); confirmed.put("asgn_id", 22); confirmed.put("dev_id", 12);
+        mvc.perform(put("/api/dispatch-attendance?month=2026-10&projectId=1").contentType("application/json")
+            .content(json.writeValueAsString(Map.of("items", List.of(row(), confirmed)))))
+            .andExpect(status().isConflict())
+            .andExpect(jsonPath("$.code").value("ATTENDANCE_BILLED"))
+            .andExpect(jsonPath("$.field").value("items[1].asgn_id"));
+        untouched();
+        assertThat(rows).isEmpty();
+    }
+    @Test void closedMonthStillAllowsReadWithoutLocksOrWrites() throws Exception {
+        when(mapper.monthStatus("2026-10")).thenReturn("CLOSED");
+        mvc.perform(get("/api/dispatch-attendance?month=2026-10&projectId=1"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.items[0].asgn_id").value(21))
+            .andExpect(jsonPath("$.data.warnings[0]").value("마감된 달입니다. 읽기 전용입니다."));
+        untouched();
+        verify(mapper, never()).lockProject(anyLong());
+        verify(mapper, never()).lockAttendance(any());
+    }
     @ParameterizedTest @ValueSource(strings = {"MONTH", "STAGE", ""})
     void invalidProjectMethodCannotReadOrWrite(String basis) throws Exception {
         method = basis;

@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sicost.candidatesops.CandidateContactMapper">
+  <resultMap id="candidate" type="com.sicost.candidatesops.CandidateContactModels$CandidateRow"><constructor>
+    <arg column="cand_id" javaType="_long"/><arg column="cand_no" javaType="string"/>
+    <arg column="cand_nm" javaType="string"/><arg column="cand_se_cd" javaType="string"/>
+    <arg column="vndr_ptnr_id" javaType="java.lang.Long"/><arg column="job_cd" javaType="string"/>
+    <arg column="grd_cd" javaType="string"/><arg column="hope_untprc_amt" javaType="java.lang.Long"/>
+    <arg column="avail_dt" javaType="java.time.LocalDate"/><arg column="cntct_stts_cd" javaType="string"/>
+    <arg column="last_cntct_dt" javaType="java.time.LocalDate"/><arg column="source" javaType="string"/>
+    <arg column="tel_no" javaType="string"/><arg column="rmrk_desc" javaType="string"/>
+    <arg column="dev_id" javaType="java.lang.Long"/><arg column="use_yn" javaType="string"/>
+    <arg column="created_at" javaType="java.time.LocalDateTime"/>
+  </constructor></resultMap>
+  <resultMap id="contact" type="com.sicost.candidatesops.CandidateContactModels$Contact"><constructor>
+    <arg column="cntct_dt" javaType="java.time.LocalDate"/><arg column="cntct_stts_cd" javaType="string"/>
+    <arg column="memo" javaType="string"/><arg column="user_id" javaType="java.lang.Long"/>
+    <arg column="created_at" javaType="java.time.LocalDateTime"/>
+  </constructor></resultMap>
+  <resultMap id="slot" type="com.sicost.candidatesops.CandidateContactModels$SlotRow"><constructor>
+    <arg column="need_id" javaType="_long"/><arg column="oppt_id" javaType="_long"/>
+    <arg column="oppt_nm" javaType="string"/><arg column="job_cd" javaType="string"/>
+    <arg column="bgn_ym" javaType="string"/><arg column="monthly_price" javaType="java.lang.Long"/>
+    <arg column="hope_untprc_amt" javaType="java.lang.Long"/>
+  </constructor></resultMap>
+  <sql id="candidateProjection">
+    SELECT cand_id,cand_no,cand_nm,cand_se_cd,vndr_ptnr_id,job_cd,grd_cd,hope_untprc_amt,
+      asgn_psbl_dt AS avail_dt,cntct_stts_cd,last_cntct_dt,cand_src_cd AS source,
+      tel_no,memo_desc AS rmrk_desc,dev_id,use_yn,created_at FROM hr.cand WHERE cand_id=#{id}
+  </sql>
+  <select id="lock" resultMap="candidate" useCache="false" flushCache="true"><include refid="candidateProjection"/> FOR UPDATE</select>
+  <select id="row" resultMap="candidate"><include refid="candidateProjection"/></select>
+  <select id="skills" resultType="string">SELECT skl_cd FROM hr.cand_skl WHERE cand_id=#{id} ORDER BY skl_cd</select>
+  <select id="contacts" resultMap="contact">
+    SELECT cntct_dt,cntct_stts_cd,memo_desc AS memo,rcrd_user_id AS user_id,created_at
+    FROM hr.cand_cntct_hist WHERE cand_id=#{id} ORDER BY cntct_dt DESC,created_at DESC,cntct_hist_id DESC
+  </select>
+  <select id="matching" resultMap="slot">
+    SELECT n.need_id,o.oppt_id,o.oppt_nm,n.job_cd,n.bgn_ym,n.expc_untprc_amt AS monthly_price,c.hope_untprc_amt
+    FROM hr.cand c JOIN bsn.oppt_need n ON n.job_cd=c.job_cd AND n.use_yn='Y'
+    JOIN bsn.oppt o ON o.oppt_id=n.oppt_id AND o.oppt_stts_cd='OPEN'
+    WHERE c.cand_id=#{id} AND c.use_yn='Y' AND c.cntct_stts_cd IN ('NONE','DONE','INTV')
+      AND (n.grd_cd IS NULL OR n.grd_cd=c.grd_cd)
+      AND c.asgn_psbl_dt &lt;= (to_date(n.bgn_ym,'YYYY-MM')+interval '1 month - 1 day')::date
+    ORDER BY n.bgn_ym,o.oppt_id,n.need_id
+  </select>
+  <insert id="append">
+    INSERT INTO hr.cand_cntct_hist(cand_id,cntct_dt,cntct_stts_cd,memo_desc,rcrd_user_id,created_at)
+    VALUES(#{id},#{input.cntct_dt},#{input.cntct_stts_cd},#{input.memo},#{actor},clock_timestamp())
+  </insert>
+  <update id="refreshContact">
+    UPDATE hr.cand c SET cntct_stts_cd=CASE WHEN c.dev_id IS NOT NULL THEN 'SIGNED' ELSE h.cntct_stts_cd END,
+      last_cntct_dt=h.cntct_dt,updated_by=#{actor}
+    FROM (SELECT cntct_dt,cntct_stts_cd FROM hr.cand_cntct_hist WHERE cand_id=#{id}
+      ORDER BY cntct_dt DESC,created_at DESC,cntct_hist_id DESC LIMIT 1) h
+    WHERE c.cand_id=#{id}
+      AND (c.last_cntct_dt IS DISTINCT FROM h.cntct_dt
+        OR c.cntct_stts_cd IS DISTINCT FROM CASE WHEN c.dev_id IS NOT NULL THEN 'SIGNED' ELSE h.cntct_stts_cd END)
+  </update>
+  <update id="convert">
+    UPDATE hr.cand SET dev_id=#{developerId},cntct_stts_cd='SIGNED',updated_by=#{actor}
+    WHERE cand_id=#{id} AND dev_id IS NULL
+  </update>
+  <insert id="audit">
+    INSERT INTO sys.data_chg_hist(tbl_nm,obj_rec_id,data_chg_ty_cd,clmn_nm,bfr_val,aft_val,chg_user_id)
+    VALUES('hr.cand',#{id},'UPDATE',#{column},#{before},#{after},#{actor})
+  </insert>
+  <select id="candidateCount" resultType="long">
+    SELECT count(DISTINCT c.cand_id) FROM hr.cand c
+    WHERE c.use_yn='Y' AND c.cntct_stts_cd IN ('NONE','DONE','INTV') AND c.job_cd=#{job}
+    <if test="grade != null and grade != ''">AND c.grd_cd=#{grade}</if>
+    AND <foreach collection="monthEnds" item="monthEnd" open="(" close=")" separator=" OR ">c.asgn_psbl_dt &lt;= #{monthEnd}</foreach>
+  </select>
+</mapper>
