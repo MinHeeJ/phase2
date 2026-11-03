@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sicost.withdrawalsops.NextSlotMapper">
+  <resultMap id="profile" type="com.sicost.withdrawalsops.NextSlotModels$Profile"><constructor>
+    <arg column="asgn_id" javaType="_long"/><arg column="dev_id" javaType="_long"/>
+    <arg column="grd_cd" javaType="string"/><arg column="cust_ptnr_id" javaType="java.lang.Long"/>
+  </constructor></resultMap>
+  <resultMap id="need" type="com.sicost.withdrawalsops.NextSlotModels$Need"><constructor>
+    <arg column="need_id" javaType="_long"/><arg column="oppt_id" javaType="_long"/>
+    <arg column="oppt_nm" javaType="string"/><arg column="job_cd" javaType="string"/>
+    <arg column="grd_cd" javaType="string"/><arg column="bgn_ym" javaType="string"/>
+    <arg column="end_ym" javaType="string"/><arg column="remaining_slots" javaType="_int"/>
+    <arg column="cust_ptnr_id" javaType="java.lang.Long"/><arg column="win_prblt_rt" javaType="java.math.BigDecimal"/>
+  </constructor></resultMap>
+  <resultMap id="temporary" type="com.sicost.withdrawalsops.NextSlotModels$TemporaryRow"><constructor>
+    <arg column="id" javaType="_long"/><arg column="need_id" javaType="_long"/><arg column="dev_id" javaType="_long"/>
+    <arg column="bgn_ym" javaType="string"/><arg column="end_ym" javaType="string"/>
+    <arg column="mth_mm_qty" javaType="java.math.BigDecimal"/><arg column="tmpr_asgn_src_cd" javaType="string"/>
+    <arg column="mtch_scr" javaType="java.math.BigDecimal"/><arg column="status" javaType="string"/>
+    <arg column="asgn_id" javaType="java.lang.Long"/>
+  </constructor></resultMap>
+  <select id="profiles" resultMap="profile">
+    SELECT a.asgn_id,a.dev_id,d.grd_cd,p.cust_ptnr_id FROM asgn.asgn a
+    JOIN mst.dev d ON d.dev_id=a.dev_id JOIN prj.prj p ON p.prj_id=a.prj_id
+  </select>
+  <select id="needs" resultMap="need">
+    SELECT n.need_id,n.oppt_id,o.oppt_nm,n.job_cd,n.grd_cd,n.bgn_ym,
+      to_char(to_date(n.bgn_ym,'YYYY-MM') + (n.mnth_qty-1)*interval '1 month','YYYY-MM') AS end_ym,
+      n.psn_cnt-(SELECT count(*)::integer FROM asgn.tmpr_asgn t
+        WHERE t.need_id=n.need_id AND t.tmpr_asgn_stts_cd='ACTIVE') AS remaining_slots,
+      o.cust_ptnr_id,o.win_prblt_rt
+    FROM bsn.oppt_need n JOIN bsn.oppt o ON o.oppt_id=n.oppt_id
+    WHERE o.oppt_stts_cd='OPEN' AND n.use_yn='Y' AND n.mnth_qty&gt;0
+      AND n.psn_cnt&gt;(SELECT count(*) FROM asgn.tmpr_asgn t
+        WHERE t.need_id=n.need_id AND t.tmpr_asgn_stts_cd='ACTIVE')
+    ORDER BY n.need_id
+  </select>
+  <select id="grades" resultType="string">
+    SELECT dtl_cd FROM cmn.cd_dtl WHERE cd_grp_id='GRADE' ORDER BY sort_seq,dtl_cd
+  </select>
+  <select id="jobs" resultType="string">
+    SELECT main_job_cd FROM mst.dev WHERE dev_id=#{devId}
+    UNION SELECT job_cd FROM mst.dev_sub_job WHERE dev_id=#{devId}
+  </select>
+  <select id="temporary" resultMap="temporary">
+    SELECT t.tmpr_asgn_id AS id,t.need_id,t.dev_id,t.bgn_ym,
+      coalesce(t.end_ym,to_char(to_date(n.bgn_ym,'YYYY-MM')+(n.mnth_qty-1)*interval '1 month','YYYY-MM')) AS end_ym,
+      t.mm_qty AS mth_mm_qty,t.tmpr_asgn_src_cd,t.mtch_scr,t.tmpr_asgn_stts_cd AS status,t.asgn_id
+    FROM asgn.tmpr_asgn t JOIN bsn.oppt_need n ON n.need_id=t.need_id
+    WHERE t.dev_id=#{devId} AND t.tmpr_asgn_stts_cd='ACTIVE'
+    ORDER BY t.bgn_ym,t.tmpr_asgn_id
+  </select>
+</mapper>

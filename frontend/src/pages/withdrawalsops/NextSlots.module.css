@@ -1,0 +1,45 @@
+.cell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+.summary {
+  composes: info from "../us1/Withdrawals.module.css";
+}
+.notice {
+  composes: warning from "../us1/Withdrawals.module.css";
+}
+.tableScroll {
+  composes: tableScroll from "../us1/Withdrawals.module.css";
+}
+.table {
+  composes: table from "../assignments/Assignments.module.css";
+}
+.detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+.form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--space-3);
+}
+.form label {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.form input {
+  height: 36px;
+  max-width: 140px;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--text);
+}

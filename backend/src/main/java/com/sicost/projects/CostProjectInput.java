@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.sicost.common.api.BillingPaging;
 import com.sicost.common.validation.BillingValues;
 import com.sicost.common.validation.CostValues;
+import com.sicost.common.validation.ProjectValues;
 import java.time.Clock;
 import java.util.Map;
 import java.util.Set;
@@ -13,6 +14,9 @@ public final class CostProjectInput {
     private CostProjectInput() {}
     public static int year(Map<String,String> q, Clock clock) {
         return CostValues.year(integer(q.get("year"), "year", null), clock);
+    }
+    public static int detailYear(Map<String,String> q, Clock clock) {
+        return CostValues.year(integer(q.get("year"), "year", ProjectValues.today(clock).getYear()), clock);
     }
     public static long id(String value) {
         Long id = CostValues.optionalId(value, "id");

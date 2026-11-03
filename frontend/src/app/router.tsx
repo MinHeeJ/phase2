@@ -36,6 +36,25 @@ import { BusinessPlanUploadDialog } from "../pages/businessplan2/BusinessPlanUpl
 import { PriorProfitUploadDialog } from "../pages/priorprofit/PriorProfitUploadDialog";
 import UI01Screen from "../pages/projects/UI01Screen";
 import UI05Screen from "../pages/us1/UI05Screen";
+import { WithdrawalTempAssignments } from "../pages/tempassignments/WithdrawalTempAssignments";
+import { NextSlotsSummary } from "../pages/withdrawalsops/WithdrawalRecommendationsScreen";
+import { TEMP_ASSIGNMENTS_CHANGED } from "../pages/tempassignments/client";
+import { TempAssignmentPanel } from "../pages/tempassignments/TempAssignmentPanel";
+import UI28Screen from "../pages/board/UI28Screen";
+import UI29Screen from "../pages/opportunities/UI29Screen";
+import CandidateScreen from "../pages/candidates/UI33Screen";
+import WorkforceDemandScreen from "../pages/workforceops/WorkforceDemandScreen";
+import type {
+  OpportunityDetail,
+  OpportunityFilters,
+} from "../pages/opportunities/client";
+import { OpportunityActionDialog } from "../pages/opportunitiesops/OpportunityPipelineScreen";
+import { ForecastContent } from "../pages/opportunitiesops/WorkforceDemandScreen";
+import {
+  exportOpportunities,
+  getOpportunityForecast,
+  updateOpportunityStage,
+} from "../pages/opportunitiesops/client";
 import { WithdrawalChanceSelect } from "../pages/us2/WithdrawalChanceSelect";
 import { DispatchExpiryCell } from "../pages/us3/DispatchExpiry";
 import UI11Screen from "../pages/us4/UI11Screen";
@@ -91,6 +110,245 @@ import {
   type BusinessScreenBindings,
 } from "../pages/shared/AppShell";
 
+function useTemporaryAssignmentVersion() {
+  const [version, setVersion] = useState(0);
+  useEffect(() => {
+    const changed = () => setVersion((value) => value + 1);
+    window.addEventListener(TEMP_ASSIGNMENTS_CHANGED, changed);
+    return () => window.removeEventListener(TEMP_ASSIGNMENTS_CHANGED, changed);
+  }, []);
+  return version;
+}
+
+function WorkforceBoardPage(bindings: BusinessScreenBindings) {
+  const version = useTemporaryAssignmentVersion();
+  return <UI28Screen {...bindings} refreshVersion={version} />;
+}
+
+function WithdrawalPage(bindings: BusinessScreenBindings) {
+  const version = useTemporaryAssignmentVersion();
+  return (
+    <UI05Screen
+      {...bindings}
+      refreshVersion={version}
+      renderChance={(row, context) => (
+        <WithdrawalChanceSelect
+          key={row.asgn_id}
+          row={row}
+          today={context.today}
+          year={context.year}
+          onChanged={context.refresh}
+        />
+      )}
+      renderDispatch={(row) => (
+        <DispatchExpiryCell assignmentId={row.asgn_id} value={row} />
+      )}
+      renderNext={(row, context) => (
+        <WithdrawalTempAssignments
+          key={`${row.asgn_id}-${version}`}
+          asgnId={row.asgn_id}
+          devId={row.dev_id}
+          onChanged={context.refresh}
+        />
+      )}
+      renderRecommendationSummary={(rows, context) =>
+        rows[0] ? (
+          <NextSlotsSummary
+            asgnId={rows[0].asgn_id}
+            version={`${context.year}-${version}-${rows[0].updated_at}`}
+          />
+        ) : null
+      }
+    />
+  );
+}
+
+function OpportunityActions({
+  row,
+  refresh,
+}: {
+  row: OpportunityDetail;
+  refresh: () => Promise<unknown>;
+}) {
+  const [action, setAction] = useState<
+    Parameters<typeof OpportunityActionDialog>[0]["action"] | null
+  >(null);
+  const write = useAdminWrite(refresh);
+  const readOnly = useDeveloperReadOnly();
+  if (row.oppt_stts_cd !== "OPEN" || readOnly) return null;
+  return (
+    <>
+      <ErrorBanner error={write.error} onRetry={() => void write.recover()} />
+      <label>
+        단계 변경
+        <select
+          data-testid="opportunity-stage-change"
+          value={row.bsn_stg_cd}
+          disabled={write.pending || write.uncertain}
+          onChange={(event) => {
+            const stage = event.target.value;
+            void write.save(
+              () => updateOpportunityStage(row.oppt_id, stage),
+              () => {},
+            );
+          }}
+        >
+          <option value="DISC">발굴</option>
+          <option value="PROP">제안</option>
+          <option value="NEGO">협상</option>
+          <option value="PRE">계약 직전</option>
+        </select>
+      </label>
+      {row.quote.approval_state === "PENDING" && (
+        <>
+          <Button
+            data-testid="opportunity-approve"
+            onClick={() => setAction("approve")}
+          >
+            승인
+          </Button>
+          <Button
+            data-testid="opportunity-reject"
+            onClick={() => setAction("reject")}
+          >
+            반려
+          </Button>
+        </>
+      )}
+      <Button
+        data-testid="opportunity-win"
+        disabled={
+          ["PENDING", "REJECTED"].includes(row.quote.approval_state) ||
+          row.quote.cost_status === "UNKNOWN"
+        }
+        onClick={() => setAction("win")}
+      >
+        수주 처리
+      </Button>
+      <Button data-testid="opportunity-lose" onClick={() => setAction("lose")}>
+        실주 처리
+      </Button>
+      <Button
+        data-testid="opportunity-disable"
+        onClick={() => setAction("disable")}
+      >
+        삭제
+      </Button>
+      {action && (
+        <OpportunityActionDialog
+          row={row}
+          action={action}
+          onCancel={() => setAction(null)}
+          onSaved={refresh}
+        />
+      )}
+    </>
+  );
+}
+
+function OpportunityExport({ filters }: { filters: OpportunityFilters }) {
+  const write = useAdminWrite(async () => {});
+  return (
+    <>
+      <ErrorBanner error={write.error} />
+      <Button
+        data-testid="opportunity-export"
+        pending={write.pending}
+        onClick={() =>
+          void write.save(
+            () =>
+              exportOpportunities({
+                ...filters,
+                cust_ptnr_id: filters.cust_ptnr_id
+                  ? Number(filters.cust_ptnr_id)
+                  : undefined,
+                bsn_part_id: filters.bsn_part_id
+                  ? Number(filters.bsn_part_id)
+                  : undefined,
+              }),
+            () => {},
+          )
+        }
+      >
+        엑셀 다운로드
+      </Button>
+    </>
+  );
+}
+
+function OpportunityForecastPage() {
+  const forecast = useAdminRead(getOpportunityForecast);
+  return (
+    <section role="tabpanel" data-testid="opportunity-forecast">
+      <ErrorBanner
+        error={forecast.error}
+        onRetry={() => void forecast.reload().catch(() => {})}
+      />
+      {forecast.loading ? (
+        <Skeleton />
+      ) : (
+        forecast.data && <ForecastContent data={forecast.data} />
+      )}
+    </section>
+  );
+}
+
+function OpportunitiesPage({
+  onDirtyChange,
+  ...bindings
+}: BusinessScreenBindings) {
+  const version = useTemporaryAssignmentVersion();
+  const notify = useRef(onDirtyChange);
+  notify.current = onDirtyChange;
+  const reportDirty = useCallback(
+    (dirty: boolean) => notify.current(dirty),
+    [],
+  );
+  return (
+    <UI29Screen
+      {...bindings}
+      onDirtyChange={reportDirty}
+      refreshVersion={version}
+      forecastPanel={<OpportunityForecastPage key={version} />}
+      listActions={(filters) => <OpportunityExport filters={filters} />}
+      detailActions={(row, refresh) => (
+        <OpportunityActions key={row.oppt_id} row={row} refresh={refresh} />
+      )}
+      detailPanels={[
+        {
+          key: "temporary",
+          label: "가배정",
+          render: (row, refresh) => (
+            <>
+              {row.needs.map((need) => {
+                const [year, month] = need.bgn_ym.split("-").map(Number);
+                const end = new Date(
+                  Date.UTC(year, month - 1 + need.mth_cnt - 1, 1),
+                )
+                  .toISOString()
+                  .slice(0, 7);
+                return (
+                  <TempAssignmentPanel
+                    key={need.need_id}
+                    need={{
+                      ...need,
+                      end_ym: end,
+                      label: `${row.oppt_nm} · ${need.job_cd}`,
+                    }}
+                    open={row.oppt_stts_cd === "OPEN"}
+                    onChanged={refresh}
+                  />
+                );
+              })}
+              {row.needs.length === 0 && <p>필요 인력이 없습니다.</p>}
+            </>
+          ),
+        },
+      ]}
+    />
+  );
+}
+
 function CommonCodesScreen({
   onDirtyChange,
   name,
@@ -131,7 +389,9 @@ function DevelopersScreen({
   ...bindings
 }: BusinessScreenBindings) {
   const location = useLocation();
-  const { month: closingMonth, check: closingCheck } = closingNavigation(location.state);
+  const { month: closingMonth, check: closingCheck } = closingNavigation(
+    location.state,
+  );
   const notify = useRef(onDirtyChange);
   notify.current = onDirtyChange;
   const reportDirty = useCallback(
@@ -148,7 +408,11 @@ function DevelopersScreen({
   const exporting = useRef(false);
   const readOnly = useDeveloperReadOnly();
   useEffect(() => {
-    if (location.pathname === "/UI-02" && closingCheck === "SALARY_UPLOAD" && !readOnly)
+    if (
+      location.pathname === "/UI-02" &&
+      closingCheck === "SALARY_UPLOAD" &&
+      !readOnly
+    )
       setUpload("B.1");
   }, [location.key, location.pathname, closingCheck, readOnly]);
   useEffect(() => {
@@ -946,24 +1210,15 @@ export function AppRouter() {
               ) : id === "UI-01" ? (
                 <ProjectsScreen {...bindings} />
               ) : id === "UI-05" ? (
-                <UI05Screen
-                  {...bindings}
-                  renderChance={(row, context) => (
-                    <WithdrawalChanceSelect
-                      key={row.asgn_id}
-                      row={row}
-                      today={context.today}
-                      year={context.year}
-                      onChanged={context.refresh}
-                    />
-                  )}
-                  renderDispatch={(row) => (
-                    <DispatchExpiryCell
-                      assignmentId={row.asgn_id}
-                      value={row}
-                    />
-                  )}
-                />
+                <WithdrawalPage {...bindings} />
+              ) : id === "UI-17" ? (
+                <WorkforceDemandScreen {...bindings} />
+              ) : id === "UI-28" ? (
+                <WorkforceBoardPage {...bindings} />
+              ) : id === "UI-29" ? (
+                <OpportunitiesPage {...bindings} />
+              ) : id === "UI-33" ? (
+                <CandidateScreen {...bindings} />
               ) : id === "UI-11" ? (
                 <UI11Screen
                   {...bindings}

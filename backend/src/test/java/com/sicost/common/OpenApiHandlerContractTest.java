@@ -71,7 +71,19 @@ import org.yaml.snakeyaml.Yaml;
     com.sicost.paymentorders.PaymentOrderController.class,
     com.sicost.payments.FinancePaymentController.class,
     com.sicost.tax.CorporateTaxController.class,
-    com.sicost.profit.MonthlyProfitController.class})
+    com.sicost.profit.MonthlyProfitController.class,
+    com.sicost.us4.PlanComparisonController.class,
+    com.sicost.us5.MonthlyShortageController.class,
+    ClosingQueryController.class, com.sicost.closingops.ClosingController.class,
+    com.sicost.adjustments.AdjustmentController.class,
+    com.sicost.opportunities.OpportunityController.class,
+    com.sicost.opportunitiesops.OpportunityLifecycleController.class,
+    com.sicost.tempassignments.TempAssignmentController.class,
+    com.sicost.withdrawalsops.NextSlotController.class,
+    com.sicost.workforceops.WorkforceDemandController.class,
+    com.sicost.board.WorkforceBoardController.class,
+    com.sicost.candidates.CandidateController.class,
+    com.sicost.candidatesops.CandidateContactController.class})
 @Import(CurrentUser.class)
 class OpenApiHandlerContractTest {
     @Autowired RequestMappingHandlerMapping handlers;
@@ -142,6 +154,27 @@ class OpenApiHandlerContractTest {
     @MockBean com.sicost.payments.FinancePaymentService financePayments;
     @MockBean com.sicost.tax.CorporateTaxService corporateTax;
     @MockBean com.sicost.profit.MonthlyProfitService monthlyProfit;
+    @MockBean com.sicost.us4.PlanComparisonService planComparison;
+    @MockBean com.sicost.us4.PlanComparisonExportService planComparisonExports;
+    @MockBean com.sicost.us5.MonthlyShortageService monthlyShortages;
+    @MockBean com.sicost.us5.MonthlyShortageExportService monthlyShortageExports;
+    @MockBean ClosingQueryService closingQuery;
+    @MockBean com.sicost.closingops.ClosingService closing;
+    @MockBean com.sicost.closingops.ClosingHistoryService closingHistory;
+    @MockBean com.sicost.closingops.ClosingSnapshotService closingSnapshots;
+    @MockBean com.sicost.adjustments.AdjustmentService closingAdjustments;
+    @MockBean com.sicost.opportunities.OpportunityService opportunities;
+    @MockBean com.sicost.opportunitiesops.OpportunityLifecycleService opportunityLifecycle;
+    @MockBean com.sicost.opportunitiesops.OpportunityWinService opportunityWins;
+    @MockBean com.sicost.opportunitiesops.WorkforceForecastService workforceForecast;
+    @MockBean com.sicost.opportunitiesops.OpportunityExportService opportunityExports;
+    @MockBean com.sicost.tempassignments.TempAssignmentService tempAssignments;
+    @MockBean com.sicost.withdrawalsops.NextSlotService nextSlots;
+    @MockBean com.sicost.board.WorkforceBoardService workforceBoard;
+    @MockBean com.sicost.board.WorkforceBoardExportService workforceBoardExports;
+    @MockBean com.sicost.candidates.CandidateService candidates;
+    @MockBean com.sicost.candidatesops.CandidateContactService candidateContacts;
+    @MockBean com.sicost.candidatesops.CandidateShortageService candidateShortages;
 
     @Test void everyDurableOperationHasOneRegisteredLiteralHandler() throws Exception {
         Map<?,?> contract;
@@ -149,12 +182,24 @@ class OpenApiHandlerContractTest {
             contract=new Yaml().load(input);
         }
         Set<String> expected=new TreeSet<>();
+        Map<String,String> legacyHandlers=Map.of(
+            "GET /api/costs/projects/{}", "getCostProject",
+            "GET /api/costs/projects/{}/causes", "getCostProjectCauses",
+            "POST /api/costs/projects/{}/simulate", "simulateCostProject",
+            "GET /api/dispatch-attendance", "getDispatchAttendance",
+            "PUT /api/dispatch-attendance", "saveDispatchAttendance",
+            "GET /api/plan-vs-actual", "listPlanComparison",
+            "GET /api/plan-vs-actual/export", "exportPlanComparison",
+            "GET /api/plan-vs-actual/shortages", "listMonthlyShortages",
+            "GET /api/plan-vs-actual/shortages/export", "exportMonthlyShortages");
         Map<?,?> paths=(Map<?,?>)contract.get("paths");
         assertThat(paths).isNotEmpty();
         paths.forEach((path,item)->((Map<?,?>)item).forEach((method,definition)->{
             if(Set.of("get","post","put","patch","delete").contains(method.toString())) {
                 var operation=(Map<?,?>)definition;
-                assertThat(operation.get("operationId")).isInstanceOf(String.class);
+                String key=method.toString().toUpperCase(Locale.ROOT)+" "+normalize(path.toString());
+                if (operation.get("operationId")==null) assertThat(legacyHandlers).containsKey(key);
+                else assertThat(operation.get("operationId")).isInstanceOf(String.class);
                 assertThat(operation.get("responses")).isInstanceOf(Map.class);
                 expected.add(method.toString().toUpperCase(Locale.ROOT)+" "+normalize(path.toString()));
             }
@@ -177,6 +222,7 @@ class OpenApiHandlerContractTest {
         });
         // Existing phases expose additional APIs; they must not hide a missing contract operation.
         assertThat(actual.keySet()).containsAll(expected);
+        legacyHandlers.forEach((key,handler)->assertThat(actual).containsEntry(key,handler));
     }
     private static String normalize(String path) { return path.replaceAll("\\{[^/{}]+}", "{}"); }
 }

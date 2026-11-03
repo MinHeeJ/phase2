@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sicost.candidates.CandidateMapper">
+  <resultMap id="candidateRow" type="com.sicost.candidates.CandidateModels$CandidateRow"><constructor>
+    <arg column="cand_id" javaType="_long"/><arg column="cand_no" javaType="string"/>
+    <arg column="cand_nm" javaType="string"/><arg column="cand_se_cd" javaType="string"/>
+    <arg column="vndr_ptnr_id" javaType="java.lang.Long"/><arg column="job_cd" javaType="string"/>
+    <arg column="grd_cd" javaType="string"/><arg column="hope_untprc_amt" javaType="java.lang.Long"/>
+    <arg column="avail_dt" javaType="java.time.LocalDate"/><arg column="cntct_stts_cd" javaType="string"/>
+    <arg column="tel_no" javaType="string"/><arg column="source" javaType="string"/>
+    <arg column="rmrk_desc" javaType="string"/><arg column="use_yn" javaType="string"/>
+    <arg column="dev_id" javaType="java.lang.Long"/><arg column="last_cntct_dt" javaType="java.time.LocalDate"/>
+    <arg column="created_at" javaType="java.time.LocalDateTime"/>
+  </constructor></resultMap>
+  <resultMap id="candidateKpi" type="com.sicost.candidates.CandidateModels$CandidateKpi"><constructor>
+    <arg column="candidate_count" javaType="_long"/><arg column="interview_count" javaType="_long"/>
+    <arg column="available_by_next_month_count" javaType="_long"/><arg column="uncontacted_over_30_days_count" javaType="_long"/>
+  </constructor></resultMap>
+  <resultMap id="candidateContact" type="com.sicost.candidates.CandidateModels$CandidateContact"><constructor>
+    <arg column="cntct_dt" javaType="java.time.LocalDate"/><arg column="cntct_stts_cd" javaType="string"/>
+    <arg column="memo" javaType="string"/><arg column="user_id" javaType="java.lang.Long"/>
+    <arg column="created_at" javaType="java.time.LocalDateTime"/>
+  </constructor></resultMap>
+  <resultMap id="candidateSlot" type="com.sicost.candidates.CandidateModels$CandidateSlotSource"><constructor>
+    <arg column="need_id" javaType="_long"/><arg column="oppt_id" javaType="_long"/>
+    <arg column="oppt_nm" javaType="string"/><arg column="job_cd" javaType="string"/>
+    <arg column="bgn_ym" javaType="string"/><arg column="monthly_price" javaType="java.lang.Long"/>
+    <arg column="team_expense" javaType="java.lang.Long"/>
+  </constructor></resultMap>
+  <sql id="projection">
+    SELECT c.cand_id,c.cand_no,c.cand_nm,c.cand_se_cd,c.vndr_ptnr_id,c.job_cd,c.grd_cd,
+      c.hope_untprc_amt,c.asgn_psbl_dt AS avail_dt,
+      CASE WHEN c.dev_id IS NOT NULL THEN 'SIGNED' ELSE coalesce(h.cntct_stts_cd,c.cntct_stts_cd) END AS cntct_stts_cd,
+      c.tel_no,c.cand_src_cd AS source,c.memo_desc AS rmrk_desc,c.use_yn,c.dev_id,
+      coalesce(h.cntct_dt,c.last_cntct_dt) AS last_cntct_dt,c.created_at
+    FROM hr.cand c LEFT JOIN LATERAL (
+      SELECT x.cntct_stts_cd,x.cntct_dt FROM hr.cand_cntct_hist x WHERE x.cand_id=c.cand_id
+      ORDER BY x.cntct_dt DESC,x.created_at DESC,x.cntct_hist_id DESC LIMIT 1
+    ) h ON true
+  </sql>
+  <sql id="filter">
+    WHERE r.use_yn='Y'
+    <if test="q != null">AND (position(lower(#{q}) in lower(r.cand_nm))&gt;0 OR position(lower(#{q}) in lower(r.cand_no))&gt;0)</if>
+    <if test="job != null">AND r.job_cd=#{job}</if>
+    <if test="grade != null">AND r.grd_cd=#{grade}</if>
+    <if test="skill != null">AND EXISTS(SELECT 1 FROM hr.cand_skl s WHERE s.cand_id=r.cand_id AND s.skl_cd=#{skill})</if>
+    <if test="cand_se_cd != null">AND r.cand_se_cd=#{cand_se_cd}</if>
+    <if test="vndr_ptnr_id != null">AND r.vndr_ptnr_id=#{vndr_ptnr_id}</if>
+    <if test="cntct_stts_cd != null">AND r.cntct_stts_cd=#{cntct_stts_cd}</if>
+    <if test="avail_dt != null">AND r.avail_dt &lt;= #{avail_dt}</if>
+    <if test="shortageEnd != null">AND r.avail_dt &lt;= #{shortageEnd} AND r.cntct_stts_cd IN ('NONE','DONE','INTV')</if>
+    <if test="uncontacted_only">AND coalesce(r.last_cntct_dt,r.created_at::date) &lt; #{cutoff}</if>
+  </sql>
+  <select id="list" resultMap="candidateRow">
+    SELECT r.* FROM (<include refid="projection"/>) r <include refid="filter"/>
+    ORDER BY ${order} LIMIT #{size} OFFSET #{offset}
+  </select>
+  <select id="kpi" resultMap="candidateKpi">
+    SELECT count(*) AS candidate_count,count(*) FILTER(WHERE r.cntct_stts_cd='INTV') AS interview_count,
+      count(*) FILTER(WHERE r.avail_dt &lt;= #{nextMonthEnd}) AS available_by_next_month_count,
+      count(*) FILTER(WHERE coalesce(r.last_cntct_dt,r.created_at::date) &lt; #{cutoff}) AS uncontacted_over_30_days_count
+    FROM (<include refid="projection"/>) r <include refid="filter"/>
+  </select>
+  <select id="row" resultMap="candidateRow"><include refid="projection"/> WHERE c.cand_id=#{id} AND c.use_yn='Y'</select>
+  <select id="lock" resultType="java.lang.Long" flushCache="true">SELECT cand_id FROM hr.cand WHERE cand_id=#{id} AND use_yn='Y' FOR UPDATE</select>
+  <select id="skills" resultType="string">SELECT skl_cd FROM hr.cand_skl WHERE cand_id=#{id} ORDER BY skl_cd</select>
+  <select id="contacts" resultMap="candidateContact">
+    SELECT cntct_dt,cntct_stts_cd,memo_desc AS memo,rcrd_user_id AS user_id,created_at
+    FROM hr.cand_cntct_hist WHERE cand_id=#{id} ORDER BY cntct_dt DESC,created_at DESC,cntct_hist_id DESC
+  </select>
+  <select id="slots" resultMap="candidateSlot">
+    SELECT n.need_id,o.oppt_id,o.oppt_nm,n.job_cd,n.bgn_ym,n.expc_untprc_amt AS monthly_price,
+      (SELECT s.num_val::bigint FROM cmn.oprt_std s WHERE s.oprt_std_id='TEAM_FEE'
+        AND s.aply_bgn_ym &lt;= n.bgn_ym ORDER BY s.aply_bgn_ym DESC LIMIT 1) AS team_expense
+    FROM hr.cand c JOIN bsn.oppt_need n ON n.job_cd=c.job_cd AND n.use_yn='Y'
+      JOIN bsn.oppt o ON o.oppt_id=n.oppt_id AND o.oppt_stts_cd='OPEN'
+    WHERE c.cand_id=#{id} AND c.use_yn='Y'
+      AND c.asgn_psbl_dt &lt;= (to_date(n.bgn_ym||'-01','YYYY-MM-DD')+interval '1 month - 1 day')::date
+    ORDER BY n.bgn_ym,n.need_id
+  </select>
+  <select id="activeCode" resultType="boolean">SELECT EXISTS(SELECT 1 FROM cmn.cd_dtl d JOIN cmn.cd_grp g ON g.cd_grp_id=d.cd_grp_id WHERE d.cd_grp_id=#{group} AND d.dtl_cd=#{code} AND d.use_yn='Y' AND g.use_yn='Y')</select>
+  <select id="activeVendor" resultType="boolean">SELECT EXISTS(SELECT 1 FROM mst.ptnr WHERE ptnr_id=#{id} AND use_yn='Y' AND ptnr_se_cd IN ('VEND','BOTH'))</select>
+  <select id="nextId" resultType="long">SELECT nextval('hr.seq_cand_id')</select>
+  <select id="insert" resultType="long" affectData="true" flushCache="true">
+    INSERT INTO hr.cand(cand_id,cand_no,cand_nm,cand_se_cd,vndr_ptnr_id,job_cd,grd_cd,hope_untprc_amt,
+      asgn_psbl_dt,cntct_stts_cd,tel_no,cand_src_cd,memo_desc,use_yn,created_by)
+    VALUES(#{id},#{no},#{input.cand_nm},#{input.cand_se_cd},#{input.vndr_ptnr_id},#{input.job_cd},#{input.grd_cd},
+      #{input.hope_untprc_amt},#{input.avail_dt},#{input.cntct_stts_cd},#{input.tel_no},#{input.source},#{input.rmrk_desc},'Y',#{actor}) RETURNING cand_id
+  </select>
+  <update id="update">UPDATE hr.cand <set>
+    <foreach collection="changes" index="column" item="value">${column}=#{value},</foreach>
+    updated_by=#{actor}
+  </set> WHERE cand_id=#{id}</update>
+  <insert id="insertSkill">INSERT INTO hr.cand_skl(cand_id,skl_cd) VALUES(#{id},#{code})</insert>
+  <delete id="deleteSkills">DELETE FROM hr.cand_skl WHERE cand_id=#{id}</delete>
+  <insert id="appendHistory">INSERT INTO sys.data_chg_hist(tbl_nm,obj_rec_id,data_chg_ty_cd,clmn_nm,bfr_val,aft_val,chg_user_id) VALUES('hr.cand',#{id},#{type},#{column},#{before},#{after},#{actor})</insert>
+</mapper>

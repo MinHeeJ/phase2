@@ -1,0 +1,209 @@
+.search {
+  composes: search from "../developers/Developers.module.css";
+}
+.tableScroll {
+  composes: tableScroll from "../developers/Developers.module.css";
+}
+.table {
+  composes: table from "../developers/Developers.module.css";
+}
+.form {
+  composes: form from "../developers/Developers.module.css";
+}
+.card {
+  composes: card from "../developers/Developers.module.css";
+}
+.fields {
+  composes: fields from "../developers/Developers.module.css";
+}
+.scrim {
+  composes: scrim from "../developers/Developers.module.css";
+}
+.drawer {
+  composes: drawer from "../developers/Developers.module.css";
+  width: 600px;
+}
+.actions {
+  composes: actions from "../developers/Developers.module.css";
+}
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+.kpis article {
+  padding: var(--space-4);
+  border: 1px solid var(--divider);
+  border-radius: var(--radius-panel);
+  background: var(--surface);
+}
+.kpis p {
+  margin: 0 0 var(--space-2);
+  color: var(--text-sub);
+}
+.kpis strong {
+  font-size: var(--title-size);
+  font-variant-numeric: tabular-nums;
+}
+.kanban {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(220px, 1fr));
+  gap: var(--space-4);
+  overflow-x: auto;
+  margin: var(--space-4) 0;
+}
+.column {
+  min-width: 0;
+  background: var(--readonly-bg);
+  border: 1px solid var(--divider);
+  border-radius: var(--radius-panel);
+  padding: var(--space-3);
+}
+.column h2 {
+  font-size: var(--label-size);
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.column h2 span {
+  color: var(--text-sub);
+  font-size: var(--caption-size);
+  font-weight: normal;
+}
+.opportunity {
+  display: grid;
+  gap: var(--space-2);
+  width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--divider);
+  border-radius: var(--radius-panel);
+  padding: var(--space-3);
+  margin: var(--space-3) 0;
+  color: var(--text);
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+.opportunity:hover {
+  border-color: var(--primary);
+}
+.opportunity small {
+  color: var(--text-sub);
+  font-size: var(--caption-size);
+}
+.marks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+.columnEmpty {
+  text-align: center;
+  padding: var(--space-6) var(--space-2);
+  color: var(--text-sub);
+}
+.quote {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3);
+  font-variant-numeric: tabular-nums;
+}
+.quote div {
+  padding: var(--space-3);
+  background: var(--readonly-bg);
+  border-radius: var(--radius-control);
+}
+.quote dt {
+  font-size: var(--caption-size);
+  color: var(--text-sub);
+}
+.quote dd {
+  margin: var(--space-2) 0 0;
+  overflow-wrap: anywhere;
+}
+.warning {
+  background: var(--warning-bg);
+  color: var(--warning);
+  padding: 10px var(--space-4);
+  border-radius: var(--radius-panel);
+  font-size: var(--label-size);
+  margin: var(--space-3) 0;
+}
+.editor input,
+.editor select,
+.editor textarea,
+.search input,
+.search select {
+  font: inherit;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  min-height: var(--control-height);
+  padding: var(--space-2);
+  min-width: 0;
+  max-width: 100%;
+}
+.editor label {
+  display: grid;
+  gap: var(--space-2);
+  font-size: var(--label-size);
+}
+.editor .table input,
+.editor .table select {
+  width: 110px;
+}
+.editor textarea {
+  width: 100%;
+  min-height: 80px;
+}
+.editor [aria-invalid="true"] {
+  border-color: var(--danger);
+}
+.fieldError {
+  color: var(--danger);
+  font-size: var(--caption-size);
+}
+.editor footer {
+  position: sticky;
+  bottom: 0;
+  background: var(--surface);
+  padding: var(--space-3);
+  border-top: 1px solid var(--divider);
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+.chart {
+  display: flex;
+  align-items: end;
+  min-height: 180px;
+  gap: var(--space-4);
+  padding: var(--space-4);
+}
+.chart div {
+  flex: 1;
+  display: grid;
+  gap: var(--space-2);
+  text-align: center;
+}
+.chart i {
+  display: block;
+  margin: auto;
+  width: 70%;
+  background: var(--primary);
+  min-height: 2px;
+}
+@media (max-width: 767px) {
+  .kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .quote {
+    grid-template-columns: 1fr;
+  }
+  .editor input,
+  .editor select {
+    min-height: 44px;
+  }
+}

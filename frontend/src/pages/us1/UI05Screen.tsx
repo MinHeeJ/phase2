@@ -30,6 +30,14 @@ export interface WithdrawalsScreenProps {
     context: WithdrawalScreenContext,
   ) => ReactNode;
   renderDispatch?: (row: WithdrawalRow) => ReactNode;
+  renderNext?: (
+    row: WithdrawalRow,
+    context: WithdrawalScreenContext,
+  ) => ReactNode;
+  renderRecommendationSummary?: (
+    rows: WithdrawalRow[],
+    context: WithdrawalScreenContext,
+  ) => ReactNode;
   refreshVersion?: number;
 }
 export default function UI05Screen({
@@ -37,6 +45,8 @@ export default function UI05Screen({
   groupName = "프로젝트·투입",
   renderChance,
   renderDispatch,
+  renderNext,
+  renderRecommendationSummary,
   refreshVersion = 0,
 }: WithdrawalsScreenProps) {
   const navigate = useNavigate();
@@ -170,6 +180,9 @@ export default function UI05Screen({
           않고 다음 배정도 없는 사람 {list.data.summary.noNextPeople}명입니다.
         </div>
       )}
+      {list.data &&
+        filters.year === currentYear &&
+        renderRecommendationSummary?.(list.data.rows, context)}
       <div className={styles.info}>
         {filters.year}년에 철수하는(했던) 인력입니다. [기간] 조건으로 '3개월
         안'만 볼 수 있습니다. 연장 가능성을 바꾸면 투입 배정과 수요 예측에 바로
@@ -418,6 +431,7 @@ export default function UI05Screen({
                         >
                           {row.next_display}
                         </Badge>
+                        {renderNext?.(row, context)}
                       </td>
                     </tr>
                   ))}

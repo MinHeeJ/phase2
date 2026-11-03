@@ -828,6 +828,7 @@ export function CostProjectSimulation({
   const [pending, setPending] = useState(false);
   const monthly = type === "MO" || type === "DP";
   const run = async () => {
+    if (pending) return;
     setError(null);
     setResult(null);
     const payload: Record<string, number> = {};
@@ -890,6 +891,7 @@ export function CostProjectSimulation({
               aria-label={label}
               type="number"
               step="1"
+              disabled={pending}
               value={input[key]}
               aria-invalid={error?.field === key}
               onChange={(e) => {

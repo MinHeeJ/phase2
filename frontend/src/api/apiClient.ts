@@ -1,4 +1,90 @@
 export { api, readData, ApiFailure, retryRecovery } from "../shared/api";
+export {
+  getOpportunities,
+  getClosedOpportunities,
+  getOpportunity,
+  createOpportunity,
+  updateOpportunity,
+} from "../pages/opportunities/client";
+export type {
+  OpportunityWrite,
+  OpportunityNeedInput,
+  OpportunityNeed,
+  OpportunityQuote,
+  OpportunityDetail,
+  OpportunityFilters,
+  OpportunityPage,
+} from "../pages/opportunities/client";
+export {
+  listOpportunities,
+  getOpportunityForecast,
+  updateOpportunityStage,
+  updateOpportunityApproval,
+  updateOpportunityRejection,
+  updateOpportunityLoss,
+  updateOpportunityDisable,
+  createOpportunityWin,
+  exportOpportunities,
+  candidateNavigation,
+} from "../pages/opportunitiesops/client";
+export type {
+  ForecastFilters,
+  ForecastPage,
+  Shortage,
+} from "../pages/opportunitiesops/client";
+export { getWorkforceForecast } from "../pages/workforceops/client";
+export type {
+  WorkforceForecastFilters,
+  WorkforceForecastPage,
+} from "../pages/workforceops/client";
+export { getWorkforceBoard, exportWorkforceBoard } from "../pages/board/client";
+export type {
+  BoardFilters,
+  BoardPage,
+  BoardRow,
+  BoardCell,
+} from "../pages/board/client";
+export {
+  listCandidates,
+  getCandidate,
+  createCandidate,
+  updateCandidate,
+  candidateWorkspaceState,
+} from "../pages/candidates/client";
+export type {
+  CandidateInput,
+  CandidateDetail,
+  CandidateFilters,
+  CandidatePage,
+} from "../pages/candidates/client";
+export {
+  getCandidateShortages,
+  createCandidateContact,
+  createCandidateConversion,
+  getContactCandidate,
+} from "../pages/candidatesops/client";
+export type {
+  CandidateContact,
+  CandidateShortage,
+  CandidateShortageFilters,
+  CandidateShortagePage,
+} from "../pages/candidatesops/client";
+export {
+  listTempAssignments,
+  createTempAssignment,
+  releaseTempAssignment,
+  getWithdrawalNextSlots,
+  TEMP_ASSIGNMENTS_CHANGED,
+} from "../pages/tempassignments/client";
+export type {
+  TempAssignment,
+  TempAssignmentWrite,
+  TempAssignmentPage,
+  TempAssignmentFilters,
+  TempAssignmentNeed,
+  NextSlot,
+  NextSlotsResult,
+} from "../pages/tempassignments/client";
 export { listWithdrawals, exportWithdrawals } from "../pages/us1/client";
 export type {
   WithdrawalFilters,

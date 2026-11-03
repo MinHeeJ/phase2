@@ -1,0 +1,145 @@
+.screen {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+}
+.filters {
+  composes: search from "../developers/Developers.module.css";
+}
+.card {
+  composes: card from "../developers/Developers.module.css";
+}
+.scrim {
+  composes: scrim from "../developers/Developers.module.css";
+}
+.drawer {
+  composes: drawer from "../developers/Developers.module.css";
+  width: 600px;
+  max-width: 100vw;
+}
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: var(--space-4);
+}
+.kpis > div {
+  border: 1px solid var(--divider);
+  border-radius: var(--radius-panel);
+  background: var(--surface);
+  padding: var(--space-4);
+}
+.kpis strong {
+  display: block;
+  margin-top: var(--space-2);
+  font-size: var(--kpi-size);
+  line-height: var(--kpi-line);
+}
+.kanban {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(210px, 1fr));
+  gap: var(--space-3);
+  overflow-x: auto;
+  padding-bottom: var(--space-3);
+}
+.column {
+  padding: var(--space-3);
+  background: var(--header-bg);
+  border-radius: var(--radius-panel);
+  min-height: 320px;
+}
+.column h2 {
+  font-size: var(--body-size);
+  margin: 0 0 var(--space-3);
+}
+.column small {
+  color: var(--text-sub);
+}
+.opportunity {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  margin-bottom: var(--space-3);
+  background: var(--surface);
+  border: 1px solid var(--divider);
+  border-radius: var(--radius-panel);
+}
+.opportunity > button {
+  color: var(--primary);
+  background: transparent;
+  border: 0;
+  padding: 0;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+.actions {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  align-items: center;
+}
+.form {
+  display: grid;
+  gap: var(--space-3);
+}
+.form label {
+  display: grid;
+  gap: var(--space-1);
+}
+.form input,
+.form textarea,
+.form select {
+  min-height: var(--control-height);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  padding: var(--space-2);
+  font: inherit;
+}
+.form input[readonly] {
+  background: var(--readonly-bg);
+}
+.warning {
+  color: var(--warning);
+  background: var(--warning-bg);
+  padding: 10px var(--space-4);
+  border-radius: var(--radius-panel);
+}
+.graph {
+  display: flex;
+  align-items: end;
+  gap: var(--space-4);
+  min-height: 200px;
+  overflow-x: auto;
+  padding: var(--space-4);
+}
+.stack {
+  display: flex;
+  flex-direction: column;
+  justify-content: end;
+  align-items: stretch;
+  min-width: 70px;
+  text-align: center;
+}
+.stack i {
+  display: block;
+  background: var(--primary);
+  min-height: 0;
+}
+.stack i:first-child {
+  background: var(--success);
+}
+.stack span {
+  margin-top: var(--space-2);
+}
+.scenarios {
+  display: grid;
+  gap: var(--space-3);
+}
+@media (max-width: 767px) {
+  .kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .drawer {
+    width: 100vw;
+  }
+}

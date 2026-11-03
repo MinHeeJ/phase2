@@ -240,6 +240,35 @@ describe("파견 근태 수동 입력", () => {
       screen.queryByRole("button", { name: "저장" }),
     ).not.toBeInTheDocument();
   });
+  it("parent readonly state prevents saving and is passed to upload", async () => {
+    const upload = vi.fn(() => null);
+    panel({ readOnly: true, renderUpload: upload });
+    await loaded();
+    expect(input()).toHaveAttribute("readonly");
+    expect(
+      screen.queryByRole("button", { name: "저장" }),
+    ).not.toBeInTheDocument();
+    expect(upload).toHaveBeenLastCalledWith(
+      expect.objectContaining({ month, projectId: 17, readOnly: true }),
+    );
+    expect(writes()).toHaveLength(0);
+  });
+  it("maps a submitted subset field error to the edited row, not the first visible row", async () => {
+    data.items.push({ ...data.items[0], asgn_id: 22, dev_id: 12 });
+    writeFailure = failure("VALIDATION_ERROR", "items[0].work_day_qty", 400);
+    panel();
+    await screen.findByTestId("attendance-row-22");
+    const second = screen.getByRole("textbox", { name: "22 근무일수" });
+    fireEvent.change(second, { target: { value: "2" } });
+    save();
+    await waitFor(() => expect(second).toHaveAttribute("aria-invalid", "true"));
+    expect(input()).toHaveAttribute("aria-invalid", "false");
+    expect(second).toHaveValue("2");
+    expect(JSON.parse(writes()[0][1]!.body as string).items).toEqual([
+      expect.objectContaining({ asgn_id: 22, dev_id: 12, work_day_qty: 2 }),
+    ]);
+    expect(changed).not.toHaveBeenCalled();
+  });
   it("past year hides saving", async () => {
     data.month = "2000-10";
     panel({ month: "2000-10" });
