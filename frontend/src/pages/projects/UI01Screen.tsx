@@ -88,12 +88,7 @@ export default function UI01Screen({
     statuses = useCodes("PROJECT_STATUS"),
     parts = useAdminRead(listSalesPartOptions);
   const projectRoute = useRef(location.pathname);
-  if (
-    location.pathname === "/UI-01" ||
-    (location.pathname === "/UI-33" &&
-      (location.state as { workspace?: string } | null)?.workspace !==
-        "candidates")
-  )
+  if (location.pathname === "/UI-01" || location.pathname === "/UI-33")
     projectRoute.current = location.pathname;
   const registration = projectRoute.current === "/UI-33";
   useEffect(() => {
