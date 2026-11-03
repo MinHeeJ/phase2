@@ -18,6 +18,7 @@ public interface BillingMapper {
     List<Project> gapProjects(String month);
     List<Confirmed> confirmed(Scope scope);
     List<State> states(int year);
+    List<State> statesThrough(ReceivableCutoff cutoff);
     State state(long id);
     Long lockBill(long id);
     Balance balance(long id);

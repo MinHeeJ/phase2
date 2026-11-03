@@ -62,7 +62,14 @@ function mount(path = "/UI-16") {
   return render(
     <MemoryRouter initialEntries={[path]}>
       <Location />
-      <AppShell renderBusiness={(_id, bindings) => <Editor {...bindings} />} />
+      <AppShell
+        renderBusiness={(id, bindings) => (
+          <>
+            {id === "UI-16" && <h1>{bindings.name}</h1>}
+            <Editor {...bindings} />
+          </>
+        )}
+      />
     </MemoryRouter>,
   );
 }

@@ -7,6 +7,9 @@ import static com.sicost.parts.PartSettlementModels.*;
 @Mapper
 public interface PartSettlementMapper {
     List<Part> parts();
+    List<DashboardPart> dashboardParts();
+    List<ProjectPart> projectParts(String month);
+    List<FrozenRevenue> frozenRevenue(String month);
     Part part(long id);
     Long lockPart(long id);
     Long lockSettlement(Scope scope);

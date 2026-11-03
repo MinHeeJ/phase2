@@ -10,6 +10,11 @@ public final class PartSettlementModels {
     public record Scope(long partId, String month) {}
     public record PersonMonth(long devId, String month) {}
     public record Part(long bsn_part_id, String bsn_part_nm) {}
+    public record DashboardPart(long id,String name,String classification) {}
+    public record ProjectPart(long projectId,Long partId) {}
+    public record FrozenRevenue(Long partId,long amount) {}
+    public record SummaryRow(Long id,String name,String classification,Long revenue,
+        BigDecimal margin,String marginState) {}
     public record Standard(long part_std_hist_id, String aply_bgn_ym, String aply_end_ym,
             String ldr_nm, BigDecimal prft_dstrb_rt, long bsn_fee_amt) {}
     public record Person(long dev_id, String dev_nm, String emp_se_cd,

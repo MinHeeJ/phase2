@@ -56,10 +56,26 @@ public class CashFlowService {
     private Long closing(Long opening,long in,long out){return opening==null?null:Math.subtractExact(add(opening,in),out);}
     @Transactional(readOnly=true,isolation=Isolation.REPEATABLE_READ)
     public Flow flow(int year,String mode){
+        return readFlow(year,mode,today(),true).flow();
+    }
+    private record FlowRead(Flow flow,List<ForecastMonth> forecast) {}
+    @Transactional(readOnly=true,isolation=Isolation.REPEATABLE_READ)
+    public List<ForecastMonth> readForecast(LocalDate date) {
+        var from=YearMonth.from(date).plusMonths(1);
+        var to=from.plusMonths(2);
+        var result=new ArrayList<ForecastMonth>();
+        for(int year=from.getYear();year<=to.getYear();year++)
+            result.addAll(readFlow(year,"BOTH",date,false).forecast().stream()
+                .filter(m->m.month().compareTo(from.toString())>=0 && m.month().compareTo(to.toString())<=0).toList());
+        return List.copyOf(result);
+    }
+    private FlowRead readFlow(int year,String mode,LocalDate date,boolean withFile){
         permissions.can("UI-21.read");if(year<1||year>9999)throw CashFlowInput.invalid("year");
         if(!Set.of("PLAN","ACTUAL","BOTH").contains(mode))throw CashFlowInput.invalid("mode");
         var initial=mapper.initial();if(initial==null||initial.amount()==null)throw ApiException.conflict("OPENING_BALANCE_REQUIRED","먼저 시작 월 기초 잔액을 입력하세요.","amount");
-        YearMonth start=YearMonth.parse(initial.month()),end=YearMonth.of(year,12),current=YearMonth.from(today());
+        YearMonth start=YearMonth.parse(initial.month()),end=YearMonth.of(year,12),current=YearMonth.from(date);
+        var minimums=mapper.minimums();
+        var forecastRows=new ArrayList<ForecastMonth>();
         List<Event> events=new ArrayList<>(mapper.events());
         for(int y=start.getYear();y<=Math.min(year,current.getYear());y++)for(var cash:billing.cash(y))events.add(new Event(null,0,cash.rcpt_dt(),cash.rcpt_amt(),0,true,"BILLING"));
         Map<String,Balance> balances=new HashMap<>();for(var b:mapper.balances())balances.put(b.month(),b);
@@ -73,25 +89,29 @@ public class CashFlowService {
                     var amounts=categories.computeIfAbsent(e.category(),k->new long[4]);int index=e.inflow()?0:1;amounts[index]=add(amounts[index],e.planned_amount());
                     if(e.inflow()){pi=add(pi,e.planned_amount());fi=add(fi,e.remaining_amount());}else{po=add(po,e.planned_amount());fo=add(fo,e.remaining_amount());}
                 }
-                if(e.actual_date()!=null&&!e.actual_date().isAfter(today())&&YearMonth.from(e.actual_date()).equals(cursor)){
+                if(e.actual_date()!=null&&!e.actual_date().isAfter(date)&&YearMonth.from(e.actual_date()).equals(cursor)){
                     var amounts=categories.computeIfAbsent(e.category(),k->new long[4]);int index=e.inflow()?2:3;amounts[index]=add(amounts[index],e.actual_amount());
                     if(e.inflow()){ai=add(ai,e.actual_amount());fi=add(fi,e.actual_amount());}else{ao=add(ao,e.actual_amount());fo=add(fo,e.actual_amount());}
                 }
             }
             boolean before=cursor.isBefore(start),future=cursor.isAfter(current);var saved=balances.get(month);
             boolean closed=saved!=null&&"CLOSED".equals(saved.status());String warning=null;
-            Long op=before?null:plan,oa=before?null:actual,of=before?null:actual;
+            Long op=before?null:plan,oa=before?null:actual,of=before?null:future?forecast:actual;
             Long pc=closing(op,pi,po),ac=closing(oa,ai,ao),fc=closing(of,fi,fo);
             if(closed&&!before){ac=saved.closing();fc=saved.closing();if(ac==null)warning="MISSING_CLOSED_SNAPSHOT";}
             if(before)warning="BEFORE_INITIAL_MONTH";
             Long minimum=saved!=null&&saved.minimum()!=null?saved.minimum():initial.minimum();
+            if(minimum==null)for(var standard:minimums)
+                if(standard.month().compareTo(month)<=0)minimum=standard.amount();
             if(fc!=null&&fc<0){warning="RISK";if(firstRisk==null&&!cursor.isBefore(current))firstRisk=month;}
             else if(fc!=null&&minimum!=null&&fc<minimum)warning="CAUTION";
             var detail=categories.entrySet().stream().map(e->new Category(e.getKey(),e.getValue()[0],e.getValue()[1],future?null:e.getValue()[2],future?null:e.getValue()[3])).toList();
             if(cursor.getYear()==year)result.add(new Month(month,op,pc,future?null:ac,fc,warning,future?null:oa,pi,po,future?null:ai,future?null:ao,of,fi,fo,closed,detail));
+            if(cursor.getYear()==year)forecastRows.add(new ForecastMonth(month,fc,minimum));
             if(!before){plan=pc;actual=ac;forecast=fc;}
             cursor=cursor.plusMonths(1);
         }
+        if(!withFile)return new FlowRead(new Flow(year,mode,List.copyOf(result),null,firstRisk,initial.month()),List.copyOf(forecastRows));
         List<ExportColumn<Month>> columns=new ArrayList<>(List.of(
             new ExportColumn<>("month","월",false,false,Month::month),
             new ExportColumn<>("planned_opening","기초 예정",true,true,Month::planned_opening),
@@ -113,6 +133,6 @@ public class CashFlowService {
             columns.add(new ExportColumn<>(code+"_actual",code+" 실적 순입출금",true,true,m->m.actual_closing()==null?null:m.categories().stream().filter(c->c.code().equals(code)).map(c->Math.subtractExact(c.actual_inflow(),c.actual_outflow())).findFirst().orElse(0L)));
         }
         var file=new CashFlowFile("cashflow-"+year+".xlsx","application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",Base64.getEncoder().encodeToString(excel.create(year+" · "+mode,"기본 사용자",LocalDateTime.now(clock),columns,result)));
-        return new Flow(year,mode,List.copyOf(result),file,firstRisk,initial.month());
+        return new FlowRead(new Flow(year,mode,List.copyOf(result),file,firstRisk,initial.month()),List.copyOf(forecastRows));
     }
 }

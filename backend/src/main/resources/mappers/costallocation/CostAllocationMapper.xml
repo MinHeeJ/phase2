@@ -96,6 +96,15 @@
       UNION SELECT c.cst_ym AS month FROM cst.cst_aloc c WHERE c.prj_id=#{projectId}
     ) x WHERE x.month &lt;=#{throughMonth} ORDER BY x.month
   </select>
+  <sql id="batchProjectIds"><foreach collection="ids" item="projectId" open="(" separator="," close=")">#{projectId}</foreach></sql>
+  <select id="batchMonths" resultType="string">
+    SELECT x.month FROM (
+      SELECT m.work_ym AS month FROM asgn.asgn a JOIN asgn.asgn_mth m ON m.asgn_id=a.asgn_id
+        WHERE a.prj_id IN <include refid="batchProjectIds"/> AND a.asgn_stts_cd!='CANCELLED'
+      UNION SELECT e.expns_ym FROM cst.drct_expns e WHERE e.prj_id IN <include refid="batchProjectIds"/>
+      UNION SELECT c.cst_ym FROM cst.cst_aloc c WHERE c.prj_id IN <include refid="batchProjectIds"/>
+    ) x WHERE x.month &lt;=#{throughMonth} ORDER BY x.month
+  </select>
   <select id="expectedCost" resultType="boolean">
     SELECT EXISTS(
       SELECT 1 FROM asgn.asgn a

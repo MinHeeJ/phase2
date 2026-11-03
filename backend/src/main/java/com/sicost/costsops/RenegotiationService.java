@@ -38,10 +38,24 @@ public class RenegotiationService {
         this.permissions = permissions;
     }
 
+    public int readLowMarginCount(java.time.LocalDate today) {
+        String month=YearMonth.from(today).toString();
+        var warnings=new ArrayList<String>();
+        var goal=parameter("TARGET_MARGIN_RATE",month,warnings);
+        var gap=parameter("LOW_MARGIN_GAP",month,warnings);
+        if(goal==null || gap==null)throw new IllegalStateException("마진 기준 자료 없음");
+        var result=read(new Query(new Filters(3,goal.subtract(gap),null,null,null),
+            new com.sicost.common.api.BillingPaging(0,50,"end_dt,asc")),true,today);
+        if(result.warnings().stream().anyMatch(w->w.contains("배분자료 없음") || w.contains("급여")))
+            throw new IllegalStateException("인력 원가 자료 없음");
+        return Math.toIntExact(result.summary().psn_cnt());
+    }
     public Result list(Query query, boolean full) {
+        return read(query,full,ProjectValues.today(clock));
+    }
+    public Result read(Query query,boolean full,java.time.LocalDate today) {
         permissions.can(CostActions.RENEGOTIATION_READ);
         var filters = query.filters();
-        var today = ProjectValues.today(clock);
         String month = YearMonth.from(today).toString();
         var sort = query.paging().allowedSort(SORT_FIELDS, "end_dt,asc");
         var allocation = allocations.calculate(month, filters.projectId());

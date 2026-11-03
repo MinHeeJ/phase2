@@ -1,4 +1,6 @@
-import { useCallback, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useLocation } from "react-router-dom";
+import { closingNavigation } from "../shared/closingNavigation";
 import {
   Badge,
   Button,
@@ -63,9 +65,19 @@ export default function UI21Screen({
 }) {
   const current = seoulMonth(),
     currentYear = Number(current.slice(0, 4));
+  const location = useLocation();
+  const handoff =
+    location.pathname === "/UI-21"
+      ? closingNavigation(location.state).month
+      : null;
   const [year, setYear] = useState(() =>
-    Number(sessionStorage.getItem("cashflow-year") ?? currentYear),
+    handoff
+      ? Number(handoff.slice(0, 4))
+      : Number(sessionStorage.getItem("cashflow-year") ?? currentYear),
   );
+  useEffect(() => {
+    if (handoff) setYear(Number(handoff.slice(0, 4)));
+  }, [handoff, location.key]);
   const [mode, setMode] = useState<CashFlowMode>("BOTH"),
     [unit, setUnit] = useState(1);
   const [opening, setOpening] = useState(false),
@@ -148,6 +160,11 @@ export default function UI21Screen({
         }
       />
       <div className={tables.search}>
+        {handoff && (
+          <span role="status">
+            대시보드 기준월 {handoff} · 연간 전체 조회에서 해당 월을 확인하세요.
+          </span>
+        )}
         <Button
           data-testid="cashflow-year-previous"
           aria-label="이전 연도"

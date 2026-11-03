@@ -6,6 +6,7 @@ import java.util.List;
 public final class NextSlotModels {
     private NextSlotModels() {}
     public record Profile(long asgn_id, long dev_id, String grd_cd, Long cust_ptnr_id) {}
+    public record RecommendationSummary(int withoutNext,int withRecommendation) {}
     public record Need(long need_id, long oppt_id, String oppt_nm, String job_cd,
             String grd_cd, String bgn_ym, String end_ym, int remaining_slots,
             Long cust_ptnr_id, BigDecimal win_prblt_rt) {}

@@ -51,6 +51,9 @@ public class MonthlyProfitService implements MonthlyProfitReader {
         return new MonthlyProfitReader.Month(month,number(row,"revenue"),number(row,"operating_profit"),warnings(row));
     }
     public List<Map<String,Object>> calculate(int year) {
+        return calculate(year,now());
+    }
+    public List<Map<String,Object>> calculate(int year,YearMonth current) {
         if(year<1||year>9999)throw MonthlyProfitInput.invalid("year");
         var closed=mapper.closedMonths(year);var result=new ArrayList<Map<String,Object>>();
         List<com.sicost.billingsops.BillingModels.Revenue> revenue=null;
@@ -63,7 +66,7 @@ public class MonthlyProfitService implements MonthlyProfitReader {
                 var saved=mapper.snapshot(new SnapshotKey(month,locked?"CLOSE":"IMPORT"));
                 if(saved==null||saved.isEmpty())warning.add(locked?"MISSING_CLOSED_SNAPSHOT":"MISSING_IMPORT");
                 else for(String key:FIELDS)row.put(key,number(saved,key));
-            } else if(YearMonth.parse(month).isAfter(now()))warning.add("FUTURE_ACTUAL");
+            } else if(YearMonth.parse(month).isAfter(current))warning.add("FUTURE_ACTUAL");
             else {
                 if(revenue==null)revenue=billing.revenue(year);
                 long sales=0;for(var r:revenue)if(r.month().equals(month))sales=Math.addExact(sales,r.confirmed_supply_amt());
@@ -83,7 +86,7 @@ public class MonthlyProfitService implements MonthlyProfitReader {
                 var facts=mapper.facts(month);
                 boolean missing=facts==null||(facts.payroll_count()==0 && mapper.hasLaborTargets(month))||allocation.warnings().stream().anyMatch(w->w.contains("급여 미업로드"));
                 if(missing)warning.add("MISSING_PAYROLL");
-                if(year<now().getYear()&&missing&&revenue.stream().noneMatch(r->r.month().equals(month))) {
+                if(year<current.getYear()&&missing&&revenue.stream().noneMatch(r->r.month().equals(month))) {
                     row.put("revenue",null);warning.add("MISSING_REVENUE_SOURCE");
                 }
                 if(facts!=null&&facts.draft_count()>0)warning.add("UNCONFIRMED_BILLING_EXCLUDED");

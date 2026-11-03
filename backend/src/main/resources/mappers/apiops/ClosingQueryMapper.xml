@@ -23,6 +23,17 @@
   <select id="latestClosedMonth" resultType="string">
     SELECT max(cls_ym) FROM fin.mth_cls WHERE cls_stts_cd='CLOSED'
   </select>
+  <select id="frozenChecks" resultMap="check">
+    SELECT item-&gt;&gt;'code' AS code,item-&gt;&gt;'status' AS status,
+      (item-&gt;&gt;'count')::integer AS count,item-&gt;&gt;'description' AS description,r.chk_at AS "checkedAt"
+    FROM (SELECT h.chk_rslt_json,h.chk_at FROM fin.mth_cls_chk_hist h
+      JOIN fin.mth_cls c ON c.cls_ym=h.cls_ym
+      WHERE c.cls_ym=#{month} AND c.cls_stts_cd='CLOSED' AND h.chk_at&lt;=c.cls_at
+      ORDER BY h.chk_at DESC,h.chk_run_id DESC LIMIT 1) r
+    CROSS JOIN LATERAL jsonb_array_elements(r.chk_rslt_json) item
+    LEFT JOIN cmn.cd_dtl d ON d.cd_grp_id='CLOSE_CHECK' AND d.dtl_cd=item-&gt;&gt;'code'
+    ORDER BY d.sort_seq NULLS LAST,item-&gt;&gt;'code'
+  </select>
   <select id="activeReferences" resultType="long">
     SELECT count(*) FROM cst.prvmn_adj WHERE orgnl_ym=#{month} AND adj_stts_cd='ACTIVE'
   </select>

@@ -8,6 +8,7 @@ import static com.sicost.cashflow.CashFlowModels.*;
 public interface CashFlowMapper {
     Balance initial();
     List<Balance> balances();
+    List<Minimum> minimums();
     String monthStatus(String month);
     void lockOpening();
     void saveOpening(OpeningWrite write);

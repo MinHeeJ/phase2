@@ -38,6 +38,26 @@ public class OpportunityService {
     private boolean stale(Row row) {
         return row.oppt_stts_cd().equals("OPEN")&&ChronoUnit.DAYS.between((row.updated_at()==null?row.created_at():row.updated_at()).toLocalDate(),today())>14;
     }
+    /** Unpaged owner read, without quote/detail loading or approval writes. */
+    public PipelineRead readPipeline(LocalDate date) {
+        var rows=mapper.matching(OpportunityQuery.of(Map.of("oppt_stts_cd","OPEN")));
+        var from=YearMonth.from(date).plusMonths(1);
+        var to=from.plusMonths(2);
+        var upcoming=rows.stream().filter(r->r.bgn_ym()!=null && r.bgn_ym().compareTo(from.toString())>=0
+            && r.bgn_ym().compareTo(to.toString())<=0)
+            .sorted(Comparator.comparing(Row::bgn_ym).thenComparing(Row::win_prblt_rt,Comparator.reverseOrder())
+                .thenComparingLong(Row::oppt_id)).toList();
+        long weighted=0;
+        for(var r:rows)weighted=Math.addExact(weighted,weighted(r));
+        int pending=(int)rows.stream().filter(r->"PENDING".equals(r.approval_state())).count();
+        int stale=(int)rows.stream().filter(r->ChronoUnit.DAYS.between(
+            (r.updated_at()==null?r.created_at():r.updated_at()).toLocalDate(),date)>14).count();
+        return new PipelineRead(rows.size(),weighted,upcoming.size(),upcoming.stream().limit(3).toList(),pending,stale);
+    }
+    public static long weighted(Row row) {
+        return BigDecimal.valueOf(row.expc_amt()).multiply(row.win_prblt_rt()).movePointLeft(2)
+            .setScale(0,RoundingMode.DOWN).longValueExact();
+    }
     private Row require(long id,boolean lock) {
         OpportunityInput.id(id);Row row=lock?mapper.lock(id):mapper.row(id);
         if(row==null)throw ApiException.notFound("기회가 없습니다.");return row;

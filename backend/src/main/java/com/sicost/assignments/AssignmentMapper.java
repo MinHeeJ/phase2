@@ -7,6 +7,8 @@ import static com.sicost.assignments.AssignmentModels.*;
 @Mapper
 public interface AssignmentMapper {
     List<Row> list(Query query);
+    int excessPeople(String month);
+    int precontractAssignments(java.time.LocalDate today);
     Row row(ReadKey key);
     Project project(long id);
     Developer developer(long id);

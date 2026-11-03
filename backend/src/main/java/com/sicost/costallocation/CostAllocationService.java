@@ -41,6 +41,10 @@ public class CostAllocationService {
         return months.stream().map(month -> calculateMonth(new Query(month, projectId))).toList();
     }
 
+    public List<Allocation> yearAt(int year,Long projectId,java.time.LocalDate today) {
+        var captured=Clock.fixed(today.atStartOfDay(java.time.ZoneId.of("Asia/Seoul")).toInstant(),java.time.ZoneId.of("Asia/Seoul"));
+        return CostValues.months(year,captured).stream().map(month->calculateMonth(new Query(month,projectId))).toList();
+    }
     public List<Allocation> projectThrough(long projectId, String throughMonth) {
         CostValues.id(projectId, "projectId");
         String month = CostValues.month(throughMonth, clock).toString();
@@ -52,6 +56,10 @@ public class CostAllocationService {
         return List.copyOf(result);
     }
 
+    public List<Allocation> projectsThrough(ProjectBatch query) {
+        if(query.ids().isEmpty())return new ArrayList<>();
+        return mapper.batchMonths(query).stream().map(month->calculateMonth(new Query(month,null))).toList();
+    }
     private Allocation calculateMonth(Query query) {
         // Close status is checked before touching mutable payroll, assignments, rates or expenses.
         boolean closed = "CLOSED".equals(mapper.monthStatus(query.month()));

@@ -14,5 +14,6 @@ public interface CostAllocationMapper {
     List<Turnkey> turnkey(String month);
     List<AllocationRow> snapshots(String month);
     List<String> projectMonths(ProjectPeriod query);
+    List<String> batchMonths(ProjectBatch query);
     boolean expectedCost(Query query);
 }

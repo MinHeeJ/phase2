@@ -12,6 +12,7 @@ import { screenIds } from "../pages/shared/registry";
 import { useSharedPreferences } from "../pages/shared/preferences";
 import type { MenuNode } from "../pages/shared/api";
 import type { BillingDetail } from "../pages/billings/client";
+import { dashboardFixture } from "../../tests/dashboard/DashboardTestSupport";
 process.env.DEBUG_PRINT_LIMIT = "300";
 import {
   developerFixture,
@@ -102,6 +103,12 @@ beforeEach(() => {
   });
   fetcher = vi.fn(async (url: string, init?: RequestInit) => {
     if (url === "/api/menus") return response(menus);
+    if (url === "/api/dashboard" || url.startsWith("/api/dashboard?"))
+      return response(
+        dashboardFixture(
+          new URLSearchParams(url.split("?")[1]).get("month") ?? "2026-10",
+        ),
+      );
     if (url === "/api/projects/options")
       return response([
         { id: 9, no: "P-2609", name: "청구 프로젝트", type: "DP" },
@@ -304,6 +311,63 @@ afterEach(() => {
 });
 
 describe("application route registration", () => {
+  it.each(["/", "/UI-16"])(
+    "renders the real dashboard once through %s and retains its fixed tab",
+    async (path) => {
+      mount(path);
+      await screen.findByRole("heading", { name: "이번 달 매출" });
+      expect(screen.getAllByTestId("dashboard-screen")).toHaveLength(1);
+      expect(screen.getByTestId("dashboard-screen")).toHaveAttribute(
+        "data-screen-id",
+        "SCR-UI-16",
+      );
+      expect(screen.getByLabelText("현재 주소")).toHaveTextContent("/UI-16");
+      expect(screen.getByTestId("dashboard-month")).toHaveValue("2026-10");
+      expect(screen.getByTestId("dashboard-export")).toBeEnabled();
+      const tabs = screen.getByRole("navigation", { name: "열린 화면" });
+      expect(
+        within(tabs).getAllByRole("button", { name: "UI-16" }),
+      ).toHaveLength(1);
+      expect(screen.queryByLabelText("UI-16 닫기")).not.toBeInTheDocument();
+      expect(
+        fetcher.mock.calls.every(
+          ([, init]) => !init?.method || init.method === "GET",
+        ),
+      ).toBe(true);
+    },
+  );
+  it("keeps dashboard month selection and partial-card recovery on the approved whole GET", async () => {
+    mount("/UI-16");
+    await screen.findByRole("heading", { name: "이번 달 매출" });
+    const data = dashboardFixture("2026-09");
+    data.actions = {
+      ...data.actions,
+      state: "ERROR",
+      error: { code: "SOURCE_UNAVAILABLE", message: "확인할 일 조회 실패" },
+    };
+    fetcher.mockResolvedValueOnce(response(data));
+    fireEvent.change(screen.getByTestId("dashboard-month"), {
+      target: { value: data.basisMonth },
+    });
+    await screen.findByText("확인할 일 조회 실패");
+    expect(screen.getByTestId("dashboard-revenue-card")).toHaveTextContent(
+      "1,200,000 원",
+    );
+    fireEvent.click(screen.getByTestId("dashboard-actions-retry"));
+    await waitFor(() =>
+      expect(screen.queryByText("확인할 일 조회 실패")).not.toBeInTheDocument(),
+    );
+    expect(
+      fetcher.mock.calls
+        .filter(([url]) => url.startsWith("/api/dashboard"))
+        .map(([url]) => url),
+    ).toEqual([
+      "/api/dashboard",
+      "/api/dashboard?month=2026-09",
+      "/api/dashboard?month=2026-09",
+    ]);
+    expect(screen.getAllByTestId("dashboard-screen")).toHaveLength(1);
+  });
   it("composes billing tabs, the source-aware editor and attendance upload on UI-13", async () => {
     mount("/UI-13");
     await screen.findByTestId("billing-row-7");

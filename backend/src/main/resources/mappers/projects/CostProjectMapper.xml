@@ -65,6 +65,50 @@
         ORDER BY CASE s.aloc_stg_cd WHEN 'ACTUAL' THEN 0 WHEN 'FINAL' THEN 1 ELSE 2 END LIMIT 1)
     GROUP BY m.aloc_ym ORDER BY m.aloc_ym
   </select>
+  <resultMap id="projectPlan" type="com.sicost.projects.CostProjectModels$ProjectPlan"><constructor>
+    <arg column="project_id" javaType="_long"/><arg column="month" javaType="string"/><arg column="mm" javaType="java.math.BigDecimal"/>
+  </constructor></resultMap>
+  <resultMap id="projectLabor" type="com.sicost.projects.CostProjectModels$ProjectLabor"><constructor>
+    <arg column="project_id" javaType="_long"/><arg column="developer_id" javaType="_long"/><arg column="name" javaType="string"/>
+    <arg column="cost" javaType="java.lang.Long"/><arg column="future_mm" javaType="java.math.BigDecimal"/>
+  </constructor></resultMap>
+  <resultMap id="projectReference" type="com.sicost.projects.CostProjectModels$ProjectReference"><constructor>
+    <arg column="project_id" javaType="_long"/><arg column="month" javaType="string"/><arg column="amount" javaType="java.lang.Long"/>
+  </constructor></resultMap>
+  <sql id="batchIds"><foreach collection="ids" item="projectId" open="(" separator="," close=")">#{projectId}</foreach></sql>
+  <select id="batchSources" resultMap="source">
+    SELECT <include refid="columns"/> FROM prj.prj p LEFT JOIN mst.dev d ON d.dev_id=p.pm_dev_id
+    WHERE p.prj_id IN <include refid="batchIds"/> ORDER BY p.prj_id
+  </select>
+  <select id="batchPlans" resultMap="projectPlan">
+    SELECT p.prj_id AS project_id,p.plan_ym AS month,sum(p.need_mm_qty) AS mm FROM prj.psn_plan p
+    WHERE p.prj_id IN <include refid="batchIds"/> AND p.plan_ym BETWEEN #{fromMonth} AND #{throughMonth}
+    GROUP BY p.prj_id,p.plan_ym ORDER BY p.prj_id,p.plan_ym
+  </select>
+  <select id="batchLabor" resultMap="projectLabor">
+    WITH pairs AS (
+      SELECT a.prj_id,a.dev_id FROM asgn.asgn a WHERE a.prj_id IN <include refid="batchIds"/> AND a.asgn_stts_cd!='CANCELLED'
+      UNION SELECT l.prj_id,l.dev_id FROM prj.tk_aloc_line l WHERE l.prj_id IN <include refid="batchIds"/> AND l.line_ty_cd='PERSON' AND l.dev_id IS NOT NULL
+    )
+    SELECT p.prj_id AS project_id,d.dev_id AS developer_id,d.dev_nm AS name,c.indv_lbr_cst_amt AS cost,
+      (SELECT sum(m.mm_qty) FROM prj.tk_aloc_line l JOIN prj.tk_aloc_mth m ON m.aloc_line_id=l.aloc_line_id
+        WHERE l.prj_id=p.prj_id AND l.dev_id=d.dev_id AND l.line_ty_cd='PERSON'
+          AND l.aloc_stg_cd=(SELECT s.aloc_stg_cd FROM prj.tk_aloc_line s WHERE s.prj_id=p.prj_id
+            ORDER BY CASE s.aloc_stg_cd WHEN 'ACTUAL' THEN 0 WHEN 'FINAL' THEN 1 ELSE 2 END LIMIT 1)
+          AND m.aloc_ym &gt; #{throughMonth}) AS future_mm
+    FROM pairs p JOIN mst.dev d ON d.dev_id=p.dev_id
+    LEFT JOIN LATERAL (SELECT s.indv_lbr_cst_amt FROM cst.mth_cst s WHERE s.dev_id=d.dev_id
+      AND s.cst_ym &lt;= #{throughMonth} AND s.duty_se_cd='DIRECT' ORDER BY s.cst_ym DESC LIMIT 1) c ON true
+    ORDER BY p.prj_id,d.dev_id
+  </select>
+  <select id="batchReference" resultMap="projectReference">
+    SELECT l.prj_id AS project_id,m.aloc_ym AS month,sum(m.aloc_amt)::bigint AS amount
+    FROM prj.tk_aloc_line l JOIN prj.tk_aloc_mth m ON m.aloc_line_id=l.aloc_line_id
+    WHERE l.prj_id IN <include refid="batchIds"/> AND m.aloc_ym BETWEEN #{fromMonth} AND #{throughMonth}
+      AND l.aloc_stg_cd=(SELECT s.aloc_stg_cd FROM prj.tk_aloc_line s WHERE s.prj_id=l.prj_id
+        ORDER BY CASE s.aloc_stg_cd WHEN 'ACTUAL' THEN 0 WHEN 'FINAL' THEN 1 ELSE 2 END LIMIT 1)
+    GROUP BY l.prj_id,m.aloc_ym ORDER BY l.prj_id,m.aloc_ym
+  </select>
   <select id="headcount" resultType="long">
     SELECT count(DISTINCT a.dev_id) FROM asgn.asgn a WHERE a.prj_id=#{id}
       AND a.asgn_stts_cd!='CANCELLED'

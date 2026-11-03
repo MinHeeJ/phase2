@@ -1,5 +1,6 @@
-import { useCallback, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useCallback, useEffect, useState } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { closingNavigation } from "../shared/closingNavigation";
 import { Badge, Button, Pagination, Skeleton } from "../../shared/Controls";
 import { ApiFailure } from "../../shared/api";
 import { ErrorBanner } from "../../shared/ErrorBanner";
@@ -55,9 +56,33 @@ export default function UI04Screen({
   groupName?: string;
   onDirtyChange?: (dirty: boolean) => void;
 }) {
-  const [filters, setFilters] = useState(costProjectDefaults);
+  const location = useLocation();
+  const handoff =
+    location.pathname === "/UI-04"
+      ? closingNavigation(location.state).month
+      : null;
+  const projectId =
+    location.pathname === "/UI-04" &&
+    location.state &&
+    typeof location.state === "object" &&
+    Number.isSafeInteger(location.state.projectId) &&
+    location.state.projectId > 0
+      ? (location.state.projectId as number)
+      : null;
+  const [filters, setFilters] = useState(() => ({
+    ...costProjectDefaults(),
+    ...(handoff ? { year: Number(handoff.slice(0, 4)) } : {}),
+  }));
   const [draft, setDraft] = useState(filters);
-  const [selected, setSelected] = useState<number | null>(null);
+  const [selected, setSelected] = useState<number | null>(projectId);
+  useEffect(() => {
+    if (handoff) {
+      const year = Number(handoff.slice(0, 4));
+      setFilters((value) => ({ ...value, year, page: 0 }));
+      setDraft((value) => ({ ...value, year, page: 0 }));
+    }
+    if (projectId) setSelected(projectId);
+  }, [handoff, projectId, location.key]);
   const [renegotiation, setRenegotiation] = useState<{
     projectId?: number;
   } | null>(null);
@@ -447,6 +472,7 @@ export default function UI04Screen({
           key={`${selected}-${filters.year}`}
           id={selected}
           year={filters.year}
+          initialTab={projectId === selected ? "causes" : "months"}
           onClose={() => setSelected(null)}
           onRenegotiate={() => {
             setRenegotiation({ projectId: selected });
@@ -474,15 +500,19 @@ export function CostProjectAlerts({ row }: { row: CostProjectRow }) {
 export function CostProjectDrawer({
   id,
   year,
+  initialTab = "months",
   onClose,
   onRenegotiate,
 }: {
   id: number;
   year: number;
+  initialTab?: "months" | "causes";
   onClose: () => void;
   onRenegotiate: () => void;
 }) {
-  const [tab, setTab] = useState("months");
+  const [tab, setTab] = useState<"months" | "people" | "simulation" | "causes">(
+    initialTab,
+  );
   const [devId, setDevId] = useState<number | null>(null);
   const detail = useAdminRead(
     useCallback(() => getCostProject(id, year), [id, year]),
@@ -522,12 +552,14 @@ export function CostProjectDrawer({
           프로젝트 상세
         </Link>
         <div role="tablist" className={styles.tabs}>
-          {[
-            ["months", "월별 원가"],
-            ["people", "투입 인력"],
-            ["simulation", "시뮬레이션"],
-            ["causes", "원가 초과 원인"],
-          ].map(([key, label]) => (
+          {(
+            [
+              ["months", "월별 원가"],
+              ["people", "투입 인력"],
+              ["simulation", "시뮬레이션"],
+              ["causes", "원가 초과 원인"],
+            ] as const
+          ).map(([key, label]) => (
             <Button
               key={key}
               role="tab"

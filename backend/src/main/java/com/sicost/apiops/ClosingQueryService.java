@@ -39,6 +39,15 @@ public class ClosingQueryService {
             closed ? state.actorName() : null);
     }
 
+    public DashboardClosing readDashboardClosing(String month) {
+        State state=mapper.state(month);
+        boolean closed=state!=null&&"CLOSED".equals(state.status());
+        var checks=closed?mapper.frozenChecks(month):mapper.checks(month);
+        return new DashboardClosing(closed?"CLOSED":"OPEN",mapper.latestClosedMonth(),checks,
+            closed&&(checks.size()!=9||checks.stream().map(StoredCheck::code).distinct().count()!=9));
+    }
+
+    public State readState(String month) { return mapper.state(month); }
     private OffsetDateTime timestamp(LocalDateTime value) {
         return value == null ? null : value.atZone(ZoneId.of("Asia/Seoul")).toOffsetDateTime();
     }

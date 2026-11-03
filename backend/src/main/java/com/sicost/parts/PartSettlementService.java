@@ -21,6 +21,8 @@ public class PartSettlementService {
     private final Clock clock;
     private final ObjectMapper json;
     private final CurrentUser user;
+    @org.springframework.beans.factory.annotation.Autowired(required=false)
+    private com.sicost.billingsops.BillingRevenueQuery revenue;
 
     public PartSettlementService(PartSettlementMapper mapper, CostAllocationService allocations,
             PartSettlementApprovalPolicy approval, Clock clock, ObjectMapper json, CurrentUser user) {
@@ -49,6 +51,46 @@ public class PartSettlementService {
         return new SettlementList(selected, reference(), closed(selected), "원", List.copyOf(warnings), List.copyOf(rows));
     }
 
+    /** Read-only projection; CLOSED must never fall back to a provisional settlement. */
+    public List<SummaryRow> readSummary(String month) {
+        boolean frozen=closed(month);
+        var projectParts=new HashMap<Long,Long>();
+        if(!frozen)mapper.projectParts(month).forEach(p->projectParts.put(p.projectId(),p.partId()));
+        var sales=new HashMap<Long,Long>();long unassigned=0;
+        boolean hasUnassigned=false;
+        if(frozen)for(var row:mapper.frozenRevenue(month)) {
+            if(row.partId()==null) {unassigned=Math.addExact(unassigned,row.amount());hasUnassigned=true;}
+            else sales.merge(row.partId(),row.amount(),Math::addExact);
+        }
+        if(!frozen)for(var r:revenue.projectRevenue(new com.sicost.billingsops.BillingModels.CostRevenueQuery(
+                YearMonth.parse(month).getYear(),null))) {
+            if(!month.equals(r.month()) || !projectParts.containsKey(r.prj_id()))continue;
+            Long part=projectParts.get(r.prj_id());
+            if(part==null)unassigned=Math.addExact(unassigned,r.confirmed_supply_amt());
+            else sales.merge(part,r.confirmed_supply_amt(),Math::addExact);
+        }
+        var result=new ArrayList<SummaryRow>();
+        for(var part:mapper.dashboardParts()) {
+            Settlement settlement=null;boolean complete=false;
+            if(!"HQ".equals(part.classification())) {
+                var scope=new Scope(part.id(),month);
+                if(frozen) {
+                    var stored=mapper.settlement(scope);
+                    if(stored!=null && "CONFIRM".equals(stored.stlm_stts_cd())) {settlement=stored;complete=true;}
+                } else {
+                    var detail=monthly(scope);settlement=detail.settlement();
+                    complete=settlement.part_std_hist_id()!=null && detail.warnings().stream()
+                        .noneMatch(w->w.contains("급여") || w.contains("MM 없음") || w.contains("자료 없음"));
+                }
+            }
+            var margin=complete && settlement.tot_sls_amt()!=0?java.math.BigDecimal.valueOf(settlement.part_prft_amt())
+                .multiply(java.math.BigDecimal.valueOf(100)).divide(java.math.BigDecimal.valueOf(settlement.tot_sls_amt()),1,java.math.RoundingMode.HALF_UP):null;
+            result.add(new SummaryRow(part.id(),part.name(),part.classification(),frozen?sales.get(part.id()):sales.getOrDefault(part.id(),0L),
+                margin,!complete?"MISSING_COST":settlement.tot_sls_amt()==0?"ZERO_REVENUE":"READY"));
+        }
+        if(hasUnassigned || !frozen && projectParts.containsValue(null))result.add(new SummaryRow(null,"미지정","UNASSIGNED",unassigned,null,"MISSING_COST"));
+        return List.copyOf(result);
+    }
     private void requirePart(Scope scope) {
         if (mapper.part(scope.partId()) == null) throw ApiException.notFound("영업 파트가 없습니다.");
     }

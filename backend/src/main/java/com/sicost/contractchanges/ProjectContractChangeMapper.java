@@ -9,6 +9,7 @@ public interface ProjectContractChangeMapper {
     ProjectState project(long id);
     ProjectState lockProject(long id);
     List<ChangeRow> list(long id);
+    int pendingAdditional();
     ChangeRow row(ChangeKey key);
     Long insert(ChangeWrite write);
     void update(ChangeWrite write);

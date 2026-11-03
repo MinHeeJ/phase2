@@ -64,6 +64,15 @@ class CostProjectPersistenceTest {
         assertThat(value("SELECT count(*) FROM cst.cst_aloc")).isEqualTo("0");
         assertThat(mapper.source(901).trgt_cst_amt()).isEqualTo(400);
     }
+    @Test void batchedDashboardReadMatchesExistingDetailAgainstPostgresql() {
+        var direct=service.detail(901,2026);
+        var batch=service.readForProjects(java.util.List.of(901L),2026);
+        assertThat(batch).hasSize(1);
+        assertThat(batch.get(0).project()).isEqualTo(direct.project());
+        assertThat(batch.get(0).months()).isEqualTo(direct.months());
+        assertThat(batch.get(0).causes()).isEqualTo(direct.causes());
+        assertThat(value("SELECT count(*) FROM cst.cst_aloc")).isEqualTo("0");
+    }
     @Test void closedMonthWithExpectedExpenseAndNoSnapshotRejectsRead() throws Exception {
         sql("INSERT INTO fin.mth_cls(cls_ym,cls_stts_cd) VALUES('2026-10','CLOSED') ON CONFLICT(cls_ym) DO UPDATE SET cls_stts_cd='CLOSED'");
         assertThatThrownBy(()->service.detail(901,2026)).isInstanceOf(com.sicost.common.api.ApiException.class)

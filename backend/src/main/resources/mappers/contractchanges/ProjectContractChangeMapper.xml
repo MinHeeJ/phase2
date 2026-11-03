@@ -48,6 +48,10 @@
       h.rsn_desc,h.realoc_need_yn,h.cnfrm_user_id,h.cnfrm_at
     FROM prj.cntrct_chg_hist h WHERE h.prj_id=#{id}
   </sql>
+  <select id="pendingAdditional" resultType="int">
+    SELECT count(DISTINCT h.prj_id)::int FROM prj.cntrct_chg_hist h JOIN prj.prj p ON p.prj_id=h.prj_id
+    WHERE h.cntrct_chg_stts_cd='PLAN' AND h.cntrct_chg_ty_cd='ADD' AND p.use_yn='Y'
+  </select>
   <select id="list" resultMap="changeRow">
     <include refid="changeProjection"/> ORDER BY h.chg_dt,h.cntrct_chg_id
   </select>

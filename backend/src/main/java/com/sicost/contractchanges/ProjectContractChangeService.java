@@ -57,6 +57,7 @@ public class ProjectContractChangeService {
         var project = require(id, false);
         return new Changes(project.cntrct_bgn_dt(), project.init_cntrct_amt(), mapper.list(id));
     }
+    public int readPendingAdditional() { return mapper.pendingAdditional(); }
     @Transactional
     public ChangeRow create(long id, ChangeInput input) {
         ProjectActions.can(permissions, "createProjectContractChange", "CONFIRM".equals(input.cntrct_chg_stts_cd()));

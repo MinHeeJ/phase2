@@ -9,6 +9,7 @@ public final class CostAllocationModels {
 
     public record Query(String month, Long projectId) {}
     public record ProjectPeriod(long projectId, String throughMonth) {}
+    public record ProjectBatch(List<Long> ids,String throughMonth) {}
     public record Person(long dev_id, String emp_se_cd, String duty_se_cd,
             @Sensitive Long indv_lbr_cst_amt) {}
     public record Assignment(long asgn_id, long dev_id, long prj_id, String cntrct_ty_cd,

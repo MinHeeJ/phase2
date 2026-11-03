@@ -43,6 +43,19 @@ public class NextSlotService {
         var temporary = mapper.temporary(selected.dev_id()).stream().map(TemporaryRow::view).toList();
         return new NextSlotsResult(items, items.size(), n, m, temporary);
     }
+    public RecommendationSummary readSummary(LocalDate today) {
+        var profiles=mapper.profiles().stream().collect(Collectors.toMap(Profile::asgn_id,Function.identity()));
+        var eligible=withdrawals.sources().stream().filter(s->eligible(s,today)).toList();
+        var needs=mapper.needs();var grades=mapper.grades();
+        var recommended=new HashSet<Long>();
+        var jobs=new HashMap<Long,List<String>>();
+        for(var s:eligible) {
+            var profile=profiles.get(s.asgn_id());
+            if(profile!=null && recommend(s,profile,needs,grades,jobs.computeIfAbsent(s.dev_id(),mapper::jobs))
+                .stream().anyMatch(n->n.mtch_scr()>0))recommended.add(s.dev_id());
+        }
+        return new RecommendationSummary((int)eligible.stream().map(Source::dev_id).distinct().count(),recommended.size());
+    }
     private boolean eligible(Source s, LocalDate today) {
         return WithdrawalRules.soon(s.end_dt(), today) && !"H".equals(s.ext_psblty_cd())
             && s.next_asgn_id() == null;
