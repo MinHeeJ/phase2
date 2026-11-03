@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "status": "review_required_not_acceptance_complete",
+  "items": [
+    {
+      "topic": "Effective design metadata discrepancy",
+      "document": "architecture.md",
+      "expected_server_decision_sha256": "ed1d4c7eb868fa18b64e7ab671e9791128171bf3083a9f563ac8d3d9c17f330b",
+      "observed_effective_sha256": "57be8cfcd708ad56d1914d96f15cf6516d16ffac00684691172804c6bf78a872",
+      "action": "Runner-owned input left untouched; current tasks and API contract used for scoped implementation. Runner must reconcile metadata."
+    },
+    {
+      "topic": "Effective design metadata discrepancy",
+      "document": "ui-design.md",
+      "expected_server_decision_sha256": "eb2727ca108e7b80a5c4b88019bd6e91ca3e7ecb0d519b81df92225ad502004b",
+      "observed_effective_sha256": "debb35a86128b7f6bfc1491f3da4bb95ec8a887d0bd9174abbae6a99428802ad",
+      "action": "No new UI style document or external reference analysis; existing UI-02 CSS and shared shell reused."
+    },
+    {
+      "topic": "UI-33 route collision",
+      "implementation": "Default direct /UI-33 stays in project registration. Existing candidate menu and forecast links set workspace=candidates in React Router state on the same path. Explicit buttons allow changing workspace; project dirty state blocks the local candidate switch.",
+      "approval": "pending_review",
+      "verification": "Rendered regression tests authored, not executed. No route renumbering or legacy project component replacement."
+    },
+    {
+      "topic": "Future operating-profit baseline",
+      "implementation": "baseline_operating_profit is explicitly NULL with a source-unavailable warning, never an invented zero baseline.",
+      "contract_gap": "Effective OpenAPI currently requires a non-null integer. No proven future baseline source exists in the inspected code. This field is intentionally recorded as unresolved, not contract-compliant.",
+      "approval": "pending_source_or_contract_resolution"
+    },
+    {
+      "topic": "Quote metadata, zero-cost proof and source-linked plan uniqueness",
+      "implementation": "V8 prepares the additive metadata and partial indexes described in discovery decisions; existing tables and migrations are preserved.",
+      "approval": "pending_review",
+      "remaining": "Opportunity operations and actual-zero proof verification have not been implemented. Commercial zero-contract/IN behavior and evidence policy cannot be accepted as complete."
+    },
+    {
+      "topic": "Historical classification",
+      "remaining": "The annual board and historical job/grade reconstruction are not implemented. Current forecast API only permits future months; no historical snapshot is fabricated."
+    },
+    {
+      "topic": "Execution ownership",
+      "state": "awaiting runner verification",
+      "note": "No Maven test/build, frontend package-manager test/typecheck/build, database container or dev server was intentionally started. File-tool automatic lint attempted unavailable npx for the repository-root E2E TypeScript file; it produced no verification pass."
+    }
+  ]
+}

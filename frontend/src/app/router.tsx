@@ -36,6 +36,8 @@ import { BusinessPlanUploadDialog } from "../pages/businessplan2/BusinessPlanUpl
 import { PriorProfitUploadDialog } from "../pages/priorprofit/PriorProfitUploadDialog";
 import UI01Screen from "../pages/projects/UI01Screen";
 import UI05Screen from "../pages/us1/UI05Screen";
+import CandidatesScreen from "../pages/candidates/UI33Screen";
+import WorkforceForecastScreen from "../pages/workforce/UI17Screen";
 import { WithdrawalChanceSelect } from "../pages/us2/WithdrawalChanceSelect";
 import { DispatchExpiryCell } from "../pages/us3/DispatchExpiry";
 import UI11Screen from "../pages/us4/UI11Screen";
@@ -131,7 +133,9 @@ function DevelopersScreen({
   ...bindings
 }: BusinessScreenBindings) {
   const location = useLocation();
-  const { month: closingMonth, check: closingCheck } = closingNavigation(location.state);
+  const { month: closingMonth, check: closingCheck } = closingNavigation(
+    location.state,
+  );
   const notify = useRef(onDirtyChange);
   notify.current = onDirtyChange;
   const reportDirty = useCallback(
@@ -148,7 +152,11 @@ function DevelopersScreen({
   const exporting = useRef(false);
   const readOnly = useDeveloperReadOnly();
   useEffect(() => {
-    if (location.pathname === "/UI-02" && closingCheck === "SALARY_UPLOAD" && !readOnly)
+    if (
+      location.pathname === "/UI-02" &&
+      closingCheck === "SALARY_UPLOAD" &&
+      !readOnly
+    )
       setUpload("B.1");
   }, [location.key, location.pathname, closingCheck, readOnly]);
   useEffect(() => {
@@ -937,6 +945,10 @@ export function AppRouter() {
                 <PartnersScreen {...bindings} />
               ) : id === "UI-02" ? (
                 <DevelopersScreen {...bindings} />
+              ) : id === "UI-33" ? (
+                <CandidatesScreen {...bindings} />
+              ) : id === "UI-17" ? (
+                <WorkforceForecastScreen />
               ) : id === "UI-03" ? (
                 <UI03Screen {...bindings} />
               ) : id === "UI-04" ? (

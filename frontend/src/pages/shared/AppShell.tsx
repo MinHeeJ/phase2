@@ -50,12 +50,15 @@ export function AppShell({
     bindings: BusinessScreenBindings,
   ) => ReactNode;
 }) {
-  const { pathname, search: locationSearch } = useLocation();
+  const { pathname, search: locationSearch, state: routeState } = useLocation();
+  const candidateWorkspace =
+    pathname === "/UI-33" &&
+    (routeState as { workspace?: string } | null)?.workspace === "candidates";
   const navigate = useNavigate();
   const id =
     pathname === "/UI-32"
       ? "UI-02"
-      : pathname === "/UI-33"
+      : pathname === "/UI-33" && !candidateWorkspace
         ? "UI-01"
         : pathname.slice(1);
   const { menus, loading, error, retry } = useMenus();
@@ -86,13 +89,9 @@ export function AppShell({
   const navigationMenus = menus
     .map((group) => ({
       ...group,
-      children: group.children.filter(
-        (child) => child.screenId !== "UI-32" && child.screenId !== "UI-33",
-      ),
+      children: group.children.filter((child) => child.screenId !== "UI-32"),
     }))
-    .filter(
-      (group) => group.screenId !== "UI-32" && group.screenId !== "UI-33",
-    );
+    .filter((group) => group.screenId !== "UI-32");
   const navigateTo = useCallback(
     (next: string) => {
       navigate(
@@ -101,6 +100,7 @@ export function AppShell({
           : next === "UI-01"
             ? projectRoute.current
             : `/${next}`,
+        next === "UI-33" ? { state: { workspace: "candidates" } } : undefined,
       );
     },
     [navigate],
@@ -367,6 +367,8 @@ export function AppShell({
                     tab.id === "UI-18" ||
                     tab.id === "UI-20" ||
                     tab.id === "UI-21" ||
+                    tab.id === "UI-33" ||
+                    tab.id === "UI-17" ||
                     tab.id === "UI-02" ? (
                       <SharedMobileGuard
                         mobileAllowed={location.screen.mobile}
