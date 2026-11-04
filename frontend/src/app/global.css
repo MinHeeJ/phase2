@@ -103,3 +103,15 @@ h2 {
     min-height: 44px;
   }
 }
+/* 빈 표: 본문의 유일한 행이 모든 열을 덮는 한 칸이면 공용 표(DataTable)의 빈 칸과 같게 보인다.
+   화면마다 따로 그린 "조건에 맞는 결과가 없습니다" 줄이 왼쪽에 붙거나 낮게 그려지지 않게 한다. */
+tbody > tr:only-child > td[colspan]:only-child {
+  height: var(--empty-height);
+  text-align: center;
+  vertical-align: middle;
+  color: var(--text-sub);
+}
+tbody > tr:only-child > td[colspan]:only-child button {
+  display: block;
+  margin: var(--space-3) auto 0;
+}

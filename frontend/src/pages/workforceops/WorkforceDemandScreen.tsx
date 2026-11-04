@@ -56,7 +56,14 @@ export function WorkforceDemandContent({
       });
     buckets.get(key)!.rows.push(row);
   });
-  const warnings = [...new Set(data.items.flatMap((row) => row.warnings))];
+  // 원천 안내 앞의 내부 코드(FUTURE_ACTUAL · …)는 화면에 보이지 않는다.
+  const warnings = [
+    ...new Set(
+      data.items.flatMap((row) =>
+        row.warnings.map((w) => w.replace(/^[A-Z][A-Z0-9_]+(?::\s*|\s*·\s*)/, "")),
+      ),
+    ),
+  ];
   const shortage = data.shortages[0];
   const first = data.shortages.map((row) => row.first_shortage_month).sort()[0];
   return (

@@ -124,8 +124,9 @@ describe("UI-17 common workforce forecast", () => {
     expect(screen.getByText("가동률 (목표 90%)")).toBeInTheDocument();
     expect(screen.getByText("50.00%")).toBeInTheDocument();
     expect(
-      screen.getByText("FUTURE_ACTUAL · 영업이익 기준 원천 없음"),
+      screen.getByText("영업이익 기준 원천 없음"),
     ).toBeInTheDocument();
+    expect(screen.queryByText(/FUTURE_ACTUAL/)).not.toBeInTheDocument();
     expect(screen.getByText("3,000,000원")).toBeInTheDocument();
     expect(
       fetcher.mock.calls.some(([url]) =>

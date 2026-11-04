@@ -15,6 +15,7 @@ import {
 import tables from "../developers/Developers.module.css";
 import styles from "../apiops/Dashboard.module.css";
 import { CashChart, WorkforceChart } from "./DashboardCharts";
+import { opportunityStages } from "../opportunities/client";
 
 const ratio = (value: number | null, suffix = "%") =>
   value == null ? "–" : `${value.toFixed(1)}${suffix}`;
@@ -44,6 +45,41 @@ const actionTargets: Record<string, string> = {
   STALE_OPPORTUNITY: "UI-29",
   LOW_MARGIN: "UI-04",
   UNCONFIRMED_ADDITIONAL_CONTRACT: "UI-01",
+};
+// 이동할 화면은 화면 ID가 아니라 메뉴 이름으로 보여 준다.
+const screenNames: Record<string, string> = {
+  "UI-01": "프로젝트",
+  "UI-04": "프로젝트 원가 분석",
+  "UI-05": "철수 리스트",
+  "UI-12": "투입 배정",
+  "UI-13": "청구·입금",
+  "UI-14": "월 마감",
+  "UI-17": "인력 수요 예측",
+  "UI-21": "자금수지표",
+  "UI-29": "영업 파이프라인",
+  "UI-31": "프로젝트 현황판",
+};
+const costCauseNames: Record<string, string> = {
+  OVER_MM: "투입 초과",
+  COST_RATE: "단가 대비 원가",
+  FREE_SUPPORT: "무상지원",
+};
+const stageNames: Record<string, string> = Object.fromEntries(
+  opportunityStages.map((stage) => [stage.code, stage.name]),
+);
+const asOfText = (value: string) => {
+  const time = new Date(value);
+  return Number.isNaN(time.getTime())
+    ? value
+    : time.toLocaleString("ko-KR", {
+        timeZone: "Asia/Seoul",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      });
 };
 function CardStatus({
   card,
@@ -318,7 +354,7 @@ export default function UI16Screen({
             {pending || error || data.basisMonth !== basis
               ? `이전 조회 결과 · ${data.basisMonth} · `
               : ""}
-            서버 응답 기준 시각 {data.asOf} · 열린 월은 조회 중 원천이 변경될 수
+            기준 시각 {asOfText(data.asOf)} · 열린 월은 조회 중 원천이 변경될 수
             있습니다.
           </p>
           <div className={styles.kpis}>
@@ -454,19 +490,23 @@ export default function UI16Screen({
                       >
                         {item.severity === "URGENT" ? "급함" : "주의"}
                       </Badge>
-                      <span>
-                        {item.title} · {item.affectedCount ?? "–"}
-                        {item.unit === "PERSON"
-                          ? "명"
-                          : item.unit === "MONTH"
-                            ? "개월"
-                            : "건"}
+                      <span className={styles.alertText}>
+                        <strong>
+                          {item.title} · {item.affectedCount ?? "–"}
+                          {item.unit === "PERSON"
+                            ? "명"
+                            : item.unit === "MONTH"
+                              ? "개월"
+                              : "건"}
+                        </strong>
+                        <small>
+                          {item.description}
+                          {item.sourceMonth && ` · ${item.sourceMonth}`}
+                        </small>
                       </span>
-                      <small>
-                        {item.description}
-                        {item.sourceMonth && ` · ${item.sourceMonth}`} ·{" "}
-                        {actionTargets[item.type]} 이동
-                      </small>
+                      <em className={styles.actionTarget}>
+                        {screenNames[actionTargets[item.type] ?? ""] ?? "대시보드"} ›
+                      </em>
                     </Link>
                   )}
                 </div>
@@ -537,7 +577,7 @@ export default function UI16Screen({
                   )}
                 {data.projectAlerts.items.map((item) => (
                   <Link
-                    className={styles.action}
+                    className={styles.alertLink}
                     data-testid={`dashboard-project-${item.projectId}`}
                     key={item.projectId}
                     to="/UI-04"
@@ -547,23 +587,31 @@ export default function UI16Screen({
                       costTab: "causes",
                     }}
                   >
-                    <strong>{item.projectName}</strong>
-                    {item.statuses.map((status) => (
-                      <Badge
-                        key={status}
-                        tone={item.severity === "RISK" ? "danger" : "warning"}
-                      >
-                        {status}
-                      </Badge>
-                    ))}
-                    <span>
-                      {item.dataState === "MISSING_COST"
-                        ? "자료 부족"
-                        : `마진율 ${ratio(item.marginPercent)} · 예산 소진율 ${ratio(item.budgetUsagePercent)}`}
+                    <span className={styles.alertText}>
+                      <strong>{item.projectName}</strong>
+                      <small>
+                        {item.dataState === "MISSING_COST"
+                          ? "자료 부족"
+                          : `마진율 ${ratio(item.marginPercent)} · 예산 소진율 ${ratio(item.budgetUsagePercent)}`}
+                      </small>
+                      <small>
+                        주원인:{" "}
+                        {item.primaryCostCause
+                          ? (costCauseNames[item.primaryCostCause.name] ??
+                            item.primaryCostCause.name)
+                          : "분석 자료 없음"}
+                      </small>
                     </span>
-                    <small>
-                      주원인: {item.primaryCostCause?.name ?? "분석 자료 없음"}
-                    </small>
+                    <span className={styles.alertBadges}>
+                      {item.statuses.map((status) => (
+                        <Badge
+                          key={status}
+                          tone={item.severity === "RISK" ? "danger" : "warning"}
+                        >
+                          {status}
+                        </Badge>
+                      ))}
+                    </span>
                   </Link>
                 ))}
               </Panel>
@@ -650,7 +698,9 @@ export default function UI16Screen({
                         <td>{mm(point.availableMm)}</td>
                         <td>{mm(point.requiredMm)}</td>
                         <td>
-                          {mm(point.shortageMm)}{" "}
+                          {point.shortageMm != null && point.shortageMm < 0
+                            ? `여유 ${mm(-point.shortageMm)}`
+                            : mm(point.shortageMm)}{" "}
                           {point.isShortage && (
                             <Badge tone="danger">부족</Badge>
                           )}
@@ -724,12 +774,18 @@ export default function UI16Screen({
                 )}
               {data.pipeline.startingOpportunities.map((item) => (
                 <div
+                  className={styles.action}
                   data-testid={`dashboard-opportunity-${item.opportunityId}`}
                   key={item.opportunityId}
                 >
-                  {item.name} · {item.startDate} · <Badge>{item.stage}</Badge>{" "}
-                  {item.probabilityPercent}% · 예상{" "}
-                  {money(item.weightedExpectedAmount)}
+                  <span className={styles.alertText}>
+                    <strong>{item.name}</strong>
+                    <small>
+                      시작 {item.startDate} · 확률 {item.probabilityPercent}% ·
+                      예상 {money(item.weightedExpectedAmount)}
+                    </small>
+                  </span>
+                  <Badge>{stageNames[item.stage] ?? item.stage}</Badge>
                 </div>
               ))}
             </Panel>

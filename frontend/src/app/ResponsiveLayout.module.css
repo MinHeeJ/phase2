@@ -12,6 +12,10 @@
   padding: 0 var(--space-6);
   background: var(--surface);
   border-bottom: 1px solid var(--border);
+  /* 머리줄을 위에 고정해, 스크롤해도 왼쪽 메뉴가 화면 아래까지 이어지게 한다. */
+  position: sticky;
+  top: 0;
+  z-index: 30;
 }
 .menu {
   min-width: 0;
@@ -21,7 +25,7 @@
   padding: var(--space-3) var(--space-2);
   height: calc(100dvh - var(--header-height));
   position: sticky;
-  top: 0;
+  top: var(--header-height);
 }
 .main {
   min-width: 0;

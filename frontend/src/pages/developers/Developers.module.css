@@ -120,6 +120,18 @@
   font-weight: var(--section-weight);
   margin: 0 0 var(--space-6);
 }
+.summaryCards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+.summaryCards .card {
+  padding: var(--space-4);
+}
+.summaryCards .card h2 {
+  margin: var(--space-2) 0 0;
+}
 .fields {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);

@@ -317,7 +317,7 @@ export default function UI03Screen({
         )}
       </div>
       {!list.error && !list.loading && (
-        <div className={styles.fields}>
+        <div className={styles.summaryCards}>
           {summaryCards.map(([label, number]) => (
             <div className={styles.card} key={label}>
               <span>{label}</span>
@@ -593,7 +593,12 @@ export default function UI03Screen({
                 </tbody>
               </table>
               {list.data.items.length === 0 && (
-                <p className={styles.empty}>조건에 맞는 결과가 없습니다</p>
+                <div className={styles.empty}>
+                  <p>조건에 맞는 결과가 없습니다</p>
+                  <Button type="button" onClick={reset}>
+                    조건 초기화
+                  </Button>
+                </div>
               )}
             </div>
             <Pagination
