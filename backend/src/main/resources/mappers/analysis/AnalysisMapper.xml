@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sicost.analysis.AnalysisMapper">
+  <resultMap id="project" type="com.sicost.analysis.AnalysisMapper$Project"><constructor>
+    <arg column="prj_id" javaType="_long"/><arg column="prj_nm" javaType="string"/>
+    <arg column="cust_ptnr_id" javaType="java.lang.Long"/><arg column="bsn_part_id" javaType="java.lang.Long"/>
+    <arg column="cntrct_ty_cd" javaType="string"/><arg column="cur_cntrct_amt" javaType="java.math.BigDecimal"/>
+    <arg column="trgt_cst_amt" javaType="java.math.BigDecimal"/>
+  </constructor></resultMap>
+  <resultMap id="cost" type="com.sicost.analysis.AnalysisMapper$ProjectCost"><constructor>
+    <arg column="prj_id" javaType="_long"/><arg column="amount" javaType="java.math.BigDecimal"/><arg column="people" javaType="_long"/>
+  </constructor></resultMap>
+  <resultMap id="target" type="com.sicost.analysis.AnalysisMapper$Target"><constructor>
+    <arg column="plan_ym" javaType="string"/><arg column="trgt_sls_amt" javaType="java.math.BigDecimal"/><arg column="trgt_bsn_prft_amt" javaType="java.math.BigDecimal"/>
+  </constructor></resultMap>
+  <resultMap id="saved" type="com.sicost.analysis.AnalysisModels$SavedForecast"><constructor>
+    <arg column="base_ym" javaType="string"/><arg column="obj_ym" javaType="string"/><arg column="frcst_ty_cd" javaType="string"/>
+    <arg column="mid_val" javaType="java.math.BigDecimal"/>
+  </constructor></resultMap>
+  <select id="projects" resultMap="project">SELECT prj_id,prj_nm,cust_ptnr_id,bsn_part_id,cntrct_ty_cd,cur_cntrct_amt,trgt_cst_amt FROM prj.prj WHERE use_yn='Y'
+    <if test="projectIds != null and !projectIds.isEmpty()">AND prj_id IN <foreach collection="projectIds" item="id" open="(" close=")" separator=",">#{id}</foreach></if>
+    <if test="customerIds != null and !customerIds.isEmpty()">AND cust_ptnr_id IN <foreach collection="customerIds" item="id" open="(" close=")" separator=",">#{id}</foreach></if>
+    <if test="partIds != null and !partIds.isEmpty()">AND bsn_part_id IN <foreach collection="partIds" item="id" open="(" close=")" separator=",">#{id}</foreach></if>
+    ORDER BY prj_id
+  </select>
+  <select id="closeStatus" resultType="string">SELECT cls_stts_cd FROM fin.mth_cls WHERE cls_ym=#{month}</select>
+  <select id="closedCosts" resultMap="cost">SELECT prj_id,sum(lbr_cst_amt::numeric+drct_expns_amt::numeric) AS amount,count(DISTINCT dev_id) AS people
+    FROM cst.cst_aloc WHERE cst_ym=#{month} AND prj_id IS NOT NULL GROUP BY prj_id ORDER BY prj_id</select>
+  <select id="hasPayroll" resultType="boolean">SELECT EXISTS(SELECT 1 FROM cst.mth_cst WHERE cst_ym=#{month})</select>
+  <select id="target" resultMap="target">SELECT plan_ym,trgt_sls_amt,trgt_bsn_prft_amt FROM fin.biz_plan WHERE plan_ym=#{month} AND bsn_part_id IS NULL</select>
+  <select id="forecast" resultType="long" affectData="true" flushCache="true">INSERT INTO ai.frcst_exec(frcst_ty_cd,base_ym,frcst_mnth_qty,asmptn,scnro_yn,official_yn,exec_at)
+    VALUES(#{type},#{month},#{months},CAST(#{assumptions} AS jsonb),'N','Y',#{now})
+    ON CONFLICT(base_ym,frcst_ty_cd) WHERE official_yn='Y' DO NOTHING RETURNING frcst_exec_id</select>
+  <insert id="forecastValue">INSERT INTO ai.frcst_rslt(frcst_exec_id,obj_ym,obj_key_val,low_val,mid_val,high_val)
+    VALUES(#{executionId},#{month},#{key},#{low},#{base},#{high})</insert>
+  <select id="wasClosed" resultType="boolean">SELECT count(*)&gt;1 FROM fin.mth_cls_hist WHERE cls_ym=#{month} AND cls_prcs_cd='CLOSE'</select>
+  <select id="savedForecasts" resultMap="saved">SELECT e.base_ym,r.obj_ym,e.frcst_ty_cd,r.mid_val FROM ai.frcst_exec e JOIN ai.frcst_rslt r ON r.frcst_exec_id=e.frcst_exec_id
+    WHERE e.official_yn='Y' AND r.obj_key_val='' AND r.obj_ym=#{month} ORDER BY e.base_ym,e.frcst_ty_cd</select>
+</mapper>

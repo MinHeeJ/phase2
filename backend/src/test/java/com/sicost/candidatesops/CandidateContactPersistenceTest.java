@@ -93,12 +93,19 @@ class CandidateContactPersistenceTest {
         sql("INSERT INTO mst.dev(mng_no,dev_nm,emp_se_cd,main_job_cd) VALUES('EXISTING','후보','FL','BE')");
         mvc.perform(post("/api/candidates/7/convert").contentType("application/json").content(conversion())).andExpect(status().isOk()).andExpect(jsonPath("$.data.candidate.cntct_stts_cd").value("SIGNED")).andExpect(jsonPath("$.data.developer.skill[0]").value("JAVA"));
         long id=service.detail(7).row().dev_id();assertThat(jdbc().queryForObject("SELECT mng_no FROM mst.dev WHERE dev_id=?",String.class,id)).isNotEqualTo("EXISTING");assertThat(scalar("SELECT count(*) FROM mst.dev")).isEqualTo(2);
+        assertThat(jdbc().queryForObject("SELECT src_cand_id FROM mst.dev WHERE dev_id=?",Long.class,id)).isEqualTo(7L);
+        assertThat(scalar("SELECT count(*) FROM sys.data_chg_hist WHERE tbl_nm='mst.dev' AND clmn_nm='src_cand_id' AND bfr_val IS NULL AND aft_val='7'")).isEqualTo(1);
         assertThat(scalar("SELECT count(*) FROM sys.data_chg_hist WHERE tbl_nm='mst.dev' AND data_chg_ty_cd='INSERT'")).isEqualTo(1);assertThat(snapshot("cst.mth_cst")).isEqualTo(cost);assertThat(snapshot("asgn.asgn")).isEqualTo(assignments);
         add("2026-10-20","DONE");assertThat(service.detail(7).row().cntct_stts_cd()).isEqualTo("SIGNED");
     }
     @Test void conversionLinkFailureRollsBackDeveloperChildrenCandidateAndAudit()throws Exception {
         String before=sources();sql("ALTER TABLE hr.cand ADD CONSTRAINT reject_link CHECK(dev_id IS NULL) NOT VALID");
         assertThatThrownBy(()->service.convert(7,json.readTree(conversion()))).isInstanceOf(RuntimeException.class);assertThat(sources()).isEqualTo(before);
+    }
+    @Test void developerSourceFailureRollsBackDeveloperChildrenCandidateAndAudit()throws Exception {
+        String before=sources();sql("ALTER TABLE mst.dev ADD CONSTRAINT reject_candidate_source CHECK(src_cand_id IS NULL) NOT VALID");
+        assertThatThrownBy(()->service.convert(7,json.readTree(conversion()))).isInstanceOf(RuntimeException.class);
+        assertThat(sources()).isEqualTo(before);
     }
     @Test void missingEmployeeTypeLeavesCandidateAndDeveloperUnchanged()throws Exception {
         String before=sources();mvc.perform(post("/api/candidates/7/convert").contentType("application/json").content("{\"developer\":{}}" )).andExpect(status().isBadRequest()).andExpect(jsonPath("$.field").value("emp_se_cd"));assertThat(sources()).isEqualTo(before);

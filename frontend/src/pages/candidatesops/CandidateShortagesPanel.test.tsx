@@ -69,7 +69,16 @@ describe("candidate shortage shortcuts", () => {
     await screen.findByText("1.01 MM");
     expect(screen.getByText("2명")).toBeVisible();
     expect(screen.getByText("3명")).toBeVisible();
-    expect(screen.getByText("즉시 검토")).toBeVisible();
+    expect(screen.getByText("채용 권장: 즉시 검토")).toBeVisible();
+    expect(
+      screen.getAllByRole("columnheader").map((cell) => cell.textContent),
+    ).toEqual([
+      "직무",
+      "부족 시작",
+      "가장 많이 부족",
+      "그때까지 투입 가능한 후보",
+    ]);
+    expect(screen.getByText("1.01 MM").className).toContain("shortage");
     const url = fetcher.mock.calls.find((c) => c[0].includes("shortages?"))![0];
     const q = new URLSearchParams(url.split("?")[1]);
     expect(Object.fromEntries(q)).toEqual({
@@ -82,9 +91,7 @@ describe("candidate shortage shortcuts", () => {
   });
   it("passes selected job grade and shortage month to the candidate context without replacing direct project registration", async () => {
     panel();
-    fireEvent.click(
-      await screen.findByRole("button", { name: "외부 후보 보기" }),
-    );
+    fireEvent.click(await screen.findByRole("button", { name: "후보 보기" }));
     expect(select).toHaveBeenCalledWith({
       job: "BE",
       grade: "SR",
@@ -115,7 +122,7 @@ describe("candidate shortage shortcuts", () => {
     expect(
       await screen.findByText("조건에 맞는 부족 직무가 없습니다."),
     ).toBeVisible();
-    expect(screen.queryByText("외부 후보 보기")).not.toBeInTheDocument();
+    expect(screen.queryByText("후보 보기")).not.toBeInTheDocument();
   });
   it("failed request renders retry instead of misleading empty table", async () => {
     failed = true;
@@ -135,7 +142,7 @@ describe("candidate shortage shortcuts", () => {
     data.items[0].review_immediately = false;
     data.items[0].recommended_hiring_month = "2026-12";
     panel();
-    expect(await screen.findByText("2026-12")).toBeVisible();
-    expect(screen.queryByText("즉시 검토")).not.toBeInTheDocument();
+    expect(await screen.findByText("채용 권장: 2026-12")).toBeVisible();
+    expect(screen.queryByText("채용 권장: 즉시 검토")).not.toBeInTheDocument();
   });
 });

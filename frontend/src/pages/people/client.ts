@@ -1,4 +1,5 @@
-import { api, ApiFailure } from "../../shared/api";
+import { api } from "../../shared/api";
+import { downloadCostWorkbook } from "../costsops/costWorkbook";
 import { seoulMonth } from "../shared/PeriodBar";
 
 export interface PeopleFilters {
@@ -135,41 +136,5 @@ export const getCostPersonBreakdown = async (
     )
   ).data!;
 export async function downloadCostPeople(filters: PeopleFilters) {
-  const response = await fetch(`/api/costs/people?${peopleQuery(filters)}`, {
-    headers: {
-      Accept:
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    },
-  });
-  if (!response.ok) {
-    const error = await response.json();
-    throw new ApiFailure(
-      error.message ?? "다운로드하지 못했습니다.",
-      response.status,
-      error.requestId,
-      error.field,
-      error.code,
-    );
-  }
-  if (
-    !response.headers
-      .get("Content-Type")
-      ?.includes(
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      )
-  )
-    throw new ApiFailure("엑셀 파일 응답이 아닙니다.", response.status, null);
-  const blob = await response.blob();
-  const prefix = new Uint8Array(await blob.slice(0, 2).arrayBuffer());
-  if (prefix[0] !== 80 || prefix[1] !== 75)
-    throw new ApiFailure("엑셀 파일이 손상되었습니다.", response.status, null);
-  const url = URL.createObjectURL(blob);
-  try {
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "개인원가수익.xlsx";
-    link.click();
-  } finally {
-    URL.revokeObjectURL(url);
-  }
+  await downloadCostWorkbook("people", peopleQuery(filters));
 }

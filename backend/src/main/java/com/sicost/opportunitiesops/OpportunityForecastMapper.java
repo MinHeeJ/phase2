@@ -7,6 +7,7 @@ import static com.sicost.opportunitiesops.OpportunityForecastModels.*;
 @Mapper
 public interface OpportunityForecastMapper {
     List<Developer> developers(String month);
+    List<Developer> nonSensitiveDevelopers();
     List<Leave> leaves();
     List<Assignment> assignments();
     List<AssignedMonth> assignmentMonths();

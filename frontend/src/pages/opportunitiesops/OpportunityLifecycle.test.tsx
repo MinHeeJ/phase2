@@ -476,6 +476,86 @@ describe("lifecycle confirmations", () => {
   });
 });
 describe("shared forecasts", () => {
+  it("uses workforce total for paging and keeps the selected page size", async () => {
+    forecast.workforce.total = 73;
+    mount(<WorkforceDemandScreen />);
+    await screen.findByTestId("opportunity-forecast-content");
+    expect(screen.getByRole("button", { name: "다음 페이지" })).toBeEnabled();
+    fireEvent.change(screen.getByRole("combobox", { name: "목록 건수" }), {
+      target: { value: "20" },
+    });
+    await screen.findByTestId("opportunity-forecast-content");
+    expect(screen.getByRole("combobox", { name: "목록 건수" })).toHaveValue(
+      "20",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "다음 페이지" }));
+    await waitFor(() =>
+      expect(
+        fetcher.mock.calls.some(([url]) => {
+          const params = new URL(String(url), "http://test.invalid")
+            .searchParams;
+          return params.get("page") === "1" && params.get("size") === "20";
+        }),
+      ).toBe(true),
+    );
+    expect(screen.getByRole("combobox", { name: "목록 건수" })).toHaveValue(
+      "20",
+    );
+  });
+  it("does not hide workforce rows when a later page has no revenue rows", async () => {
+    forecast.items = [];
+    forecast.total = 0;
+    mount(<WorkforceDemandScreen />);
+    await screen.findByTestId("opportunity-forecast-content");
+    expect(screen.getByText("원가 미확인")).toBeVisible();
+    expect(
+      screen.queryByText("조건에 맞는 예측 결과가 없습니다."),
+    ).not.toBeInTheDocument();
+  });
+  it("keeps results hidden while a forecast is loading", async () => {
+    let resolve!: (value: Response) => void;
+    const original = fetcher.getMockImplementation()!;
+    fetcher.mockImplementation((url: string, init?: RequestInit) =>
+      url.startsWith("/api/opportunities/forecast")
+        ? new Promise<Response>((done) => {
+            resolve = done;
+          })
+        : original(url, init),
+    );
+    mount(<WorkforceDemandScreen />);
+    expect(
+      screen.queryByTestId("opportunity-forecast-content"),
+    ).not.toBeInTheDocument();
+    resolve(response(forecast));
+    await screen.findByTestId("opportunity-forecast-content");
+  });
+  it("shows a forbidden forecast response without exposing stale values", async () => {
+    const original = fetcher.getMockImplementation()!;
+    fetcher.mockImplementation((url: string, init?: RequestInit) =>
+      url.startsWith("/api/opportunities/forecast")
+        ? Promise.resolve(
+            new Response(
+              JSON.stringify({
+                success: false,
+                code: "FORBIDDEN",
+                message: "조회 권한이 없습니다.",
+                requestId: "forecast-denied",
+              }),
+              {
+                status: 403,
+                headers: { "Content-Type": "application/json" },
+              },
+            ),
+          )
+        : original(url, init),
+    );
+    mount(<WorkforceDemandScreen />);
+    await screen.findByText("조회 권한이 없습니다.");
+    expect(
+      screen.queryByTestId("opportunity-forecast-content"),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "다시 시도" })).toBeVisible();
+  });
   function Destination() {
     const location = useLocation();
     return (

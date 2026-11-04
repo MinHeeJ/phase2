@@ -147,7 +147,7 @@ export interface ForecastFilters {
   year?: number;
   sort?: string;
   page?: number;
-  size?: number;
+  size?: ForecastPage["size"];
 }
 const query = (filters: object) =>
   new URLSearchParams(

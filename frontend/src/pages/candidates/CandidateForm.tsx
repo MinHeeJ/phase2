@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button, ConfirmDialog } from "../../shared/Controls";
 import { ErrorBanner } from "../../shared/ErrorBanner";
 import { useCodes } from "../shared/useCodes";
@@ -48,7 +48,10 @@ export function CandidateForm({
     onDirtyChange?.(dirty);
     return () => onDirtyChange?.(false);
   }, [dirty, onDirtyChange]);
-  const write = useAdminWrite(async () => {});
+  const savedRow = useRef<CandidateDetail | null>(null);
+  const write = useAdminWrite(async () => {
+    if (savedRow.current) await onSaved(savedRow.current);
+  });
   const error = local ?? write.error;
   const change = <K extends keyof CandidateInput>(
     key: K,
@@ -90,10 +93,9 @@ export function CandidateForm({
     }
     await write.save(
       async () => {
-        const row = initial
+        savedRow.current = initial
           ? await updateCandidate(initial.cand_id, draft)
           : await createCandidate(draft);
-        await onSaved(row);
       },
       () => {},
     );

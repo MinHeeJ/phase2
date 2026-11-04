@@ -44,6 +44,8 @@ import { TempAssignmentPanel } from "../pages/tempassignments/TempAssignmentPane
 import UI28Screen from "../pages/board/UI28Screen";
 import UI29Screen from "../pages/opportunities/UI29Screen";
 import CandidateScreen from "../pages/candidates/UI33Screen";
+import UI30Screen from "../pages/staffrecommendations/UI30Screen";
+import UI26Screen from "../pages/analysis/UI26Screen";
 import WorkforceDemandScreen from "../pages/workforceops/WorkforceDemandScreen";
 import type {
   OpportunityDetail,
@@ -1222,6 +1224,10 @@ export function AppRouter() {
                 <OpportunitiesPage {...bindings} />
               ) : id === "UI-33" ? (
                 <CandidateScreen {...bindings} />
+              ) : id === "UI-30" ? (
+                <UI30Screen {...bindings} />
+              ) : id === "UI-26" ? (
+                <UI26Screen {...bindings} />
               ) : id === "UI-11" ? (
                 <UI11Screen
                   {...bindings}

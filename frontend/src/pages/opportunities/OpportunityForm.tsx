@@ -65,11 +65,26 @@ export function OpportunityForm({
     [uncertain, setUncertain] = useState(false);
   const busy = useRef(false),
     form = useRef<HTMLFormElement>(null);
+  const probabilityRequest = useRef(0);
+  const [probabilityPending, setProbabilityPending] = useState(false);
   const jobs = useCodes("JOB"),
     grades = useCodes("GRADE"),
     types = useCodes("CONTRACT_TYPE");
   const customers = useAdminRead(customersRead),
     parts = useAdminRead(listSalesPartOptions);
+  const optionsUnavailable = !!(
+    customers.error ||
+    parts.error ||
+    jobs.error ||
+    grades.error ||
+    types.error
+  );
+  useEffect(
+    () => () => {
+      probabilityRequest.current++;
+    },
+    [],
+  );
   useEffect(() => {
     onDirtyChange?.(dirty);
     return () => onDirtyChange?.(false);
@@ -109,7 +124,8 @@ export function OpportunityForm({
       </span>
     ) : null;
   const save = async () => {
-    if (busy.current || uncertain) return;
+    if (busy.current || uncertain || probabilityPending || optionsUnavailable)
+      return;
     if (!form.current?.reportValidity()) return;
     const invalidPrice = draft.needs.findIndex(
       (n) => n.expc_untprc_amt == null || n.expc_untprc_amt <= 0,
@@ -286,17 +302,28 @@ export function OpportunityForm({
                   value={draft.bsn_stg_cd}
                   onChange={(e) => {
                     const stage = e.target.value;
+                    const request = ++probabilityRequest.current;
+                    setProbabilityPending(true);
                     change("bsn_stg_cd", stage);
                     void getEffectiveParam(`STAGE_PROB_${stage}`, seoulMonth())
                       .then((p) => {
-                        if (p.num_val != null)
+                        if (
+                          request === probabilityRequest.current &&
+                          p.num_val != null
+                        )
                           setDraft((d) =>
                             d.bsn_stg_cd === stage
                               ? { ...d, win_prblt_rt: p.num_val! }
                               : d,
                           );
                       })
-                      .catch((e) => setError(e));
+                      .catch((e) => {
+                        if (request === probabilityRequest.current) setError(e);
+                      })
+                      .finally(() => {
+                        if (request === probabilityRequest.current)
+                          setProbabilityPending(false);
+                      });
                   }}
                 >
                   {opportunityStages.map((s) => (
@@ -317,9 +344,11 @@ export function OpportunityForm({
                   step="0.01"
                   required
                   value={draft.win_prblt_rt}
-                  onChange={(e) =>
-                    change("win_prblt_rt", Number(e.target.value))
-                  }
+                  onChange={(e) => {
+                    probabilityRequest.current++;
+                    setProbabilityPending(false);
+                    change("win_prblt_rt", Number(e.target.value));
+                  }}
                 />
                 {renderError("win_prblt_rt")}
               </label>
@@ -703,6 +732,8 @@ export function OpportunityForm({
             pending={pending}
             disabled={
               uncertain ||
+              probabilityPending ||
+              optionsUnavailable ||
               customers.loading ||
               parts.loading ||
               jobs.loading ||

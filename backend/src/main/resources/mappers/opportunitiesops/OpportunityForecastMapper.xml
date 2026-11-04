@@ -23,6 +23,11 @@
     (SELECT c.indv_lbr_cst_amt FROM cst.mth_cst c WHERE c.dev_id=d.dev_id AND c.cst_ym&lt;=#{month}
       AND c.emp_se_cd IN ('FT','CT') AND c.duty_se_cd='DIRECT' ORDER BY c.cst_ym DESC LIMIT 1) AS labor
     FROM mst.dev d WHERE d.use_yn='Y' AND d.duty_se_cd='DIRECT' ORDER BY d.dev_id</select>
+  <select id="nonSensitiveDevelopers" resultMap="developer">
+    SELECT dev_id AS id,coalesce(main_job_cd,'') AS job,coalesce(grd_cd,'') AS grade,emp_se_cd AS employee,
+      hire_dt AS hire,rsgn_dt AS resign,NULL::bigint AS labor FROM mst.dev
+    WHERE use_yn='Y' AND duty_se_cd='DIRECT' ORDER BY dev_id
+  </select>
   <select id="leaves" resultMap="leave">SELECT dev_id AS developer,bgn_dt AS start,end_dt AS end FROM mst.dev_work_stts_hist WHERE work_stts_cd IN ('VACATION','PARENTAL','UNPAID','LEAVE','RESIGN')</select>
   <select id="assignments" resultMap="assignment">SELECT a.asgn_id AS id,a.prj_id AS project,a.dev_id AS developer,a.job_cd AS job,coalesce(d.grd_cd,'') AS grade,
     a.bgn_dt AS start,a.end_dt AS end,a.ext_psblty_cd AS extension FROM asgn.asgn a JOIN mst.dev d ON d.dev_id=a.dev_id WHERE a.asgn_stts_cd!='CANCELLED' ORDER BY a.asgn_id</select>

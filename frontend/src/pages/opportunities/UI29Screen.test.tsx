@@ -515,6 +515,58 @@ describe("기회 전체 화면 편집", () => {
     fireEvent.click(screen.getByRole("button", { name: "저장" }));
     expect(s.writes()).toHaveLength(0);
   });
+  it("late stage default cannot overwrite an explicit probability", async () => {
+    const s = server(),
+      saved = vi.fn();
+    const originalFetch = s.fetcher.getMockImplementation()!;
+    let complete!: (response: Response) => void;
+    s.fetcher.mockImplementation((url, init) =>
+      url.startsWith("/api/params/")
+        ? new Promise<Response>((resolve) => {
+            complete = resolve;
+          })
+        : originalFetch(url, init),
+    );
+    mount(
+      <OpportunityForm initial={fixture} onCancel={() => {}} onSaved={saved} />,
+    );
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "저장" })).toBeEnabled(),
+    );
+    fireEvent.change(screen.getByTestId("opportunity-stage"), {
+      target: { value: "PROP" },
+    });
+    expect(screen.getByRole("button", { name: "저장" })).toBeDisabled();
+    fireEvent.change(screen.getByTestId("opportunity-probability"), {
+      target: { value: "55" },
+    });
+    complete(response({ num_val: 30 }));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "저장" })).toBeEnabled(),
+    );
+    expect(screen.getByTestId("opportunity-probability")).toHaveValue(55);
+    fireEvent.click(screen.getByRole("button", { name: "저장" }));
+    await waitFor(() => expect(saved).toHaveBeenCalled());
+    expect(JSON.parse(s.writes()[0][1]!.body as string).win_prblt_rt).toBe(55);
+  });
+  it("failed code options block saving instead of submitting unavailable choices", async () => {
+    const s = server();
+    s.state.failOptions = true;
+    mount(
+      <OpportunityForm
+        initial={fixture}
+        onCancel={() => {}}
+        onSaved={() => {}}
+      />,
+    );
+    await screen.findAllByText(/문의 번호 developer-test/);
+    expect(screen.getByRole("button", { name: "저장" })).toBeDisabled();
+    fireEvent.submit(
+      screen.getByRole("button", { name: "저장" }).closest("form")!,
+    );
+    expect(s.writes()).toHaveLength(0);
+    expect(screen.getByTestId("opportunity-name")).toHaveValue(fixture.oppt_nm);
+  });
   it("outside period warns but allows save with original need month", async () => {
     const s = server();
     mount(

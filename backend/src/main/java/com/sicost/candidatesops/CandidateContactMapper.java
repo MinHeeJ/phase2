@@ -14,6 +14,7 @@ public interface CandidateContactMapper {
     void append(ContactWrite write);
     int refreshContact(ContactWrite write);
     int convert(ConversionWrite write);
+    int linkDeveloper(ConversionWrite write);
     void audit(CandidateAudit audit);
     long candidateCount(CandidateCount query);
 }

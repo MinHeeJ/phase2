@@ -344,6 +344,107 @@ describe("candidate workspace", () => {
     expect(await screen.findByText("이름을 입력해 주세요.")).toBeVisible();
     expect(writeRequests()).toHaveLength(0);
   });
+  it.each([
+    ["candidate-job", "", "직무를 골라 주세요."],
+    ["candidate-available", "", "가능일을 입력해 주세요."],
+    ["candidate-price", "-1", "희망단가는 0 이상의 정수로 입력하세요."],
+    ["candidate-price", "1.5", "희망단가는 0 이상의 정수로 입력하세요."],
+  ])(
+    "validates %s before registering without losing the name",
+    async (field, value, message) => {
+      show();
+      await screen.findByTestId("candidate-row-1");
+      fireEvent.click(screen.getByTestId("candidate-create"));
+      await screen.findByRole("option", { name: "백엔드" });
+      change("candidate-name", "입력 보존");
+      change("candidate-job", "BE");
+      change("candidate-price", "0");
+      change("candidate-available", "2026-12-01");
+      change(field, value);
+      fireEvent.click(screen.getByTestId("candidate-save"));
+      expect(await screen.findByText(message)).toBeVisible();
+      expect(screen.getByTestId("candidate-name")).toHaveValue("입력 보존");
+      expect(writeRequests()).toHaveLength(0);
+    },
+  );
+  it("rejects OS without a selected vendor before making a write", async () => {
+    show();
+    await screen.findByTestId("candidate-row-1");
+    fireEvent.click(screen.getByTestId("candidate-create"));
+    await screen.findByRole("option", { name: "외주" });
+    change("candidate-name", "외주 후보");
+    change("candidate-type", "OS");
+    change("candidate-job", "BE");
+    change("candidate-price", "0");
+    change("candidate-available", "2026-12-01");
+    fireEvent.click(screen.getByTestId("candidate-save"));
+    expect(
+      await screen.findByText("외주는 사용 중인 협력사를 골라 주세요."),
+    ).toBeVisible();
+    expect(writeRequests()).toHaveLength(0);
+  });
+  it("saves an edit to the selected candidate and refreshes list and detail", async () => {
+    show();
+    await openDetail();
+    fireEvent.click(screen.getByTestId("candidate-edit"));
+    change("candidate-name", "수정 완료");
+    change("candidate-price", "4000000");
+    fireEvent.click(screen.getByTestId("candidate-save"));
+    const drawer = await screen.findByRole("dialog", { name: "후보 상세" });
+    expect(
+      await within(drawer).findByText("수정 완료 · CAND-0001"),
+    ).toBeVisible();
+    expect(screen.getByTestId("candidate-row-1")).toHaveTextContent(
+      "수정 완료",
+    );
+    expect(writeRequests()).toHaveLength(1);
+    expect(writeRequests()[0]).toMatchObject({
+      url: "/api/candidates/1",
+      method: "PUT",
+      body: { cand_nm: "수정 완료", hope_untprc_amt: 4000000 },
+    });
+    expect(writeRequests()[0].body).not.toHaveProperty("cand_id");
+    expect(writeRequests()[0].body).not.toHaveProperty("contacts");
+  });
+  it.each(["create", "update"])(
+    "recovers failed %s readback without resending the committed write",
+    async (operation) => {
+      show();
+      if (operation === "update") {
+        await openDetail();
+        fireEvent.click(screen.getByTestId("candidate-edit"));
+      } else {
+        await screen.findByTestId("candidate-row-1");
+        fireEvent.click(screen.getByTestId("candidate-create"));
+      }
+      await screen.findByRole("option", { name: "백엔드" });
+      change("candidate-name", "저장 완료 후보");
+      change("candidate-job", "BE");
+      change("candidate-price", "0");
+      change("candidate-available", "2026-12-01");
+      failDetail = true;
+      fireEvent.click(screen.getByTestId("candidate-save"));
+      expect(
+        await screen.findByText(
+          "저장 후 조회에 실패했습니다. 현재 상태를 확인하세요.",
+        ),
+      ).toBeVisible();
+      expect(screen.getByTestId("candidate-save")).toBeDisabled();
+      expect(screen.getByTestId("candidate-name")).toHaveValue(
+        "저장 완료 후보",
+      );
+      expect(writeRequests()).toHaveLength(1);
+      failDetail = false;
+      fireEvent.click(screen.getByRole("button", { name: "다시 시도" }));
+      const drawer = await screen.findByRole("dialog", { name: "후보 상세" });
+      expect(
+        await within(drawer).findByText(/저장 완료 후보 · CAND-/),
+      ).toBeVisible();
+      expect(writeRequests()).toHaveLength(1);
+      expect(rows).toHaveLength(operation === "create" ? 2 : 1);
+      expect(screen.queryByTestId("candidate-editor")).not.toBeInTheDocument();
+    },
+  );
   it("OS requires vendor and FL disables and clears it", async () => {
     show();
     await screen.findByTestId("candidate-row-1");

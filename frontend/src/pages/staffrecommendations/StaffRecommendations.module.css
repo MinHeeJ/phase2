@@ -1,0 +1,138 @@
+.screen {
+  min-width: 0;
+  color: var(--text);
+}
+.screen p {
+  overflow-wrap: anywhere;
+}
+.panel {
+  padding: 20px 24px;
+  margin: var(--space-4) 0;
+  border: 1px solid var(--divider);
+  border-radius: var(--radius-panel);
+  background: var(--surface);
+  min-width: 0;
+}
+.banner {
+  padding: 10px 16px;
+  border-radius: var(--radius-panel);
+  background: var(--info-bg);
+  color: var(--info);
+}
+.error {
+  padding: 10px 16px;
+  margin: var(--space-3) 0;
+  border-radius: var(--radius-panel);
+  color: var(--danger);
+  background: var(--danger-bg);
+  overflow-wrap: anywhere;
+}
+.actions {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  align-items: center;
+  margin: var(--space-3) 0;
+}
+.form {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-4);
+  margin: var(--space-4) 0;
+}
+.screen label {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.screen input:not([type="checkbox"]),
+.screen select,
+.screen textarea {
+  width: 100%;
+  min-height: var(--control-height);
+  padding: var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+.screen input[type="checkbox"] {
+  accent-color: var(--primary);
+}
+.screen textarea {
+  min-height: 84px;
+  resize: vertical;
+}
+.screen [role="tab"][aria-selected="true"] {
+  background: var(--primary-bg);
+  color: var(--primary);
+  border-color: var(--primary);
+}
+.scores {
+  display: flex;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+.scores div {
+  min-width: 64px;
+}
+.scores dd {
+  margin: var(--space-1) 0;
+  font-weight: 600;
+}
+.scroll {
+  overflow-x: auto;
+  max-width: 100%;
+}
+.scroll table {
+  border-collapse: collapse;
+  width: 100%;
+}
+.scroll td,
+.scroll th {
+  height: 40px;
+  padding: 0 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--divider);
+  white-space: nowrap;
+}
+.scroll th {
+  background: var(--readonly-bg);
+  font-size: 13px;
+  font-weight: 600;
+}
+.comparison {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(240px, 1fr));
+  overflow-x: auto;
+  gap: var(--space-4);
+}
+.comparison article {
+  padding: var(--space-3);
+  border: 1px solid var(--divider);
+  border-radius: var(--radius-control);
+}
+.empty {
+  text-align: center;
+  padding: 48px 16px;
+  color: var(--text-sub);
+}
+@media (max-width: 767px) {
+  .screen {
+    font-size: 16px;
+  }
+  .panel {
+    padding: 16px;
+  }
+  .form {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .screen button,
+  .screen select,
+  .screen input:not([type="checkbox"]) {
+    min-height: 44px;
+    font-size: 16px;
+  }
+}
