@@ -11,6 +11,10 @@ public final class CostProjectModels {
     private CostProjectModels() {}
     public record Query(int year, String type, Long partId, String status, String q, BillingPaging paging) {}
     public record Period(long id, String fromMonth, String throughMonth) {}
+    public record Batch(List<Long> ids,String fromMonth,String throughMonth) {}
+    public record ProjectPlan(long projectId,String month,BigDecimal mm) {}
+    public record ProjectLabor(long projectId,long developerId,String name,Long cost,BigDecimal futureMm) {}
+    public record ProjectReference(long projectId,String month,Long amount) {}
     public record Source(long prj_id, String prj_no, String prj_nm, String cntrct_ty_cd,
             Long cur_cntrct_amt, Long init_cntrct_amt, Long trgt_cst_amt, BigDecimal trgt_mrgn_rt,
             LocalDate cur_end_dt, String owner_name, BigDecimal progress_rt) {}

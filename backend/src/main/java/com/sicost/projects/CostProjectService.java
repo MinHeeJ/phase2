@@ -86,6 +86,38 @@ public class CostProjectService {
         return calculate(require(id),year);
     }
     public Causes causes(long id,int year) { return detail(id,year).causes(); }
+    public List<Detail> readForProjects(List<Long> projectIds,int year) {
+        return readForProjectsAt(projectIds,year,ProjectValues.today(clock));
+    }
+    public List<Detail> readForProjectsAt(List<Long> projectIds,int year,java.time.LocalDate today) {
+        permissions.can(CostActions.PROJECT_READ);
+        if(projectIds.isEmpty())return new ArrayList<>();
+        var captured=Clock.fixed(today.atStartOfDay(java.time.ZoneId.of("Asia/Seoul")).toInstant(),java.time.ZoneId.of("Asia/Seoul"));
+        var months=CostValues.months(year,captured);
+        var batch=new Batch(projectIds.stream().distinct().toList(),months.get(0),months.get(months.size()-1));
+        var sources=mapper.batchSources(batch);
+        var allocated=allocations.yearAt(year,null,today);
+        var sales=revenue.projectRevenue(new CostRevenueQuery(year,null));
+        var labor=mapper.batchLabor(batch);var plans=mapper.batchPlans(batch);var references=mapper.batchReference(batch);
+        var parameters=new HashMap<String,BigDecimal>();
+        for(String key:List.of("RENEGO_COST_RATIO","TARGET_MARGIN_RATE","LOW_MARGIN_GAP"))parameters.put(key,mapper.parameter(key,batch.throughMonth()));
+        return sources.stream().map(p->calculate(p,year,new ReadInputs(months,
+            allocated.stream().map(a->forProject(a,p.prj_id())).toList(),
+            labor.stream().filter(l->l.projectId()==p.prj_id()).map(l->new Labor(l.developerId(),l.name(),l.cost(),l.futureMm())).toList(),
+            sales.stream().filter(s->s.prj_id()==p.prj_id()).toList(),
+            references.stream().filter(r->r.projectId()==p.prj_id()).map(r->new Reference(r.month(),r.amount())).toList(),
+            plans.stream().filter(r->r.projectId()==p.prj_id()).map(r->new Plan(r.month(),r.mm())).toList(),parameters))).toList();
+    }
+    private com.sicost.costallocation.CostAllocationModels.Allocation forProject(
+            com.sicost.costallocation.CostAllocationModels.Allocation allocation,long id) {
+        var selected=allocation.items().stream().filter(r->Objects.equals(r.prj_id(),id)).toList();
+        // Preserve the single-project owner's missing CLOSED snapshot validation, never turn it into zero.
+        if(allocation.closed() && selected.isEmpty())return allocations.calculate(allocation.calculation_month(),id);
+        var warnings=allocation.warnings().stream().filter(w->!w.startsWith("급여 미업로드:") ||
+            selected.stream().anyMatch(r->w.equals("급여 미업로드: dev_id="+r.dev_id()))).toList();
+        return new com.sicost.costallocation.CostAllocationModels.Allocation(allocation.calculation_month(),
+            allocation.reference_month(),allocation.closed(),allocation.unit(),warnings,selected,allocation.unallocated_cost_amt());
+    }
     private static BigDecimal mm(AllocationRow r) { return r.mm_qty()==null?BigDecimal.ZERO:r.mm_qty(); }
     private static boolean projectCost(AllocationRow r) { return Set.of("PROJECT","RND").contains(r.aloc_ty_cd()); }
     private static BigDecimal ratio(long profit, long sales) {
@@ -96,24 +128,33 @@ public class CostProjectService {
     private static Long per(long amount,BigDecimal mm) {
         return mm.signum()==0?null:CostValues.signedWon(BigDecimal.valueOf(amount).divide(mm,12,RoundingMode.HALF_UP));
     }
+    private record ReadInputs(List<String> months,List<com.sicost.costallocation.CostAllocationModels.Allocation> allocated,
+        List<Labor> labor,List<com.sicost.billingsops.BillingModels.ProjectRevenue> sales,List<Reference> references,
+        List<Plan> plans,Map<String,BigDecimal> parameters) {}
     private Detail calculate(Source p,int year) {
         var months=CostValues.months(year,clock);
         String through=months.get(months.size()-1);
         var period=new Period(p.prj_id(),months.get(0),through);
-        var allocated=allocations.year(year,p.prj_id());
-        var labor=mapper.labor(period);
+        var parameters=new HashMap<String,BigDecimal>();
+        for(String key:List.of("RENEGO_COST_RATIO","TARGET_MARGIN_RATE","LOW_MARGIN_GAP"))parameters.put(key,mapper.parameter(key,through));
+        return calculate(p,year,new ReadInputs(months,allocations.year(year,p.prj_id()),mapper.labor(period),
+            revenue.projectRevenue(new CostRevenueQuery(year,p.prj_id())),mapper.reference(period),mapper.plans(period),parameters));
+    }
+    private Detail calculate(Source p,int year,ReadInputs input) {
+        var months=input.months();String through=months.get(months.size()-1);
+        var allocated=input.allocated();var labor=input.labor();
         var names=new HashMap<Long,String>();
         for (var l:labor) names.put(l.dev_id(),l.dev_nm());
         var salesByMonth=new HashMap<String,Long>();
-        for (var r:revenue.projectRevenue(new CostRevenueQuery(year,p.prj_id())))
+        for (var r:input.sales())
             if (months.contains(r.month())) salesByMonth.merge(r.month(),r.confirmed_supply_amt(),Math::addExact);
         var references=new HashMap<String,Long>();
-        for (var r:mapper.reference(period)) if (r.amount()!=null) references.put(r.month(),r.amount());
+        for (var r:input.references()) if (r.amount()!=null) references.put(r.month(),r.amount());
         var warnings=new LinkedHashSet<String>();
         boolean internal="IN".equals(p.cntrct_ty_cd());
         long cost=0,lbr=0,expenses=0,sales=0,freeCost=0,costRate=0;
         BigDecimal actual=BigDecimal.ZERO,freeMm=BigDecimal.ZERO;
-        BigDecimal threshold=parameter("RENEGO_COST_RATIO",through);
+        BigDecimal threshold=requiredParameter(input,"RENEGO_COST_RATIO");
         var monthRows=new ArrayList<Month>();
         var people=new ArrayList<Person>();
         List<AllocationRow> current=new ArrayList<>();
@@ -150,7 +191,7 @@ public class CostProjectService {
                 p.trgt_cst_amt()==null?null:Math.subtractExact(p.trgt_cst_amt(),cost),
                 internal?null:monthlyReference));
         }
-        BigDecimal planned=mapper.plans(period).stream().map(Plan::mm_qty).reduce(BigDecimal.ZERO,BigDecimal::add);
+        BigDecimal planned=input.plans().stream().map(Plan::mm_qty).reduce(BigDecimal.ZERO,BigDecimal::add);
         var causes=CostProjectCauses.calculate(new CostProjectCauses.Basis(p,planned,actual,cost,costRate,freeCost));
         BigDecimal budgetUse=p.trgt_cst_amt()==null||p.trgt_cst_amt()<=0?null:ratio(cost,p.trgt_cst_amt());
         if (budgetUse==null) warnings.add("목표 원가 없음: 예산 소진율 산정 불가");
@@ -169,8 +210,8 @@ public class CostProjectService {
             compared=ratio(m.profit_amt(),m.confirmed_supply_amt());
             estimatedMargin=compared;
         }
-        BigDecimal goal=p.trgt_mrgn_rt()==null?parameter("TARGET_MARGIN_RATE",through):p.trgt_mrgn_rt();
-        boolean low=!internal && compared!=null && goal.subtract(compared).compareTo(parameter("LOW_MARGIN_GAP",through))>0;
+        BigDecimal goal=p.trgt_mrgn_rt()==null?requiredParameter(input,"TARGET_MARGIN_RATE"):p.trgt_mrgn_rt();
+        boolean low=!internal && compared!=null && goal.subtract(compared).compareTo(requiredParameter(input,"LOW_MARGIN_GAP"))>0;
         Long ref=null;
         if ("TK".equals(p.cntrct_ty_cd())) {
             if (!references.isEmpty()) ref=references.values().stream().reduce(0L,Math::addExact);
@@ -186,6 +227,11 @@ public class CostProjectService {
             budgetUse.compareTo(BigDecimal.valueOf(80))>=0?"주의":null,causes.primary_cause(),internal?null:p.init_cntrct_amt());
         return new Detail(through,referenceMonth(),allocated.stream().allMatch(a->a.closed()),"원",List.copyOf(warnings),row,
             List.copyOf(monthRows),List.copyOf(people),causes);
+    }
+    private static BigDecimal requiredParameter(ReadInputs input,String key) {
+        var value=input.parameters().get(key);
+        if(value==null)throw BillingValues.invalid("month");
+        return value;
     }
     private Long estimate(Source p,String through,List<AllocationRow> current,List<Labor> labor,long cost) {
         if (p.cur_end_dt()==null) return null;

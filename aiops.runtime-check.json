@@ -16,13 +16,13 @@
     "required": false
   },
   "first_menu": {
-    "route": "/UI-27",
-    "operation_id": "listCodeGroups",
+    "route": "/UI-16",
+    "operation_id": "getDashboard",
     "method": "GET",
-    "path": "/api/admin/code-groups",
+    "path": "/api/dashboard",
     "expect": [
       { "path": "success", "op": "equals", "value": true },
-      { "path": "data.items", "op": "type", "value": "array" }
+      { "path": "data.kpis", "op": "type", "value": "object" }
     ]
   }
 }

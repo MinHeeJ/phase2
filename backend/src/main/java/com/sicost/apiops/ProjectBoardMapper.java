@@ -10,5 +10,6 @@ public interface ProjectBoardMapper {
     List<OperatingParam> params(String month);
     List<BoardSource> projects(LocalDate today);
     List<Phase> phases(long id);
+    List<Phase> batchPhases(java.util.List<Long> ids);
     List<CostMonth> costs(CostQuery query);
 }

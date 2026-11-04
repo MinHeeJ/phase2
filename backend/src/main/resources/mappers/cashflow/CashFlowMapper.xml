@@ -25,6 +25,13 @@
     SELECT COALESCE(c.cls_ym,b.bal_ym) AS month,b.bgn_bal_amt AS amount,b.end_bal_amt AS closing,b.min_oprt_fund_amt AS minimum,
       b.init_yn AS initial,c.cls_stts_cd AS status FROM fin.mth_cls c FULL JOIN fin.cash_bal b ON c.cls_ym=b.bal_ym
   </select>
+  <resultMap id="minimum" type="com.sicost.cashflow.CashFlowModels$Minimum"><constructor>
+    <arg column="month" javaType="string"/><arg column="amount" javaType="java.lang.Long"/>
+  </constructor></resultMap>
+  <select id="minimums" resultMap="minimum">
+    SELECT aply_bgn_ym AS month,num_val::bigint AS amount FROM cmn.oprt_std
+    WHERE oprt_std_id='MIN_OPERATING_CASH' ORDER BY aply_bgn_ym
+  </select>
   <select id="monthStatus" resultType="string">SELECT cls_stts_cd FROM fin.mth_cls WHERE cls_ym=#{month}</select>
   <update id="lockOpening">LOCK TABLE fin.cash_bal IN SHARE ROW EXCLUSIVE MODE</update>
   <insert id="saveOpening">

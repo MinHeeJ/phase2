@@ -21,6 +21,7 @@ import SalesPartManagement from "../pages/salespartsops/SalesPartManagement";
 import UI02Screen from "../pages/developers/UI02Screen";
 import UI03Screen from "../pages/people/UI03Screen";
 import UI04Screen from "../pages/projects/UI04Screen";
+import UI16Screen from "../pages/dashboard/UI16Screen";
 import UI19Screen from "../pages/parts/UI19Screen";
 import UI07Screen from "../pages/profit/UI07Screen";
 import UI08Screen from "../pages/profit/UI08Screen";
@@ -1197,7 +1198,9 @@ export function AppRouter() {
         element={
           <AppShell
             renderBusiness={(id, bindings) =>
-              id === "UI-15" ? (
+              id === "UI-16" ? (
+                <UI16Screen {...bindings} />
+              ) : id === "UI-15" ? (
                 <PartnersScreen {...bindings} />
               ) : id === "UI-02" ? (
                 <DevelopersScreen {...bindings} />

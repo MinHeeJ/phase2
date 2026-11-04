@@ -45,6 +45,18 @@ public class ProjectBoardService {
         var items = filtered.stream().skip(offset).limit(query.size()).toList();
         return new BoardData(summary, items, filtered.size(), query.page(), query.size(), stale);
     }
+    public DashboardBoard readDashboard(LocalDate today) {
+        var sources=mapper.projects(today);
+        if(sources.isEmpty())return new DashboardBoard(new ArrayList<>(),0);
+        String month=YearMonth.from(today).toString();
+        var params=parameters.get(month);
+        var phases=mapper.batchPhases(sources.stream().map(BoardSource::prj_id).toList());
+        var projectCosts=costs.calculateMany(sources.stream().filter(p->"TK".equals(p.cntrct_ty_cd())).map(BoardSource::prj_id).toList(),month);
+        var rows=sources.stream().map(p->ProjectProgressCalculator.calculate(p,
+            phases.stream().filter(ph->ph.prj_id()==p.prj_id()).toList(),projectCosts.get(p.prj_id()),params,today)).toList();
+        return new DashboardBoard(rows,(int)sources.stream().filter(p->p.bsn_part_id()==null).count());
+    }
+
     private static int count(List<BoardRow> rows, String light) {
         return Math.toIntExact(rows.stream().filter(r -> light.equals(r.light())).count());
     }

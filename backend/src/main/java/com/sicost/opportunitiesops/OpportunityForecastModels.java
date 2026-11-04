@@ -29,4 +29,5 @@ public final class OpportunityForecastModels {
     public record Page(List<RevenueMonth> items,int page,int size,long total,WorkforcePage workforce,Kpi kpi) {}
     public record CandidateFilter(String job,String grade,String available) {}
     public record Temporary(String job,String grade,String start,String end,BigDecimal mm) {}
+    public record UtilizationRead(BigDecimal confirmedMm,BigDecimal availableMm,int idleDeveloperCount) {}
 }

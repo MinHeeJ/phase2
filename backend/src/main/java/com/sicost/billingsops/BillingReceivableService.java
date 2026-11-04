@@ -28,6 +28,20 @@ public class BillingReceivableService {
             s.vat_amt(),s.tot_amt(),s.bill_stts_cd(),s.txinv_no(),s.txinv_dt(),s.rcpt_plan_dt(),
             s.received_amt(),s.adjusted_total_amt(),remaining,remaining>0?stage(days):null);
     }
+    public CurrentReceivables currentReceivables(Instant asOf) {
+        var local=asOf.atZone(ZoneId.of("Asia/Seoul"));
+        long amount=0,overdue=0;int count=0;
+        for(var s:mapper.statesThrough(new ReceivableCutoff(local.toLocalDate(),local.toLocalDateTime()))) {
+            if(!"CONFIRM".equals(s.bill_stts_cd())||"Y".equals(s.amnd_yn()))continue;
+            long balance=BillingRules.receivable(BillingRules.Status.CONFIRM,s.adjusted_total_amt(),s.received_amt());
+            if(balance<=0)continue;
+            amount=Math.addExact(amount,balance);
+            if(s.rcpt_plan_dt()!=null&&s.rcpt_plan_dt().isBefore(local.toLocalDate())) {
+                count++;overdue=Math.addExact(overdue,balance);
+            }
+        }
+        return new CurrentReceivables(amount,count,overdue);
+    }
     public Integer days(LocalDate due) {
         return due==null?null:Math.toIntExact(ChronoUnit.DAYS.between(due,ProjectValues.today(clock)));
     }

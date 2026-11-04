@@ -72,6 +72,12 @@
     SELECT phs_id,prj_id,phs_seq,phs_nm,wght_rt,plan_bgn_dt,plan_end_dt,cmpl_dt,NULL::text AS status
     FROM prj.phs WHERE prj_id=#{id} ORDER BY phs_seq,phs_id
   </select>
+  <select id="batchPhases" resultMap="phase">
+    SELECT phs_id,prj_id,phs_seq,phs_nm,wght_rt,plan_bgn_dt,plan_end_dt,cmpl_dt,NULL::text AS status
+    FROM prj.phs WHERE prj_id IN
+      <foreach collection="list" item="projectId" open="(" separator="," close=")">#{projectId}</foreach>
+    ORDER BY prj_id,phs_seq,phs_id
+  </select>
   <select id="costs" resultMap="costMonth">
     WITH project_mm AS (
       SELECT a.dev_id,m.work_ym,sum(m.mm_qty) AS mm

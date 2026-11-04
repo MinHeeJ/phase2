@@ -1,6 +1,6 @@
 import {
   fireEvent,
-  render,
+  render as renderView,
   screen,
   waitFor,
   within,
@@ -9,6 +9,10 @@ import { beforeEach, afterEach, expect, it, vi } from "vitest";
 import UI07Screen from "./UI07Screen";
 import UI08Screen from "./UI08Screen";
 import UI09Screen from "./UI09Screen";
+import { MemoryRouter } from "react-router-dom";
+import type { ReactElement } from "react";
+const render = (ui: ReactElement) =>
+  renderView(<MemoryRouter>{ui}</MemoryRouter>);
 
 const file = {
   file_name: "손익.xlsx",

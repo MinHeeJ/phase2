@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { useLocation } from "react-router-dom";
+import { closingNavigation } from "../shared/closingNavigation";
 import {
   Badge,
   Button,
@@ -49,9 +51,18 @@ export default function UI18Screen({
   onDirtyChange?: (dirty: boolean) => void;
   onUpload?: (year: number, onApplied: () => Promise<void>) => void;
 }) {
+  const location = useLocation();
+  const handoff =
+    location.pathname === "/UI-18"
+      ? closingNavigation(location.state).month
+      : null;
   const [period, setPeriod] = useState(
-    () => sessionStorage.getItem("business-plan-period") ?? seoulMonth(),
+    () =>
+      handoff ?? sessionStorage.getItem("business-plan-period") ?? seoulMonth(),
   );
+  useEffect(() => {
+    if (handoff) setPeriod(handoff);
+  }, [handoff, location.key]);
   const year = Number(period.slice(0, 4)),
     month = Number(period.slice(5));
   const [partId, setPartId] = useState<number | null>(null);

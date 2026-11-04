@@ -30,6 +30,7 @@ public final class ProjectBoardModels {
     public record StaleProject(long prj_id, String prj_nm, int memo_elapsed_days) {}
     public record BoardData(BoardSummary summary, List<BoardRow> items, int total, int page,
         int size, List<StaleProject> stale_projects) {}
+    public record DashboardBoard(List<BoardRow> rows,int unassignedCount) {}
     public record CostQuery(long id, String month) {}
     public record CostMonth(String month, BigDecimal amount, boolean missing_salary) {}
     public record ProjectCost(@Sensitive long cumulative_cost_amt, List<String> missing_salary_months) {}

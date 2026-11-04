@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { useLocation } from "react-router-dom";
+import { closingNavigation } from "../shared/closingNavigation";
 import { Badge, Button, LockedBanner, Skeleton } from "../../shared/Controls";
 import { ErrorBanner } from "../../shared/ErrorBanner";
 import { ApiFailure } from "../../shared/api";
@@ -50,9 +52,17 @@ export function ProfitScreen({
   onPriorUpload,
 }: ProfitScreenProps & { screenId: ScreenId }) {
   const storage = `profit-${screenId.toLowerCase()}-period`;
+  const location = useLocation();
+  const handoff =
+    location.pathname === `/${screenId}`
+      ? closingNavigation(location.state).month
+      : null;
   const [period, setPeriod] = useState(
-    () => sessionStorage.getItem(storage) ?? seoulMonth(),
+    () => handoff ?? sessionStorage.getItem(storage) ?? seoulMonth(),
   );
+  useEffect(() => {
+    if (handoff) setPeriod(handoff);
+  }, [handoff, location.key]);
   const year = Number(period.slice(0, 4)),
     month = Number(period.slice(5));
   const [scope, setScope] = useState<ProfitPeriod>("YTD"),

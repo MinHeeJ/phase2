@@ -32,6 +32,10 @@ public class AssignmentService {
         return new Page(rows.stream().skip((long) query.page() * query.size()).limit(query.size()).toList(),
             rows.size(), query.page(), query.size());
     }
+    public record WarningCounts(int excessPeople,int precontractAssignments) {}
+    public WarningCounts readWarnings(LocalDate date) {
+        return new WarningCounts(mapper.excessPeople(YearMonth.from(date).toString()),mapper.precontractAssignments(date));
+    }
     private Comparator<Item> order(String sort) {
         Comparator<Item> result = (a, b) -> 0;
         for (String part : sort.split(";")) {

@@ -10,6 +10,10 @@ import static com.sicost.projects.CostProjectModels.*;
 public interface CostProjectMapper {
     List<Source> sources(Query query);
     Source source(long id);
+    List<Source> batchSources(Batch batch);
+    List<ProjectPlan> batchPlans(Batch batch);
+    List<ProjectLabor> batchLabor(Batch batch);
+    List<ProjectReference> batchReference(Batch batch);
     List<Plan> plans(Period period);
     List<Labor> labor(Period period);
     List<Reference> reference(Period period);

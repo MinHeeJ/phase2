@@ -26,6 +26,8 @@ public final class CashFlowModels {
             long planned_outflow, Long actual_inflow, Long actual_outflow, Long forecast_opening,
             long forecast_inflow, long forecast_outflow, boolean closed, List<Category> categories) {}
     public record CashFlowFile(String file_name, String content_type, String content_base64) {}
+    public record Minimum(String month,Long amount) {}
+    public record ForecastMonth(String month,Long closing,Long minimum) {}
     public record Flow(int year, String mode, List<Month> months, CashFlowFile export_file,
             String first_risk_month, String initial_month) {}
 }

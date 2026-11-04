@@ -39,6 +39,30 @@
     <arg column="rsn_desc" javaType="string"/><arg column="prcs_user_id" javaType="java.lang.Long"/>
     <arg column="prcs_at" javaType="java.time.LocalDateTime"/>
   </constructor></resultMap>
+  <resultMap id="dashboardPart" type="com.sicost.parts.PartSettlementModels$DashboardPart"><constructor>
+    <arg column="id" javaType="_long"/><arg column="name" javaType="string"/><arg column="classification" javaType="string"/>
+  </constructor></resultMap>
+  <resultMap id="projectPart" type="com.sicost.parts.PartSettlementModels$ProjectPart"><constructor>
+    <arg column="project_id" javaType="_long"/><arg column="part_id" javaType="java.lang.Long"/>
+  </constructor></resultMap>
+  <resultMap id="frozenRevenue" type="com.sicost.parts.PartSettlementModels$FrozenRevenue"><constructor>
+    <arg column="part_id" javaType="java.lang.Long"/><arg column="amount" javaType="_long"/>
+  </constructor></resultMap>
+  <select id="frozenRevenue" resultMap="frozenRevenue">
+    SELECT CASE WHEN dim_val ~ '^[0-9]+$' THEN dim_val::bigint ELSE NULL END AS part_id,sls_amt AS amount
+    FROM fin.mth_pl_dtl WHERE pl_ym=#{month} AND dim_ty_cd='PART'
+  </select>
+  <select id="dashboardParts" resultMap="dashboardPart">
+    SELECT bsn_part_id AS id,bsn_part_nm AS name,CASE WHEN hq_yn='Y' THEN 'HQ' ELSE 'PART' END AS classification
+    FROM mst.bsn_part WHERE use_yn='Y' ORDER BY hq_yn DESC,sort_seq,bsn_part_id
+  </select>
+  <select id="projectParts" resultMap="projectPart">
+    SELECT p.prj_id AS project_id,h.bsn_part_id AS part_id FROM prj.prj p
+    LEFT JOIN LATERAL (SELECT x.bsn_part_id FROM prj.prj_part_hist x
+      WHERE x.prj_id=p.prj_id AND x.aply_bgn_ym &lt;= #{month}
+      ORDER BY x.aply_bgn_ym DESC,x.part_hist_id DESC LIMIT 1) h ON true
+    WHERE p.cntrct_ty_cd!='IN'
+  </select>
   <select id="parts" resultMap="part">
     SELECT p.bsn_part_id,p.bsn_part_nm FROM mst.bsn_part p
     WHERE p.hq_yn='N' ORDER BY p.bsn_part_id

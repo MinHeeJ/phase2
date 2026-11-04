@@ -59,7 +59,7 @@ public class BusinessPlanComparisonService {
         var file=export(year,through,partId,data);
         return new Comparison(items,actuals,warnings.isEmpty()?null:String.join("\n",warnings),List.copyOf(warnings),data,file);
     }
-    private static List<Plan> companyTargets(int year,List<Plan> items) {
+    public static List<Plan> companyTargets(int year,List<Plan> items) {
         var result=new ArrayList<Plan>();
         for(int month=1;month<=12;month++) {
             final int selected=month;

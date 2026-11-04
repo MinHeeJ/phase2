@@ -41,6 +41,8 @@ public final class OpportunityModels {
     public record CostSource(long dev_id, String job_cd, String grd_cd, long mth_cst_id,
             String cst_ym, BigDecimal amount) {}
     public record Criteria(String key, String month) {}
+    public record PipelineRead(int openCount,long weightedAmount,int startingTotal,List<Row> starting,
+        int pendingCount,int staleCount) {}
     public record Code(String group, String code) {}
     public record Write(long id, Save input, BigDecimal probability, Quote quote, boolean retainApproval, Long actor) {}
     public record NeedWrite(long id, Long needId, NeedInput input, long cost, long target, int sequence) {}

@@ -23,6 +23,29 @@ public class WorkforceForecastService implements CandidateForecastReader {
     private static boolean matches(Query q,String job,String grade){return(q.job()==null||q.job().equals(job))&&(q.grade()==null||q.grade().equals(grade));}
     private record Bucket(String job,String grade) {}
     public WorkforcePage forecast(Query q){
+        return forecast(q,true);
+    }
+    public WorkforcePage readSupplyDemand(Query q){
+        return forecast(q,false);
+    }
+    public UtilizationRead readUtilization(String month,LocalDate today){
+        var q=new Query(List.of(month),null,null,"month,asc",0,Integer.MAX_VALUE,today);
+        var rows=readSupplyDemand(q).items();
+        BigDecimal confirmed=rows.stream().map(OpportunityForecastModels.Month::confirmed_mm).reduce(zero(),BigDecimal::add);
+        BigDecimal available=rows.stream().map(OpportunityForecastModels.Month::available_mm).reduce(zero(),BigDecimal::add);
+        var developers=mapper.developers(month);var leaves=mapper.leaves();
+        var assignments=mapper.assignments();var actual=mapper.assignmentMonths();
+        var selected=YearMonth.parse(month);
+        long idle=developers.stream().filter(d->d.hire()==null||!d.hire().isAfter(selected.atEndOfMonth()))
+            .filter(d->d.resign()==null||d.resign().isAfter(selected.atEndOfMonth()))
+            .filter(d->leaves.stream().noneMatch(l->l.developer()==d.id()&&!l.start().isAfter(selected.atEndOfMonth())
+                &&(l.end()==null||!l.end().isBefore(selected.atDay(1)))))
+            .filter(d->actual.stream().filter(a->a.month().equals(month)&&assignments.stream()
+                .anyMatch(x->x.id()==a.assignment()&&x.developer()==d.id())).map(AssignedMonth::mm)
+                .reduce(zero(),BigDecimal::add).signum()==0).map(Developer::id).distinct().count();
+        return new UtilizationRead(confirmed,available,Math.toIntExact(idle));
+    }
+    private WorkforcePage forecast(Query q,boolean includeFinancialBaseline){
         if(q.job()!=null&&!mapper.code(new CandidateFilter("JOB",q.job(),null)))throw OpportunityLifecycleInput.invalid("job");
         if(q.grade()!=null&&!mapper.code(new CandidateFilter("GRADE",q.grade(),null)))throw OpportunityLifecycleInput.invalid("grade");
         var developers=mapper.developers(YearMonth.from(q.today()).toString());var leaves=mapper.leaves();
@@ -80,7 +103,7 @@ public class WorkforceForecastService implements CandidateForecastReader {
                 .map(Temporary::mm).reduce(zero(),BigDecimal::add);
             BigDecimal remaining=supply.subtract(demand),shortage=positive(remaining.negate());
             BigDecimal utilization=available.signum()==0?null:confirmed.multiply(BigDecimal.valueOf(100)).divide(available,2,RoundingMode.HALF_UP);
-            var baseline=profit.read(month);Long operating=baseline==null?null:baseline.operatingProfit();
+            var baseline=includeFinancialBaseline?profit.read(month):null;Long operating=baseline==null?null:baseline.operatingProfit();
             if(operating==null)warnings.add("FUTURE_ACTUAL · 영업이익 기준 원천 없음");if(b.grade().isEmpty())warnings.add("등급 미분류");
             if(laborCount==0)warnings.add("원가 미확인");
             long average=laborCount==0?0:labor.divide(BigDecimal.valueOf(laborCount),0,RoundingMode.DOWN).longValueExact();

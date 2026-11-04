@@ -47,3 +47,24 @@ Docker build stage 시험:
 
 최종 프런트 이미지는 비루트 nginx와 dist만 사용하며 시험 자원은 build stage에만 포함됩니다.
 데이터베이스·스키마·시드 설명은 infra/README.md를 참조하세요.
+
+UI-16 통합 대시보드
+
+홈과 /UI-16은 같은 고정 탭을 사용합니다. 기준월은 한국 현재월까지 선택할 수 있습니다.
+월 KPI·마감·연간 추이·파트는 선택월 기준, 미수와 경보는 오늘 현재,
+인력 6개월과 자금 3개월은 오늘 다음 달부터의 전망입니다.
+엑셀 다운로드는 같은 조회 경로의 DTO를 10개 시트로 내보내며 성공 시 기존 접근 이력에 DOWNLOAD 1건을 남깁니다.
+조회·재시도는 마감 점검, 확정, 알림 발송이나 업무 데이터 저장을 실행하지 않습니다.
+확정 월의 가동률 등 보존된 원천이 없는 값은 자료 확인 필요로 표시하며 실시간 값이나 0으로 대체하지 않습니다.
+
+대시보드 집중 검증은 실행 담당 환경에서 다음 명령을 사용합니다.
+    cd backend
+    mvn -B -Dtest='Dashboard*Test,CostProjectApiTest,CashFlowApiTest,OpportunityApiTest' test
+    cd ../frontend
+    npm run typecheck
+    npm run test -- --run tests/dashboard
+    npm run build
+    npm run test:e2e -- ../e2e/tests/dashboard.spec.ts
+
+Playwright는 별도로 시작된 실제 앱을 사용하며 PLAYWRIGHT_BASE_URL로 검증 대상을 지정할 수 있습니다.
+정적 검사와 런타임·DB·성능 검증은 구별합니다. 변경 경계와 검증 기록은 docs/dashboard-change-verification.md에 있습니다.

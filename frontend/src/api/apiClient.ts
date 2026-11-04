@@ -601,6 +601,14 @@ export {
   applyPriorProfitUpload,
 } from "../pages/priorprofit/client";
 export { getClosing } from "../pages/apiops/closingClient";
+export { getDashboard } from "../pages/apiops/dashboardClient";
+export type {
+  DashboardCard,
+  DashboardComparison,
+  DashboardData,
+  DashboardCheck,
+} from "../pages/apiops/dashboardClient";
+export { downloadDashboard } from "../pages/dashboardops/dashboardExportClient";
 export type { Closing, ClosingCheck } from "../pages/apiops/closingClient";
 export {
   previewClosing,

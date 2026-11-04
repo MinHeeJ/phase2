@@ -1,6 +1,15 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render as renderView,
+  screen,
+  waitFor,
+} from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
+import type { ReactElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import UI21Screen from "./UI21Screen";
+const render = (ui: ReactElement) =>
+  renderView(<MemoryRouter>{ui}</MemoryRouter>);
 
 const response = (data: unknown) =>
   new Response(JSON.stringify({ success: true, meta: {}, data }), {

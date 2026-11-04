@@ -1,4 +1,6 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { useLocation } from "react-router-dom";
+import { closingNavigation } from "../shared/closingNavigation";
 import { Badge, Button, Skeleton } from "../../shared/Controls";
 import { ApiFailure } from "../../shared/api";
 import { ErrorBanner } from "../../shared/ErrorBanner";
@@ -34,13 +36,28 @@ export default function UI28Screen({
   groupName?: string;
   refreshVersion?: number;
 }) {
+  const location = useLocation();
+  const handoff =
+    location.pathname === "/UI-28"
+      ? closingNavigation(location.state).month
+      : null;
   const [filters, setFilters] = useState(() => {
     const saved = Number(sessionStorage.getItem("UI-28.year"));
     return boardDefaults(
-      saved >= 1 && saved <= 9999 ? saved : Number(seoulMonth().slice(0, 4)),
+      handoff
+        ? Number(handoff.slice(0, 4))
+        : saved >= 1 && saved <= 9999
+          ? saved
+          : Number(seoulMonth().slice(0, 4)),
     );
   });
   const [draft, setDraft] = useState(filters);
+  useEffect(() => {
+    if (!handoff) return;
+    const year = Number(handoff.slice(0, 4));
+    setFilters((value) => ({ ...value, year, page: 0 }));
+    setDraft((value) => ({ ...value, year, page: 0 }));
+  }, [handoff, location.key]);
   const [tab, setTab] = useState("calendar");
   const [forecastVisited, setForecastVisited] = useState(false);
   const [selected, setSelected] = useState<{
@@ -140,6 +157,11 @@ export default function UI28Screen({
         }
       />
       <div className={styles.period}>
+        {handoff && (
+          <span role="status">
+            대시보드 기준월 {handoff} · 연간 전체 조회에서 해당 월을 확인하세요.
+          </span>
+        )}
         <Button
           data-testid="board-year-prev"
           disabled={filters.year <= 1}
@@ -324,7 +346,16 @@ export default function UI28Screen({
                         </th>
                       ))}
                       {Array.from({ length: 12 }, (_, i) => (
-                        <th key={i} data-testid={`board-month-column-${i + 1}`}>
+                        <th
+                          key={i}
+                          aria-current={
+                            handoff ===
+                            `${filters.year}-${String(i + 1).padStart(2, "0")}`
+                              ? "date"
+                              : undefined
+                          }
+                          data-testid={`board-month-column-${i + 1}`}
+                        >
                           {i + 1}월
                         </th>
                       ))}

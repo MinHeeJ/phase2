@@ -99,6 +99,17 @@
     <if test="job != null">AND a.job_cd=#{job}</if>
     <if test="q != null">AND (strpos(lower(d.dev_nm),lower(#{q}))&gt;0 OR strpos(lower(d.mng_no),lower(#{q}))&gt;0)</if>
   </select>
+  <select id="excessPeople" resultType="int">
+    SELECT count(*)::int FROM (SELECT a.dev_id FROM asgn.asgn a
+      JOIN asgn.asgn_mth m ON m.asgn_id=a.asgn_id
+      WHERE a.asgn_stts_cd!='CANCELLED' AND m.work_ym=#{month}
+      GROUP BY a.dev_id HAVING sum(m.mm_qty)&gt;1.00) excess
+  </select>
+  <select id="precontractAssignments" resultType="int">
+    SELECT count(DISTINCT a.asgn_id)::int FROM asgn.asgn a JOIN prj.prj p ON p.prj_id=a.prj_id
+    WHERE p.prj_stts_cd='PLAN' AND a.asgn_stts_cd='ACTIVE'
+      AND a.bgn_dt&lt;=#{today} AND a.end_dt&gt;=#{today}
+  </select>
   <select id="row" resultMap="assignmentRow"><include refid="projection"/> WHERE a.asgn_id=#{id}</select>
   <select id="project" resultMap="assignmentProject">SELECT p.prj_id,p.cntrct_ty_cd,p.prj_stts_cd,p.use_yn FROM prj.prj p WHERE p.prj_id=#{id}</select>
   <select id="developer" resultMap="assignmentDeveloper">SELECT d.dev_id,d.use_yn,d.rsgn_dt FROM mst.dev d WHERE d.dev_id=#{id}</select>

@@ -119,6 +119,18 @@
     LEFT JOIN mst.bsn_part part ON part.bsn_part_id=ph.bsn_part_id</sql>
   <select id="state" resultMap="state">SELECT <include refid="stateColumns"/> <include refid="stateFrom"/> WHERE b.bill_id=#{id}</select>
   <select id="states" resultMap="state">SELECT <include refid="stateColumns"/> <include refid="stateFrom"/> WHERE left(<include refid="month"/>,4)=lpad(#{year}::text,4,'0') ORDER BY b.bill_id</select>
+  <select id="statesThrough" resultMap="state">
+    SELECT b.bill_id,b.bill_no,b.prj_id,b.bill_stg_id,b.atrb_ym,b.bill_dt,b.sply_amt,b.vat_amt,b.tot_amt,
+      b.bill_stts_cd,b.txinv_no,b.txinv_dt,b.rcpt_plan_dt,b.amnd_yn,b.orgnl_bill_id,b.rmrk_desc,
+      s.bill_plan_dt AS stage_plan_dt,p.prj_nm AS project_name,p.cust_ptnr_id AS customer_id,c.ptnr_nm AS customer_name,
+      p.cntrct_ty_cd AS contract_type,part.bsn_part_nm AS sales_part,part.hq_yn,
+      coalesce((SELECT sum(r.rcpt_amt) FROM bill.rcpt r WHERE r.bill_id=b.bill_id AND r.rcpt_dt&lt;=#{today}),0)::bigint AS received_amt,
+      (b.tot_amt+coalesce((SELECT sum(x.tot_amt) FROM bill.bill x WHERE x.orgnl_bill_id=b.bill_id
+        AND x.amnd_yn='Y' AND x.bill_stts_cd='CONFIRM' AND coalesce(x.cnfrm_at,x.created_at)&lt;=#{at}),0))::bigint AS adjusted_total_amt
+    <include refid="stateFrom"/>
+    WHERE b.bill_stts_cd='CONFIRM' AND b.amnd_yn='N' AND coalesce(b.cnfrm_at,b.created_at)&lt;=#{at}
+    ORDER BY b.bill_id
+  </select>
   <select id="amendments" resultMap="state">SELECT <include refid="stateColumns"/> <include refid="stateFrom"/> WHERE b.orgnl_bill_id=#{id} ORDER BY b.bill_id</select>
   <select id="balance" resultMap="balance">
     SELECT (b.sply_amt+coalesce((SELECT sum(x.sply_amt) FROM bill.bill x WHERE x.orgnl_bill_id=b.bill_id AND x.amnd_yn='Y' AND x.bill_stts_cd='CONFIRM'),0))::bigint AS supply,
