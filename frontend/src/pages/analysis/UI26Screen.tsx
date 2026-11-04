@@ -26,6 +26,12 @@ const statusText = {
 };
 const fieldLabels: Record<string, string> = {
   projectId: "프로젝트 ID",
+  partId: "파트",
+  partName: "파트",
+  devId: "개발자",
+  customerName: "고객",
+  count: "건수",
+  amount: "금액",
   projectName: "프로젝트",
   month: "월",
   revenue: "매출",
@@ -72,6 +78,47 @@ const fieldLabels: Record<string, string> = {
   basisDate: "기준일",
   rangeUnavailableReason: "범위 산출 제약",
 };
+// 분석 종류·상태 코드는 화면에 그대로 내보내지 않는다.
+const intentLabels: Record<string, string> = {
+  PROJECT_PROFIT_RANKING: "프로젝트 손익 순위",
+  PROJECT_PROFIT_TREND: "프로젝트 손익 추이",
+  MONTHLY_FINANCE: "월 재무 현황",
+  RECEIVABLES_RISK: "미수 위험",
+  PROJECT_PROGRESS_RISK: "프로젝트 진척 위험",
+  WORKFORCE_CAPACITY: "인력 수급",
+  EXIT_AND_NEXT_POSITION: "철수 예정자 다음 자리",
+  SALES_PIPELINE_FORECAST: "영업 파이프라인 매출 예측",
+  CASH_FORECAST: "자금 흐름",
+  CLOSE_STATUS: "마감 상태",
+  WHAT_IF_WORKFORCE: "인력 가정 시뮬레이션",
+  WHAT_IF_PROJECT_COST: "원가 가정 시뮬레이션",
+  FORECAST_PROFIT: "손익 예측",
+  FORECAST_STAFF: "인력 예측",
+  FORECAST_CASH: "현금 예측",
+  FORECAST_RECEIVABLES: "미수 예측",
+  FORECAST_TURNKEY: "턴키 예상 최종 손익",
+};
+const codeText = (t: string) =>
+  intentLabels[t] ?? statusText[t as keyof typeof statusText] ?? t;
+/** 서버 답변 문장(`2026-11 · PROJECT_PROFIT_RANKING · OK` / `revenue: 122500000`)을 사람이 읽는 말로. */
+function humanize(text: string, skip: readonly string[] = []) {
+  return text
+    .split("\n")
+    .flatMap((line) => {
+      const kv = /^([A-Za-z]+): (.*)$/.exec(line);
+      if (kv) {
+        if (skip.includes(kv[1])) return [];
+        const n = Number(kv[2]);
+        return [
+          `${fieldLabels[kv[1]] ?? kv[1]}: ${kv[2] !== "" && !Number.isNaN(n) ? display(n, kv[1]) : kv[2]}`,
+        ];
+      }
+      return [line.split(" · ").map(codeText).join(" · ")];
+    })
+    .join("\n");
+}
+const shortTime = (value: string) =>
+  value ? value.replace("T", " ").slice(5, 16) : "";
 function display(value: unknown, key = ""): string {
   if (value === null || value === undefined)
     return /Percent|Rate|margin|utilization/i.test(key) ? "–" : "자료 없음";
@@ -92,10 +139,11 @@ function ResultTable({ section, index }: { section: Section; index: number }) {
   const fields = [...new Set(section.rows.flatMap(Object.keys))];
   return (
     <section data-testid={`analysis-section-${index}`} className={styles.card}>
-      <h3>{section.analysisType}</h3>
+      <h3>{codeText(section.analysisType)}</h3>
       <p>
         {section.period.fromYm} ~ {section.period.toYm} · 기준일{" "}
-        {section.period.basisDate} · {section.unit}{" "}
+        {section.period.basisDate}
+        {section.unit && !/^[A-Z_]+$/.test(section.unit) ? ` · ${section.unit}` : ""}{" "}
         <Badge tone={section.closedStatus === "CLOSED" ? "locked" : "warning"}>
           {display(section.closedStatus)}
         </Badge>
@@ -152,7 +200,7 @@ function ResultTable({ section, index }: { section: Section; index: number }) {
               <svg
                 viewBox="0 0 640 180"
                 role="img"
-                aria-label={section.analysisType}
+                aria-label={codeText(section.analysisType)}
               >
                 {section.chartSpec.yFields.map((field, series) => {
                   const all = section.rows
@@ -250,6 +298,11 @@ export default function UI26Screen({
     [reason, setReason] = useState("");
   const [downloadStatus, setDownloadStatus] = useState("");
   const [answerQuery, setAnswerQuery] = useState<StructuredQuery | undefined>();
+  const threadRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = threadRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [detail, answer, pending]);
   const abort = useRef<AbortController | null>(null),
     questionRef = useRef<HTMLTextAreaElement>(null),
     version = useRef(0);
@@ -514,44 +567,196 @@ export default function UI26Screen({
       setDownloadStatus(errorText(e));
     }
   }
-  function summary(message: StoredMessage) {
+  function answerCard(
+    caption?: string | null,
+    rated?: StoredMessage["feedback"],
+  ) {
+    if (!answer) return null;
     return (
-      <article
-        key={message.messageId}
-        className={styles.card}
-        data-testid={`analysis-message-${message.messageId}`}
-      >
-        <p>{message.questionSummary}</p>
-        <p>{message.answerSummary}</p>
-        <small>
-          요약 이력입니다. 원본 표는 저장하지 않습니다. 조건 재조회는 현재
-          값입니다.
-        </small>
-        <p>
-          {message.feedback &&
-            `최신 평가: ${message.feedback.rating} ${message.feedback.reason ?? ""}`}
-        </p>
-        <Button
-          data-testid={`analysis-history-feedback-${message.messageId}`}
-          onClick={() => {
-            setFeedbackTarget(message.messageId);
-            setRating(message.feedback?.rating ?? "");
-            setReason("");
-          }}
-        >
-          평가
-        </Button>
-        {message.criteria && (
-          <Button
-            data-testid={`analysis-requery-${message.messageId}`}
-            onClick={() => editConditions(message.criteria)}
-          >
-            조건 재조회
-          </Button>
-        )}
-      </article>
+          <article data-testid="analysis-answer" className={`${styles.bot} ${styles.answer}`}>
+            <div className={styles.answerHead}>
+              <Badge tone={answer.status === "OK" ? "success" : "warning"}>
+                {statusText[answer.status]}
+              </Badge>
+              {answer.modelUsed && (
+                <span className={styles.hint}>AI가 질문을 해석함</span>
+              )}
+            </div>
+            {caption && <p className={styles.hint}>{humanize(caption)}</p>}
+            {rated && (
+              <p className={styles.hint}>
+                최신 평가: {rated.rating} {rated.reason ?? ""}
+              </p>
+            )}
+            <p className={styles.answerText}>
+              {humanize(answer.answer, Object.keys(answer.metrics))
+                .split("\n")
+                .filter((line, i) => !(caption && i === 0 && /^\d{4}-\d{2} · /.test(line)))
+                .join("\n")}
+            </p>
+            <dl className={styles.metrics}>
+              {Object.entries(answer.metrics).map(([key, value]) => (
+                <div
+                  data-testid={`analysis-metric-${Object.keys(answer.metrics).indexOf(key)}`}
+                  key={key}
+                >
+                  <dt>{fieldLabels[key] ?? key}</dt>
+                  <dd>{display(value, key)}</dd>
+                </div>
+              ))}
+            </dl>
+            {answer.table.map((section, i) => (
+              <ResultTable
+                key={`${section.analysisType}-${i}`}
+                section={section}
+                index={i}
+              />
+            ))}
+            <h3>근거</h3>
+            {answer.sourceRefs.map((source, i) => (
+              <p data-testid={`analysis-source-ref-${i}`} key={i}>
+                {source.sourceService} · {source.baseYm} ·{" "}
+                {display(source.closedStatus)} · {shortTime(source.generatedAt)} 기준{" "}
+                {source.sourceScreenIds.filter(isScreenId).map((id) => (
+                  <Link
+                    key={id}
+                    data-testid={`analysis-source-${i}-${id.toLowerCase()}`}
+                    to={`/${id}`}
+                  >
+                    원본 화면 {id}
+                  </Link>
+                ))}
+              </p>
+            ))}
+            {answer.assumptions.map((v, i) => (
+              <p
+                data-testid={`analysis-answer-assumption-${i}`}
+                key={`a-${i}`}
+              >
+                가정: {v}
+              </p>
+            ))}
+            {answer.warnings.map((v, i) => (
+              <p
+                data-testid={`analysis-warning-${i}`}
+                key={`w-${i}`}
+                className={styles.notice}
+              >
+                {v}
+              </p>
+            ))}
+            {answer.areaErrors.map((v, i) => (
+              <p
+                data-testid={`analysis-area-error-${i}`}
+                key={i}
+                role="alert"
+              >
+                {codeText(v.analysisType)}: {v.message}
+              </p>
+            ))}
+            {answer.clarification && (
+              <p role="status">{answer.clarification}</p>
+            )}
+            <div className={styles.answerActions}>
+            <Button
+              data-testid="analysis-edit-conditions"
+              onClick={() => editConditions(answer.interpretedQuery)}
+            >
+              조건 수정
+            </Button>
+            <Button
+              data-testid="analysis-excel"
+              onClick={() => void download()}
+            >
+              Excel
+            </Button>
+            {answer.messageId && (
+              <Button
+                data-testid="analysis-feedback-open"
+                onClick={() => {
+                  setFeedbackTarget(answer.messageId!);
+                  setRating("");
+                  setReason("");
+                }}
+              >
+                평가
+              </Button>
+            )}
+            </div>
+            <p role="status">{downloadStatus}</p>
+          </article>
     );
   }
+  function summary(message: StoredMessage) {
+    const full = answer && answer.messageId === message.messageId;
+    return (
+      <div
+        key={message.messageId}
+        className={styles.pair}
+        data-testid={`analysis-message-${message.messageId}`}
+      >
+        <p className={styles.user}>{message.questionSummary}</p>
+        {full ? (
+          answerCard(message.answerSummary, message.feedback)
+        ) : (
+          <article className={styles.bot}>
+            <p className={styles.botText}>
+              {message.answerSummary && humanize(message.answerSummary)}
+            </p>
+            <small className={styles.hint}>
+              요약 이력입니다. 원본 표는 저장하지 않습니다. 조건 재조회는 현재
+              값입니다.
+            </small>
+            {message.feedback && (
+              <p className={styles.hint}>
+                최신 평가: {message.feedback.rating}{" "}
+                {message.feedback.reason ?? ""}
+              </p>
+            )}
+            <div className={styles.answerActions}>
+              <Button
+                data-testid={`analysis-history-feedback-${message.messageId}`}
+                onClick={() => {
+                  setFeedbackTarget(message.messageId);
+                  setRating(message.feedback?.rating ?? "");
+                  setReason("");
+                }}
+              >
+                평가
+              </Button>
+              {message.criteria && (
+                <Button
+                  data-testid={`analysis-requery-${message.messageId}`}
+                  onClick={() => editConditions(message.criteria)}
+                >
+                  조건 재조회
+                </Button>
+              )}
+            </div>
+          </article>
+        )}
+      </div>
+    );
+  }
+  const thinking = pending && !!question.trim();
+  const hasThread = !!answer || !!detail?.items.length || thinking;
+  const suggestions = (small: boolean) => (
+    <div className={small ? styles.chipsSmall : styles.chips}>
+      {capabilities?.suggestedQuestions.map((q, i) => (
+        <Button
+          key={q}
+          data-testid={`analysis-suggestion-${i}`}
+          disabled={pending}
+          onClick={() => {
+            setQuestion(q);
+            questionRef.current?.focus();
+          }}
+        >
+          {q}
+        </Button>
+      ))}
+    </div>
+  );
   return (
     <section
       className={styles.page}
@@ -559,138 +764,180 @@ export default function UI26Screen({
       data-screen-id="SCR-UI-26"
     >
       <ScreenHeading screenId="UI-26" name="AI 분석 도우미" groupName="AI" />
-      <header>
-        <p className={styles.lead}>
-          내부 개발/시험 전용 · 조회/가정만 수행 · 모델:{" "}
-          <Badge
-            tone={capabilities?.modelStatus === "준비" ? "success" : "warning"}
-          >
-            {capabilities?.modelStatus ?? "확인 중"}
-          </Badge>
-        </p>
-      </header>
-      <div className={styles.toolbar}>
-        <Button
-          data-testid="analysis-new"
-          disabled={pending}
-          onClick={() => navigate(() => void create())}
-        >
-          새 대화
-        </Button>
-        <Button
-          data-testid="analysis-collapse"
-          aria-expanded={!collapsed}
-          onClick={() => setCollapsed((v) => !v)}
-        >
-          {collapsed ? "최근 대화 펼치기" : "최근 접기"}
-        </Button>
-        <Button
-          data-testid="analysis-structured-open"
-          onClick={() => editConditions(answer?.interpretedQuery)}
-        >
-          정형 분석
-        </Button>
-      </div>
-      {loading && <p role="status">분석 기능과 최근 대화 불러오는 중</p>}
-      {error && (
-        <div role="alert" className={styles.error}>
-          {error}
-          {fieldError && <span> · 입력: {fieldError}</span>}
-          <Button data-testid="analysis-retry" onClick={() => void load()}>
-            다시 조회
-          </Button>
-        </div>
-      )}
-      {leave && (
-        <div
-          className={styles.notice}
-          role="group"
-          aria-label="미저장 초안 확인"
-        >
-          미저장 질문/평가를 버리고 이동할까요?
-          <Button data-testid="analysis-stay" onClick={() => setLeave(null)}>
-            계속 작성
-          </Button>
-          <Button
-            data-testid="analysis-leave"
-            onClick={() => {
-              const action = leave;
-              setLeave(null);
-              setQuestion("");
-              setReason("");
-              action();
-            }}
-          >
-            나가기
-          </Button>
-        </div>
-      )}
       <div className={styles.layout}>
         <aside
           className={`${styles.recent} ${collapsed ? styles.collapsed : ""}`}
         >
+          <Button
+            variant="primary"
+            data-testid="analysis-new"
+            disabled={pending}
+            onClick={() => navigate(() => void create())}
+          >
+            + 새 대화
+          </Button>
           <h2>최근 대화</h2>
           {!loading && !error && conversations.length === 0 && (
             <p>표시할 대화가 없습니다.</p>
           )}
-          {conversations.map((c) => (
-            <div key={c.id} data-testid={`analysis-conversation-${c.id}`}>
-              <Button
-                disabled={pending}
-                data-testid={`analysis-open-${c.id}`}
-                onClick={() => navigate(() => void open(c.id))}
+          <ul className={styles.convList}>
+            {conversations.map((c) => (
+              <li
+                key={c.id}
+                data-testid={`analysis-conversation-${c.id}`}
+                className={c.id === active ? styles.convActive : undefined}
               >
-                {c.questionSummary ?? "새 대화"} · {c.updatedAt}
+                <button
+                  type="button"
+                  className={styles.convOpen}
+                  disabled={pending}
+                  data-testid={`analysis-open-${c.id}`}
+                  title={c.questionSummary ?? "새 대화"}
+                  onClick={() => navigate(() => void open(c.id))}
+                >
+                  <span>{c.questionSummary ?? "새 대화"}</span>
+                  <small>{shortTime(c.updatedAt)}</small>
+                </button>
+                <button
+                  type="button"
+                  className={styles.convHide}
+                  disabled={pending}
+                  data-testid={`analysis-hide-${c.id}`}
+                  aria-label="대화 표시 삭제"
+                  title="대화 표시 삭제"
+                  onClick={() => setDeleteTarget(c.id)}
+                >
+                  ×
+                </button>
+              </li>
+            ))}
+          </ul>
+          {deleteTarget !== null && (
+            <div
+              role="group"
+              aria-label="표시 삭제 확인"
+              data-testid="analysis-delete-confirmation"
+              className={styles.notice}
+            >
+              대화 #{deleteTarget} · 내 목록/표시기록에서 제거합니다.
+              감사·보존정책의 물리삭제와 다릅니다.
+              <div className={styles.answerActions}>
+                <Button
+                  data-testid="analysis-hide-confirm"
+                  onClick={() =>
+                    void (async () => {
+                      try {
+                        await client.hideAnalysisConversation(deleteTarget);
+                        await refreshList();
+                        if (active === deleteTarget) {
+                          setActive(null);
+                          setDetail(null);
+                          setAnswer(null);
+                        }
+                        setDeleteTarget(null);
+                      } catch (e) {
+                        failed(e);
+                      }
+                    })()
+                  }
+                >
+                  표시 삭제 확인
+                </Button>
+                <Button
+                  data-testid="analysis-hide-cancel"
+                  onClick={() => setDeleteTarget(null)}
+                >
+                  취소
+                </Button>
+              </div>
+            </div>
+          )}
+          {total > 50 && (
+            <div className={styles.pager}>
+              <Button
+                data-testid="analysis-previous"
+                disabled={page === 0}
+                onClick={() => {
+                  setPage((p) => p - 1);
+                  void refreshList(page - 1).catch(failed);
+                }}
+              >
+                이전
               </Button>
               <Button
-                disabled={pending}
-                data-testid={`analysis-hide-${c.id}`}
-                onClick={() => setDeleteTarget(c.id)}
+                data-testid="analysis-next"
+                disabled={(page + 1) * 50 >= total}
+                onClick={() => {
+                  setPage((p) => p + 1);
+                  void refreshList(page + 1).catch(failed);
+                }}
               >
-                대화 표시 삭제
+                다음
               </Button>
             </div>
-          ))}
-          <div className={styles.pager}>
-          <Button
-            data-testid="analysis-previous"
-            disabled={page === 0}
-            onClick={() => {
-              setPage((p) => p - 1);
-              void refreshList(page - 1).catch(failed);
-            }}
-          >
-            이전
-          </Button>
-          <Button
-            data-testid="analysis-next"
-            disabled={(page + 1) * 50 >= total}
-            onClick={() => {
-              setPage((p) => p + 1);
-              void refreshList(page + 1).catch(failed);
-            }}
-          >
-            다음
-          </Button>
-          </div>
-          <h2>추천 질문</h2>
-          <div className={styles.chips}>
-          {capabilities?.suggestedQuestions.map((q, i) => (
-            <Button
-              key={q}
-              data-testid={`analysis-suggestion-${i}`}
-              disabled={pending}
-              onClick={() => {
-                setQuestion(q);
-                questionRef.current?.focus();
-              }}
-            >
-              {q}
-            </Button>
-          ))}
-          </div>
+          )}
         </aside>
         <main data-testid="analysis-main" className={styles.content}>
+          <div className={styles.chatHead}>
+            <span className={styles.model}>
+              <i
+                className={
+                  capabilities?.modelStatus === "준비" ? styles.dotOn : styles.dotOff
+                }
+              />
+              AI 모델{" "}
+              <Badge
+                tone={capabilities?.modelStatus === "준비" ? "success" : "warning"}
+              >
+                {capabilities?.modelStatus ?? "확인 중"}
+              </Badge>
+              <span className={styles.hint}>
+                내부 개발/시험 전용 · 조회/가정만 수행
+              </span>
+            </span>
+            <span className={styles.headActions}>
+              <Button
+                className={styles.mobileOnly}
+                data-testid="analysis-collapse"
+                aria-expanded={!collapsed}
+                onClick={() => setCollapsed((v) => !v)}
+              >
+                {collapsed ? "최근 대화 펼치기" : "최근 접기"}
+              </Button>
+              <Button
+                data-testid="analysis-structured-open"
+                onClick={() => editConditions(answer?.interpretedQuery)}
+              >
+                정형 분석
+              </Button>
+            </span>
+          </div>
+          <div className={styles.thread} ref={threadRef}>
+          {loading && <p role="status">분석 기능과 최근 대화 불러오는 중</p>}
+          {leave && (
+            <div
+              className={styles.notice}
+              role="group"
+              aria-label="미저장 초안 확인"
+            >
+              미저장 질문/평가를 버리고 이동할까요?
+              <Button data-testid="analysis-stay" onClick={() => setLeave(null)}>
+                계속 작성
+              </Button>
+              <Button
+                data-testid="analysis-leave"
+                onClick={() => {
+                  const action = leave;
+                  setLeave(null);
+                  setQuestion("");
+                  setReason("");
+                  action();
+                }}
+              >
+                나가기
+              </Button>
+            </div>
+          )}
           {structured && (
             <form
               data-testid="analysis-structured-panel"
@@ -1030,108 +1277,9 @@ export default function UI26Screen({
               이전 메시지 더 보기
             </Button>
           )}
-          {answer && (
-            <article data-testid="analysis-answer" className={styles.answer}>
-              <h2>
-                <Badge tone={answer.status === "OK" ? "success" : "warning"}>
-                  {statusText[answer.status]}
-                </Badge>
-              </h2>
-              <p className={styles.answerText}>{answer.answer}</p>
-              <p>
-                modelUsed={String(answer.modelUsed)} · fallbackUsed=
-                {String(answer.fallbackUsed)}
-              </p>
-              <dl className={styles.metrics}>
-                {Object.entries(answer.metrics).map(([key, value]) => (
-                  <div
-                    data-testid={`analysis-metric-${Object.keys(answer.metrics).indexOf(key)}`}
-                    key={key}
-                  >
-                    <dt>{fieldLabels[key] ?? key}</dt>
-                    <dd>{display(value, key)}</dd>
-                  </div>
-                ))}
-              </dl>
-              {answer.table.map((section, i) => (
-                <ResultTable
-                  key={`${section.analysisType}-${i}`}
-                  section={section}
-                  index={i}
-                />
-              ))}
-              <h3>근거</h3>
-              {answer.sourceRefs.map((source, i) => (
-                <p data-testid={`analysis-source-ref-${i}`} key={i}>
-                  {source.sourceService} · {source.baseYm} ·{" "}
-                  {display(source.closedStatus)} · {source.generatedAt}{" "}
-                  {source.sourceScreenIds.filter(isScreenId).map((id) => (
-                    <Link
-                      key={id}
-                      data-testid={`analysis-source-${i}-${id.toLowerCase()}`}
-                      to={`/${id}`}
-                    >
-                      원본 화면 {id}
-                    </Link>
-                  ))}
-                </p>
-              ))}
-              {answer.assumptions.map((v, i) => (
-                <p
-                  data-testid={`analysis-answer-assumption-${i}`}
-                  key={`a-${i}`}
-                >
-                  가정: {v}
-                </p>
-              ))}
-              {answer.warnings.map((v, i) => (
-                <p
-                  data-testid={`analysis-warning-${i}`}
-                  key={`w-${i}`}
-                  className={styles.notice}
-                >
-                  {v}
-                </p>
-              ))}
-              {answer.areaErrors.map((v, i) => (
-                <p
-                  data-testid={`analysis-area-error-${i}`}
-                  key={i}
-                  role="alert"
-                >
-                  {v.analysisType}: {v.code} · {v.message}
-                </p>
-              ))}
-              {answer.clarification && (
-                <p role="status">{answer.clarification}</p>
-              )}
-              <Button
-                data-testid="analysis-edit-conditions"
-                onClick={() => editConditions(answer.interpretedQuery)}
-              >
-                조건 수정
-              </Button>
-              <Button
-                data-testid="analysis-excel"
-                onClick={() => void download()}
-              >
-                Excel
-              </Button>
-              {answer.messageId && (
-                <Button
-                  data-testid="analysis-feedback-open"
-                  onClick={() => {
-                    setFeedbackTarget(answer.messageId!);
-                    setRating("");
-                    setReason("");
-                  }}
-                >
-                  평가
-                </Button>
-              )}
-              <p role="status">{downloadStatus}</p>
-            </article>
-          )}
+          {answer &&
+            !detail?.items.some((m) => m.messageId === answer.messageId) &&
+            answerCard()}
           {feedbackTarget !== null && (
             <form
               data-testid="analysis-feedback-panel"
@@ -1179,11 +1327,39 @@ export default function UI26Screen({
               </Button>
             </form>
           )}
-          {!answer && !detail?.items.length && !loading && (
-            <div className={styles.empty}>
-              추천 질문을 선택하거나 정형 분석으로 실제 자료를 조회하세요.
+          {!hasThread && !loading && !structured && (
+            <div className={styles.welcome}>
+              <h2>무엇을 분석해 드릴까요?</h2>
+              <p>
+                추천 질문을 선택하거나 정형 분석으로 실제 자료를 조회하세요.
+              </p>
+              {suggestions(false)}
             </div>
           )}
+          {thinking && (
+            <div className={styles.pair}>
+              <p className={styles.user}>{question}</p>
+              <div className={styles.bot} aria-live="polite">
+                <span className={styles.typing}>
+                  <i />
+                  <i />
+                  <i />
+                </span>
+                질문 해석 → 자료 조회 → 답변 구성 중
+              </div>
+            </div>
+          )}
+          </div>
+          {error && (
+            <div role="alert" className={styles.error}>
+              {error}
+              {fieldError && <span> · 입력: {fieldError}</span>}
+              <Button data-testid="analysis-retry" onClick={() => void load()}>
+                다시 조회
+              </Button>
+            </div>
+          )}
+          {hasThread && suggestions(true)}
           <form
             data-testid="analysis-composer"
             className={styles.composer}
@@ -1192,30 +1368,37 @@ export default function UI26Screen({
               void send();
             }}
           >
-            <label>
-              질문
-              <textarea
-                ref={questionRef}
-                data-testid="analysis-question"
-                value={question}
-                disabled={pending}
-                onChange={(e) => setQuestion(e.target.value)}
-                aria-invalid={question.length > 1000 || fieldError === "question"}
-              />
-            </label>
-            <span className={styles.counter}>{question.length}/1000</span>
-            <label>
-              기준월
-              <input
-                data-testid="analysis-base-month"
-                type="month"
-                value={baseYm}
-                onChange={(e) => setBaseYm(e.target.value)}
-              />
-            </label>
-            <p role="status" aria-live="polite" className={styles.sendState}>
-              {pending ? "처리 중" : "전송 준비"}
-            </p>
+            <textarea
+              ref={questionRef}
+              aria-label="질문"
+              rows={1}
+              placeholder="예: 이번 달 적자가 큰 프로젝트 3개 (Enter 전송 · Shift+Enter 줄바꿈)"
+              data-testid="analysis-question"
+              value={question}
+              disabled={pending}
+              onChange={(e) => setQuestion(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+                  e.preventDefault();
+                  void send();
+                }
+              }}
+              aria-invalid={question.length > 1000 || fieldError === "question"}
+            />
+            <div className={styles.composerBar}>
+              <label className={styles.month}>
+                기준월
+                <input
+                  data-testid="analysis-base-month"
+                  type="month"
+                  value={baseYm}
+                  onChange={(e) => setBaseYm(e.target.value)}
+                />
+              </label>
+              <span className={styles.counter}>{question.length}/1000</span>
+              <p role="status" aria-live="polite" className={styles.sendState}>
+                {pending ? "처리 중" : "전송 준비"}
+              </p>
             <Button
               variant="primary"
               type="submit"
@@ -1232,47 +1415,10 @@ export default function UI26Screen({
             >
               중단
             </Button>
+            </div>
           </form>
         </main>
       </div>
-      {deleteTarget !== null && (
-        <div
-          role="group"
-          aria-label="표시 삭제 확인"
-          data-testid="analysis-delete-confirmation"
-          className={styles.notice}
-        >
-          대화 #{deleteTarget} · 내 목록/표시기록에서 제거합니다.
-          감사·보존정책의 물리삭제와 다릅니다.
-          <Button
-            data-testid="analysis-hide-confirm"
-            onClick={() =>
-              void (async () => {
-                try {
-                  await client.hideAnalysisConversation(deleteTarget);
-                  await refreshList();
-                  if (active === deleteTarget) {
-                    setActive(null);
-                    setDetail(null);
-                    setAnswer(null);
-                  }
-                  setDeleteTarget(null);
-                } catch (e) {
-                  failed(e);
-                }
-              })()
-            }
-          >
-            표시 삭제 확인
-          </Button>
-          <Button
-            data-testid="analysis-hide-cancel"
-            onClick={() => setDeleteTarget(null)}
-          >
-            취소
-          </Button>
-        </div>
-      )}
     </section>
   );
 }

@@ -83,9 +83,148 @@
 }
 .form {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: var(--space-3) var(--space-4);
+  margin: var(--space-4) 0;
+}
+.wide {
+  max-width: 640px;
+}
+.formTitle {
+  margin: 0 0 var(--space-3);
+  font-size: var(--section-size);
+}
+.caption {
+  margin: var(--space-3) 0 0;
+  color: var(--text-sub);
+  font-size: var(--caption-size);
+}
+.draftRow {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-3);
+  width: 100%;
+}
+.draftRow label {
+  flex: 1;
+}
+.screen .draftRow textarea {
+  min-height: 0;
+  resize: none;
+}
+/* 스킬: 여러 개 고르는 칩. 기본 다중 선택 목록 대신. */
+.skills {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.skills legend {
+  width: 100%;
+  margin-bottom: var(--space-2);
+}
+.screen .skills label {
+  flex-direction: row;
+  align-items: center;
+  gap: 0;
+  padding: 4px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: var(--caption-size);
+  user-select: none;
+}
+.skills input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.screen .skills .chipOn {
+  border-color: var(--primary);
+  background: var(--primary-bg);
+  color: var(--primary);
+  font-weight: 600;
+}
+.skills label:focus-within {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+/* 추천 결과: 후보마다 카드 하나 */
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
   gap: var(--space-4);
   margin: var(--space-4) 0;
+}
+.resultCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--divider);
+  border-radius: var(--radius-panel);
+  background: var(--surface);
+  min-width: 0;
+}
+.cardHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+.cardHead h3 {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--body-size);
+}
+.rank {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--primary-bg);
+  color: var(--primary);
+  font-size: 12px;
+}
+.meta,
+.period {
+  margin: 2px 0 0;
+  color: var(--text-sub);
+  font-size: var(--caption-size);
+}
+.status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--caption-size);
+  color: var(--text-sub);
+}
+.picks {
+  display: flex;
+  gap: var(--space-4);
+  font-size: var(--caption-size);
+}
+.screen .picks label {
+  flex-direction: row;
+  align-items: center;
+  gap: var(--space-1);
+}
+.resultCard .actions {
+  margin: 0;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--divider);
+}
+.resultCard .actions button {
+  min-height: 32px;
+  padding: 0 10px;
+  font-size: var(--caption-size);
 }
 .screen label {
   display: flex;
@@ -119,8 +258,8 @@
 }
 .total {
   display: block;
-  font-size: 18px;
-  margin-bottom: var(--space-2);
+  font-size: 22px;
+  white-space: nowrap;
 }
 .total small {
   color: var(--text-sub);
@@ -135,7 +274,7 @@
 }
 .bar {
   display: grid;
-  grid-template-columns: 56px 1fr 36px;
+  grid-template-columns: 52px 1fr 48px;
   align-items: center;
   gap: var(--space-2);
 }
@@ -223,4 +362,10 @@
     min-height: 44px;
     font-size: 16px;
   }
+}
+
+.resultCard .actions > span {
+  margin-left: auto;
+  color: var(--text-sub);
+  font-size: var(--caption-size);
 }

@@ -358,27 +358,32 @@ export default function UI30Screen({
           ))}
         </select>
       </label>
-      <label>
-        스킬
-        <select
-          data-testid={`${prefix}-skills`}
-          multiple
-          value={value.skillCodes ?? []}
-          onChange={(e) =>
-            change({
-              ...value,
-              skillCodes: Array.from(
-                e.target.selectedOptions,
-                (option) => option.value,
-              ),
-            })
-          }
-        >
-          {options?.skillCodes.map((code) => (
-            <option key={code}>{code}</option>
-          ))}
-        </select>
-      </label>
+      <fieldset
+        className={styles.skills}
+        data-testid={`${prefix}-skills`}
+      >
+        <legend>스킬</legend>
+        {options?.skillCodes.map((code) => {
+          const on = (value.skillCodes ?? []).includes(code);
+          return (
+            <label key={code} className={on ? styles.chipOn : styles.chip}>
+              <input
+                type="checkbox"
+                checked={on}
+                onChange={() =>
+                  change({
+                    ...value,
+                    skillCodes: on
+                      ? (value.skillCodes ?? []).filter((c) => c !== code)
+                      : [...(value.skillCodes ?? []), code],
+                  })
+                }
+              />
+              {code}
+            </label>
+          );
+        })}
+      </fieldset>
       <label>
         고객 참조
         <input
@@ -620,6 +625,8 @@ export default function UI30Screen({
     <div className={styles.actions}>
       <Button
         data-testid={`detail-${row.resultId}`}
+        variant="text"
+        small
         onClick={() => {
           remember();
           setDetail(row);
@@ -629,6 +636,7 @@ export default function UI30Screen({
       </Button>
       <Button
         data-testid={`adopt-${row.resultId}`}
+        small
         disabled={row.decisionStatus !== "PENDING" || busy}
         onClick={() => {
           remember();
@@ -646,6 +654,7 @@ export default function UI30Screen({
       </Button>
       <Button
         data-testid={`reject-${row.resultId}`}
+        small
         disabled={row.decisionStatus !== "PENDING" || busy}
         onClick={() => {
           remember();
@@ -663,6 +672,8 @@ export default function UI30Screen({
       </Button>
       <Button
         data-testid={`career-${row.resultId}`}
+        variant="text"
+        small
         onClick={() => {
           remember();
           setCareer(row);
@@ -672,6 +683,8 @@ export default function UI30Screen({
       </Button>
       <Button
         data-testid={`developer-${row.resultId}`}
+        variant="text"
+        small
         onClick={() => navigate(`/UI-02?open=${row.devId}`)}
       >
         개발자 원본
@@ -679,6 +692,8 @@ export default function UI30Screen({
       {row.projectId && (
         <Button
           data-testid={`project-${row.resultId}`}
+        variant="text"
+        small
           onClick={() => navigate(`/UI-01?open=${row.projectId}`)}
         >
           프로젝트 원본
@@ -686,6 +701,7 @@ export default function UI30Screen({
       )}
       <Button
         data-testid={`review-${row.resultId}`}
+        small
         disabled={
           row.decisionStatus !== "ADOPT" || (!row.projectId && !row.needId)
         }
@@ -790,12 +806,16 @@ export default function UI30Screen({
                 data-testid="criteria-draft-region"
                 className={styles.draft}
               >
+                <h2 className={styles.formTitle}>어떤 자리에 추천할까요?</h2>
+                <div className={styles.draftRow}>
                 <label>
-                  자유 서술 조건
+                  AI로 조건 채우기
                   <textarea
                     data-testid="criteria-question"
                     value={question}
                     maxLength={1000}
+                    rows={2}
+                    placeholder="예: 금융권 본인인증 백엔드 고급 2명, 6개월"
                     onChange={(e) => setQuestion(e.target.value)}
                   />
                 </label>
@@ -817,12 +837,16 @@ export default function UI30Screen({
                 >
                   조건 초안 해석
                 </Button>
+                </div>
                 <ErrorMessage error={draftError} />
                 {draft && (
                   <div data-testid="criteria-draft-panel">
                     <p>
-                      {draft.status} · 모델 사용{" "}
-                      {draft.modelUsed ? "예" : "아니오"}
+                      {draft.status === "OK"
+                        ? "AI가 채운 조건입니다. 확인·수정 후 적용하세요."
+                        : draft.status === "MODEL_UNAVAILABLE"
+                          ? "AI 모델에 연결할 수 없습니다. 아래에서 직접 입력하세요."
+                          : "질문을 조건으로 바꾸지 못했습니다. 더 구체적으로 적거나 직접 입력하세요."}
                     </p>
                     <p>
                       {draft.clarification} {draft.warnings.join(" · ")}
@@ -861,8 +885,8 @@ export default function UI30Screen({
                   void run();
                 }}
               >
-                <label>
-                  원천
+                <label className={styles.wide}>
+                  추천할 자리
                   <select
                     data-testid="recommendation-source"
                     value={sourceId}
@@ -1007,7 +1031,7 @@ export default function UI30Screen({
               </Button>
             </form>
           )}
-          <p>
+          <p className={styles.caption}>
             외부 후보는 내부 개발자 추천에 포함하지 않습니다. 외부 후보
             바로가기는 목적지 확정 전 제공하지 않습니다.
           </p>
@@ -1045,7 +1069,7 @@ export default function UI30Screen({
               </p>
               <p>
                 선정 후보 일정:{" "}
-                {warnings.join(" · ") ||
+                {warnings.map(label).join(" · ") ||
                   (selectedRows.some((r) => r.monthByMonthMm.length === 0)
                     ? "판정 불가"
                     : "응답에 표시된 충돌 없음 · 자동 팀 구성하지 않음")}
@@ -1067,153 +1091,121 @@ export default function UI30Screen({
           >
             다시 조회
           </Button>
-          <DataTable
-            rows={snapshot.results}
-            rowKey={(row) => String(row.resultId)}
-            total={snapshot.results.length}
-            showEmpty={false}
-            columns={[
-              {
-                key: "selection",
-                label: "선정 / 비교",
-                render: (row) => (
-                  <div data-testid={`recommendation-row-${row.resultId}`}>
-                    <label>
-                      <input
-                        data-testid={`select-${row.resultId}`}
-                        type="checkbox"
-                        checked={selected.includes(row.resultId)}
-                        onChange={(e) =>
-                          setSelected((s) =>
-                            e.target.checked
-                              ? [...s, row.resultId]
-                              : s.filter((id) => id !== row.resultId),
-                          )
-                        }
-                      />
-                      선정
-                    </label>
-                    <label>
-                      <input
-                        data-testid={`compare-${row.resultId}`}
-                        type="checkbox"
-                        checked={compare.includes(row.resultId)}
-                        onChange={(e) => {
-                          if (e.target.checked && compare.length >= 3) {
-                            setCompareError("최대 3명까지 비교할 수 있습니다.");
-                            return;
-                          }
-                          setCompareError("");
-                          setCompare((c) =>
-                            e.target.checked
-                              ? [...c, row.resultId]
-                              : c.filter((id) => id !== row.resultId),
-                          );
-                        }}
-                      />
-                      비교
-                    </label>
+          <div className={styles.cards}>
+            {snapshot.results.map((row) => (
+              <article
+                key={row.resultId}
+                className={styles.resultCard}
+                data-testid={`recommendation-row-${row.resultId}`}
+              >
+                <header className={styles.cardHead}>
+                  <div>
+                    <h3>
+                      <span className={styles.rank}>{row.rank}</span>
+                      {snapshot.direction === A
+                        ? (row.developerName ?? `개발자 참조 ${row.devId}`)
+                        : row.projectId
+                          ? `프로젝트 참조 ${row.projectId}`
+                          : row.needId
+                            ? `OPEN 기회 필요인력 ${row.needId}`
+                            : (row.developerName ?? "")}
+                    </h3>
+                    <p className={styles.meta}>
+                      {[
+                        snapshot.direction === A ? row.developerNumber : row.customerName,
+                        row.jobCode,
+                        row.gradeCode,
+                        row.skillCodes?.join(", "),
+                      ]
+                        .filter(Boolean)
+                        .join(" · ") || "직무·등급 미기록"}
+                    </p>
                   </div>
-                ),
-              },
-              { key: "rank", label: "순위", render: (row) => row.rank },
-              {
-                key: "person",
-                label:
-                  snapshot.direction === A
-                    ? "개발자명 / 번호 · 직무 / 등급 / 스킬"
-                    : "프로젝트 / OPEN 기회 · 고객 / 직무 / 등급",
-                render: (row) => (
-                  <>
-                    {row.developerName ?? `개발자 참조 ${row.devId}`}
-                    <br />
-                    {row.developerNumber ?? "미기록"}
-                    <br />
-                    {row.projectId
-                      ? `프로젝트 참조 ${row.projectId}`
-                      : row.needId
-                        ? `OPEN 기회 필요인력 ${row.needId}`
-                        : ""}{" "}
-                    {row.customerName ?? ""}
-                    <br />
-                    {row.jobCode ?? "미기록"} / {row.gradeCode ?? "미기록"}
-                    <br />
-                    {row.skillCodes?.join(", ") || "미기록"}
-                  </>
-                ),
-              },
-              {
-                key: "period",
-                label:
-                  snapshot.direction === A
-                    ? "현재 프로젝트 / 철수 / 가용월"
-                    : "원기간 / 실제 추천월 / 잔여 / 대기일 / 수주확률",
-                render: (row) =>
-                  snapshot.direction === A ? (
+                  <strong className={styles.total}>
+                    {row.score.toFixed(1)}
+                    <small>/100</small>
+                  </strong>
+                </header>
+                <div className={styles.status}>
+                  <Badge
+                    tone={
+                      row.availabilityStatus === "가능"
+                        ? "success"
+                        : row.availabilityStatus === "확정 충돌"
+                          ? "danger"
+                          : row.availabilityStatus === "판정 불가"
+                            ? "locked"
+                            : "warning"
+                    }
+                  >
+                    {row.availabilityStatus}
+                  </Badge>
+                  {row.availabilityWarnings.map((w) => (
+                    <span key={w}>{label(w)}</span>
+                  ))}
+                  <span>연장 {row.extensionLikelihood ?? "미입력"}</span>
+                </div>
+                <ScoreBars breakdown={row.breakdown} />
+                <p className={styles.period}>
+                  {snapshot.direction === A ? (
                     <>
-                      {row.currentProjectNames?.join(", ") || "미기록"}
-                      <br />
-                      {row.exitDate ?? "미확정"}
-                      <br />
+                      현재 {row.currentProjectNames?.join(", ") || "투입 없음"} ·
+                      철수 {row.exitDate ?? "미확정"} · 가용{" "}
                       {row.earliestStartYm ?? "판정 불가"}
                     </>
                   ) : (
                     <>
-                      {row.positionStartYm} ~ {row.positionEndYm}
-                      <br />
-                      실제 추천월 {row.recommendedStartYm}
-                      <br />
-                      잔여 {row.remainingHeadcount}명 · 대기 {row.waitingDays}일{" "}
-                      {row.waitingDaysEstimated && "월 단위 추정"}
-                      <br />
-                      수주확률{" "}
+                      {row.positionStartYm} ~ {row.positionEndYm} · 실제 추천월{" "}
+                      {row.recommendedStartYm} · 잔여 {row.remainingHeadcount}명 ·
+                      대기 {row.waitingDays}일
+                      {row.waitingDaysEstimated && " (월 단위 추정)"} · 수주확률{" "}
                       {row.opportunityProbability === undefined
                         ? "미기록"
                         : `${row.opportunityProbability}%`}
                     </>
-                  ),
-              },
-              {
-                key: "score",
-                label: "총점 / 7요소",
-                render: (row) => (
-                  <>
-                    <strong className={styles.total}>
-                      {row.score.toFixed(1)}
-                      <small>/100</small>
-                    </strong>
-                    <ScoreBars breakdown={row.breakdown} />
-                  </>
-                ),
-              },
-              {
-                key: "availability",
-                label: "일정 상태 / 연장 / 충돌",
-                render: (row) => (
-                  <>
-                    <Badge
-                      tone={
-                        row.availabilityStatus === "가능"
-                          ? "success"
-                          : row.availabilityStatus === "확정 충돌"
-                            ? "danger"
-                            : row.availabilityStatus === "판정 불가"
-                              ? "locked"
-                              : "warning"
+                  )}
+                </p>
+                <div className={styles.picks}>
+                  <label>
+                    <input
+                      data-testid={`select-${row.resultId}`}
+                      type="checkbox"
+                      checked={selected.includes(row.resultId)}
+                      onChange={(e) =>
+                        setSelected((s) =>
+                          e.target.checked
+                            ? [...s, row.resultId]
+                            : s.filter((id) => id !== row.resultId),
+                        )
                       }
-                    >
-                      {row.availabilityStatus}
-                    </Badge>
-                    <p>{row.extensionLikelihood ?? "미입력"}</p>
-                    {row.availabilityWarnings.map((w) => (
-                      <p key={w}>{label(w)}</p>
-                    ))}
-                  </>
-                ),
-              },
-              { key: "actions", label: "동작 / 결정", render: resultActions },
-            ]}
-          />
+                    />
+                    선정
+                  </label>
+                  <label>
+                    <input
+                      data-testid={`compare-${row.resultId}`}
+                      type="checkbox"
+                      checked={compare.includes(row.resultId)}
+                      onChange={(e) => {
+                        if (e.target.checked && compare.length >= 3) {
+                          setCompareError("최대 3명까지 비교할 수 있습니다.");
+                          return;
+                        }
+                        setCompareError("");
+                        setCompare((c) =>
+                          e.target.checked
+                            ? [...c, row.resultId]
+                            : c.filter((id) => id !== row.resultId),
+                        );
+                      }}
+                    />
+                    비교
+                  </label>
+                </div>
+                {resultActions(row)}
+              </article>
+            ))}
+          </div>
           {compareError && <p role="alert">{compareError}</p>}
           <Button
             data-testid="open-comparison"

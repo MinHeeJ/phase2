@@ -209,7 +209,7 @@ describe("UI-30 추천 화면", () => {
     fireEvent.click(screen.getByTestId("select-2"));
     expect(screen.getByText("2/3명 선정 · 1명 부족")).toBeInTheDocument();
     expect(
-      screen.getByText(/선정 후보 일정: TEMP_OVERLAP/),
+      screen.getByText(/선정 후보 일정: 가배정과 겹침/),
     ).toBeInTheDocument();
     expect(
       fetcher.mock.calls.some(([url]) => String(url).endsWith("/12")),
@@ -276,7 +276,7 @@ describe("UI-30 추천 화면", () => {
       target: { value: "백엔드 추천" },
     });
     fireEvent.click(screen.getByTestId("criteria-preview"));
-    expect(await screen.findByText(/MODEL_UNAVAILABLE/)).toBeInTheDocument();
+    expect(await screen.findByText(/AI 모델에 연결할 수 없습니다/)).toBeInTheDocument();
     expect(screen.getByTestId("draft-apply")).toBeDisabled();
     expect(screen.getByTestId("recommendation-run")).toBeEnabled();
     expect(

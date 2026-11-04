@@ -1,15 +1,7 @@
+/* UI-26 AI 분석 도우미: 왼쪽 대화 목록 + 오른쪽 채팅(말풍선·하단 입력창). 화면 높이에 맞추고 대화만 스크롤한다. */
 .page {
   color: var(--text);
   min-width: 0;
-}
-.lead {
-  margin: 0;
-  color: var(--text-sub);
-}
-.page h1 {
-  font-size: var(--title-size);
-  line-height: var(--title-line);
-  margin: 0 0 8px;
 }
 .page h2 {
   font-size: 16px;
@@ -17,82 +9,360 @@
 .page h3 {
   font-size: 14px;
 }
-.toolbar {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  margin: 16px 0;
-}
 .layout {
   display: grid;
-  grid-template-columns: 280px minmax(0, 1fr);
+  grid-template-columns: 260px minmax(0, 1fr);
   gap: var(--space-4);
-  align-items: start;
+  height: calc(100dvh - 230px);
+  min-height: 520px;
 }
+
+/* 대화 목록 */
 .recent {
-  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--space-3);
   border: 1px solid var(--divider);
   border-radius: var(--radius-panel);
   background: var(--surface);
 }
-.recent h2 {
-  margin: 0 0 var(--space-2);
-  font-size: var(--body-size);
+.recent > button:first-child {
+  width: 100%;
 }
-.recent h2 ~ h2 {
-  margin-top: var(--space-6);
+.recent h2 {
+  margin: var(--space-3) 0 0;
+  padding: 0 var(--space-2);
+  color: var(--text-sub);
+  font-size: var(--caption-size);
+  font-weight: 600;
 }
 .recent > p {
   margin: 0;
+  padding: 0 var(--space-2);
   color: var(--text-sub);
+  font-size: var(--caption-size);
 }
-.recent > div:not(.pager):not(.chips) {
-  border-bottom: 1px solid var(--divider);
-  padding: var(--space-2) 0;
+.convList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
-.recent button {
-  max-width: 100%;
-  height: auto;
-  min-height: 36px;
+.convList li {
+  position: relative;
+  display: flex;
+  align-items: center;
+  border-radius: var(--radius-control);
+}
+.convList li:hover,
+.convActive {
+  background: var(--primary-bg);
+}
+.convOpen {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-height: 0;
+  padding: 8px 32px 8px 10px;
+  border: 0;
+  background: none;
+  color: var(--text);
   text-align: left;
-  overflow-wrap: anywhere;
+}
+.convOpen span {
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.convOpen small {
+  color: var(--text-sub);
+  font-size: 11px;
+}
+.convHide {
+  position: absolute;
+  right: 4px;
+  min-height: 0;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--text-sub);
+  opacity: 0;
+}
+.convList li:hover .convHide,
+.convHide:focus-visible {
+  opacity: 1;
+}
+.convHide:hover {
+  background: var(--divider);
 }
 .pager {
   display: flex;
   justify-content: flex-end;
   gap: var(--space-2);
-  margin-top: var(--space-2);
+  margin-top: auto;
 }
-.chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-}
-/* 대화 영역: 답변과 입력창을 한 판 안에 둔다(시안의 AI에게 묻기와 같은 구성). */
+
+/* 채팅 영역 */
 .content {
   min-width: 0;
-  min-height: 520px;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  padding: var(--space-4);
   border: 1px solid var(--divider);
   border-radius: var(--radius-panel);
   background: var(--surface);
+  overflow: hidden;
 }
-.content > .empty {
-  flex: 1;
+.chatHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--divider);
+}
+.model {
   display: flex;
   align-items: center;
-  justify-content: center;
+  gap: var(--space-2);
+  font-size: var(--caption-size);
 }
-.card,
-.answer {
-  padding: 20px 24px;
+.dotOn,
+.dotOff {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--success);
+}
+.dotOff {
+  background: var(--warning);
+}
+.headActions {
+  display: flex;
+  gap: var(--space-2);
+}
+.mobileOnly {
+  display: none;
+}
+.thread {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5, 20px);
+  padding: var(--space-5, 20px) var(--space-6);
+}
+.thread > * {
+  width: 100%;
+  max-width: 920px;
+  margin-inline: auto;
+}
+.pair {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.user {
+  align-self: flex-end;
+  max-width: 75%;
+  margin: 0;
+  padding: 10px 14px;
+  border-radius: 16px 16px 4px 16px;
+  background: var(--primary);
+  color: var(--on-primary, #fff);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.bot {
+  align-self: flex-start;
+  width: 100%;
+  min-width: 0;
+  padding: var(--space-4);
+  border: 1px solid var(--divider);
+  border-radius: 4px 16px 16px 16px;
+  background: var(--bg);
+  overflow-wrap: anywhere;
+}
+.botText,
+.answerText {
+  margin: 0 0 var(--space-2);
+  white-space: pre-wrap;
+  line-height: 1.6;
+}
+.hint {
+  color: var(--text-sub);
+  font-size: var(--caption-size);
+}
+.answerHead {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+.answer h3 {
+  margin: var(--space-4) 0 var(--space-2);
+}
+.answer > p:not(.answerText):not(.hint) {
+  margin: var(--space-1) 0;
+  font-size: var(--caption-size);
+  color: var(--text-sub);
+}
+.answerActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+.answerActions button {
+  min-height: 32px;
+  padding: 0 12px;
+  font-size: var(--caption-size);
+}
+.welcome {
+  margin: auto;
+  text-align: center;
+  padding: var(--space-8) 0;
+}
+.welcome h2 {
+  margin: 0 0 var(--space-2);
+  font-size: 22px;
+}
+.welcome p {
+  margin: 0 0 var(--space-5, 20px);
+  color: var(--text-sub);
+}
+.chips,
+.chipsSmall {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-2);
+}
+.chips button,
+.chipsSmall button {
+  border-radius: 999px;
+}
+.chipsSmall {
+  justify-content: flex-start;
+  padding: var(--space-2) var(--space-4) 0;
+}
+.chipsSmall button {
+  min-height: 28px;
+  padding: 0 12px;
+  font-size: var(--caption-size);
+}
+.typing {
+  display: inline-flex;
+  gap: 4px;
+  margin-right: var(--space-2);
+}
+.typing i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-sub);
+  animation: blink 1.2s infinite ease-in-out;
+}
+.typing i:nth-child(2) {
+  animation-delay: 0.2s;
+}
+.typing i:nth-child(3) {
+  animation-delay: 0.4s;
+}
+@keyframes blink {
+  0%,
+  80%,
+  100% {
+    opacity: 0.25;
+  }
+  40% {
+    opacity: 1;
+  }
+}
+
+/* 입력창 */
+.composer {
+  margin: var(--space-3) var(--space-4) var(--space-4);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--surface);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+.composer:focus-within {
+  border-color: var(--primary);
+}
+.composer textarea {
+  width: 100%;
+  min-height: 44px;
+  max-height: 160px;
+  padding: 8px 4px;
+  border: 0;
+  outline: none;
+  resize: none;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  field-sizing: content;
+}
+.composerBar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.month {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--text-sub);
+  font-size: var(--caption-size);
+}
+.month input {
+  min-height: 30px;
+  padding: 2px 6px;
+  border: 1px solid var(--divider);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+.counter {
+  margin-left: auto;
+  color: var(--text-sub);
+  font-size: var(--caption-size);
+}
+.sendState {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+
+/* 정형 분석·평가 등 대화 안의 카드 */
+.card {
+  padding: var(--space-4);
   background: var(--surface);
   border: 1px solid var(--divider);
-  border-radius: 8px;
-  margin-bottom: 16px;
+  border-radius: var(--radius-panel);
   overflow-wrap: anywhere;
+}
+.answer .card {
+  margin-top: var(--space-3);
+  background: var(--surface);
 }
 .scroll {
   max-width: 100%;
@@ -109,7 +379,7 @@
 }
 .scroll th,
 .scroll td {
-  padding: 10px 12px;
+  padding: 8px 12px;
   text-align: left;
   white-space: nowrap;
   border-bottom: 1px solid var(--divider);
@@ -119,7 +389,7 @@
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   gap: 12px;
 }
-.page label {
+.card label {
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -127,9 +397,9 @@
   font-size: 13px;
   margin-bottom: 8px;
 }
-.page input,
-.page select,
-.page textarea {
+.card input,
+.card select,
+.card textarea {
   border: 1px solid var(--border);
   border-radius: var(--radius-control);
   padding: 8px 10px;
@@ -139,10 +409,6 @@
   min-width: 0;
   max-width: 100%;
 }
-.page textarea {
-  resize: vertical;
-  min-height: 64px;
-}
 .page :focus-visible {
   outline: 2px solid var(--primary);
   outline-offset: 2px;
@@ -150,75 +416,54 @@
 .notice {
   background: var(--warning-bg);
   color: var(--warning);
-  padding: 10px 16px;
-  border-radius: 8px;
+  padding: 10px 12px;
+  border-radius: var(--radius-control);
   font-size: 13px;
 }
 .error {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 0 var(--space-4);
   background: var(--danger-bg);
   color: var(--danger);
-  padding: 12px 16px;
-  border-radius: 8px;
+  padding: 10px 14px;
+  border-radius: var(--radius-control);
+  font-size: 13px;
 }
 .empty {
-  padding: 48px 16px;
+  padding: 32px 16px;
   text-align: center;
   color: var(--text-sub);
 }
 .metrics {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 16px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: var(--space-2);
+  margin: var(--space-3) 0;
 }
 .metrics > div {
-  background: var(--bg);
+  background: var(--surface);
   border: 1px solid var(--divider);
-  border-radius: 4px;
-  padding: 12px;
+  border-radius: var(--radius-control);
+  padding: 10px 12px;
+}
+.metrics dt {
+  color: var(--text-sub);
+  font-size: var(--caption-size);
 }
 .metrics dd {
-  margin: 8px 0 0;
+  margin: 4px 0 0;
+  font-size: 16px;
   font-weight: 600;
-}
-.composer {
-  position: sticky;
-  bottom: 0;
-  margin-top: auto;
-  padding-top: var(--space-4);
-  border-top: 1px solid var(--divider);
-  background: var(--surface);
-  display: flex;
-  align-items: flex-end;
-  gap: var(--space-3);
-  flex-wrap: wrap;
-}
-.composer > label:first-child {
-  flex: 1 1 100%;
-  margin-bottom: 0;
-}
-.composer > label:first-child textarea {
-  min-height: 72px;
-}
-.composer label {
-  margin-bottom: 0;
-}
-.counter {
-  margin-right: auto;
-  align-self: center;
-  color: var(--text-sub);
-  font-size: var(--caption-size);
-}
-.sendState {
-  margin: 0;
-  align-self: center;
-  color: var(--text-sub);
-  font-size: var(--caption-size);
-}
-.answerText {
-  white-space: pre-wrap;
+  font-variant-numeric: tabular-nums;
 }
 .chart {
   margin: 16px 0;
+}
+.chart figcaption {
+  color: var(--text-sub);
+  font-size: var(--caption-size);
 }
 .chart svg {
   width: 100%;
@@ -237,31 +482,34 @@
   fill: var(--success);
   stroke: var(--success);
 }
+.collapsed {
+}
 @media (max-width: 767px) {
-  .page {
-    padding: 16px;
-    font-size: 16px;
-  }
   .layout {
     display: flex;
     flex-direction: column;
+    height: auto;
   }
   .collapsed {
     display: none;
   }
-  .page input,
-  .page select,
-  .page textarea {
+  .mobileOnly {
+    display: inline-flex;
+  }
+  .thread {
+    padding: var(--space-4);
+    max-height: 70dvh;
+  }
+  .user {
+    max-width: 90%;
+  }
+  .composer textarea,
+  .card input,
+  .card select,
+  .card textarea {
     font-size: 16px;
   }
   .page button {
     min-height: 44px;
-  }
-  .card,
-  .answer {
-    padding: 16px;
-  }
-  .composer {
-    gap: 8px;
   }
 }
