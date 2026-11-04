@@ -21,21 +21,17 @@ public class AiLocalIntentParser {
     public AiLocalIntentParser(Environment environment,ObjectMapper json) {this.environment=environment;this.json=json;}
     public Parsed parseCriteria(AiQuestionSanitizer.Prepared prepared) {
         if(prepared.needsClarification())return result("CLARIFICATION_REQUIRED",false);
-        if(!environment.getProperty("AI_OLLAMA_ENABLED",Boolean.class,false))return result("MODEL_UNAVAILABLE",false);
-        String model=environment.getProperty("AI_OLLAMA_MODEL","");
-        if(!model.matches("[a-zA-Z0-9][a-zA-Z0-9._:/-]{0,199}"))return result("MODEL_UNAVAILABLE",false);
-        URI base;
-        try {
-            base=URI.create(environment.getProperty("AI_OLLAMA_BASE_URL","http://127.0.0.1:11434"));
-            if(!"http".equals(base.getScheme())||!Set.of("127.0.0.1","localhost","[::1]").contains(base.getHost())||base.getUserInfo()!=null||base.getQuery()!=null||base.getFragment()!=null||!(base.getPath().isEmpty()||base.getPath().equals("/")))return result("MODEL_UNAVAILABLE",false);
-        }catch(IllegalArgumentException e){return result("MODEL_UNAVAILABLE",false);}
+        // 분석 해석(AnalysisModelClient)과 같은 주소·모델 기준을 쓴다.
+        if(!AiModelEndpoint.enabled(environment))return result("MODEL_UNAVAILABLE",false);
+        String model=AiModelEndpoint.model(environment);URI base=AiModelEndpoint.base(environment);
         if(!pending.tryAcquire())throw new ApiException(429,"SERVICE_UNAVAILABLE","모델 요청이 많습니다. 잠시 후 다시 시도하세요.",null);
         boolean acquired=false;
         try {
             acquired=running.tryAcquire(60,TimeUnit.SECONDS);if(!acquired)return result("MODEL_UNAVAILABLE",false);
             var client=HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(3)).followRedirects(HttpClient.Redirect.NEVER).build();
             for(int attempt=0;attempt<2;attempt++) {
-                ObjectNode payload=json.createObjectNode().put("model",model).put("stream",false).put("format","json");
+                ObjectNode payload=json.createObjectNode().put("model",model).put("stream",false).put("format","json").put("think",false);
+                payload.putObject("options").put("temperature",0);
                 payload.put("system","추천 조건 초안만 JSON 객체로 추출한다. 허용 키: jobCode,startYm,gradeCode,skillCodes,industryCode,durationMonths,headcount,requestedMm. 불명확한 값은 생략한다. 점수, 인물, SQL, URL을 생성하지 않는다.");
                 payload.put("prompt",prepared.modelQuestion());
                 var response=client.send(HttpRequest.newBuilder(base.resolve("/api/generate")).timeout(Duration.ofSeconds(60))

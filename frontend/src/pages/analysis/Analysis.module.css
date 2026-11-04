@@ -1,7 +1,10 @@
 .page {
-  padding: var(--space-6);
   color: var(--text);
   min-width: 0;
+}
+.lead {
+  margin: 0;
+  color: var(--text-sub);
 }
 .page h1 {
   font-size: var(--title-size);
@@ -22,18 +25,30 @@
 }
 .layout {
   display: grid;
-  grid-template-columns: 240px minmax(0, 1fr);
-  gap: 16px;
+  grid-template-columns: 280px minmax(0, 1fr);
+  gap: var(--space-4);
+  align-items: start;
 }
 .recent {
-  padding: 16px;
+  padding: var(--space-4);
   border: 1px solid var(--divider);
-  border-radius: 8px;
+  border-radius: var(--radius-panel);
   background: var(--surface);
 }
-.recent > div {
+.recent h2 {
+  margin: 0 0 var(--space-2);
+  font-size: var(--body-size);
+}
+.recent h2 ~ h2 {
+  margin-top: var(--space-6);
+}
+.recent > p {
+  margin: 0;
+  color: var(--text-sub);
+}
+.recent > div:not(.pager):not(.chips) {
   border-bottom: 1px solid var(--divider);
-  padding: 8px 0;
+  padding: var(--space-2) 0;
 }
 .recent button {
   max-width: 100%;
@@ -42,8 +57,33 @@
   text-align: left;
   overflow-wrap: anywhere;
 }
+.pager {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+/* 대화 영역: 답변과 입력창을 한 판 안에 둔다(시안의 AI에게 묻기와 같은 구성). */
 .content {
   min-width: 0;
+  min-height: 520px;
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-4);
+  border: 1px solid var(--divider);
+  border-radius: var(--radius-panel);
+  background: var(--surface);
+}
+.content > .empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .card,
 .answer {
@@ -143,18 +183,36 @@
 .composer {
   position: sticky;
   bottom: 0;
+  margin-top: auto;
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--divider);
   background: var(--surface);
-  border: 1px solid var(--divider);
-  border-radius: 8px;
-  padding: 16px;
-  margin-top: 16px;
   display: flex;
-  align-items: center;
-  gap: 12px;
+  align-items: flex-end;
+  gap: var(--space-3);
   flex-wrap: wrap;
 }
 .composer > label:first-child {
-  flex: 1 1 300px;
+  flex: 1 1 100%;
+  margin-bottom: 0;
+}
+.composer > label:first-child textarea {
+  min-height: 72px;
+}
+.composer label {
+  margin-bottom: 0;
+}
+.counter {
+  margin-right: auto;
+  align-self: center;
+  color: var(--text-sub);
+  font-size: var(--caption-size);
+}
+.sendState {
+  margin: 0;
+  align-self: center;
+  color: var(--text-sub);
+  font-size: var(--caption-size);
 }
 .answerText {
   white-space: pre-wrap;

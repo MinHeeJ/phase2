@@ -35,7 +35,6 @@ public class FinancialAnalysisTools {
             boolean closed="CLOSED".equals(status(month));
             var snapshot=closed?mapper.closedCosts(month):new ArrayList<AnalysisMapper.ProjectCost>();
             boolean hasPayroll=!closed&&mapper.hasPayroll(month);
-            if(hasPayroll)sensitive.requireSyntheticDatabase();
             var allocation=hasPayroll?costs.calculate(month,null):null;
             var revenue=revenues.computeIfAbsent(YearMonth.parse(month).getYear(),y->billing.projectRevenue(new BillingModels.CostRevenueQuery(y,null)));
             for(var p:projects) {
@@ -44,7 +43,7 @@ public class FinancialAnalysisTools {
                 BigDecimal cost=null;
                 if(closed) {
                     var saved=snapshot.stream().filter(c->c.projectId()==p.id()).findFirst().orElse(null);
-                    if(saved!=null){if(saved.people()==1)sensitive.requireSyntheticDatabase();cost=saved.amount();}
+                    if(saved!=null)cost=saved.amount();
                 } else if(allocation!=null) {
                     var selected=allocation.items().stream().filter(r->Objects.equals(r.prj_id(),p.id())).toList();
                     boolean missing=allocation.warnings().stream().anyMatch(w->w.startsWith("급여 미업로드:"));
@@ -74,7 +73,7 @@ public class FinancialAnalysisTools {
         for(String month:months) {
             var state=status(month);Map<String,Object> row;
             if("CLOSED".equals(state))row=profits.snapshot(new MonthlyProfitModels.SnapshotKey(month,"CLOSE"));
-            else if(mapper.hasPayroll(month)) {sensitive.requireSyntheticDatabase();row=years.computeIfAbsent(YearMonth.parse(month).getYear(),profit::calculate).stream().filter(r->month.equals(r.get("month"))).findFirst().orElse(null);}
+            else if(mapper.hasPayroll(month)) {row=years.computeIfAbsent(YearMonth.parse(month).getYear(),profit::calculate).stream().filter(r->month.equals(r.get("month"))).findFirst().orElse(null);}
             else {row=new LinkedHashMap<>();var sales=billing.revenue(YearMonth.parse(month).getYear()).stream().filter(r->month.equals(r.month())).findFirst().orElse(null);row.put("revenue",sales==null?null:sales.confirmed_supply_amt());}
             var target=mapper.target(month);
             result.add(new FinanceRow(month,null,number(row,"revenue"),number(row,"operating_profit"),target==null?null:target.revenue(),target==null?null:target.profit(),state));

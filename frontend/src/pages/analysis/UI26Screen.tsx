@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { Badge, Button } from "../../shared/Controls";
 import { ApiFailure } from "../../shared/api";
 import { isScreenId } from "../shared/registry";
+import { ScreenHeading } from "../shared/ScreenHeading";
 import * as client from "./client";
 import type {
   Answer,
@@ -557,9 +558,9 @@ export default function UI26Screen({
       data-testid="analysis-screen"
       data-screen-id="SCR-UI-26"
     >
+      <ScreenHeading screenId="UI-26" name="AI 분석 도우미" groupName="AI" />
       <header>
-        <h1>AI 분석 도우미</h1>
-        <p>
+        <p className={styles.lead}>
           내부 개발/시험 전용 · 조회/가정만 수행 · 모델:{" "}
           <Badge
             tone={capabilities?.modelStatus === "준비" ? "success" : "warning"}
@@ -650,6 +651,7 @@ export default function UI26Screen({
               </Button>
             </div>
           ))}
+          <div className={styles.pager}>
           <Button
             data-testid="analysis-previous"
             disabled={page === 0}
@@ -670,7 +672,9 @@ export default function UI26Screen({
           >
             다음
           </Button>
+          </div>
           <h2>추천 질문</h2>
+          <div className={styles.chips}>
           {capabilities?.suggestedQuestions.map((q, i) => (
             <Button
               key={q}
@@ -684,6 +688,7 @@ export default function UI26Screen({
               {q}
             </Button>
           ))}
+          </div>
         </aside>
         <main data-testid="analysis-main" className={styles.content}>
           {structured && (
@@ -1179,6 +1184,55 @@ export default function UI26Screen({
               추천 질문을 선택하거나 정형 분석으로 실제 자료를 조회하세요.
             </div>
           )}
+          <form
+            data-testid="analysis-composer"
+            className={styles.composer}
+            onSubmit={(e) => {
+              e.preventDefault();
+              void send();
+            }}
+          >
+            <label>
+              질문
+              <textarea
+                ref={questionRef}
+                data-testid="analysis-question"
+                value={question}
+                disabled={pending}
+                onChange={(e) => setQuestion(e.target.value)}
+                aria-invalid={question.length > 1000 || fieldError === "question"}
+              />
+            </label>
+            <span className={styles.counter}>{question.length}/1000</span>
+            <label>
+              기준월
+              <input
+                data-testid="analysis-base-month"
+                type="month"
+                value={baseYm}
+                onChange={(e) => setBaseYm(e.target.value)}
+              />
+            </label>
+            <p role="status" aria-live="polite" className={styles.sendState}>
+              {pending ? "처리 중" : "전송 준비"}
+            </p>
+            <Button
+              variant="primary"
+              type="submit"
+              data-testid="analysis-send"
+              disabled={pending}
+            >
+              전송
+            </Button>
+            <Button
+              type="button"
+              data-testid="analysis-stop"
+              disabled={!pending}
+              onClick={cancel}
+            >
+              중단
+            </Button>
+          </form>
         </main>
       </div>
       {deleteTarget !== null && (
@@ -1219,55 +1273,6 @@ export default function UI26Screen({
           </Button>
         </div>
       )}
-      <form
-        data-testid="analysis-composer"
-        className={styles.composer}
-        onSubmit={(e) => {
-          e.preventDefault();
-          void send();
-        }}
-      >
-        <label>
-          질문
-          <textarea
-            ref={questionRef}
-            data-testid="analysis-question"
-            value={question}
-            disabled={pending}
-            onChange={(e) => setQuestion(e.target.value)}
-            aria-invalid={question.length > 1000 || fieldError === "question"}
-          />
-        </label>
-        <span>{question.length}/1000</span>
-        <label>
-          기준월
-          <input
-            data-testid="analysis-base-month"
-            type="month"
-            value={baseYm}
-            onChange={(e) => setBaseYm(e.target.value)}
-          />
-        </label>
-        <p role="status" aria-live="polite">
-          {pending ? "처리 중" : "전송 준비"}
-        </p>
-        <Button
-          variant="primary"
-          type="submit"
-          data-testid="analysis-send"
-          disabled={pending}
-        >
-          전송
-        </Button>
-        <Button
-          type="button"
-          data-testid="analysis-stop"
-          disabled={!pending}
-          onClick={cancel}
-        >
-          중단
-        </Button>
-      </form>
     </section>
   );
 }

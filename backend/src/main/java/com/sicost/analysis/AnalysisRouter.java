@@ -24,7 +24,6 @@ public class AnalysisRouter {
     @Autowired private ObjectMapper json;
     @Autowired private ClosingQueryService closing;
     @Autowired private ProjectBoardService board;
-    @Autowired private ProjectBoardMapper boardMapper;
     @Autowired private ObjectProvider<AiNextPositionReader> nextPositions;
     public AnalysisRouter(FinancialAnalysisTools financial,WorkforceAnalysisTools workforce,ForecastAnalysisTools forecasts,
             AiSourceReads reads,AiSensitiveGuard sensitive,Clock clock) {
@@ -98,7 +97,6 @@ public class AnalysisRouter {
     }
     private List<ProgressRow> progress(Query q) {
         LocalDate today=LocalDate.now(clock.withZone(ZoneId.of("Asia/Seoul")));
-        if(boardMapper.projects(today).stream().anyMatch(p->"TK".equals(p.cntrct_ty_cd())))sensitive.requireSyntheticDatabase();
         return board.readDashboard(today).rows().stream().filter(r->q.filters().projectIds().isEmpty()||q.filters().projectIds().contains(r.prj_id()))
             .map(r->new ProgressRow(r.prj_id(),r.light(),r.overdue_issue_count(),r.memo_elapsed_days(),today,true)).limit(q.limit()).toList();
     }

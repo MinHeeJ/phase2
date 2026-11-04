@@ -27,6 +27,53 @@
   background: var(--danger-bg);
   overflow-wrap: anywhere;
 }
+.lead {
+  margin: 0 0 var(--space-3);
+  color: var(--text-sub);
+}
+/* 다른 화면의 하위 탭(공용 Tabs)과 같은 밑줄 탭 */
+.tabs {
+  display: flex;
+  gap: var(--space-6);
+  border-bottom: 1px solid var(--divider);
+  margin: var(--space-4) 0;
+}
+.tabs button {
+  min-height: auto;
+  background: none;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  color: var(--text-sub);
+  padding: var(--space-3) var(--space-2);
+  font-weight: var(--section-weight);
+}
+.screen .tabs [role="tab"][aria-selected="true"] {
+  background: none;
+  color: var(--primary);
+  border-color: transparent;
+  border-bottom-color: var(--primary);
+}
+.draft {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding-bottom: var(--space-4);
+  margin-bottom: var(--space-4);
+  border-bottom: 1px solid var(--divider);
+}
+.draft label {
+  align-self: stretch;
+}
+.screen select[multiple] {
+  min-height: 120px;
+  padding: var(--space-1);
+}
+.screen select[multiple] option {
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-control);
+}
 .actions {
   display: flex;
   gap: var(--space-2);
@@ -69,6 +116,47 @@
   background: var(--primary-bg);
   color: var(--primary);
   border-color: var(--primary);
+}
+.total {
+  display: block;
+  font-size: 18px;
+  margin-bottom: var(--space-2);
+}
+.total small {
+  color: var(--text-sub);
+  font-size: var(--caption-size);
+  font-weight: 400;
+}
+.bars {
+  display: grid;
+  gap: 2px;
+  min-width: 180px;
+  font-size: var(--caption-size);
+}
+.bar {
+  display: grid;
+  grid-template-columns: 56px 1fr 36px;
+  align-items: center;
+  gap: var(--space-2);
+}
+.bar span {
+  color: var(--text-sub);
+}
+.bar i {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--divider);
+  overflow: hidden;
+}
+.bar b {
+  display: block;
+  height: 100%;
+  background: var(--primary);
+}
+.bar em {
+  font-style: normal;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 .scores {
   display: flex;

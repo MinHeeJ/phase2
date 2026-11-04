@@ -31,6 +31,11 @@ services:
       DB_USER: ${POSTGRES_USER:-sicost}
       DB_PASSWORD: ${POSTGRES_PASSWORD:-dev-only-password}
       TZ: Asia/Seoul
+      # AI 분석(UI-26)·추천 조건 초안(UI-30)이 쓰는 로컬 sLLM. 내부망의 ollama 서비스로만 연결한다.
+      AI_OLLAMA_ENABLED: ${AI_OLLAMA_ENABLED:-true}
+      AI_OLLAMA_BASE_URL: http://ollama:11434
+      AI_OLLAMA_MODEL: ${AI_OLLAMA_MODEL:-qwen3:4b}
+      AI_OLLAMA_TIMEOUT: ${AI_OLLAMA_TIMEOUT:-90}
     ports:
       - "${BACKEND_PORT:-8081}:8080"
     volumes:
@@ -44,6 +49,31 @@ services:
       timeout: 3s
       retries: 30
       start_period: 20s
+  # 로컬 sLLM. 인증 없는 API 라 호스트 포트를 열지 않는다(스펙 9장: 공인 IP 바인딩 금지).
+  ollama:
+    image: ollama/ollama:0.12.6
+    volumes:
+      - ollama-models:/root/.ollama
+    environment:
+      # CPU 에서는 모델을 처음 올리는 데 2분 넘게 걸린다(qwen3:4b 실측 142초). 한 번 올린 모델을 내리지 않는다.
+      OLLAMA_KEEP_ALIVE: "-1"
+      OLLAMA_NUM_PARALLEL: "1"
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+  # 처음 한 번 모델을 받고 메모리에 올려 둔다(첫 질문이 시간 제한에 걸리지 않게). 이미 있으면 받기는 건너뛴다.
+  ollama-pull:
+    image: ollama/ollama:0.12.6
+    entrypoint: ["sh", "-c", "ollama pull \"$${MODEL}\" && ollama run \"$${MODEL}\" ok >/dev/null"]
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+      MODEL: ${AI_OLLAMA_MODEL:-qwen3:4b}
+    depends_on:
+      ollama:
+        condition: service_healthy
+    restart: "no"
   frontend:
     image: sicost-frontend:1.0.0
     pull_policy: build
@@ -62,3 +92,4 @@ services:
 volumes:
   postgres-data:
   uploads:
+  ollama-models:

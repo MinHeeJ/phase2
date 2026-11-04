@@ -33,6 +33,69 @@ const labels: Record<string, string> = {
   exp_scr: "비용",
   asgn_psbl_scr: "가능일",
 };
+// 요소별 만점(합 100). 막대 길이와 "점수/만점" 표시에 쓴다.
+const maxScores: Record<string, number> = {
+  job_scr: 25,
+  skl_scr: 20,
+  cust_scr: 15,
+  grd_scr: 10,
+  achv_scr: 10,
+  exp_scr: 10,
+  asgn_psbl_scr: 10,
+};
+// 서버 코드는 화면에 그대로 보이지 않게 한글로 바꾼다.
+const codeLabels: Record<string, string> = {
+  PENDING: "결정 대기",
+  ADOPT: "채택",
+  REJECT: "거절",
+  CONFIRMED_OVERLAP: "확정 배정과 겹침",
+  TEMP_OVERLAP: "가배정과 겹침",
+  CONFIRMED_UNAVAILABLE: "퇴사·휴직 기간 포함",
+  UNKNOWN_EXIT: "철수일 미정",
+  LINKED: "배정 연결됨",
+  UNLINKED: "미연결",
+  PROJECT_TO_PERSON: "빈자리 → 개발자",
+  PERSON_TO_POSITION: "개발자 → 다음 자리",
+};
+const label = (code: string | null | undefined) =>
+  code ? (codeLabels[code] ?? code) : "";
+const criteriaText = (criteria: object) => {
+  const c = criteria as Record<string, unknown>;
+  return [
+    c.jobCode && `직무 ${c.jobCode}`,
+    c.gradeCode && `등급 ${c.gradeCode}`,
+    c.startYm && `시작 ${c.startYm}`,
+    c.durationMonths && `${c.durationMonths}개월`,
+    c.headcount && `${c.headcount}명`,
+    c.requestedMm && `월 ${c.requestedMm}MM`,
+    Array.isArray(c.skillCodes) && c.skillCodes.length > 0 && `스킬 ${c.skillCodes.join(", ")}`,
+    c.industryCode && `업종 ${c.industryCode}`,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+};
+const timeText = (value: string) => value.replace("T", " ").slice(0, 16);
+function ScoreBars({ breakdown }: { breakdown: Record<string, number> }) {
+  return (
+    <div className={styles.bars}>
+      {Object.entries(breakdown).map(([key, value]) => (
+        <div key={key} className={styles.bar}>
+          <span>{labels[key] ?? key}</span>
+          <i aria-hidden="true">
+            <b
+              style={{
+                width: `${Math.min(100, (value / (maxScores[key] ?? 10)) * 100)}%`,
+              }}
+            />
+          </i>
+          <em>
+            {value.toFixed(value % 1 ? 1 : 0)}/{maxScores[key] ?? "–"}
+          </em>
+        </div>
+      ))}
+    </div>
+  );
+}
 const failure = (e: unknown) =>
   e instanceof ApiFailure
     ? e
@@ -636,7 +699,8 @@ export default function UI30Screen({
         {row.needId ? "가배정 검토" : "확정 배정 검토"}
       </Button>
       <span>
-        {row.decisionStatus} {row.assignmentLinkStatus} {row.rejectionReason}
+        {label(row.decisionStatus)} {label(row.assignmentLinkStatus)}{" "}
+        {row.rejectionReason}
       </span>
     </div>
   );
@@ -654,18 +718,16 @@ export default function UI30Screen({
       aria-busy={busy}
     >
       <ScreenHeading screenId="UI-30" name="AI 인력 추천" groupName="AI" />
-      <p>프로젝트에 맞는 인력과 철수 예정자의 다음 자리를 찾습니다</p>
+      <p className={styles.lead}>
+        프로젝트에 맞는 인력과 철수 예정자의 다음 자리를 찾습니다 · 조회 기준일{" "}
+        {new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Seoul" }).format(
+          new Date(),
+        )}
+      </p>
       <p className={styles.banner}>
         내부 개발/시험 전용 · 추천/채택은 배정을 만들지 않습니다
       </p>
-      <p>
-        오늘 조회기준:{" "}
-        {new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Seoul" }).format(
-          new Date(),
-        )}{" "}
-        (브라우저 기준 · Asia/Seoul)
-      </p>
-      <div role="tablist" className={styles.actions}>
+      <div role="tablist" className={styles.tabs}>
         {(
           [
             [A, "빈자리 → 개발자"],
@@ -724,7 +786,10 @@ export default function UI30Screen({
         >
           {tab === A && (
             <>
-              <section data-testid="criteria-draft-region">
+              <section
+                data-testid="criteria-draft-region"
+                className={styles.draft}
+              >
                 <label>
                   자유 서술 조건
                   <textarea
@@ -956,8 +1021,8 @@ export default function UI30Screen({
             추천 결과
           </h2>
           <p>
-            조건 {JSON.stringify(snapshot.criteria)} · 조회 시각{" "}
-            {snapshot.evaluatedAt} · 추천 {snapshot.results.length} · 주의{" "}
+            조건 {criteriaText(snapshot.criteria)} · 조회 시각{" "}
+            {timeText(snapshot.evaluatedAt)} · 추천 {snapshot.results.length} · 주의{" "}
             {
               snapshot.results.filter((r) => r.availabilityStatus !== "가능")
                 .length
@@ -1113,12 +1178,11 @@ export default function UI30Screen({
                 label: "총점 / 7요소",
                 render: (row) => (
                   <>
-                    <strong>{row.score.toFixed(2)} / 100</strong>
-                    {Object.entries(row.breakdown).map(([key, value]) => (
-                      <div key={key}>
-                        {labels[key]} {value.toFixed(2)}
-                      </div>
-                    ))}
+                    <strong className={styles.total}>
+                      {row.score.toFixed(1)}
+                      <small>/100</small>
+                    </strong>
+                    <ScoreBars breakdown={row.breakdown} />
                   </>
                 ),
               },
@@ -1142,7 +1206,7 @@ export default function UI30Screen({
                     </Badge>
                     <p>{row.extensionLikelihood ?? "미입력"}</p>
                     {row.availabilityWarnings.map((w) => (
-                      <p key={w}>{w}</p>
+                      <p key={w}>{label(w)}</p>
                     ))}
                   </>
                 ),
@@ -1425,14 +1489,14 @@ export default function UI30Screen({
                     label: "실행시각 / 방향",
                     render: (r) => (
                       <span data-testid={`history-row-${r.requestId}`}>
-                        {r.evaluatedAt} · {r.direction}
+                        {timeText(r.evaluatedAt)} · {label(r.direction)}
                       </span>
                     ),
                   },
                   {
                     key: "criteria",
                     label: "조건",
-                    render: (r) => JSON.stringify(r.criteria),
+                    render: (r) => criteriaText(r.criteria),
                   },
                   {
                     key: "results",
@@ -1440,8 +1504,8 @@ export default function UI30Screen({
                     render: (r) =>
                       r.results.map((s) => (
                         <p key={s.resultId}>
-                          {s.rank}위 · {s.score.toFixed(2)} · {s.decisionStatus}{" "}
-                          · {s.assignmentLinkStatus ?? "미연결"}
+                          {s.rank}위 · {s.score.toFixed(1)}점 · {label(s.decisionStatus)}{" "}
+                          · {label(s.assignmentLinkStatus) || "미연결"}
                         </p>
                       )),
                   },

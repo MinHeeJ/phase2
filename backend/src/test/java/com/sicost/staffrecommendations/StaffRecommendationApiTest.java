@@ -90,10 +90,11 @@ class StaffRecommendationApiTest {
         doThrow(AiAccessGuard.forbidden()).when(access).requireAction(anyString());
         mvc.perform(post(BASE+"/search").session(session).contentType("application/json").content(input().toString())).andExpect(status().isForbidden());verifyNoInteractions(mapper);
     }
-    @Test void personalCostDeniedBeforeHistoryAndNeverRead() throws Exception {
-        when(mapper.hasCostEvidence(1)).thenReturn(true);doThrow(AiAccessGuard.forbidden()).when(sensitive).requireSyntheticDatabase();
-        mvc.perform(post(BASE+"/search").session(session).contentType("application/json").content(input().toString())).andExpect(status().isForbidden());
-        assertThat(requests).isEmpty();verify(mapper,never()).syntheticCost(anyLong(),anyString());
+    // 이 화면은 급여를 이미 아는 사람만 메뉴 권한(⑯)으로 들어온다. 실제 원가 자료가 있어도 추천은 거부하지 않고 비용 점수에 쓴다.
+    @Test void personalCostIsUsedForScoringNotDenied() throws Exception {
+        when(mapper.hasCostEvidence(1)).thenReturn(true);
+        mvc.perform(post(BASE+"/search").session(session).contentType("application/json").content(input().toString())).andExpect(status().isOk());
+        verify(mapper).syntheticCost(eq(1L),anyString());verify(sensitive,never()).requireSyntheticDatabase();
     }
     @ParameterizedTest @ValueSource(strings={"durationMonths:0","durationMonths:37","headcount:0","headcount:101","requestedMm:0","requestedMm:1.01","requestedMm:0.001"})
     void rangesRejectWithoutWrites(String value) throws Exception {

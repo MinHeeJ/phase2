@@ -59,8 +59,8 @@
       (SELECT jsonb_agg(jsonb_build_array(need_id,oppt_id,job_cd,grd_cd,psn_cnt,bgn_ym,mnth_qty,mth_mm_qty,use_yn,updated_at) ORDER BY need_id)::text FROM bsn.oppt_need),
       (SELECT jsonb_agg(jsonb_build_array(oppt_id,oppt_stts_cd,cust_ptnr_id,win_prblt_rt,updated_at) ORDER BY oppt_id)::text FROM bsn.oppt)))
   </select>
-  <select id="nextRequestId" resultType="long">SELECT nextval('ai.seq_rcmd_rqst_id')</select>
-  <select id="nextResultId" resultType="long">
+  <select id="nextRequestId" resultType="long" useCache="false" flushCache="true">SELECT nextval('ai.seq_rcmd_rqst_id')</select>
+  <select id="nextResultId" resultType="long" useCache="false" flushCache="true">
     <choose><when test="direction == 'PERSON_TO_POSITION'">SELECT nextval('ai.seq_rcmd_next_rslt_id')</when><otherwise>SELECT nextval('ai.seq_rcmd_rslt_id')</otherwise></choose>
   </select>
   <insert id="insertRequest">

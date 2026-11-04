@@ -136,7 +136,7 @@ public class StaffRecommendationService {
     private Candidate candidate(long devId,ObjectNode p,ObjectNode criteria,SourceRow slot,Long handle) {
         BigDecimal cost=number("5");
         if(mapper.hasCostEvidence(devId)) {
-            boundary.synthetic();String raw=mapper.syntheticCost(devId,criteria.path("startYm").asText());
+            String raw=mapper.syntheticCost(devId,criteria.path("startYm").asText());
             if(raw!=null){JsonNode input=tree(raw);cost=cost(input.hasNonNull("price")?input.path("price").decimalValue():null,input.hasNonNull("cost")?input.path("cost").decimalValue():null);}
         }
         Breakdown score=score(p,criteria,mapper.grades(),cost,today());ObjectNode view=availability(json,p,criteria);
