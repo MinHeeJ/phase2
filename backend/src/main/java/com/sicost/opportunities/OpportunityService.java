@@ -29,10 +29,10 @@ public class OpportunityService {
     }
     public Page list(Map<String,String> parameters) {
         var q=OpportunityQuery.of(parameters);var all=mapper.matching(q);
-        BigDecimal weighted=all.stream().map(r->BigDecimal.valueOf(r.expc_amt()).multiply(r.win_prblt_rt()).movePointLeft(2)).reduce(BigDecimal.ZERO,BigDecimal::add);
+        long weighted=0;for(var r:all)weighted=Math.addExact(weighted,weighted(r));
         long people=0;for(var r:all)people+=mapper.needs(r.oppt_id()).stream().mapToLong(NeedRow::psn_cnt).sum();
         var kpi=new Kpi(all.stream().filter(r->r.oppt_stts_cd().equals("OPEN")).count(),all.stream().mapToLong(Row::expc_amt).sum(),
-            weighted.setScale(0,RoundingMode.DOWN).longValueExact(),people,all.stream().filter(this::stale).count());
+            weighted,people,all.stream().filter(this::stale).count());
         return new Page(mapper.list(q).stream().map(this::detail).toList(),q.page(),q.size(),mapper.count(q),kpi);
     }
     private boolean stale(Row row) {

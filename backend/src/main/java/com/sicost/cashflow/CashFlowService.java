@@ -60,6 +60,10 @@ public class CashFlowService {
     }
     private record FlowRead(Flow flow,List<ForecastMonth> forecast) {}
     @Transactional(readOnly=true,isolation=Isolation.REPEATABLE_READ)
+    public Flow readAnalysisFlow(int year,LocalDate basisDate) {
+        return readFlow(year,"BOTH",basisDate,false).flow();
+    }
+    @Transactional(readOnly=true,isolation=Isolation.REPEATABLE_READ)
     public List<ForecastMonth> readForecast(LocalDate date) {
         var from=YearMonth.from(date).plusMonths(1);
         var to=from.plusMonths(2);

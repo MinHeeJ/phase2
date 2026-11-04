@@ -26,6 +26,7 @@ public class ClosingService {
     @Autowired private ClosingQueryService stored;
     @Autowired private ClosingQueryMapper evidence;
     @Autowired private ObjectMapper json;
+    @Autowired private org.springframework.beans.factory.ObjectProvider<com.sicost.common.finance.ClosingObserver> closeObservers;
     public ClosingService(ClosingMapper mapper,ClosingCheckService checks,ClosingCheckWriter writer,
             ClosingSnapshotService snapshots,PlatformTransactionManager transactions,CurrentUser user) {
         this.mapper=mapper;this.checks=checks;this.writer=writer;this.snapshots=snapshots;this.user=user;
@@ -69,6 +70,16 @@ public class ClosingService {
             mapper.historyWrite(transition);
             var audit=new Audit(transition,manifest(month));mapper.audit(audit);mapper.access(audit);
             stored.getClosing(month);
+            org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
+                new org.springframework.transaction.support.TransactionSynchronization() {
+                    @Override public void afterCommit() {
+                        if(closeObservers!=null)closeObservers.orderedStream().forEach(observer->{
+                            try {observer.confirmed(month);} catch(RuntimeException ex) {
+                                org.slf4j.LoggerFactory.getLogger(ClosingService.class).warn("Official forecast callback unavailable: {}",month);
+                            }
+                        });
+                    }
+                });
             return new Result(month,"CLOSED",timestamp(at),actor());
         });
     }

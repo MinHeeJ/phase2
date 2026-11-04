@@ -38,5 +38,8 @@ class CandidateContactMapperTest {
     @Test void conversionIsConditionalAndCannotWritePayrollCostsOrAssignments()throws Exception {
         String s=sql(configuration(),"convert",new ConversionWrite(7,42,null));
         assertThat(s).contains("dev_id=?","cntct_stts_cd='SIGNED'","WHERE cand_id=? AND dev_id IS NULL").doesNotContain("cst.","asgn.","DELETE");
+        assertThat(sql(configuration(),"linkDeveloper",new ConversionWrite(7,42,null)))
+            .contains("UPDATE mst.dev SET src_cand_id=?","WHERE dev_id=? AND src_cand_id IS NULL")
+            .doesNotContain("cst.","asgn.","DELETE");
     }
 }

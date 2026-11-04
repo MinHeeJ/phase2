@@ -49,6 +49,7 @@ class CandidateContactApiTest {
         doAnswer(i->{var w=i.getArgument(0,ContactWrite.class);history.add(new Contact(w.input().cntct_dt(),w.input().cntct_stts_cd(),w.input().memo(),w.actor(),LocalDateTime.of(2026,10,23,0,0).plusNanos(history.size())));return null;}).when(mapper).append(any());
         when(mapper.refreshContact(any())).thenAnswer(i->{var latest=history.stream().max(Comparator.comparing(Contact::cntct_dt).thenComparing(Contact::created_at)).orElseThrow();row=state(row.dev_id()!=null?"SIGNED":latest.cntct_stts_cd(),latest.cntct_dt(),row.dev_id());return 1;});
         when(mapper.convert(any())).thenAnswer(i->{var w=i.getArgument(0,ConversionWrite.class);row=state("SIGNED",row.last_cntct_dt(),w.developerId());return 1;});
+        when(mapper.linkDeveloper(any())).thenReturn(1);
         when(forecast.candidateMonths(anyMap())).thenReturn(List.of(new CandidateForecastReader.Month("2026-11","BE","SR",new BigDecimal("0.41"))));
         when(mapper.candidateCount(any())).thenReturn(2L);
     }
@@ -86,6 +87,19 @@ class CandidateContactApiTest {
         postBody("/api/candidates/7/convert",conversion()).andExpect(status().isOk()).andExpect(jsonPath("$.success").value(true)).andExpect(jsonPath("$.data.candidate.dev_id").value(42)).andExpect(jsonPath("$.data.candidate.cntct_stts_cd").value("SIGNED")).andExpect(jsonPath("$.data.developer.dev_id").value(42));
         verify(developers).insert(argThat(w->w.input().dev_nm().equals("후보")&&w.input().emp_se_cd().equals("FL")&&w.input().main_job_cd().equals("BE")&&w.input().grd_cd().equals("SR")&&w.input().skill().equals(List.of("JAVA"))));
         verify(developers).appendHistory(argThat(h->h.type().equals("INSERT")&&h.actor()==null));
+        verify(mapper).linkDeveloper(new ConversionWrite(7,42,null));
+        verify(developers).appendHistory(new DeveloperModels.DeveloperHistory("42","UPDATE","src_cand_id",null,"7",null));
+    }
+    @Test void failedDeveloperLinkDoesNotMarkCandidateConverted()throws Exception {
+        when(mapper.linkDeveloper(any())).thenReturn(0);
+        postBody("/api/candidates/7/convert",conversion()).andExpect(status().isConflict());
+        verify(mapper,never()).convert(any());
+        assertThat(row.dev_id()).isNull();
+    }
+    @ParameterizedTest @ValueSource(strings={"contacts","convert"})
+    void nonPositiveCandidateIdIsRejectedWithoutPersistence(String operation)throws Exception {
+        bad(postBody("/api/candidates/0/"+operation,operation.equals("contacts")?contact("2026-10-20","DONE"):conversion()),"id");
+        verifyNoInteractions(mapper);noWrites();
     }
     @Test void missingEmployeeTypeHasNoDeveloperOrCandidateWrites()throws Exception {bad(postBody("/api/candidates/7/convert",Map.of("developer",Map.of())),"emp_se_cd");noWrites();}
     @Test void osWithoutCandidateVendorIsRejectedAndSuppliedVendorCannotOverride()throws Exception {

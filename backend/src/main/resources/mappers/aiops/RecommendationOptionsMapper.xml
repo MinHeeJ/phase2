@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sicost.aiops.RecommendationOptionsMapper">
+  <resultMap id="source" type="com.sicost.aiops.RecommendationOptionsModels$SourceRow"><constructor>
+    <arg column="source_type" javaType="string"/><arg column="row_id" javaType="_long"/>
+    <arg column="project_id" javaType="java.lang.Long"/><arg column="need_id" javaType="java.lang.Long"/>
+    <arg column="job_code" javaType="string"/><arg column="grade_code" javaType="string"/>
+    <arg column="start_ym" javaType="string"/><arg column="duration_months" javaType="_int"/>
+    <arg column="remaining_headcount" javaType="_int"/><arg column="requested_mm" javaType="java.math.BigDecimal"/>
+    <arg column="customer_id" javaType="java.lang.Long"/><arg column="industry_code" javaType="string"/>
+  </constructor></resultMap>
+  <resultMap id="exit" type="com.sicost.aiops.RecommendationOptionsModels$ExitOption"><constructor>
+    <arg column="dev_id" javaType="_long"/><arg column="exit_date" javaType="java.time.LocalDate"/>
+    <arg column="assumed_exit_ym" javaType="string"/><arg column="extension_likelihood" javaType="string"/>
+    <arg column="has_next" javaType="_boolean"/>
+  </constructor></resultMap>
+  <select id="sources" resultMap="source" useCache="false" flushCache="true">
+    WITH plans AS (
+      SELECT s.*, p.cust_ptnr_id, p.indty_cd, p.prj_nm,
+        coalesce((SELECT sum(m.mm_qty) FROM asgn.asgn a JOIN asgn.asgn_mth m ON m.asgn_id=a.asgn_id
+          WHERE a.prj_id=s.prj_id AND a.job_cd=s.job_cd AND m.work_ym=s.plan_ym
+            AND a.asgn_stts_cd!='CANCELLED'),0) AS assigned_mm,
+        coalesce(sum(s.need_mm_qty) OVER (PARTITION BY s.prj_id,s.plan_ym,s.job_cd
+          ORDER BY s.grd_cd,s.psn_plan_id ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING),0) AS preceding_mm
+      FROM prj.psn_plan s JOIN prj.prj p ON p.prj_id=s.prj_id
+      WHERE p.use_yn='Y' AND p.prj_stts_cd IN ('PLAN','RUN') AND s.plan_ym &gt;= #{month}
+    ), vacant AS (
+      SELECT *, greatest(0,need_mm_qty-greatest(0,assigned_mm-preceding_mm)) AS vacant_mm FROM plans
+    ), options AS (
+      SELECT 'PROJECT'::text AS source_type,psn_plan_id AS row_id,prj_id AS project_id,NULL::bigint AS need_id,
+        job_cd AS job_code,nullif(grd_cd,'') AS grade_code,plan_ym AS start_ym,1 AS duration_months,
+        ceil(vacant_mm)::integer AS remaining_headcount,round(vacant_mm/ceil(vacant_mm),2) AS requested_mm,
+        cust_ptnr_id AS customer_id,indty_cd AS industry_code,prj_nm AS label
+      FROM vacant WHERE vacant_mm&gt;0
+      UNION ALL
+      SELECT 'OPP',n.need_id,NULL::bigint,n.need_id,n.job_cd,n.grd_cd,n.bgn_ym,n.mnth_qty,
+        n.psn_cnt-(SELECT count(*)::integer FROM asgn.tmpr_asgn t WHERE t.need_id=n.need_id AND t.tmpr_asgn_stts_cd='ACTIVE'),
+        n.mth_mm_qty,o.cust_ptnr_id,c.indty_cd,o.oppt_nm
+      FROM bsn.oppt_need n JOIN bsn.oppt o ON o.oppt_id=n.oppt_id JOIN mst.ptnr c ON c.ptnr_id=o.cust_ptnr_id
+      WHERE o.oppt_stts_cd='OPEN' AND n.use_yn='Y' AND n.mnth_qty BETWEEN 1 AND 36
+        AND n.mth_mm_qty BETWEEN 0.01 AND 1.00
+        AND to_char(to_date(n.bgn_ym,'YYYY-MM')+(n.mnth_qty-1)*interval '1 month','YYYY-MM') &gt;= #{month}
+        AND n.psn_cnt &gt; (SELECT count(*) FROM asgn.tmpr_asgn t WHERE t.need_id=n.need_id AND t.tmpr_asgn_stts_cd='ACTIVE')
+    )
+    SELECT * FROM options
+    <if test="search != null">WHERE position(lower(#{search}) in lower(label))&gt;0 OR position(lower(#{search}) in lower(job_code))&gt;0</if>
+    ORDER BY source_type,row_id
+  </select>
+  <select id="sourceSkills" resultType="string">
+    SELECT k.skl_cd FROM prj.psn_plan s JOIN prj.prj_skl k ON k.prj_id=s.prj_id
+    WHERE #{sourceType}='PROJECT' AND s.psn_plan_id=#{rowId} ORDER BY k.skl_cd
+  </select>
+  <select id="developers" resultMap="exit" useCache="false" flushCache="true">
+    SELECT d.dev_id,a.end_dt AS exit_date,NULL::text AS assumed_exit_ym,a.ext_psblty_cd AS extension_likelihood,
+      EXISTS(SELECT 1 FROM asgn.asgn n WHERE n.dev_id=d.dev_id AND n.asgn_stts_cd='ACTIVE'
+        AND (a.asgn_id IS NULL OR n.asgn_id!=a.asgn_id) AND n.end_dt&gt;coalesce(a.end_dt,#{today})) AS has_next
+    FROM mst.dev d LEFT JOIN LATERAL (
+      SELECT x.asgn_id,x.end_dt,x.ext_psblty_cd FROM asgn.asgn x
+      WHERE x.dev_id=d.dev_id AND x.asgn_stts_cd='ACTIVE' AND x.bgn_dt&lt;=#{today} AND x.end_dt&gt;=#{today}
+      ORDER BY x.end_dt DESC,x.asgn_id DESC LIMIT 1
+    ) a ON true
+    WHERE d.use_yn='Y' AND (d.rsgn_dt IS NULL OR d.rsgn_dt&gt;=#{today})
+    <choose>
+      <when test="devId != null">AND d.dev_id=#{devId}</when>
+      <otherwise>AND (a.end_dt IS NULL OR a.end_dt&lt;=#{until})</otherwise>
+    </choose>
+    <if test="search != null">AND (position(lower(#{search}) in lower(d.main_job_cd))&gt;0 OR position(lower(#{search}) in lower(d.grd_cd))&gt;0)</if>
+    ORDER BY a.end_dt NULLS LAST,d.dev_id
+  </select>
+  <select id="developerExists" resultType="boolean">
+    SELECT EXISTS(SELECT 1 FROM mst.dev WHERE dev_id=#{devId} AND use_yn='Y')
+  </select>
+  <select id="codes" resultType="string">
+    SELECT d.dtl_cd FROM cmn.cd_dtl d JOIN cmn.cd_grp g ON g.cd_grp_id=d.cd_grp_id
+    WHERE d.cd_grp_id=#{group} AND d.use_yn='Y' AND g.use_yn='Y' ORDER BY d.sort_seq,d.dtl_cd
+  </select>
+</mapper>

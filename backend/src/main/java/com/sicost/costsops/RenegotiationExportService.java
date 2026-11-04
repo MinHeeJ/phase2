@@ -54,7 +54,7 @@ public class RenegotiationExportService {
             LocalDateTime.now(clock.withZone(ZoneId.of("Asia/Seoul"))), columns, result.items());
         String name = "단가재협상.xlsx";
         mapper.download(new Download(name, "{\"rows\":" + result.total() + "}", user.userId()));
-        return ResponseEntity.ok().contentType(MediaType.parseMediaType(XLSX))
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).contentType(MediaType.parseMediaType(XLSX))
             .header(HttpHeaders.CONTENT_DISPOSITION,
                 ContentDisposition.attachment().filename(name, StandardCharsets.UTF_8).build().toString())
             .body(bytes);

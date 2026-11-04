@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sicost.analysis.ConversationMapper">
+  <resultMap id="conversation" type="com.sicost.analysis.AnalysisModels$ConversationRow"><constructor>
+    <arg column="session_id" javaType="_long"/><arg column="session_key_hash" javaType="string"/>
+    <arg column="created_at" javaType="java.time.LocalDateTime"/><arg column="updated_at" javaType="java.time.LocalDateTime"/>
+    <arg column="hidden_at" javaType="java.time.LocalDateTime"/><arg column="retention_until" javaType="java.time.LocalDateTime"/>
+    <arg column="question_summary" javaType="string"/><arg column="answer_summary" javaType="string"/>
+  </constructor></resultMap>
+  <resultMap id="message" type="com.sicost.analysis.AnalysisModels$MessageRow"><constructor>
+    <arg column="msg_id" javaType="_long"/><arg column="session_id" javaType="_long"/>
+    <arg column="question_summary" javaType="string"/><arg column="answer_summary" javaType="string"/>
+    <arg column="intent_cd" javaType="string"/><arg column="criteria" javaType="string"/>
+    <arg column="base_ym" javaType="string"/><arg column="source_refs" javaType="string"/>
+    <arg column="status_cd" javaType="string"/><arg column="created_at" javaType="java.time.LocalDateTime"/>
+    <arg column="feedback_rating_cd" javaType="string"/><arg column="feedback_reason_desc" javaType="string"/>
+  </constructor></resultMap>
+  <sql id="summary">SELECT s.*,m.question_summary,m.answer_summary FROM ai.chat_session s
+    LEFT JOIN LATERAL (SELECT question_summary,answer_summary FROM ai.chat_msg WHERE session_id=s.session_id
+      ORDER BY created_at DESC,msg_id DESC LIMIT 1) m ON true</sql>
+  <sql id="scope">WHERE s.session_key_hash=#{ownerHash} AND s.hidden_at IS NULL AND s.retention_until&gt;#{now}
+    <if test="search != null and search != ''">AND EXISTS(SELECT 1 FROM ai.chat_msg x WHERE x.session_id=s.session_id
+      AND (strpos(lower(x.question_summary),lower(#{search}))&gt;0 OR strpos(lower(x.answer_summary),lower(#{search}))&gt;0))</if>
+  </sql>
+  <select id="create" resultType="long" affectData="true" flushCache="true">
+    INSERT INTO ai.chat_session(session_key_hash,created_at,updated_at,expires_at,retention_until)
+    VALUES(#{ownerHash},#{now},#{now},#{expiresAt},#{retentionUntil}) RETURNING session_id
+  </select>
+  <select id="conversation" resultMap="conversation"><include refid="summary"/> WHERE s.session_id=#{id}</select>
+  <select id="conversations" resultMap="conversation"><include refid="summary"/><include refid="scope"/>
+    ORDER BY s.updated_at DESC,s.session_id DESC LIMIT #{size} OFFSET #{offset}</select>
+  <select id="count" resultType="long">SELECT count(*) FROM ai.chat_session s <include refid="scope"/></select>
+  <update id="hide">UPDATE ai.chat_session SET hidden_at=coalesce(hidden_at,CURRENT_TIMESTAMP) WHERE session_id=#{id}</update>
+  <select id="messages" resultMap="message">SELECT * FROM ai.chat_msg WHERE session_id=#{id} ORDER BY created_at,msg_id LIMIT #{size} OFFSET #{offset}</select>
+  <select id="messageCount" resultType="long">SELECT count(*) FROM ai.chat_msg WHERE session_id=#{id}</select>
+  <select id="message" resultMap="message">SELECT * FROM ai.chat_msg WHERE msg_id=#{id}</select>
+  <select id="context" resultMap="message">SELECT * FROM ai.chat_msg WHERE session_id=#{id} AND status_cd IN ('OK','PARTIAL') ORDER BY created_at DESC,msg_id DESC LIMIT 5</select>
+  <select id="append" resultType="long" affectData="true" flushCache="true">
+    INSERT INTO ai.chat_msg(session_id,context_msg_id,question_summary,answer_summary,intent_cd,criteria,base_ym,source_refs,status_cd,created_at)
+    VALUES(#{conversationId},#{contextId},#{question},#{answer},#{criteria.intent},CAST(#{criteriaJson} AS jsonb),#{criteria.baseYm},CAST(#{sourcesJson} AS jsonb),#{status},#{now}) RETURNING msg_id
+  </select>
+  <update id="touch">UPDATE ai.chat_session SET expires_at=#{expiresAt} WHERE session_key_hash=#{ownerHash} AND retention_until&gt;#{now}</update>
+  <update id="updateTime">UPDATE ai.chat_session SET updated_at=#{now} WHERE session_id=#{conversationId} AND hidden_at IS NULL AND retention_until&gt;#{now}</update>
+  <update id="feedback">UPDATE ai.chat_msg SET feedback_rating_cd=#{rating},feedback_reason_desc=#{reason} WHERE msg_id=#{id}</update>
+  <update id="clearContext">UPDATE ai.chat_msg SET context_msg_id=NULL WHERE session_id IN (SELECT session_id FROM ai.chat_session WHERE retention_until&lt;=#{now})</update>
+  <delete id="cleanupMessages">DELETE FROM ai.chat_msg WHERE session_id IN (SELECT session_id FROM ai.chat_session WHERE retention_until&lt;=#{now})</delete>
+  <delete id="cleanupConversations">DELETE FROM ai.chat_session WHERE retention_until&lt;=#{now}</delete>
+</mapper>

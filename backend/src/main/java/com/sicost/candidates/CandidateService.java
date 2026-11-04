@@ -61,9 +61,9 @@ public class CandidateService {
     @Transactional
     public CandidateDetail create(CandidateWrite input) {
         choices(input);
-        long id=mapper.nextId();
-        String number=String.format(Locale.ROOT,"CAND-%04d",id);
-        mapper.insert(new CandidateInsert(id,number,input,user.userId()));
+        long allocatedId=mapper.nextId();
+        String number=String.format(Locale.ROOT,"CAND-%04d",allocatedId);
+        long id=mapper.insert(new CandidateInsert(allocatedId,number,input,user.userId()));
         for(String skill:input.skill()) mapper.insertSkill(new CandidateChild(id,skill));
         for(var e:input.columns().entrySet()) history(id,"INSERT",e.getKey(),null,e.getValue());
         history(id,"INSERT","skill",null,String.join(",",input.skill()));

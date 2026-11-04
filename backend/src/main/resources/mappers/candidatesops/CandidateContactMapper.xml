@@ -61,6 +61,10 @@
     UPDATE hr.cand SET dev_id=#{developerId},cntct_stts_cd='SIGNED',updated_by=#{actor}
     WHERE cand_id=#{id} AND dev_id IS NULL
   </update>
+  <update id="linkDeveloper">
+    UPDATE mst.dev SET src_cand_id=#{id},updated_by=#{actor}
+    WHERE dev_id=#{developerId} AND src_cand_id IS NULL
+  </update>
   <insert id="audit">
     INSERT INTO sys.data_chg_hist(tbl_nm,obj_rec_id,data_chg_ty_cd,clmn_nm,bfr_val,aft_val,chg_user_id)
     VALUES('hr.cand',#{id},'UPDATE',#{column},#{before},#{after},#{actor})

@@ -1,4 +1,5 @@
-import { api, ApiFailure, readData } from "../../shared/api";
+import { api, readData } from "../../shared/api";
+import { downloadCostWorkbook } from "./costWorkbook";
 
 export interface RenegotiationFilters {
   windowMonths: number;
@@ -103,40 +104,8 @@ export const getCostAllocation = (month: string, projectId?: number) => {
 export async function downloadCostRenegotiations(
   filters: RenegotiationFilters,
 ) {
-  const response = await fetch(
-    `/api/costs/renegotiations?${renegotiationQuery(filters)}`,
-    {
-      headers: {
-        Accept:
-          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      },
-    },
+  await downloadCostWorkbook(
+    "renegotiations",
+    new URLSearchParams(renegotiationQuery(filters)),
   );
-  if (!response.ok) {
-    const error = await response.json();
-    throw new ApiFailure(
-      error.message ?? "다운로드하지 못했습니다.",
-      response.status,
-      error.requestId ?? null,
-      error.field ?? null,
-      error.code ?? null,
-    );
-  }
-  if (!response.headers.get("Content-Type")?.includes("spreadsheetml.sheet")) {
-    throw new ApiFailure(
-      "엑셀 파일을 확인할 수 없습니다.",
-      response.status,
-      null,
-    );
-  }
-  const blob = await response.blob();
-  const url = URL.createObjectURL(blob);
-  try {
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "단가재협상.xlsx";
-    link.click();
-  } finally {
-    URL.revokeObjectURL(url);
-  }
 }

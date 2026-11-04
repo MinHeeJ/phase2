@@ -1,0 +1,371 @@
+.screen {
+  min-width: 0;
+  color: var(--text);
+}
+.screen p {
+  overflow-wrap: anywhere;
+}
+.panel {
+  padding: 20px 24px;
+  margin: var(--space-4) 0;
+  border: 1px solid var(--divider);
+  border-radius: var(--radius-panel);
+  background: var(--surface);
+  min-width: 0;
+}
+.banner {
+  padding: 10px 16px;
+  border-radius: var(--radius-panel);
+  background: var(--info-bg);
+  color: var(--info);
+}
+.error {
+  padding: 10px 16px;
+  margin: var(--space-3) 0;
+  border-radius: var(--radius-panel);
+  color: var(--danger);
+  background: var(--danger-bg);
+  overflow-wrap: anywhere;
+}
+.lead {
+  margin: 0 0 var(--space-3);
+  color: var(--text-sub);
+}
+/* 다른 화면의 하위 탭(공용 Tabs)과 같은 밑줄 탭 */
+.tabs {
+  display: flex;
+  gap: var(--space-6);
+  border-bottom: 1px solid var(--divider);
+  margin: var(--space-4) 0;
+}
+.tabs button {
+  min-height: auto;
+  background: none;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  color: var(--text-sub);
+  padding: var(--space-3) var(--space-2);
+  font-weight: var(--section-weight);
+}
+.screen .tabs [role="tab"][aria-selected="true"] {
+  background: none;
+  color: var(--primary);
+  border-color: transparent;
+  border-bottom-color: var(--primary);
+}
+.draft {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding-bottom: var(--space-4);
+  margin-bottom: var(--space-4);
+  border-bottom: 1px solid var(--divider);
+}
+.draft label {
+  align-self: stretch;
+}
+.screen select[multiple] {
+  min-height: 120px;
+  padding: var(--space-1);
+}
+.screen select[multiple] option {
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-control);
+}
+.actions {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  align-items: center;
+  margin: var(--space-3) 0;
+}
+.form {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: var(--space-3) var(--space-4);
+  margin: var(--space-4) 0;
+}
+.wide {
+  max-width: 640px;
+}
+.formTitle {
+  margin: 0 0 var(--space-3);
+  font-size: var(--section-size);
+}
+.caption {
+  margin: var(--space-3) 0 0;
+  color: var(--text-sub);
+  font-size: var(--caption-size);
+}
+.draftRow {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-3);
+  width: 100%;
+}
+.draftRow label {
+  flex: 1;
+}
+.screen .draftRow textarea {
+  min-height: 0;
+  resize: none;
+}
+/* 스킬: 여러 개 고르는 칩. 기본 다중 선택 목록 대신. */
+.skills {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.skills legend {
+  width: 100%;
+  margin-bottom: var(--space-2);
+}
+.screen .skills label {
+  flex-direction: row;
+  align-items: center;
+  gap: 0;
+  padding: 4px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: var(--caption-size);
+  user-select: none;
+}
+.skills input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.screen .skills .chipOn {
+  border-color: var(--primary);
+  background: var(--primary-bg);
+  color: var(--primary);
+  font-weight: 600;
+}
+.skills label:focus-within {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+/* 추천 결과: 후보마다 카드 하나 */
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: var(--space-4);
+  margin: var(--space-4) 0;
+}
+.resultCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--divider);
+  border-radius: var(--radius-panel);
+  background: var(--surface);
+  min-width: 0;
+}
+.cardHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+.cardHead h3 {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--body-size);
+}
+.rank {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--primary-bg);
+  color: var(--primary);
+  font-size: 12px;
+}
+.meta,
+.period {
+  margin: 2px 0 0;
+  color: var(--text-sub);
+  font-size: var(--caption-size);
+}
+.status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--caption-size);
+  color: var(--text-sub);
+}
+.picks {
+  display: flex;
+  gap: var(--space-4);
+  font-size: var(--caption-size);
+}
+.screen .picks label {
+  flex-direction: row;
+  align-items: center;
+  gap: var(--space-1);
+}
+.resultCard .actions {
+  margin: 0;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--divider);
+}
+.resultCard .actions button {
+  min-height: 32px;
+  padding: 0 10px;
+  font-size: var(--caption-size);
+}
+.screen label {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.screen input:not([type="checkbox"]),
+.screen select,
+.screen textarea {
+  width: 100%;
+  min-height: var(--control-height);
+  padding: var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+.screen input[type="checkbox"] {
+  accent-color: var(--primary);
+}
+.screen textarea {
+  min-height: 84px;
+  resize: vertical;
+}
+.screen [role="tab"][aria-selected="true"] {
+  background: var(--primary-bg);
+  color: var(--primary);
+  border-color: var(--primary);
+}
+.total {
+  display: block;
+  font-size: 22px;
+  white-space: nowrap;
+}
+.total small {
+  color: var(--text-sub);
+  font-size: var(--caption-size);
+  font-weight: 400;
+}
+.bars {
+  display: grid;
+  gap: 2px;
+  min-width: 180px;
+  font-size: var(--caption-size);
+}
+.bar {
+  display: grid;
+  grid-template-columns: 52px 1fr 48px;
+  align-items: center;
+  gap: var(--space-2);
+}
+.bar span {
+  color: var(--text-sub);
+}
+.bar i {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--divider);
+  overflow: hidden;
+}
+.bar b {
+  display: block;
+  height: 100%;
+  background: var(--primary);
+}
+.bar em {
+  font-style: normal;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.scores {
+  display: flex;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+.scores div {
+  min-width: 64px;
+}
+.scores dd {
+  margin: var(--space-1) 0;
+  font-weight: 600;
+}
+.scroll {
+  overflow-x: auto;
+  max-width: 100%;
+}
+.scroll table {
+  border-collapse: collapse;
+  width: 100%;
+}
+.scroll td,
+.scroll th {
+  height: 40px;
+  padding: 0 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--divider);
+  white-space: nowrap;
+}
+.scroll th {
+  background: var(--readonly-bg);
+  font-size: 13px;
+  font-weight: 600;
+}
+.comparison {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(240px, 1fr));
+  overflow-x: auto;
+  gap: var(--space-4);
+}
+.comparison article {
+  padding: var(--space-3);
+  border: 1px solid var(--divider);
+  border-radius: var(--radius-control);
+}
+.empty {
+  text-align: center;
+  padding: 48px 16px;
+  color: var(--text-sub);
+}
+@media (max-width: 767px) {
+  .screen {
+    font-size: 16px;
+  }
+  .panel {
+    padding: 16px;
+  }
+  .form {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .screen button,
+  .screen select,
+  .screen input:not([type="checkbox"]) {
+    min-height: 44px;
+    font-size: 16px;
+  }
+}
+
+.resultCard .actions > span {
+  margin-left: auto;
+  color: var(--text-sub);
+  font-size: var(--caption-size);
+}

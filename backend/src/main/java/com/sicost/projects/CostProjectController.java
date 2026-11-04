@@ -27,7 +27,8 @@ public class CostProjectController {
     }
     @GetMapping(value="/api/costs/projects",produces="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     public ResponseEntity<byte[]> downloadCostProjects(@RequestParam Map<String,String> q) {
-        return ResponseEntity.ok().contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+            .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
             .header(HttpHeaders.CONTENT_DISPOSITION,ContentDisposition.attachment()
                 .filename("프로젝트원가분석.xlsx",StandardCharsets.UTF_8).build().toString())
             .body(exports.download(CostProjectInput.query(q,clock)));

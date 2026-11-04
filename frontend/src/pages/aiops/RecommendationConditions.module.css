@@ -1,0 +1,104 @@
+.panel {
+  min-width: 0;
+  padding: 20px 24px;
+  border: 1px solid var(--divider);
+  border-radius: var(--radius-panel);
+  background: var(--surface);
+  display: grid;
+  gap: var(--space-4);
+}
+.panel form,
+.panel fieldset {
+  min-width: 0;
+  display: grid;
+  gap: var(--space-4);
+}
+.panel fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+.panel legend {
+  font-size: var(--section-size);
+  font-weight: var(--section-weight);
+  margin-bottom: var(--space-4);
+}
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--space-4);
+}
+.grid label {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--space-2);
+  font-size: var(--label-size);
+}
+.grid input,
+.grid select {
+  width: 100%;
+  min-width: 0;
+  min-height: var(--control-height);
+  padding: var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  color: var(--text);
+  background: var(--surface);
+}
+.grid [aria-invalid="true"] {
+  border-color: var(--danger);
+}
+.panel small[role="alert"] {
+  color: var(--danger);
+}
+.notice {
+  padding: 10px 16px;
+  color: var(--info);
+  background: var(--info-bg);
+  border-radius: var(--radius-panel);
+  font-size: var(--table-size);
+}
+.warning {
+  padding: 10px 16px;
+  color: var(--warning);
+  background: var(--warning-bg);
+  border-radius: var(--radius-panel);
+}
+.empty {
+  text-align: center;
+  padding: 48px 16px;
+  color: var(--text-sub);
+}
+.scroll {
+  min-width: 0;
+  overflow-x: auto;
+}
+.table {
+  composes: table from "../assignments/Assignments.module.css";
+  width: 100%;
+}
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+@media (max-width: 767px) {
+  .panel {
+    padding: var(--space-4);
+    font-size: 16px;
+  }
+  .grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .grid input,
+  .grid select,
+  .panel button {
+    min-height: 44px;
+    font-size: 16px;
+  }
+  .table {
+    min-width: 650px;
+  }
+}

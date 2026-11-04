@@ -30,6 +30,7 @@ public class PeopleController {
     public ResponseEntity<byte[]> downloadPeople(@RequestParam Map<String,String> parameters) {
         byte[] bytes = export.download(PeopleInput.query(parameters, clock));
         return ResponseEntity.ok()
+            .cacheControl(CacheControl.noStore())
             .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
             .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment()
                 .filename("개인원가수익.xlsx", StandardCharsets.UTF_8).build().toString()).body(bytes);

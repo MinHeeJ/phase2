@@ -13,11 +13,15 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.PlatformTransactionManager;
-import org.springframework.transaction.support.SimpleTransactionStatus;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.support.AbstractPlatformTransactionManager;
+import org.springframework.transaction.support.DefaultTransactionStatus;
 import static com.sicost.closingops.ClosingModels.*;
 import static org.mockito.Mockito.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -27,8 +31,20 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @WebMvcTest(controllers=ClosingController.class)
 @Import({RequestIdFilter.class,ApiExceptionHandler.class,ClosingService.class,ClosingHistoryService.class,
-    ClosingCheckService.class,ClosingCheckWriter.class,CurrentUser.class,PermissionService.class})
+    ClosingCheckService.class,ClosingCheckWriter.class,CurrentUser.class,PermissionService.class,ClosingApiTest.TransactionConfig.class})
 class ClosingApiTest {
+    @TestConfiguration
+    static class TransactionConfig {
+        @Bean PlatformTransactionManager transactions() {
+            // Mapper mocks need no resource transaction, but after-commit callbacks need Spring synchronization.
+            return new AbstractPlatformTransactionManager() {
+                @Override protected Object doGetTransaction() {return new Object();}
+                @Override protected void doBegin(Object transaction,TransactionDefinition definition) {}
+                @Override protected void doCommit(DefaultTransactionStatus status) {}
+                @Override protected void doRollback(DefaultTransactionStatus status) {}
+            };
+        }
+    }
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper json;
     @MockBean ClosingMapper mapper;
@@ -38,7 +54,7 @@ class ClosingApiTest {
     @MockBean CostAllocationService costs;
     @MockBean BillingGapService gaps;
     @MockBean Clock clock;
-    @MockBean PlatformTransactionManager transactions;
+
     List<Check> source;
     String status;
     List<String> closed;
@@ -48,7 +64,7 @@ class ClosingApiTest {
         source=new ArrayList<>();
         for(String code:List.of("SALARY_UPLOAD","MM_OVER","DISPATCH_ATT","BILL_UNCONFIRMED","TAX_INVOICE_NO","FIN_ENTRY","PART_SETTLE","PAYMENT"))source.add(new Check(code,"OK",0,"정상"));
         when(clock.withZone(any())).thenReturn(Clock.fixed(Instant.parse("2026-10-30T00:00:00Z"),ZoneId.of("Asia/Seoul")));
-        when(transactions.getTransaction(any())).thenAnswer(i->new SimpleTransactionStatus());
+
         when(mapper.status("2026-10")).thenAnswer(i->status);
         when(mapper.closedMonths()).thenAnswer(i->List.copyOf(closed));
         when(mapper.sourceChecks("2026-10")).thenAnswer(i->List.copyOf(source));

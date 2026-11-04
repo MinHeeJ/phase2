@@ -46,9 +46,16 @@ public class WorkforceForecastService implements CandidateForecastReader {
         return new UtilizationRead(confirmed,available,Math.toIntExact(idle));
     }
     private WorkforcePage forecast(Query q,boolean includeFinancialBaseline){
+        return forecast(q,includeFinancialBaseline,false,Map.of(),Map.of());
+    }
+    public WorkforcePage readNonSensitive(Query q,Map<Long,BigDecimal> wins,Map<Long,BigDecimal> extensions) {
+        return forecast(q,false,true,wins,extensions);
+    }
+    private WorkforcePage forecast(Query q,boolean includeFinancialBaseline,boolean nonSensitive,
+            Map<Long,BigDecimal> wins,Map<Long,BigDecimal> extensions){
         if(q.job()!=null&&!mapper.code(new CandidateFilter("JOB",q.job(),null)))throw OpportunityLifecycleInput.invalid("job");
         if(q.grade()!=null&&!mapper.code(new CandidateFilter("GRADE",q.grade(),null)))throw OpportunityLifecycleInput.invalid("grade");
-        var developers=mapper.developers(YearMonth.from(q.today()).toString());var leaves=mapper.leaves();
+        var developers=nonSensitive?mapper.nonSensitiveDevelopers():mapper.developers(YearMonth.from(q.today()).toString());var leaves=mapper.leaves();
         var assignments=mapper.assignments();var actual=mapper.assignmentMonths();var plans=mapper.plans();var needs=mapper.needs();var temporary=mapper.temporary();
         Set<Bucket> buckets=new TreeSet<>(Comparator.comparing(Bucket::job).thenComparing(Bucket::grade));
         developers.forEach(d->buckets.add(new Bucket(grade(d.job()),grade(d.grade()))));
@@ -75,6 +82,7 @@ public class WorkforceForecastService implements CandidateForecastReader {
                     if(!YearMonth.from(a.end()).isBefore(m))continue;
                     boolean next=own.stream().anyMatch(n->n.id()!=a.id()&&n.start().isAfter(a.end())&&!YearMonth.from(n.start()).isAfter(m));if(next)continue;
                     BigDecimal factor="H".equals(a.extension())?new BigDecimal("0.80"):"M".equals(a.extension())?new BigDecimal("0.50"):zero();
+                    if(extensions.containsKey(a.id()))factor=extensions.get(a.id()).movePointLeft(2);
                     BigDecimal last=actual.stream().filter(x->x.assignment()==a.id()&&x.month().equals(YearMonth.from(a.end()).toString())).map(AssignedMonth::mm).reduce(zero(),BigDecimal::add);
                     expected=expected.add(last.multiply(factor));
                 }
@@ -98,7 +106,7 @@ public class WorkforceForecastService implements CandidateForecastReader {
             }
             for(var n:needs){if(!n.job().equals(b.job())||!grade(n.grade()).equals(b.grade()))continue;
                 var start=YearMonth.parse(n.start());if(m.isBefore(start)||!m.isBefore(start.plusMonths(n.months())))continue;
-                demand=demand.add(BigDecimal.valueOf(n.people()).multiply(n.mm()).multiply(n.probability()).movePointLeft(2));}
+                demand=demand.add(BigDecimal.valueOf(n.people()).multiply(n.mm()).multiply(wins.getOrDefault(n.opportunity(),n.probability())).movePointLeft(2));}
             BigDecimal temp=temporary.stream().filter(t->t.job().equals(b.job())&&grade(t.grade()).equals(b.grade())&&month.compareTo(t.start())>=0&&month.compareTo(t.end())<=0)
                 .map(Temporary::mm).reduce(zero(),BigDecimal::add);
             BigDecimal remaining=supply.subtract(demand),shortage=positive(remaining.negate());
@@ -155,6 +163,10 @@ public class WorkforceForecastService implements CandidateForecastReader {
     public Page opportunityForecast(Map<String,String> filters){
         var q=OpportunityForecastInput.parse(filters,clock);
         var workforce=forecast(new Query(q.months(),q.job(),q.grade(),q.sort(),0,Integer.MAX_VALUE,q.today()));
+        var rows=new ArrayList<>(readRevenue(q));
+        return revenuePage(q,workforce,rows);
+    }
+    public List<RevenueMonth> readRevenue(Query q) {
         var projects=mapper.projects();var assignments=mapper.assignments();var actual=mapper.assignmentMonths();var opportunities=mapper.opportunities(q);
         List<RevenueMonth> rows=new ArrayList<>();
         for(String month:q.months()){
@@ -174,6 +186,9 @@ public class WorkforceForecastService implements CandidateForecastReader {
                 opportunityRevenue+=BigDecimal.valueOf(amount).multiply(o.probability()).movePointLeft(2).setScale(0,RoundingMode.DOWN).longValueExact();}
             rows.add(new RevenueMonth(month,projectRevenue,opportunityRevenue,projectRevenue+opportunityRevenue,projectRevenue+allWon));
         }
+        return List.copyOf(rows);
+    }
+    private Page revenuePage(Query q,WorkforcePage workforce,ArrayList<RevenueMonth> rows) {
         Comparator<RevenueMonth> order=switch(q.sort().split(",")[0]){case "project_revenue"->Comparator.comparingLong(RevenueMonth::project_revenue);case "opportunity_revenue"->Comparator.comparingLong(RevenueMonth::opportunity_revenue);case "weighted_total"->Comparator.comparingLong(RevenueMonth::weighted_total);case "all_won_total"->Comparator.comparingLong(RevenueMonth::all_won_total);default->Comparator.comparing(RevenueMonth::month);};
         if(q.sort().endsWith(",desc"))order=order.reversed();rows.sort(order.thenComparing(RevenueMonth::month));
         BigDecimal supply=zero(),demand=zero();for(var r:workforce.items()){supply=supply.add(r.supply_mm());demand=demand.add(r.demand_mm());}

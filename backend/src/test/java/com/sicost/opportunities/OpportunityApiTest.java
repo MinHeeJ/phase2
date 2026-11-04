@@ -83,6 +83,31 @@ class OpportunityApiTest {
         mvc.perform(get("/api/opportunities/100")).andExpect(status().isOk());verify(mapper,never()).insert(any());verify(mapper,never()).update(any());verify(mapper,never()).appendHistory(any());verify(mapper,never()).requestApproval(any());
     }
     @Test void emptyResultHasZeroTotalAndNoInventedRows()throws Exception{mvc.perform(get("/api/opportunities")).andExpect(jsonPath("$.data.items").isEmpty()).andExpect(jsonPath("$.data.total").value(0));}
+    @Test void weightedListUsesSamePerOpportunityRoundingAsPipeline()throws Exception {
+        var b=body();b.put("expc_amt",1);b.put("win_prblt_rt",60);b.put("amount_difference_reason","예상금액 협의 중");
+        create(b).andExpect(status().isOk());create(b).andExpect(status().isOk());
+        mvc.perform(get("/api/opportunities")).andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.total").value(2)).andExpect(jsonPath("$.data.kpi.weighted_amount").value(0));
+        var service=new OpportunityService(mapper,new CurrentUser(),Clock.fixed(Instant.parse("2026-10-22T15:01:00Z"),ZoneId.of("Asia/Seoul")),json);
+        assertThat(service.readPipeline(LocalDate.of(2026,10,23)).weightedAmount()).isZero();
+    }
+    @Test void inactiveCustomerCannotCreateHeaderOrHistory()throws Exception {
+        when(mapper.activeCustomer(1)).thenReturn(false);
+        error(create(body()),"cust_ptnr_id");verify(mapper,never()).nextId();verify(mapper,never()).insert(any());
+        assertThat(history).isEmpty();assertThat(requests).isEmpty();
+    }
+    @Test void inactivePartCannotCreateHeaderOrHistory()throws Exception {
+        when(mapper.activePart(1)).thenReturn(false);
+        error(create(body()),"bsn_part_id");verify(mapper,never()).insert(any());assertThat(history).isEmpty();
+    }
+    @Test void inactiveJobCannotCreateDetailOrApproval()throws Exception {
+        when(mapper.activeCode(new Code("JOB","BE"))).thenReturn(false);
+        error(create(body()),"needs[0].job_cd");verify(mapper,never()).insertNeed(any());assertThat(requests).isEmpty();
+    }
+    @Test void anonymousCannotForgeOpportunityOwner()throws Exception {
+        var b=body();b.put("owner_user_id",99);
+        error(create(b),"owner_user_id");verify(mapper,never()).insert(any());assertThat(history).isEmpty();
+    }
     @ParameterizedTest @CsvSource({"from,2026-13","to,2026-00","bsn_stg_cd,WON","oppt_stts_cd,DELETED","sort,'salary,desc'","page,-1","size,10","cust_ptnr_id,0","unknown,x"})
     void invalidListFiltersDoNotReadOrWrite(String key,String value)throws Exception{error(mvc.perform(get("/api/opportunities").param(key,value)),key);verifyNoInteractions(mapper);}
     @Test void detailRejectsUndeclaredMonthQueryAndNonPositiveId()throws Exception{error(mvc.perform(get("/api/opportunities/100").param("from","2026-13")),"from");error(mvc.perform(get("/api/opportunities/0")),"id");verifyNoInteractions(mapper);}

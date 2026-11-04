@@ -326,7 +326,9 @@ export default function UI18Screen({
         <>
           {comparison.warnings.map((w, i) => (
             <div key={w} data-testid={`business-plan-warning-${i}`}>
-              <Badge tone="warning">{w}</Badge>
+              <Badge tone="warning">
+                {w.replace(/^[A-Z][A-Z0-9_]+(?::\s*|\s*·\s*)/, "")}
+              </Badge>
             </div>
           ))}
           {plans.items.length === 0 && (

@@ -94,6 +94,21 @@ class CandidateApiTest {
         assertThat(histories).allMatch(h -> h.actor()==null && h.type().equals("INSERT"));
     }
     @Test void duplicateNamesNeverLinkToDeveloperAndAllocateDifferentIds() throws Exception {create(body());create(body());assertThat(rows.keySet()).containsExactly(1L,2L);assertThat(rows.values()).extracting(CandidateRow::cand_no).containsExactly("CAND-0001","CAND-0002");assertThat(rows.values()).allMatch(r -> r.dev_id()==null);}
+    @Test void insertReturnedKeyOwnsChildrenAuditAndReadbackWithoutListLookup() throws Exception {
+        doAnswer(i -> {
+            var w=i.getArgument(0,CandidateInsert.class);
+            rows.put(41L,row(41,w.no(),w.input(),null));return 41L;
+        }).when(mapper).insert(any());
+        create(body()).andExpect(status().isOk()).andExpect(jsonPath("$.data.cand_id").value(41))
+            .andExpect(jsonPath("$.data.skill[0]").value("JAVA"));
+        var order=inOrder(mapper);
+        order.verify(mapper).insert(any());
+        order.verify(mapper).insertSkill(new CandidateChild(41,"JAVA"));
+        order.verify(mapper,atLeastOnce()).appendHistory(any());
+        order.verify(mapper).row(41);
+        verify(mapper,never()).row(1);verify(mapper,never()).list(any());
+        assertThat(histories).allMatch(h -> h.id().equals("41"));
+    }
     @Test void missingOsVendorRejectedBeforeInsert() throws Exception {var b=body();b.put("cand_se_cd","OS");error(create(b),"vndr_ptnr_id");untouched();}
     @Test void inactiveOrCustomerOnlyVendorRejectedBeforeInsert() throws Exception {when(mapper.activeVendor(10)).thenReturn(false);var b=body();b.put("cand_se_cd","OS");b.put("vndr_ptnr_id",10);error(create(b),"vndr_ptnr_id");untouched();}
     @Test void negativePriceRejectedBeforeInsert() throws Exception {var b=body();b.put("hope_untprc_amt",-1);error(create(b),"hope_untprc_amt");untouched();}
@@ -118,6 +133,25 @@ class CandidateApiTest {
     @ParameterizedTest @ValueSource(strings={"cand_nm","job_cd","avail_dt"})
     void missingUpdateFieldLeavesOriginalAndHistory(String field) throws Exception {create(body());var original=rows.get(1L);histories.clear();var b=body();b.remove(field);error(update(b),field);assertThat(rows.get(1L)).isEqualTo(original);assertThat(histories).isEmpty();verify(mapper,never()).update(any());}
     @Test void negativeUpdatePriceLeavesOriginalAndHistory() throws Exception {create(body());histories.clear();var b=body();b.put("hope_untprc_amt",-1);error(update(b),"hope_untprc_amt");assertThat(rows.get(1L).hope_untprc_amt()).isZero();assertThat(histories).isEmpty();}
+    @Test void invalidUpdateCodePreservesOriginalSkillsAndHistory() throws Exception {
+        create(body());var original=rows.get(1L);histories.clear();clearInvocations(mapper);
+        when(mapper.activeCode(new CandidateCode("SKILL","JAVA"))).thenReturn(false);
+        error(update(body()),"skill");
+        assertThat(rows.get(1L)).isEqualTo(original);assertThat(skills.get(1L)).containsExactly("JAVA");
+        assertThat(histories).isEmpty();untouched();verify(mapper,never()).deleteSkills(anyLong());
+    }
+    @Test void invalidUpdateVendorPreservesOriginalAndHistory() throws Exception {
+        create(body());var original=rows.get(1L);histories.clear();clearInvocations(mapper);
+        when(mapper.activeVendor(10)).thenReturn(false);
+        var b=body();b.put("cand_se_cd","OS");b.put("vndr_ptnr_id",10);
+        error(update(b),"vndr_ptnr_id");assertThat(rows.get(1L)).isEqualTo(original);
+        assertThat(histories).isEmpty();untouched();
+    }
+    @Test void unchangedUpdateDoesNotReplaceSkillsOrAppendHistory() throws Exception {
+        create(body());histories.clear();clearInvocations(mapper);
+        update(body()).andExpect(status().isOk()).andExpect(jsonPath("$.data.cand_no").value("CAND-0001"));
+        untouched();verify(mapper,never()).deleteSkills(anyLong());assertThat(histories).isEmpty();
+    }
     @Test void latestContactStatusCannotBeOverwrittenByGenericPut() throws Exception {
         create(body());var old=rows.get(1L);var s=old.input(List.of("JAVA"));
         rows.put(1L,new CandidateRow(1,old.cand_no(),old.cand_nm(),old.cand_se_cd(),null,old.job_cd(),null,0L,old.avail_dt(),"INTV",null,null,null,"Y",null,LocalDate.of(2026,10,20),old.created_at()));

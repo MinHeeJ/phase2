@@ -429,7 +429,7 @@ export default function UI21Screen({
         </>
       )}
       <h2>기타 수입·대여금</h2>
-      <p>대여금 상환은 지급 관리에서 LOAN_REPAY 유형으로 등록합니다.</p>
+      <p>대여금 상환은 지급 관리에서 '대여금 상환' 유형으로 등록합니다.</p>
       <ErrorBanner
         error={inflows.error}
         onRetry={() => void inflows.reload().catch(() => {})}

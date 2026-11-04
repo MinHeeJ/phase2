@@ -415,7 +415,8 @@ export default function WorkforceDemandScreen({
         !read.error &&
         read.data && (
           <>
-            {read.data.total === 0 ? (
+            {read.data.workforce.months.length === 0 ||
+            (read.data.total === 0 && read.data.workforce.total === 0) ? (
               <EmptyState
                 reason={
                   read.data.workforce.message ??
@@ -432,8 +433,8 @@ export default function WorkforceDemandScreen({
             )}
             <Pagination
               page={(filters.page ?? 0) + 1}
-              size={50}
-              total={read.data.total}
+              size={filters.size ?? 50}
+              total={Math.max(read.data.total, read.data.workforce.total)}
               onPage={(page) => setFilters({ ...filters, page: page - 1 })}
               onSize={(size) => setFilters({ ...filters, size, page: 0 })}
             />

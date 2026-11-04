@@ -5,6 +5,7 @@ import { useAdminRead } from "../admin/useAdminResource";
 import { useCodes } from "../shared/useCodes";
 import { getCandidateShortages, type CandidateShortageFilters } from "./client";
 import styles from "../developers/Developers.module.css";
+import shortageStyles from "./CandidateShortages.module.css";
 
 export interface CandidateShortageSelection {
   job: string;
@@ -55,19 +56,15 @@ export function CandidateShortagesPanel({
                 <thead>
                   <tr>
                     <th>직무</th>
-                    <th>등급</th>
-                    <th>6개월 최대 부족</th>
-                    <th>최대 부족 인원</th>
-                    <th>첫 부족월</th>
-                    <th>채용 권장월</th>
-                    <th>후보 수</th>
-                    <th>바로가기</th>
+                    <th>부족 시작</th>
+                    <th>가장 많이 부족</th>
+                    <th>그때까지 투입 가능한 후보</th>
                   </tr>
                 </thead>
                 <tbody>
                   {read.data.items.length === 0 ? (
                     <tr>
-                      <td className={styles.empty} colSpan={8}>
+                      <td className={styles.empty} colSpan={4}>
                         조건에 맞는 부족 직무가 없습니다.
                       </td>
                     </tr>
@@ -77,20 +74,31 @@ export function CandidateShortagesPanel({
                         key={`${row.job_cd}-${row.grd_cd ?? ""}`}
                         data-testid={`candidate-shortage-${row.job_cd.toLowerCase()}-${(row.grd_cd || "none").toLowerCase()}`}
                       >
-                        <td>{name(row.job_cd, jobs)}</td>
-                        <td>{name(row.grd_cd, grades)}</td>
-                        <td className={styles.amount}>
+                        <td>
+                          {name(row.job_cd, jobs)}
+                          <div className={styles.help}>
+                            {name(row.grd_cd, grades)}
+                          </div>
+                        </td>
+                        <td>
+                          {row.first_shortage_month}
+                          <div className={styles.help}>
+                            채용 권장:{" "}
+                            {row.review_immediately
+                              ? "즉시 검토"
+                              : row.recommended_hiring_month}
+                          </div>
+                        </td>
+                        <td
+                          className={`${styles.amount} ${shortageStyles.shortage}`}
+                        >
                           {row.maximum_shortage_mm.toFixed(2)} MM
+                          <div>
+                            최대 <span>{row.maximum_shortage_people}명</span>
+                          </div>
                         </td>
-                        <td>{row.maximum_shortage_people}명</td>
-                        <td>{row.first_shortage_month}</td>
                         <td>
-                          {row.review_immediately
-                            ? "즉시 검토"
-                            : row.recommended_hiring_month}
-                        </td>
-                        <td>{row.candidate_count}명</td>
-                        <td>
+                          <span>{row.candidate_count}명</span>{" "}
                           <Button
                             small
                             data-testid={`candidate-shortage-open-${row.job_cd.toLowerCase()}-${(row.grd_cd || "none").toLowerCase()}`}
@@ -102,7 +110,7 @@ export function CandidateShortagesPanel({
                               })
                             }
                           >
-                            외부 후보 보기
+                            후보 보기
                           </Button>
                         </td>
                       </tr>

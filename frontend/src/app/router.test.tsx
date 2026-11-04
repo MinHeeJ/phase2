@@ -103,6 +103,40 @@ beforeEach(() => {
   });
   fetcher = vi.fn(async (url: string, init?: RequestInit) => {
     if (url === "/api/menus") return response(menus);
+    if (url.startsWith("/api/ai/staff-recommendation/options"))
+      return response({
+        sources: [
+          {
+            sourceId: 701,
+            sourceType: "PROJECT",
+            projectId: 9,
+            criteria: { jobCode: "BE", startYm: "2026-11", headcount: 1 },
+            remainingHeadcount: 1,
+          },
+        ],
+        developers: [
+          {
+            devId: 81,
+            exitDate: null,
+            assumedExitYm: null,
+            extensionLikelihood: "H",
+            hasNextConfirmedAssignment: true,
+          },
+        ],
+        jobCodes: ["BE"],
+        gradeCodes: [],
+        skillCodes: [],
+        defaultStartYm: "2026-11",
+      });
+    if (url === "/api/ai/analysis/capabilities")
+      return response({
+        intents: [],
+        modelStatus: "연결불가",
+        suggestedQuestions: [],
+        modelUsed: false,
+      });
+    if (url.startsWith("/api/ai/analysis/conversations?"))
+      return response({ items: [], total: 0, page: 0, size: 50 });
     if (url === "/api/dashboard" || url.startsWith("/api/dashboard?"))
       return response(
         dashboardFixture(
@@ -311,6 +345,87 @@ afterEach(() => {
 });
 
 describe("application route registration", () => {
+  it("registers UI-30 with source-prefilled conditions and no automatic search or assignment", async () => {
+    mount("/UI-30?sourceId=701#project-to-person");
+    expect(
+      await screen.findByTestId("staff-recommendations-screen"),
+    ).toHaveAttribute("data-screen-id", "SCR-UI-30");
+    await waitFor(() =>
+      expect(screen.getByTestId("recommendation-source")).toHaveValue("701"),
+    );
+    expect(screen.getByTestId("criteria-job")).toHaveValue("BE");
+    expect(screen.getByTestId("criteria-start")).toHaveValue("2026-11");
+    expect(screen.getByTestId("recommendation-run")).toBeEnabled();
+    expect(screen.getAllByLabelText("열린 화면")).toHaveLength(1);
+    expect(
+      fetcher.mock.calls.some(([url]) => url.includes("options?sourceId=701")),
+    ).toBe(true);
+    expect(
+      fetcher.mock.calls.every(
+        ([, init]) => !init?.method || init.method === "GET",
+      ),
+    ).toBe(true);
+  });
+  it("registers the developer handoff on the existing UI-30 B tab", async () => {
+    mount("/UI-30?devId=81#person-to-position");
+    await waitFor(() =>
+      expect(screen.getByTestId("next-developer")).toHaveValue("81"),
+    );
+    expect(
+      screen.getByRole("tab", { name: "개발자 → 다음 자리" }),
+    ).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByTestId("assumed-exit-month")).toBeRequired();
+    expect(screen.getAllByTestId("staff-recommendations-screen")).toHaveLength(
+      1,
+    );
+  });
+  it("registers UI-26 with its real clients and exposes structured fallback without a model", async () => {
+    mount("/UI-26");
+    expect(await screen.findByTestId("analysis-screen")).toHaveAttribute(
+      "data-screen-id",
+      "SCR-UI-26",
+    );
+    await screen.findByText("표시할 대화가 없습니다.");
+    fireEvent.click(screen.getByTestId("analysis-structured-open"));
+    expect(screen.getByTestId("analysis-structured-panel")).toHaveTextContent(
+      "모델 없이 실제 자료 조회",
+    );
+    expect(screen.getByTestId("analysis-run")).toBeDisabled();
+    expect(screen.getAllByLabelText("열린 화면")).toHaveLength(1);
+    expect(
+      fetcher.mock.calls.some(
+        ([url]) => url === "/api/ai/analysis/capabilities",
+      ),
+    ).toBe(true);
+    expect(
+      fetcher.mock.calls.every(
+        ([, init]) => !init?.method || init.method === "GET",
+      ),
+    ).toBe(true);
+  });
+  it("keeps AI source failures visible through the registered recommendation route", async () => {
+    const original = fetcher.getMockImplementation()!;
+    fetcher.mockImplementation((url: string, init?: RequestInit) =>
+      url.startsWith("/api/ai/staff-recommendation/options")
+        ? Promise.resolve(
+            new Response(
+              JSON.stringify({
+                success: false,
+                meta: {},
+                code: "FORBIDDEN",
+                message: "AI 접근 제한",
+                requestId: "test-denied",
+              }),
+              { status: 403 },
+            ),
+          )
+        : original(url, init),
+    );
+    mount("/UI-30");
+    expect(await screen.findByRole("alert")).toHaveTextContent("AI 접근 제한");
+    expect(screen.getByTestId("recommendation-run")).toBeDisabled();
+    expect(screen.getByTestId("options-retry")).toBeEnabled();
+  });
   it.each(["/", "/UI-16"])(
     "renders the real dashboard once through %s and retains its fixed tab",
     async (path) => {
@@ -466,11 +581,15 @@ describe("application route registration", () => {
           name:
             id === "UI-27"
               ? /공통코드/
-              : id === "UI-32"
-                ? /개발자 등록/
-                : id === "UI-33"
-                  ? /프로젝트 등록/
-                  : id,
+              : id === "UI-26"
+                ? "AI 분석 도우미"
+                : id === "UI-30"
+                  ? "AI 인력 추천"
+                  : id === "UI-32"
+                    ? /개발자 등록/
+                    : id === "UI-33"
+                      ? /프로젝트 등록/
+                      : id,
         }),
       ).toBeInTheDocument();
       expect(screen.getAllByLabelText("열린 화면")).toHaveLength(1);

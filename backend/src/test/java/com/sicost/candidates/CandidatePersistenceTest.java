@@ -78,6 +78,25 @@ class CandidatePersistenceTest {
         long id=create(body()).row().cand_id();String before=snapshot();var b=body();if(field.equals("hope_untprc_amt"))b.put(field,-1);else b.remove(field);
         mvc.perform(put("/api/candidates/{id}",id).contentType("application/json").content(json.writeValueAsString(b))).andExpect(status().isBadRequest()).andExpect(jsonPath("$.field").value(field));assertThat(snapshot()).isEqualTo(before);
     }
+    @ParameterizedTest @ValueSource(strings={"hr.cand_skl","sys.data_chg_hist"})
+    void updateChildOrAuditFailureRollsBackParentSkillsAndHistory(String table) {
+        long id=create(body()).row().cand_id();String before=snapshot(),sources=isolatedSources();
+        sql("ALTER TABLE "+table+" ADD CONSTRAINT reject_update CHECK(false) NOT VALID");
+        var b=body();b.put("cand_nm","변경 후보");b.put("hope_untprc_amt",2000000);
+        b.put("avail_dt","2026-12-01");b.put("skill",List.of("JAVA","SPRING"));
+        assertThatThrownBy(() -> service.update(id,CandidateInput.parse(json.valueToTree(b))))
+            .isInstanceOf(RuntimeException.class);
+        assertThat(snapshot()).isEqualTo(before);assertThat(isolatedSources()).isEqualTo(sources);
+    }
+    @Test void inactiveCandidateIsAbsentFromListDetailAndUpdateWithoutWrites() throws Exception {
+        long id=create(body()).row().cand_id();sql("UPDATE hr.cand SET use_yn='N' WHERE cand_id=?",id);
+        String before=snapshot();assertThat(service.list(Map.of()).total()).isZero();
+        assertThat(service.list(Map.of()).items()).isEmpty();
+        mvc.perform(get("/api/candidates/{id}",id)).andExpect(status().isNotFound());
+        mvc.perform(put("/api/candidates/{id}",id).contentType("application/json").content(json.writeValueAsString(body())))
+            .andExpect(status().isNotFound());
+        assertThat(snapshot()).isEqualTo(before);
+    }
     @Test void updatePreservesLatestDateTimeIdContactOrderingConversionAndOtherSources() throws Exception {
         long id=create(body()).row().cand_id();
         sql("INSERT INTO hr.cand_cntct_hist(cand_id,cntct_dt,cntct_stts_cd,memo_desc,created_at) VALUES(?,'2026-10-20','DONE','earlier','2026-10-21'),(?,'2026-10-20','HOLD','later','2026-10-22'),(?,'2026-10-20','INTV','tie winner','2026-10-22'),(?,'2026-10-01','NONE','backdated','2026-10-23')",id,id,id,id);

@@ -1,4 +1,5 @@
-import { api, ApiFailure, readData } from "../../shared/api";
+import { api, readData } from "../../shared/api";
+import { downloadCostWorkbook } from "../costsops/costWorkbook";
 import { seoulMonth } from "../shared/PeriodBar";
 import type { AllocationRow } from "../costsops/client";
 
@@ -151,38 +152,5 @@ export const simulateCostProject = async (id: number, input: SimulationInput) =>
     })
   ).data!;
 export async function downloadCostProjects(filters: CostProjectFilters) {
-  const response = await fetch(
-    `/api/costs/projects?${costProjectQuery(filters)}`,
-    {
-      headers: {
-        Accept:
-          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      },
-    },
-  );
-  if (!response.ok) {
-    const error = await response.json();
-    throw new ApiFailure(
-      error.message,
-      response.status,
-      error.requestId,
-      error.field,
-      error.code,
-    );
-  }
-  if (!response.headers.get("Content-Type")?.includes("spreadsheetml.sheet"))
-    throw new ApiFailure(
-      "엑셀 파일을 확인할 수 없습니다.",
-      response.status,
-      null,
-    );
-  const url = URL.createObjectURL(await response.blob());
-  try {
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "프로젝트원가분석.xlsx";
-    link.click();
-  } finally {
-    URL.revokeObjectURL(url);
-  }
+  await downloadCostWorkbook("projects", costProjectQuery(filters));
 }

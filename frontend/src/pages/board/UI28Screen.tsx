@@ -170,7 +170,6 @@ export default function UI28Screen({
           이전 해
         </Button>
         <strong>{filters.year}년</strong>
-        <Badge tone="neutral">YEAR</Badge>
         <Button
           data-testid="board-year-next"
           disabled={filters.year >= 9999}

@@ -64,7 +64,10 @@ public class CandidateContactService {
         var skills=merged.putArray("skill");mapper.skills(id).forEach(skills::add);
         var developer=developers.create(DeveloperInput.parse(merged,false));
         long developerId=developer.item().dev_id();
-        if(mapper.convert(new ConversionWrite(id,developerId,user.userId()))!=1)throw alreadyConverted();
+        var link=new ConversionWrite(id,developerId,user.userId());
+        if(mapper.linkDeveloper(link)!=1 || mapper.convert(link)!=1)throw alreadyConverted();
+        codes.appendHistory(new DeveloperModels.DeveloperHistory(Long.toString(developerId),"UPDATE",
+            "src_cand_id",null,Long.toString(id),user.userId()));
         audit(id,"dev_id",null,developerId);audit(id,"cntct_stts_cd",before.cntct_stts_cd(),"SIGNED");
         return new ConversionResult(detail(id),developer);
     }

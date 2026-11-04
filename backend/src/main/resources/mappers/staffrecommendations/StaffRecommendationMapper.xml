@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sicost.staffrecommendations.StaffRecommendationMapper">
+  <resultMap id="person" type="com.sicost.staffrecommendations.StaffRecommendationModels$Person"><constructor>
+    <arg column="id" javaType="_long"/><arg column="document" javaType="string"/>
+  </constructor></resultMap>
+  <resultMap id="stored" type="com.sicost.staffrecommendations.StaffRecommendationModels$Stored"><constructor>
+    <arg column="id" javaType="_long"/><arg column="owner" javaType="string"/>
+    <arg column="document" javaType="string"/><arg column="created_at" javaType="java.time.LocalDateTime"/>
+  </constructor></resultMap>
+  <resultMap id="state" type="com.sicost.staffrecommendations.StaffRecommendationModels$ResultState"><constructor>
+    <arg column="id" javaType="_long"/><arg column="request_id" javaType="_long"/><arg column="dev_id" javaType="_long"/>
+    <arg column="decision" javaType="string"/><arg column="reason" javaType="string"/>
+    <arg column="asgn_id" javaType="java.lang.Long"/><arg column="tmpr_asgn_id" javaType="java.lang.Long"/>
+  </constructor></resultMap>
+  <select id="people" resultMap="person" useCache="false" flushCache="true">
+    SELECT d.dev_id AS id,jsonb_build_object('job',d.main_job_cd,'grade',d.grd_cd,'enabled',d.use_yn='Y',
+      'resign',d.rsgn_dt,'hire',d.hire_dt,
+      'jobs',coalesce((SELECT jsonb_agg(j.job_cd ORDER BY j.job_cd) FROM mst.dev_sub_job j WHERE j.dev_id=d.dev_id),'[]'::jsonb),
+      'skills',coalesce((SELECT jsonb_agg(k.skl_cd ORDER BY k.skl_cd) FROM mst.dev_skl k WHERE k.dev_id=d.dev_id),'[]'::jsonb),
+      'leaves',coalesce((SELECT jsonb_agg(jsonb_build_object('code',h.work_stts_cd,'start',h.bgn_dt,'end',h.end_dt) ORDER BY h.bgn_dt,h.work_stts_hist_id)
+        FROM mst.dev_work_stts_hist h WHERE h.dev_id=d.dev_id),'[]'::jsonb),
+      'assignments',coalesce((SELECT jsonb_agg(jsonb_build_object('id',a.asgn_id,'projectId',a.prj_id,'projectName',p.prj_nm,
+        'customerId',p.cust_ptnr_id,'industry',p.indty_cd,'job',a.job_cd,'start',a.bgn_dt,'end',a.end_dt,'status',a.asgn_stts_cd,
+        'extension',a.ext_psblty_cd,'extended',EXISTS(SELECT 1 FROM asgn.asgn_chg_hist h WHERE h.asgn_id=a.asgn_id AND h.asgn_chg_ty_cd='EXTEND' AND h.fixed_yn='N'),
+        'early',EXISTS(SELECT 1 FROM asgn.asgn_chg_hist h WHERE h.asgn_id=a.asgn_id AND h.asgn_chg_ty_cd='EARLY_END' AND h.fixed_yn='N'),
+        'months',coalesce((SELECT jsonb_agg(jsonb_build_object('month',m.work_ym,'mm',m.mm_qty) ORDER BY m.work_ym) FROM asgn.asgn_mth m WHERE m.asgn_id=a.asgn_id),'[]'::jsonb)) ORDER BY a.bgn_dt,a.asgn_id)
+        FROM asgn.asgn a JOIN prj.prj p ON p.prj_id=a.prj_id WHERE a.dev_id=d.dev_id AND a.asgn_stts_cd!='CANCELLED'),'[]'::jsonb),
+      'temporary',coalesce((SELECT jsonb_agg(jsonb_build_object('id',t.tmpr_asgn_id,'start',t.bgn_ym,'end',coalesce(t.end_ym,to_char(to_date(n.bgn_ym,'YYYY-MM')+(n.mnth_qty-1)*interval '1 month','YYYY-MM')),'mm',t.mm_qty) ORDER BY t.tmpr_asgn_id)
+        FROM asgn.tmpr_asgn t JOIN bsn.oppt_need n ON n.need_id=t.need_id WHERE t.dev_id=d.dev_id AND t.tmpr_asgn_stts_cd='ACTIVE'),'[]'::jsonb))::text AS document
+    FROM mst.dev d ORDER BY d.dev_id
+  </select>
+  <select id="career" resultType="string">
+    SELECT coalesce(jsonb_agg(jsonb_build_object('projectId',p.prj_id,'projectName',p.prj_nm,'startDate',a.bgn_dt,
+      'endDate',a.end_dt,'jobCode',a.job_cd,
+      'skillCodes',coalesce((SELECT jsonb_agg(k.skl_cd ORDER BY k.skl_cd) FROM prj.prj_skl k WHERE k.prj_id=p.prj_id),'[]'::jsonb),
+      'monthByMonthMm',coalesce((SELECT jsonb_agg(jsonb_build_object('month',m.work_ym,'mm',m.mm_qty) ORDER BY m.work_ym) FROM asgn.asgn_mth m WHERE m.asgn_id=a.asgn_id),'[]'::jsonb)) ORDER BY a.bgn_dt,a.asgn_id),'[]'::jsonb)::text
+    FROM asgn.asgn a JOIN prj.prj p ON p.prj_id=a.prj_id WHERE a.dev_id=#{devId} AND a.asgn_stts_cd!='CANCELLED'
+  </select>
+  <select id="grades" resultType="string">SELECT dtl_cd FROM cmn.cd_dtl WHERE cd_grp_id='GRADE' AND use_yn='Y' ORDER BY sort_seq,dtl_cd</select>
+  <select id="codes" resultType="string">SELECT dtl_cd FROM cmn.cd_dtl WHERE cd_grp_id=#{group} AND use_yn='Y' ORDER BY sort_seq,dtl_cd</select>
+  <select id="customerExists" resultType="boolean">SELECT EXISTS(SELECT 1 FROM mst.ptnr WHERE ptnr_id=#{id} AND use_yn='Y')</select>
+  <select id="hasCostEvidence" resultType="boolean">SELECT EXISTS(SELECT 1 FROM cst.mth_cst WHERE dev_id=#{devId})</select>
+  <select id="syntheticCost" resultType="string">
+    SELECT jsonb_build_object('cost',c.indv_lbr_cst_amt,'price',d.dflt_untprc_amt)::text FROM cst.mth_cst c JOIN mst.dev d ON d.dev_id=c.dev_id
+    WHERE c.dev_id=#{devId} AND c.cst_ym=#{month}
+  </select>
+  <select id="fingerprint" resultType="string" useCache="false" flushCache="true">
+    SELECT md5(concat(
+      (SELECT jsonb_agg(jsonb_build_array(dev_id,main_job_cd,grd_cd,use_yn,rsgn_dt,hire_dt,updated_at) ORDER BY dev_id)::text FROM mst.dev),
+      (SELECT jsonb_agg(to_jsonb(t) ORDER BY dev_id,job_cd)::text FROM mst.dev_sub_job t),
+      (SELECT jsonb_agg(to_jsonb(t) ORDER BY dev_id,skl_cd)::text FROM mst.dev_skl t),
+      (SELECT jsonb_agg(jsonb_build_array(dev_id,work_stts_cd,bgn_dt,end_dt) ORDER BY work_stts_hist_id)::text FROM mst.dev_work_stts_hist),
+      (SELECT jsonb_agg(jsonb_build_array(asgn_id,dev_id,prj_id,job_cd,bgn_dt,end_dt,asgn_stts_cd,ext_psblty_cd,updated_at) ORDER BY asgn_id)::text FROM asgn.asgn),
+      (SELECT jsonb_agg(to_jsonb(t) ORDER BY asgn_id,work_ym)::text FROM asgn.asgn_mth t),
+      (SELECT jsonb_agg(jsonb_build_array(tmpr_asgn_id,need_id,dev_id,bgn_ym,end_ym,mm_qty,tmpr_asgn_stts_cd) ORDER BY tmpr_asgn_id)::text FROM asgn.tmpr_asgn),
+      (SELECT jsonb_agg(jsonb_build_array(prj_id,prj_stts_cd,use_yn,cust_ptnr_id,indty_cd,updated_at) ORDER BY prj_id)::text FROM prj.prj),
+      (SELECT jsonb_agg(jsonb_build_array(psn_plan_id,prj_id,plan_ym,job_cd,grd_cd,need_mm_qty,need_psn_cnt,updated_at) ORDER BY psn_plan_id)::text FROM prj.psn_plan),
+      (SELECT jsonb_agg(jsonb_build_array(need_id,oppt_id,job_cd,grd_cd,psn_cnt,bgn_ym,mnth_qty,mth_mm_qty,use_yn,updated_at) ORDER BY need_id)::text FROM bsn.oppt_need),
+      (SELECT jsonb_agg(jsonb_build_array(oppt_id,oppt_stts_cd,cust_ptnr_id,win_prblt_rt,updated_at) ORDER BY oppt_id)::text FROM bsn.oppt)))
+  </select>
+  <select id="nextRequestId" resultType="long" useCache="false" flushCache="true">SELECT nextval('ai.seq_rcmd_rqst_id')</select>
+  <select id="nextResultId" resultType="long" useCache="false" flushCache="true">
+    <choose><when test="direction == 'PERSON_TO_POSITION'">SELECT nextval('ai.seq_rcmd_next_rslt_id')</when><otherwise>SELECT nextval('ai.seq_rcmd_rslt_id')</otherwise></choose>
+  </select>
+  <insert id="insertRequest">
+    INSERT INTO ai.rcmd_rqst(rcmd_rqst_id,session_key_hash,rqst_ty_cd,prj_id,need_id,cond,scr_wght,rqst_at)
+    VALUES(#{id},#{owner},#{type},#{projectId},#{needId},cast(#{document} AS jsonb),cast(#{weights} AS jsonb),#{at})
+  </insert>
+  <sql id="scores">#{scores.total},#{scores.job_scr},#{scores.skl_scr},#{scores.cust_scr},#{scores.grd_scr},#{scores.achv_scr},#{scores.exp_scr},#{scores.asgn_psbl_scr}</sql>
+  <insert id="insertA">
+    INSERT INTO ai.rcmd_rslt(rcmd_rslt_id,rcmd_rqst_id,dev_id,rank_no,tot_scr,job_scr,skl_scr,cust_scr,grd_scr,achv_scr,exp_scr,asgn_psbl_scr,rcmd_rsn_desc)
+    VALUES(#{id},#{requestId},#{devId},#{rank},<include refid="scores"/>,#{reason})
+  </insert>
+  <insert id="insertB">
+    INSERT INTO ai.rcmd_next_rslt(rcmd_next_rslt_id,rqst_id,dev_id,prj_id,psn_plan_id,need_id,rank_seq,tot_scr,job_scr,skl_scr,cust_scr,grd_scr,achv_scr,exp_scr,asgn_psbl_scr,reason_desc,warnings)
+    VALUES(#{id},#{requestId},#{devId},#{projectId},#{planId},#{needId},#{rank},<include refid="scores"/>,#{reason},cast(#{warnings} AS jsonb))
+  </insert>
+  <select id="request" resultMap="stored">SELECT rcmd_rqst_id AS id,session_key_hash AS owner,cond::text AS document,rqst_at AS created_at FROM ai.rcmd_rqst WHERE rcmd_rqst_id=#{id}</select>
+  <select id="history" resultMap="stored">
+    SELECT rcmd_rqst_id AS id,session_key_hash AS owner,cond::text AS document,rqst_at AS created_at FROM ai.rcmd_rqst
+    WHERE session_key_hash=#{owner}
+    <if test="direction != null">AND cond-&gt;&gt;'direction'=#{direction}</if>
+    <if test="search != null">AND position(lower(#{search}) in lower((cond-&gt;'criteria')::text))&gt;0</if>
+    <if test="fromYm != null">AND to_char(rqst_at,'YYYY-MM')&gt;=#{fromYm}</if>
+    <if test="toYm != null">AND to_char(rqst_at,'YYYY-MM')&lt;=#{toYm}</if>
+    <if test="decisionStatus != null">AND (
+      (cond-&gt;&gt;'direction'='PROJECT_TO_PERSON' AND EXISTS(SELECT 1 FROM ai.rcmd_rslt s WHERE s.rcmd_rqst_id=rcmd_rqst.rcmd_rqst_id AND CASE WHEN s.rcmd_dcsn_cd='NONE' THEN 'PENDING' ELSE s.rcmd_dcsn_cd END=#{decisionStatus})) OR
+      (cond-&gt;&gt;'direction'='PERSON_TO_POSITION' AND EXISTS(SELECT 1 FROM ai.rcmd_next_rslt s WHERE s.rqst_id=rcmd_rqst.rcmd_rqst_id AND s.decision_cd=#{decisionStatus})))</if>
+    ORDER BY rqst_at DESC,rcmd_rqst_id DESC
+  </select>
+  <sql id="stateSelect"><choose><when test="direction == 'PERSON_TO_POSITION'">
+    SELECT rcmd_next_rslt_id AS id,rqst_id AS request_id,dev_id,decision_cd AS decision,reject_rsn_desc AS reason,asgn_id,tmpr_asgn_id FROM ai.rcmd_next_rslt
+  </when><otherwise>
+    SELECT rcmd_rslt_id AS id,rcmd_rqst_id AS request_id,dev_id,CASE WHEN rcmd_dcsn_cd='NONE' THEN 'PENDING' ELSE rcmd_dcsn_cd END AS decision,rjct_rsn_desc AS reason,asgn_id,tmpr_asgn_id FROM ai.rcmd_rslt
+  </otherwise></choose></sql>
+  <select id="states" resultMap="state"><include refid="stateSelect"/> WHERE <choose><when test="direction == 'PERSON_TO_POSITION'">rqst_id</when><otherwise>rcmd_rqst_id</otherwise></choose>=#{requestId} ORDER BY id</select>
+  <select id="result" resultMap="state"><include refid="stateSelect"/> WHERE <choose><when test="direction == 'PERSON_TO_POSITION'">rcmd_next_rslt_id</when><otherwise>rcmd_rslt_id</otherwise></choose>=#{id}</select>
+  <update id="transition"><choose><when test="direction == 'PERSON_TO_POSITION'">
+    UPDATE ai.rcmd_next_rslt SET decision_cd=#{decision},reject_rsn_desc=#{reason},dcsn_at=CURRENT_TIMESTAMP WHERE rcmd_next_rslt_id=#{id} AND decision_cd='PENDING'
+  </when><otherwise>
+    UPDATE ai.rcmd_rslt SET rcmd_dcsn_cd=#{decision},rjct_rsn_desc=#{reason},dcsn_at=CURRENT_TIMESTAMP WHERE rcmd_rslt_id=#{id} AND rcmd_dcsn_cd='NONE'
+  </otherwise></choose></update>
+  <select id="observed" resultType="int">
+    SELECT CASE WHEN a.end_dt&gt;=#{today} OR a.asgn_stts_cd='CANCELLED' THEN -1
+      WHEN EXISTS(SELECT 1 FROM asgn.asgn_chg_hist h WHERE h.asgn_id=a.asgn_id AND h.asgn_chg_ty_cd='EXTEND' AND h.fixed_yn='N') THEN 1 ELSE 0 END
+    FROM asgn.asgn a WHERE a.asgn_id=#{id}
+  </select>
+</mapper>
