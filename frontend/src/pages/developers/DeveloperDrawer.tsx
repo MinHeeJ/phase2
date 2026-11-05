@@ -17,6 +17,7 @@ import { Can } from "../../shared/Can";
 import { ErrorBanner } from "../../shared/ErrorBanner";
 import { useAdminRead, useAdminWrite } from "../admin/useAdminResource";
 import { DeveloperForm } from "./DeveloperForm";
+import { BusinessContactPanel } from "../systemmanagement/BusinessContactPanel";
 import { enableDeveloper, getDeveloper, type DeveloperDetail } from "./client";
 import { useDeveloperReadOnly } from "./useDeveloperReadOnly";
 import styles from "./Developers.module.css";
@@ -275,6 +276,7 @@ export function DeveloperDrawer({
                         ? `${row.latest_salary.month} ${row.latest_salary.slry_amt.toLocaleString("ko-KR")} 원`
                         : "–"}
                     </p>
+                    <BusinessContactPanel kind="developers" id={id} />
                   </>
                 ) : (
                   tabs

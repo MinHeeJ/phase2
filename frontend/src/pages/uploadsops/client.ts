@@ -1,5 +1,5 @@
 import { api, ApiFailure } from "../../shared/api";
-import type { ApiResponse, ApiError } from "../../shared/types";
+import type { ApiError } from "../../shared/types";
 
 export interface UploadIssue {
   severity: "ERROR" | "WARN";
@@ -42,46 +42,13 @@ export async function createUploadValidation(
   const personnel = form === "B.8" || form === "B.1";
   if (personnel) body.append("form_type", form);
   if (month) body.append("month", month);
-  let response: Response;
-  try {
-    response = await fetch(
-      personnel
-        ? "/api/uploads/validate"
-        : `/api/uploads/${enc(form)}/validate`,
-      {
-        method: "POST",
-        body,
-      },
-    );
-  } catch {
-    throw new ApiFailure("서버에 연결할 수 없습니다.", null, null);
-  }
-  let result: ApiResponse<UploadValidationResult> | ApiError;
-  try {
-    result = await response.json();
-  } catch {
-    throw new ApiFailure(
-      "서버 응답을 확인할 수 없습니다.",
-      response.status,
-      response.headers.get("X-Request-Id"),
-    );
-  }
-  if (!response.ok || !result.success) {
-    const error = result as ApiError;
-    throw new ApiFailure(
-      error.message,
-      response.status,
-      error.requestId,
-      error.field,
-      error.code,
-    );
-  }
+  const result = await api<UploadValidationResult | PersonnelValidation>(
+    personnel ? "/api/uploads/validate" : `/api/uploads/${enc(form)}/validate`,
+    { method: "POST", body },
+  );
   if (personnel)
-    return reviewResult(
-      (result as unknown as ApiResponse<PersonnelValidation>).data!,
-      file.name,
-    );
-  return (result as ApiResponse<UploadValidationResult>).data!;
+    return reviewResult(result.data as PersonnelValidation, file.name);
+  return result.data as UploadValidationResult;
 }
 export interface PersonnelValidation {
   upload_id: number;

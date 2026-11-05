@@ -26,12 +26,13 @@ public final class OpportunityLifecycleModels {
     public record NeedDetail(@JsonUnwrapped Need row, List<String> warnings) {}
     public record ApprovalHistory(String action, String opinion, Long user_id,
         LocalDateTime created_at, BigDecimal expc_mrgn_rt) {}
-    public record Quote(long expc_sls_amt, long expc_cst_amt, BigDecimal expc_mrgn_rt,
-        long minimum_amount, long amount_difference, BigDecimal amount_difference_rate,
-        String cost_status, String approval_state, Long approved_quote_amount, List<String> warnings) {}
+    public record Quote(long expc_sls_amt, Long expc_cst_amt, BigDecimal expc_mrgn_rt,
+        Long minimum_amount, long amount_difference, BigDecimal amount_difference_rate,
+        String cost_status, String approval_state, Long approved_quote_amount, List<String> warnings, String reasonCode) {}
     public record Detail(@JsonUnwrapped Row row, List<NeedDetail> needs, Quote quote,
         List<ApprovalHistory> approval_history, boolean stale_warning, List<String> warnings) {}
     public record Approval(String opinion, String zero_cost_evidence) {}
+    public record AuditState(LocalDate endDate, Long approver) {}
     public record Change(long id, Map<String,Object> values, Long actor) {}
     public record Audit(String table, String id, String column, String before, String after, Long actor) {}
     public record ApprovalWrite(long id, String action, String opinion, BigDecimal margin, long amount, Long actor) {}

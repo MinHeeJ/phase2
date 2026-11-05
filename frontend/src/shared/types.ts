@@ -18,16 +18,49 @@ export interface PageResult<T> {
 }
 export type DataScope = "ALL" | "PART" | "PROJECT" | "SELF";
 export interface CurrentUser {
-  userId: null;
+  userId: number | null;
   name: string;
   roleIds: number[];
+  roles: string[];
 }
 export const currentUser: CurrentUser = {
   userId: null,
-  name: "기본 사용자",
-  roleIds: [1],
+  name: "",
+  roleIds: [],
+  roles: [],
 };
-export const currentScope: DataScope = "ALL";
-export function can(_permission: string): boolean {
-  return true;
+export const currentScope: DataScope = "SELF";
+let effectivePermissions: Record<string, Record<string, boolean>> = {};
+export function setIdentity(
+  identity: CurrentUser | null,
+  permissions: Record<string, Record<string, boolean>> = {},
+) {
+  Object.assign(
+    currentUser,
+    identity ?? { userId: null, name: "", roleIds: [], roles: [] },
+  );
+  effectivePermissions = permissions;
+}
+export function can(permission: string): boolean {
+  const [screen, action] = permission.split(".");
+  const column: Record<string, string> = {
+    read: "inq",
+    view: "inq",
+    ask: "inq",
+    recommend: "inq",
+    create: "reg",
+    update: "mdfcn",
+    decision: "mdfcn",
+    receipt: "mdfcn",
+    remind: "mdfcn",
+    delete: "del",
+    upload: "upld",
+    download: "dwnld",
+    export: "dwnld",
+    confirm: "cnfrm",
+    cancel: "cnfrm",
+    reopen: "cnfrm",
+    approve: "cnfrm",
+  };
+  return effectivePermissions[screen]?.[column[action] ?? action] === true;
 }

@@ -127,7 +127,9 @@ describe("cost analysis API registration", () => {
           "/api/costs/renegotiations",
         ].includes(path)
       ) {
-        expect(init.headers.Accept).toBe("application/json");
+        expect(new Headers(init.headers).get("Accept")).toBe(
+          "application/json",
+        );
       }
     },
   );
@@ -179,13 +181,26 @@ describe("cost analysis API registration", () => {
     "preserves the resource identity and request body for %s",
     async (_name, call, path, method, body) => {
       const payload = { simulated: true, warnings: [] };
-      const fetcher = vi.fn().mockResolvedValue(response(payload));
+      const csrfToken = crypto.randomUUID();
+      const fetcher = vi
+        .fn()
+        .mockResolvedValueOnce(
+          response({ headerName: "X-CSRF-TOKEN", csrfToken }),
+        )
+        .mockResolvedValue(response(payload));
       vi.stubGlobal("fetch", fetcher);
       expect(await call()).toEqual(payload);
-      expect(fetcher).toHaveBeenCalledOnce();
-      expect(fetcher.mock.calls[0][0]).toBe(path);
-      expect(fetcher.mock.calls[0][1]).toMatchObject({ method });
-      expect(fetcher.mock.calls[0][1].body).toBe(
+      expect(fetcher).toHaveBeenCalledTimes(2);
+      expect(fetcher.mock.calls[0][0]).toBe("/api/auth/csrf");
+      expect(fetcher.mock.calls[1][0]).toBe(path);
+      expect(fetcher.mock.calls[1][1]).toMatchObject({
+        method,
+        credentials: "same-origin",
+      });
+      expect(
+        new Headers(fetcher.mock.calls[1][1].headers).get("X-CSRF-TOKEN"),
+      ).toBe(csrfToken);
+      expect(fetcher.mock.calls[1][1].body).toBe(
         body === undefined ? undefined : JSON.stringify(body),
       );
     },
@@ -200,19 +215,27 @@ describe("cost analysis API registration", () => {
   ] as const)(
     "preserves %s %s without retrying a command",
     async (status, code, field) => {
-      const fetcher = vi.fn().mockResolvedValue(
-        new Response(
-          JSON.stringify({
-            success: false,
-            meta: {},
-            message: "정산 처리 불가",
-            code,
-            field,
-            requestId: "settlement-request",
+      const fetcher = vi
+        .fn()
+        .mockResolvedValueOnce(
+          response({
+            headerName: "X-CSRF-TOKEN",
+            csrfToken: crypto.randomUUID(),
           }),
-          { status },
-        ),
-      );
+        )
+        .mockResolvedValue(
+          new Response(
+            JSON.stringify({
+              success: false,
+              meta: {},
+              message: "정산 처리 불가",
+              code,
+              field,
+              requestId: "settlement-request",
+            }),
+            { status },
+          ),
+        );
       vi.stubGlobal("fetch", fetcher);
       await expect(
         client.confirmPartSettlement(7, "2026-10"),
@@ -222,7 +245,12 @@ describe("cost analysis API registration", () => {
         field,
         requestId: "settlement-request",
       });
-      expect(fetcher).toHaveBeenCalledOnce();
+      expect(fetcher).toHaveBeenCalledTimes(2);
+      expect(fetcher.mock.calls[0][0]).toBe("/api/auth/csrf");
+      expect(fetcher.mock.calls[1][0]).toBe(
+        "/api/settlements/parts/7/confirm?month=2026-10",
+      );
+      expect(fetcher.mock.calls[1][1].method).toBe("POST");
     },
   );
   it.each([

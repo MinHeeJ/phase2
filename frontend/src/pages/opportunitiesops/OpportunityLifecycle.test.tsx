@@ -179,6 +179,22 @@ beforeEach(() => {
     },
   };
   fetcher = vi.fn(async (url: string, init?: RequestInit) => {
+    if (url === "/api/auth/csrf")
+      return response({ headerName: "X-CSRF-TOKEN", csrfToken: "test-csrf" });
+    if (url === "/api/me/permissions")
+      return response({
+        menus: [{ menuId: 29, screenId: "UI-29", children: [] }],
+        permissions: [
+          {
+            menuId: 29,
+            reg: true,
+            mdfcn: true,
+            del: true,
+            dwnld: true,
+            cnfrm: true,
+          },
+        ],
+      });
     if (url.startsWith("/api/codes/"))
       return response([
         {
@@ -229,6 +245,25 @@ afterEach(() => {
 });
 
 describe("single opportunity pipeline", () => {
+  it("keeps write controls unavailable when current permissions deny them", async () => {
+    const original = fetcher.getMockImplementation()!;
+    fetcher.mockImplementation((url: string, init?: RequestInit) =>
+      url === "/api/me/permissions"
+        ? Promise.resolve(response({ menus: [], permissions: [] }))
+        : original(url, init),
+    );
+    mount(<OpportunityPipelineScreen onEdit={vi.fn()} />);
+    await screen.findByTestId("pipeline-card-7");
+    expect(screen.queryByTestId("opportunity-create")).not.toBeInTheDocument();
+    expect(screen.getByTestId("pipeline-stage-7")).toBeDisabled();
+    fireEvent.click(screen.getByTestId("pipeline-open-7"));
+    await screen.findByRole("heading", { name: row.oppt_nm });
+    expect(screen.queryByTestId("opportunity-approve")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("opportunity-edit")).not.toBeInTheDocument();
+    expect(screen.getByTestId("opportunity-win")).toBeDisabled();
+    expect(screen.getByTestId("opportunity-lose")).toBeDisabled();
+    expect(screen.getByTestId("opportunity-disable")).toBeDisabled();
+  });
   it("renders four OPEN columns, saved override, pending and stale badges without AI", async () => {
     mount(<OpportunityPipelineScreen onEdit={vi.fn()} />);
     await screen.findByTestId("pipeline-card-7");

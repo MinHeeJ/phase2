@@ -33,6 +33,7 @@ import {
 } from "./client";
 import styles from "./OpportunityLifecycle.module.css";
 import type { OpportunityDetail as EditableOpportunity } from "../opportunities/client";
+import { useOpportunityPermissions } from "./useOpportunityPermissions";
 
 const stages = [
   { key: "DISC", label: "발굴", probability: 10 },
@@ -40,7 +41,8 @@ const stages = [
   { key: "NEGO", label: "협상", probability: 60 },
   { key: "PRE", label: "계약 직전", probability: 90 },
 ] as const;
-const amount = (n: number) => n.toLocaleString("ko-KR");
+const amount = (n: number | null) =>
+  n === null ? "권한에 따라 비공개" : n.toLocaleString("ko-KR");
 type Action = "approve" | "reject" | "lose" | "disable" | "win";
 const labels = {
   approve: "견적 승인",
@@ -310,6 +312,7 @@ function OpportunityDrawer({
   onEdit?: (id?: number) => void;
 }) {
   const read = useAdminRead(useCallback(() => getOpportunity(id), [id]));
+  const permissions = useOpportunityPermissions();
   const [tab, setTab] = useState("info"),
     [action, setAction] = useState<Action | null>(null);
   const row = read.data;
@@ -444,7 +447,7 @@ function OpportunityDrawer({
                         {
                           key: "actor",
                           label: "처리자",
-                          render: (r) => r.user_id ?? "기본 사용자",
+                          render: (r) => r.user_id ?? "–",
                         },
                         {
                           key: "date",
@@ -464,7 +467,7 @@ function OpportunityDrawer({
               <div className={styles.actions}>
                 {row.oppt_stts_cd === "OPEN" ? (
                   <>
-                    {onEdit && (
+                    {onEdit && permissions.mdfcn && (
                       <Button
                         data-testid="opportunity-edit"
                         onClick={() => onEdit(row.oppt_id)}
@@ -472,25 +475,27 @@ function OpportunityDrawer({
                         수정
                       </Button>
                     )}
-                    {row.quote.approval_state === "PENDING" && (
-                      <>
-                        <Button
-                          data-testid="opportunity-approve"
-                          onClick={() => setAction("approve")}
-                        >
-                          승인
-                        </Button>
-                        <Button
-                          data-testid="opportunity-reject"
-                          onClick={() => setAction("reject")}
-                        >
-                          반려
-                        </Button>
-                      </>
-                    )}
+                    {permissions.cnfrm &&
+                      row.quote.approval_state === "PENDING" && (
+                        <>
+                          <Button
+                            data-testid="opportunity-approve"
+                            onClick={() => setAction("approve")}
+                          >
+                            승인
+                          </Button>
+                          <Button
+                            data-testid="opportunity-reject"
+                            onClick={() => setAction("reject")}
+                          >
+                            반려
+                          </Button>
+                        </>
+                      )}
                     <Button
                       data-testid="opportunity-win"
                       disabled={
+                        !permissions.cnfrm ||
                         row.quote.approval_state === "PENDING" ||
                         row.quote.approval_state === "REJECTED" ||
                         row.quote.cost_status === "UNKNOWN"
@@ -501,12 +506,14 @@ function OpportunityDrawer({
                     </Button>
                     <Button
                       data-testid="opportunity-lose"
+                      disabled={!permissions.mdfcn}
                       onClick={() => setAction("lose")}
                     >
                       실주 처리
                     </Button>
                     <Button
                       data-testid="opportunity-disable"
+                      disabled={!permissions.del}
                       onClick={() => setAction("disable")}
                     >
                       삭제
@@ -548,6 +555,7 @@ export default function OpportunityPipelineScreen({
 }: {
   onEdit?: (id?: number) => void;
 }) {
+  const permissions = useOpportunityPermissions();
   const [tab, setTab] = useState("open"),
     [filters, setFilters] = useState<OpportunityFilters>({
       oppt_stts_cd: "OPEN",
@@ -569,6 +577,7 @@ export default function OpportunityPipelineScreen({
     ),
   );
   const move = async (id: number, stage: string) => {
+    if (!permissions.mdfcn) return;
     setBusy(true);
     setError(null);
     try {
@@ -606,12 +615,13 @@ export default function OpportunityPipelineScreen({
           <>
             <Button
               data-testid="opportunity-export"
+              disabled={!permissions.dwnld}
               pending={busy}
               onClick={() => void download()}
             >
               엑셀 다운로드
             </Button>
-            {onEdit && (
+            {onEdit && permissions.reg && (
               <Button
                 data-testid="opportunity-create"
                 variant="primary"
@@ -785,7 +795,7 @@ export default function OpportunityPipelineScreen({
                           .map((r) => (
                             <article
                               className={styles.opportunity}
-                              draggable={!busy}
+                              draggable={!busy && !!permissions.mdfcn}
                               key={r.oppt_id}
                               data-testid={`pipeline-card-${r.oppt_id}`}
                               onDragStart={(e) =>
@@ -822,7 +832,7 @@ export default function OpportunityPipelineScreen({
                                 단계 변경
                                 <select
                                   data-testid={`pipeline-stage-${r.oppt_id}`}
-                                  disabled={busy}
+                                  disabled={busy || !permissions.mdfcn}
                                   value={r.bsn_stg_cd}
                                   onChange={(e) =>
                                     void move(r.oppt_id, e.target.value)

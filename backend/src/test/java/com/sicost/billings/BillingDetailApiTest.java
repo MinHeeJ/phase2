@@ -24,18 +24,35 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @WebMvcTest(controllers = BillingController.class)
 @Import({RequestIdFilter.class, ApiExceptionHandler.class, BillingService.class, BillingAmountService.class,
-    CurrentUser.class, PermissionService.class, BillingApiTest.Time.class})
-class BillingApiTest {
+    ApplicationSecurityConfiguration.class, CurrentUser.class, PermissionService.class, BillingDetailApiTest.Time.class})
+class BillingDetailApiTest {
     @TestConfiguration static class Time {
         @Bean Clock clock() { return Clock.fixed(Instant.parse("2026-10-20T00:00:00Z"), ZoneId.of("Asia/Seoul")); }
     }
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper json;
+    @Autowired org.springframework.web.context.WebApplicationContext context;
     @MockBean BillingMapper mapper;
+    @MockBean AccessPolicyMapper access;
     State current;
     List<DetailLine> lines;
     List<Audit> audits;
     @BeforeEach void setup() {
+        var account = new AccessPolicyModels.Account(42L, "재무 사용자", null, "ACTIVE", null, false,
+            LocalDateTime.of(2026, 10, 20, 9, 30));
+        when(access.sessionOwner(any())).thenReturn(account);
+        when(access.activeSession(any())).thenReturn(account);
+        when(access.grants(any())).thenReturn(List.of(new AccessPolicyModels.Grant(3L, DataScope.ALL,
+            true, false, false, true, "재무 담당")));
+        when(access.parts(42L)).thenReturn(List.of());
+        when(access.projects(42L)).thenReturn(List.of());
+        String proof = AuthenticationProofs.randomSessionId(), csrf = AuthenticationProofs.randomSessionId();
+        mvc = org.springframework.test.web.servlet.setup.MockMvcBuilders.webAppContextSetup(context)
+            .apply(org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity())
+            .addFilters(new RequestIdFilter())
+            .defaultRequest(get("/").cookie(new jakarta.servlet.http.Cookie("JSESSIONID", proof),
+                new jakarta.servlet.http.Cookie("XSRF-TOKEN", csrf)).header("X-CSRF-TOKEN", csrf)).build();
+        when(mapper.projectTarget(1)).thenReturn(new AccessPolicyModels.Target(null, null, 10L, 1L));
         current = state("MO", "DRAFT", "2026-10", LocalDate.of(2026, 10, 10));
         lines = new ArrayList<>(List.of(line()));
         audits = new ArrayList<>();
@@ -83,16 +100,16 @@ class BillingApiTest {
         return mvc.perform(put("/api/billings/7").contentType("application/json").content(body));
     }
     void noWrite() { verify(mapper, never()).insert(any()); verify(mapper, never()).update(any()); verify(mapper, never()).audit(any()); }
-    @Test void anonymousCreateStoresDraftAndEffectiveVatWithNullableActor() throws Exception {
+    @Test void authenticatedCreateStoresDraftAndEffectiveVatWithCurrentActor() throws Exception {
         postBody("{\"project_id\":1,\"month\":\"2026-10\"}").andExpect(status().isOk())
             .andExpect(jsonPath("$.success").value(true)).andExpect(jsonPath("$.data.billing.vat_amt").value(75))
             .andExpect(jsonPath("$.data.details[0].bill_amt").value(1000));
         var order = inOrder(mapper);
         order.verify(mapper).lockClosingSources();
         order.verify(mapper).numberLock("B-2610-"); order.verify(mapper).lockProject(1);
-        order.verify(mapper).insert(argThat(w -> w.number().equals("B-2610-01") && w.actor() == null));
+        order.verify(mapper).insert(argThat(w -> w.number().equals("B-2610-01") && Long.valueOf(42L).equals(w.actor())));
         order.verify(mapper).insertDetail(any());
-        assertThat(audits).hasSize(2); assertThat(audits.get(0).actor()).isNull();
+        assertThat(audits).hasSize(2); assertThat(audits.get(0).actor()).isEqualTo(42L);
     }
     @Test void turnkeyCreateUsesStageWithoutFabricatedAssignmentLine() throws Exception {
         when(mapper.lockProject(1)).thenReturn(new Project(1, "TK", "STAGE", "Y"));
@@ -101,7 +118,7 @@ class BillingApiTest {
             .andExpect(jsonPath("$.data.billing.sply_amt").value(5000)).andExpect(jsonPath("$.data.details").isEmpty());
         verify(mapper, never()).insertDetail(any());
     }
-    @Test void internalProjectRejectedAnonymouslyBeforeInsert() throws Exception {
+    @Test void internalProjectRejectedBeforeInsert() throws Exception {
         when(mapper.lockProject(1)).thenReturn(new Project(1, "IN", null, "Y"));
         postBody("{\"project_id\":1,\"month\":\"2026-10\"}").andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.code").value("VALIDATION_ERROR")); noWrite();
@@ -151,10 +168,11 @@ class BillingApiTest {
         postBody("{\"project_id\":1,\"month\":\"2026-10\"}").andExpect(status().isOk())
             .andExpect(jsonPath("$.data.details").isEmpty()).andExpect(jsonPath("$.data.warnings[0]").value(org.hamcrest.Matchers.containsString("근태 미입력")));
     }
-    @Test void anonymousUpdatePreservesManualVatAndSnapshotWithoutRecalculation() throws Exception {
+    @Test void authenticatedUpdatePreservesManualVatAndSnapshotWithoutRecalculation() throws Exception {
         putBody("{\"sply_amt\":1234,\"vat_amt\":17,\"bill_dt\":\"2026-11-01\",\"txinv_no\":\"기록\"}").andExpect(status().isOk())
             .andExpect(jsonPath("$.data.billing.sply_amt").value(1234)).andExpect(jsonPath("$.data.billing.vat_amt").value(17))
-            .andExpect(jsonPath("$.data.billing.atrb_ym").value("2026-10")).andExpect(jsonPath("$.data.details[0].work_ym").value("2026-10"));
+            .andExpect(jsonPath("$.data.billing.atrb_ym").value("2026-10")).andExpect(jsonPath("$.data.details[0].work_ym").value("2026-10"))
+            .andExpect(jsonPath("$.data.warnings", org.hamcrest.Matchers.hasItem(org.hamcrest.Matchers.containsString("귀속월과 다릅니다"))));
         verify(mapper, never()).sources(any()); verify(mapper, never()).deleteDetails(anyLong());
         assertThat(audits.get(0).before()).contains("1000"); assertThat(audits.get(0).after()).contains("1234", "기록");
     }
@@ -220,7 +238,7 @@ class BillingApiTest {
         verify(mapper).updateDetail(argThat(w -> w.line().bill_amt() == 1017 && w.line().untprc_amt() == 2000));
         verify(mapper, never()).sources(any()); verify(mapper, never()).deleteDetails(anyLong());
     }
-    @Test void listAndDetailRemainAnonymousAndReadOnly() throws Exception {
+    @Test void authenticatedListAndDetailRemainReadOnly() throws Exception {
         mvc.perform(get("/api/billings?year=2026&type=MO&q=프로젝트&size=20")).andExpect(status().isOk())
             .andExpect(jsonPath("$.data.total").value(1)).andExpect(jsonPath("$.data.page").value(0));
         mvc.perform(get("/api/billings/7")).andExpect(status().isOk()).andExpect(jsonPath("$.data.change_history").isArray()); noWrite();
@@ -244,5 +262,100 @@ class BillingApiTest {
                 .content("{\"bill_dt\":\"2026-10-02\"}"))
             .andExpect(status().isOk()).andExpect(jsonPath("$.data.billing.bill_dt").value("2026-10-02"));
         verify(mapper).update(argThat(w -> w.state().orgnl_bill_id().equals(7L)));
+    }
+    @ParameterizedTest @ValueSource(strings = {"GET", "PUT"})
+    void anonymousCannotReachEitherHandler(String method) throws Exception {
+        var anonymous = org.springframework.test.web.servlet.setup.MockMvcBuilders.webAppContextSetup(context)
+            .apply(org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity())
+            .addFilters(new RequestIdFilter()).build();
+        anonymous.perform((method.equals("GET") ? get("/api/billings/7") : put("/api/billings/7")
+            .contentType("application/json").content("{}"))).andExpect(status().isUnauthorized())
+            .andExpect(jsonPath("$.code").value("UNAUTHENTICATED"));
+        verify(mapper, never()).state(anyLong()); noWrite();
+    }
+    @ParameterizedTest @ValueSource(strings = {"GET", "PUT"})
+    void expiredOrRevokedSessionCannotReachEitherHandler(String method) throws Exception {
+        when(access.sessionOwner(any())).thenReturn(null);
+        request(method).andExpect(status().isUnauthorized());
+        verify(mapper, never()).state(anyLong()); noWrite();
+    }
+    @ParameterizedTest @ValueSource(strings = {"GET", "PUT"})
+    void passwordChangeSessionCannotReachEitherHandler(String method) throws Exception {
+        when(access.sessionOwner(any())).thenReturn(new AccessPolicyModels.Account(42L, "재무 사용자", null,
+            "ACTIVE", null, true, LocalDateTime.of(2026,10,20,9,30)));
+        request(method).andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("PASSWORD_CHANGE_REQUIRED"));
+        verify(mapper, never()).state(anyLong()); noWrite();
+    }
+    @ParameterizedTest @ValueSource(strings = {"GET", "PUT"})
+    void missingMenuActionIsEnforcedBeforeAnyBusinessRead(String method) throws Exception {
+        when(access.grants(any())).thenReturn(List.of());
+        request(method).andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("FORBIDDEN"));
+        verify(mapper, never()).state(anyLong()); noWrite();
+    }
+    @Test void executivesCanReadButCannotModifyEvenWithLegacyWriteGrant() throws Exception {
+        when(access.grants(any())).thenReturn(List.of(grant(2L, DataScope.ALL, "경영진")));
+        request("GET").andExpect(status().isOk()).andExpect(jsonPath("$.data.billing.bill_id").value(7));
+        request("PUT").andExpect(status().isForbidden()); noWrite();
+    }
+    @ParameterizedTest @ValueSource(strings = {"GET", "PUT"})
+    void projectScopeDeniesAnotherProjectWithoutReadingItsDetails(String method) throws Exception {
+        when(access.grants(any())).thenReturn(List.of(grant(3L, DataScope.PROJECT, "재무 담당")));
+        when(access.projects(42L)).thenReturn(List.of(2L));
+        request(method).andExpect(status().isNotFound()).andExpect(jsonPath("$.data").doesNotExist());
+        verify(mapper, never()).row(anyLong()); verify(mapper, never()).details(anyLong()); noWrite();
+    }
+    @ParameterizedTest @ValueSource(strings = {"GET", "PUT"})
+    void unionOfAuthorizedRoleScopesIncludesTheBroaderRole(String method) throws Exception {
+        when(access.grants(any())).thenReturn(List.of(grant(3L, DataScope.PROJECT, "재무 담당"),
+            grant(1L, DataScope.PART, "시스템 관리자")));
+        when(access.projects(42L)).thenReturn(List.of(2L)); when(access.parts(42L)).thenReturn(List.of(10L));
+        request(method).andExpect(status().isOk());
+    }
+    @Test void readScopeFromAnotherRoleCannotBeCombinedWithWriteAction() throws Exception {
+        when(access.grants(any())).thenAnswer(i -> {
+            var q = i.getArgument(0, AccessPolicyModels.PermissionLookup.class);
+            return q.action().equals("read") ? List.of(grant(1L, DataScope.ALL, "시스템 관리자"))
+                : List.of(grant(3L, DataScope.PART, "재무 담당"));
+        });
+        when(access.parts(42L)).thenReturn(List.of(20L));
+        request("GET").andExpect(status().isOk());
+        request("PUT").andExpect(status().isNotFound()); noWrite();
+    }
+    @Test void partRelationshipIsRecheckedAfterLockingProject() throws Exception {
+        when(access.grants(any())).thenReturn(List.of(grant(3L, DataScope.PART, "재무 담당")));
+        when(access.parts(42L)).thenReturn(List.of(10L));
+        when(mapper.projectTarget(1)).thenReturn(new AccessPolicyModels.Target(null,null,10L,1L),
+            new AccessPolicyModels.Target(null,null,20L,1L));
+        request("PUT").andExpect(status().isNotFound()); noWrite();
+    }
+    @Test void missingUpdateHasNoMutationOrHistory() throws Exception {
+        mvc.perform(put("/api/billings/99").contentType("application/json").content("{}"))
+            .andExpect(status().isNotFound()); noWrite();
+    }
+    @Test void authenticatedUpdateWithoutCsrfNeverReachesBusinessMapper() throws Exception {
+        var protectedMvc = org.springframework.test.web.servlet.setup.MockMvcBuilders.webAppContextSetup(context)
+            .apply(org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity()).build();
+        protectedMvc.perform(put("/api/billings/7")
+            .cookie(new jakarta.servlet.http.Cookie("JSESSIONID", AuthenticationProofs.randomSessionId()))
+            .contentType("application/json").content("{\"vat_amt\":17}"))
+            .andExpect(status().isForbidden());
+        verify(mapper, never()).state(anyLong()); noWrite();
+    }
+    @Test void updateAuditsEveryChangedHeaderValueWithAuthenticatedActor() throws Exception {
+        putBody("{\"bill_dt\":\"2026-10-21\",\"sply_amt\":1234,\"vat_amt\":17,\"txinv_no\":\"발행번호\",\"txinv_dt\":\"2026-10-22\",\"rcpt_plan_dt\":\"2026-11-01\",\"rmrk_desc\":\"변경\"}")
+            .andExpect(status().isOk());
+        assertThat(audits).hasSize(1);
+        var audit = audits.get(0);
+        assertThat(audit.actor()).isEqualTo(42L);
+        var before = json.readTree(audit.before()); var after = json.readTree(audit.after());
+        for (String field : List.of("bill_dt","sply_amt","vat_amt","txinv_no","txinv_dt","rcpt_plan_dt","rmrk_desc"))
+            assertThat(after.get(field)).isNotEqualTo(before.get(field));
+        assertThat(after.get("atrb_ym").asText()).isEqualTo("2026-10");
+    }
+    ResultActions request(String method) throws Exception {
+        return method.equals("GET") ? mvc.perform(get("/api/billings/7")) : putBody("{\"vat_amt\":17}");
+    }
+    static AccessPolicyModels.Grant grant(Long id, DataScope scope, String name) {
+        return new AccessPolicyModels.Grant(id, scope, true, false, id == 1L, true, name);
     }
 }

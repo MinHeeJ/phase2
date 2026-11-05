@@ -754,6 +754,20 @@
         "default": "'N'"
       },
       {
+        "name": "contact_inq_auth_yn",
+        "type": "CHAR(1)",
+        "nullable": false,
+        "identity": false,
+        "default": "'N'"
+      },
+      {
+        "name": "contact_dwnld_auth_yn",
+        "type": "CHAR(1)",
+        "nullable": false,
+        "identity": false,
+        "default": "'N'"
+      },
+      {
         "name": "updated_at",
         "type": "TIMESTAMP",
         "nullable": true,

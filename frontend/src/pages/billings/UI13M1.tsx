@@ -14,6 +14,7 @@ import { listProjectBillStages } from "../billstages/client";
 import { getMonthClose } from "../shared/api";
 import {
   createBilling,
+  getBilling,
   updateBilling,
   previewBilling,
   type BillingDetail,
@@ -23,6 +24,9 @@ import {
 } from "./client";
 import { BillingLines } from "./UI13DetailPanel";
 import styles from "./Billings.module.css";
+import { useBillingAccess } from "./useBillingAccess";
+import { useDeveloperReadOnly } from "../developers/useDeveloperReadOnly";
+import { seoulMonth } from "../shared/PeriodBar";
 
 export function UI13M1({
   existing,
@@ -45,6 +49,8 @@ export function UI13M1({
   onDirtyChange?: (dirty: boolean) => void;
   onAttendance?: (projectId: number, month: string) => void;
 }) {
+  const access = useBillingAccess();
+  const mobile = useDeveloperReadOnly();
   const row = existing?.billing;
   const [project, setProject] = useState(row?.prj_id ?? projectId ?? 0);
   const [stage, setStage] = useState(row?.bill_stg_id ?? stageId);
@@ -98,7 +104,10 @@ export function UI13M1({
     ),
   );
   const closed = closes.data?.some((c) => c.status === "CLOSED");
-  const write = useAdminWrite(reload);
+  const write = useAdminWrite(async () => {
+    if (row?.bill_id != null) await getBilling(row.bill_id);
+    await reload();
+  });
   useEffect(() => {
     onDirtyChange?.(dirty);
     return () => onDirtyChange?.(false);
@@ -140,6 +149,11 @@ export function UI13M1({
     }
   };
   const save = () => {
+    if (
+      row &&
+      (!access.canUpdate || row.bill_stts_cd !== "DRAFT" || mobile || closed)
+    )
+      return;
     if (!project || (!row && (tk ? !stage : !month))) {
       setLocal(
         failure(new Error("프로젝트와 청구 단계 또는 귀속월을 선택하세요.")),
@@ -173,6 +187,50 @@ export function UI13M1({
       },
     );
   };
+  const historical =
+    !!row &&
+    Number((row.atrb_ym ?? row.bill_dt ?? "").slice(0, 4)) <
+      Number(seoulMonth().slice(0, 4));
+  if (
+    row &&
+    (access.loading ||
+      !access.canUpdate ||
+      mobile ||
+      historical ||
+      row.bill_stts_cd !== "DRAFT")
+  ) {
+    return (
+      <div className={styles.scrim} data-testid="billing-editor-root">
+        <aside
+          className={styles.drawer}
+          role="dialog"
+          aria-modal="true"
+          aria-label="청구 수정"
+          data-testid="billing-editor"
+        >
+          <header>
+            <h2>청구 수정</h2>
+            <Button data-testid="billing-editor-close" onClick={onCancel}>
+              닫기
+            </Button>
+          </header>
+          <ErrorBanner
+            error={access.error}
+            onRetry={() => void access.reload().catch(() => {})}
+          />
+          {access.loading ? (
+            <Skeleton />
+          ) : (
+            <p>
+              {access.canUpdate
+                ? "읽기 전용 청구입니다. 수정할 수 없습니다."
+                : "청구 수정 권한이 없습니다."}
+            </p>
+          )}
+        </aside>
+      </div>
+    );
+  }
   return (
     <div className={styles.scrim} data-testid="billing-editor-root">
       <aside
@@ -210,6 +268,14 @@ export function UI13M1({
           {closed && (
             <p className={styles.warning}>마감된 월은 수정할 수 없습니다.</p>
           )}
+          {row?.atrb_ym &&
+            draft.bill_dt &&
+            draft.bill_dt.slice(0, 7) !== row.atrb_ym && (
+              <p className={styles.warning}>
+                청구일이 귀속월과 다릅니다. 귀속월과 원천 상세는 기존 기준을
+                유지합니다.
+              </p>
+            )}
           {projects.loading ? (
             <Skeleton />
           ) : (

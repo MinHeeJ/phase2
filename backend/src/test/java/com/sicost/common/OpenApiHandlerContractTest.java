@@ -83,11 +83,35 @@ import org.yaml.snakeyaml.Yaml;
     com.sicost.workforceops.WorkforceDemandController.class,
     com.sicost.board.WorkforceBoardController.class,
     com.sicost.candidates.CandidateController.class,
-    com.sicost.candidatesops.CandidateContactController.class})
+    com.sicost.candidatesops.CandidateContactController.class,
+    DashboardController.class, com.sicost.dashboardops.DashboardExportController.class,
+    com.sicost.aiops.RecommendationOptionsController.class,
+    com.sicost.staffrecommendations.StaffRecommendationController.class,
+    com.sicost.analysis.AnalysisController.class,
+    com.sicost.authentication.AuthenticationController.class,
+    com.sicost.systemmanagement.SystemManagementController.class,
+    com.sicost.systemmanagement.NavigationController.class,
+    com.sicost.contacts.BusinessContactController.class})
 @Import(CurrentUser.class)
 class OpenApiHandlerContractTest {
     @Autowired RequestMappingHandlerMapping handlers;
     @MockBean java.time.Clock clock;
+    @MockBean com.sicost.common.security.AccessPolicyMapper accessPolicy;
+    @MockBean com.sicost.systemmanagement.NavigationService navigation;
+    @MockBean com.sicost.systemmanagement.SystemManagementService systemManagement;
+    @MockBean com.sicost.authentication.AuthenticationService authentication;
+    @MockBean com.sicost.contacts.BusinessContactService contacts;
+    @MockBean DashboardQueryService dashboard;
+    @MockBean com.sicost.dashboardops.DashboardExportService dashboardExports;
+    @MockBean com.sicost.aiops.RecommendationOptionsService recommendationOptions;
+    @MockBean com.sicost.staffrecommendations.StaffRecommendationService recommendations;
+    @MockBean com.sicost.staffrecommendations.RecommendationCriteriaService recommendationCriteria;
+    @MockBean com.sicost.staffrecommendations.CareerCardService careerCards;
+    @MockBean com.sicost.analysis.AnalysisRouter analysisRouter;
+    @MockBean com.sicost.analysis.ConversationService conversations;
+    @MockBean com.sicost.analysis.AnalysisExportService analysisExports;
+    @MockBean com.sicost.analysis.AnalysisModelClient analysisModel;
+    @MockBean com.sicost.common.ai.AiAccessGuard aiAccess;
     @MockBean AdminService admin;
     @MockBean SharedReadService shared;
     @MockBean PartnerService partners;

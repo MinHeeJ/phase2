@@ -27,6 +27,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WebMvcTest(controllers=DispatchAttendanceUploadController.class)
+@org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc(addFilters=false)
 @Import({RequestIdFilter.class,ApiExceptionHandler.class,DispatchAttendanceUploadService.class,
     DispatchAttendanceUploadForm.class,UploadWorkbookWriter.class,CurrentUser.class,PermissionService.class})
 class DispatchAttendanceUploadTest {
@@ -36,6 +37,8 @@ class DispatchAttendanceUploadTest {
     @MockBean DispatchAttendanceUploadMapper mapper;
     @MockBean UploadService uploads;
     @MockBean UploadMapper common;
+    @MockBean CurrentUser user;
+    @MockBean PermissionService permissions;
     @TempDir Path directory;
     AtomicLong sequence=new AtomicLong(100);
     Map<Long,String> statuses=new HashMap<>();
@@ -75,6 +78,12 @@ class DispatchAttendanceUploadTest {
         verify(mapper,never()).deleteAttendance(any());
         verify(mapper,never()).insertAttendance(any());
         verify(mapper,never()).audit(any());
+    }
+    @Test void servletMultipartPostRequiresFileBeforeDatabaseAccess()throws Exception {
+        mvc.perform(post("/api/uploads/dispatch-attendance/validate").contentType("multipart/form-data")
+            .param("month","2026-10").param("projectId","1"))
+            .andExpect(status().isBadRequest()).andExpect(jsonPath("$.success").value(false));
+        verifyNoInteractions(mapper,uploads);
     }
     @Test void anonymousValidationHasCommonEnvelopeRealRowsAndDoesNotWriteBusinessData() throws Exception {
         mvc.perform(multipart("/api/uploads/dispatch-attendance/validate")

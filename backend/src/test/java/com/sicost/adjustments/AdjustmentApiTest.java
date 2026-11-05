@@ -21,15 +21,19 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WebMvcTest(controllers=AdjustmentController.class)
+@org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc(addFilters=false)
 @Import({RequestIdFilter.class,ApiExceptionHandler.class,AdjustmentService.class,CurrentUser.class,PermissionService.class})
 class AdjustmentApiTest {
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper json;
     @MockBean AdjustmentMapper mapper;
     @MockBean Clock clock;
+    @MockBean CurrentUser user;
+    @MockBean PermissionService permissions;
     Row current;
     Input inserted;
     @BeforeEach void setup() {
+        when(user.userId()).thenReturn(null);
         when(clock.withZone(any())).thenReturn(Clock.fixed(Instant.parse("2026-10-29T00:00:00Z"),ZoneId.of("Asia/Seoul")));
         current=row("ACTIVE","2026-10",100);
         when(mapper.monthStatus("2026-08")).thenReturn("CLOSED");
@@ -60,7 +64,7 @@ class AdjustmentApiTest {
         verify(mapper).access(any());
     }
     @Test void anonymousCancelPreservesOriginalBusinessFields() throws Exception {
-        postBody("/api/closing/adjustments/7/cancel",Map.of("reason","  입력 취소  ")).andExpect(status().isOk())
+        mvc.perform(post("/api/closing/adjustments/7/cancel").contentType("application/json").content(json.writeValueAsString(Map.of("reason","  입력 취소  ")))).andExpect(status().isOk())
             .andExpect(jsonPath("$.data.status").value("CANCELLED")).andExpect(jsonPath("$.data.amount").value(100))
             .andExpect(jsonPath("$.data.reason").value("원본 사유")).andExpect(jsonPath("$.data.cancelledAt").exists());
         verify(mapper).cancel(argThat(c->c.reason().equals("입력 취소") && c.actor()==null));
@@ -94,7 +98,8 @@ class AdjustmentApiTest {
     }
     @ParameterizedTest @ValueSource(strings={""," ","\t"})
     void cancelBlankReasonRejected(String reason) throws Exception {
-        postBody("/api/closing/adjustments/7/cancel",Map.of("reason",reason)).andExpect(status().isBadRequest());unchanged();
+        mvc.perform(post("/api/closing/adjustments/7/cancel").contentType("application/json").content(json.writeValueAsString(Map.of("reason",reason))))
+            .andExpect(status().isBadRequest()).andExpect(jsonPath("$.success").value(false));unchanged();
     }
     @Test void reasonOverFiveHundredRejectedForBothWrites() throws Exception {
         var b=input();b.put("reason","가".repeat(501));postBody("/api/closing/adjustments",b).andExpect(status().isBadRequest());
@@ -133,7 +138,8 @@ class AdjustmentApiTest {
     }
     @Test void duplicateCancelIsConflictAndNoMutation() throws Exception {
         current=row("CANCELLED","2026-10",100);
-        postBody("/api/closing/adjustments/7/cancel",Map.of("reason","취소")).andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("ALREADY_CANCELLED"));unchanged();
+        mvc.perform(post("/api/closing/adjustments/7/cancel").contentType("application/json").content("{\"reason\":\"취소\"}"))
+            .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("ALREADY_CANCELLED"));unchanged();
     }
     @Test void closedApplyCancelIsConflictAndNoMutation() throws Exception {
         when(mapper.monthStatus("2026-10")).thenReturn("CLOSED");

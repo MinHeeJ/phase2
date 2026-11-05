@@ -27,6 +27,7 @@ class BillingPersistenceTest {
     AnnotationConfigApplicationContext context;
     BillingService service;
     BillingMapper mapper;
+    AccessPolicyMapper access;
     ObjectMapper json = new ObjectMapper().findAndRegisterModules();
     @BeforeEach void restoreIsolatedDatabase() throws Exception {
         adminUrl = System.getenv("TEST_DATABASE_URL");
@@ -43,7 +44,16 @@ class BillingPersistenceTest {
         factory.setMapperLocations(new ClassPathResource("mappers/billings/BillingMapper.xml")); factory.afterPropertiesSet();
         mapper = new SqlSessionTemplate(factory.getObject()).getMapper(BillingMapper.class);
         context = new AnnotationConfigApplicationContext();
-        context.register(Transactions.class, BillingService.class, BillingAmountService.class, CurrentUser.class, PermissionService.class);
+        context.register(Transactions.class, BillingService.class, BillingAmountService.class, PermissionService.class);
+        var current = org.mockito.Mockito.mock(CurrentUser.class);
+        org.mockito.Mockito.when(current.userId()).thenReturn(42L);
+        org.mockito.Mockito.when(current.requireBusinessAccount()).thenReturn(new AccessPolicyModels.Account(42L,
+            "재무 사용자", null, "ACTIVE", null, false, LocalDateTime.of(2026,10,20,9,30)));
+        access = org.mockito.Mockito.mock(AccessPolicyMapper.class);
+        org.mockito.Mockito.when(access.grants(org.mockito.ArgumentMatchers.any())).thenReturn(List.of(
+            BillingDetailApiTest.grant(3L, DataScope.ALL, "재무 담당")));
+        context.registerBean(CurrentUser.class, () -> current);
+        context.registerBean(AccessPolicyMapper.class, () -> access);
         context.registerBean(BillingMapper.class, () -> mapper);
         context.registerBean(org.springframework.transaction.PlatformTransactionManager.class, () -> new DataSourceTransactionManager(source));
         context.registerBean(ObjectMapper.class, () -> json);
@@ -83,7 +93,7 @@ class BillingPersistenceTest {
         var recalculated = service.update(id, input("{\"recalculate\":true}", false));
         assertThat(recalculated.details().get(0).bill_amt()).isEqualTo(2000);
         assertThat(recalculated.billing().vat_amt()).isEqualTo(7);
-        assertThat(value("SELECT chg_user_id FROM sys.data_chg_hist LIMIT 1")).isNull();
+        assertThat(value("SELECT chg_user_id FROM sys.data_chg_hist LIMIT 1")).isEqualTo("42");
         assertThat(value("SELECT count(*) FROM bill.bill_dtl WHERE bill_id=?", id)).isEqualTo("1");
         var otherSession = new SqlSessionFactoryBean(); otherSession.setDataSource(source);
         otherSession.setMapperLocations(new ClassPathResource("mappers/billings/BillingMapper.xml")); otherSession.afterPropertiesSet();
@@ -177,5 +187,20 @@ class BillingPersistenceTest {
         assertThat(detail.billing().receivable_amt()).isEqualTo(790);
         assertThat(detail.receipts()).hasSize(1); assertThat(detail.amendments()).hasSize(1);
         assertThat(detail.billing().atrb_ym()).isEqualTo("2026-10");
+    }
+    @Test void targetMaterializationAndScopeDenialPreservePersistedHeaderDetailsAndHistory() throws Exception {
+        var row = monthly(); long id = row.billing().bill_id();
+        assertThat(mapper.projectTarget(1)).isEqualTo(new AccessPolicyModels.Target(null,null,null,1L));
+        String before = snapshot();
+        org.mockito.Mockito.when(access.grants(org.mockito.ArgumentMatchers.any())).thenReturn(List.of(
+            BillingDetailApiTest.grant(3L, DataScope.PROJECT, "재무 담당")));
+        org.mockito.Mockito.when(access.projects(42L)).thenReturn(List.of(2L));
+        assertThatThrownBy(() -> service.get(id)).isInstanceOfSatisfying(ApiException.class,
+            e -> assertThat(e.status()).isEqualTo(404));
+        assertThatThrownBy(() -> service.update(id, input("{\"vat_amt\":9}", false)))
+            .isInstanceOfSatisfying(ApiException.class, e -> assertThat(e.status()).isEqualTo(404));
+        assertThat(snapshot()).isEqualTo(before);
+        org.mockito.Mockito.when(access.projects(42L)).thenReturn(List.of(1L));
+        assertThat(service.get(id).billing().bill_id()).isEqualTo(id);
     }
 }

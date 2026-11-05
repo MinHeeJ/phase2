@@ -1,6 +1,18 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.sicost.billings.BillingMapper">
+  <resultMap id="projectTarget" type="com.sicost.common.security.AccessPolicyModels$Target">
+    <constructor>
+      <arg column="user_id" javaType="java.lang.Long"/>
+      <arg column="developer_id" javaType="java.lang.Long"/>
+      <arg column="part_id" javaType="java.lang.Long"/>
+      <arg column="project_id" javaType="java.lang.Long"/>
+    </constructor>
+  </resultMap>
+  <select id="projectTarget" resultMap="projectTarget" useCache="false" flushCache="true">
+    SELECT pm_user_id AS user_id,pm_dev_id AS developer_id,bsn_part_id AS part_id,prj_id AS project_id
+    FROM prj.prj WHERE prj_id=#{id}
+  </select>
   <update id="lockClosingSources">LOCK TABLE fin.mth_cls IN SHARE MODE</update>
   <resultMap id="billingRow" type="com.sicost.billings.BillingModels$BillingRow">
     <constructor>

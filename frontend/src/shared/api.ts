@@ -20,14 +20,31 @@ export async function api<T = void>(
   if (!path.startsWith("/api/") || path.startsWith("//"))
     throw new Error("상대 API 경로가 필요합니다.");
   const write = !["GET", "HEAD"].includes((init.method ?? "GET").toUpperCase());
+  const headers = new Headers(init.headers);
+  if (write && !headers.has("X-CSRF-TOKEN")) {
+    const csrf = await readData<{ headerName: string; csrfToken: string }>(
+      "/api/auth/csrf",
+    );
+    if (csrf.headerName !== "X-CSRF-TOKEN" || !csrf.csrfToken)
+      throw new ApiFailure("보안 정보를 확인할 수 없습니다.", 403, null);
+    headers.set(csrf.headerName, csrf.csrfToken);
+  }
+  if (
+    init.body &&
+    !(init.body instanceof FormData) &&
+    !headers.has("Content-Type")
+  )
+    headers.set("Content-Type", "application/json");
+  const requestHeaders: Record<string, string> = {};
+  headers.forEach((value, key) => {
+    requestHeaders[key === "x-csrf-token" ? "X-CSRF-TOKEN" : key] = value;
+  });
   let response: Response;
   try {
     response = await fetch(path, {
       ...init,
-      headers: {
-        ...(init.body ? { "Content-Type": "application/json" } : {}),
-        ...init.headers,
-      },
+      credentials: "same-origin",
+      headers: requestHeaders,
     });
   } catch {
     throw new ApiFailure(
@@ -55,6 +72,9 @@ export async function api<T = void>(
   }
   if (!response.ok || body.success !== true) {
     const error = body as ApiError;
+    if (response.status === 401 && !path.startsWith("/api/auth/"))
+      window.dispatchEvent(new Event("sicost:session-ended"));
+
     throw new ApiFailure(
       typeof error.message === "string"
         ? error.message

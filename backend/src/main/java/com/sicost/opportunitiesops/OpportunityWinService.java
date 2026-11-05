@@ -25,7 +25,7 @@ public class OpportunityWinService {
     }
     @Transactional
     public WinResult win(long id,ProjectSave project){
-        var row=lifecycle.open(id);mapper.lockNeeds(id);var needs=mapper.needs(id);
+        var row=lifecycle.open(id,"confirm");mapper.lockNeeds(id);var needs=mapper.needs(id);
         var s=quotes.calculate(row,needs,lifecycle.today());
         BigDecimal threshold=mapper.approvalRate(YearMonth.from(lifecycle.today()).toString());
         if(threshold==null)throw ApiException.conflict("QUOTE_CRITERIA_MISSING","견적 승인 기준값을 확인하세요.",null);
@@ -67,7 +67,7 @@ public class OpportunityWinService {
         }
         lifecycle.change(row,Map.of("oppt_stts_cd",row.oppt_stts_cd(),"bsn_stg_cd",row.bsn_stg_cd()),
             Map.of("oppt_stts_cd","WON","bsn_stg_cd","WON","win_prj_id",projectId,"end_dt",lifecycle.today()));
-        return new WinResult(lifecycle.detail(id),created,List.copyOf(converted));
+        return new WinResult(lifecycle.commandDetail(id),created,List.copyOf(converted));
     }
     private ApiException assignmentConflict(){return ApiException.conflict("ASSIGNMENT_CONFLICT","가배정의 기간·중복·단가 또는 소급 사유를 확인하세요. 수주는 반영되지 않았습니다.","project");}
 }

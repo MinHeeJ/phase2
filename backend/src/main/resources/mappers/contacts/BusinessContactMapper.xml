@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sicost.contacts.BusinessContactMapper">
+  <select id="developer" resultType="map">SELECT tel_no AS "phone",email_addr AS "email",(use_yn&lt;&gt;'Y' OR (rsgn_dt IS NOT NULL AND rsgn_dt &lt;= #{today})) AS "masked" FROM mst.dev WHERE dev_id=#{id}</select>
+  <select id="partner" resultType="map">SELECT chrg_tel_no AS "phone",txinv_email_addr AS "email",use_yn&lt;&gt;'Y' AS "masked" FROM mst.ptnr WHERE ptnr_id=#{id}</select>
+  <select id="allowed" resultType="boolean">
+    SELECT EXISTS(SELECT 1 FROM sys.user_role ur JOIN sys.role r ON r.role_id=ur.role_id JOIN sys.role_menu_auth a ON a.role_id=r.role_id JOIN sys.menu m ON m.menu_id=a.menu_id
+      WHERE ur.user_id=#{userId} AND r.use_yn='Y' AND a.contact_inq_auth_yn='Y' AND a.inq_auth_yn='Y' AND m.scrn_id=#{screenId} AND m.use_yn='Y'
+      AND r.role_id IN <foreach collection="grants" item="grant" separator="," open="(" close=")">#{grant.roleId}</foreach>
+      AND (
+        <choose>
+          <when test="kind == 'developer'">
+            #{purpose}='STAFF_OPERATION' AND r.role_id IN (4,5)
+            AND EXISTS(SELECT 1 FROM mst.dev d WHERE d.dev_id=#{id} AND (
+              (r.data_scope_cd='PART' AND EXISTS(SELECT 1 FROM sys.user_part up JOIN mst.bsn_part bp ON bp.bsn_part_id=up.bsn_part_id WHERE up.user_id=#{userId} AND up.bsn_part_id=d.bsn_part_id AND bp.use_yn='Y'))
+              OR (r.data_scope_cd='PROJECT' AND EXISTS(SELECT 1 FROM asgn.asgn ag JOIN sys.user_prj up ON up.prj_id=ag.prj_id JOIN prj.prj p ON p.prj_id=up.prj_id WHERE ag.dev_id=d.dev_id AND up.user_id=#{userId} AND p.use_yn='Y' AND ag.asgn_stts_cd='ACTIVE' AND ag.bgn_dt &lt;= #{today} AND ag.end_dt &gt;= #{today}))
+            ))
+          </when>
+          <otherwise>
+            (#{purpose}='BILLING_RECEIPT_PAYMENT' AND r.role_id=3 AND r.data_scope_cd='ALL' AND (
+              EXISTS(SELECT 1 FROM bill.bill b JOIN prj.prj p ON p.prj_id=b.prj_id WHERE p.cust_ptnr_id=#{id})
+              OR EXISTS(SELECT 1 FROM fin.pay pay WHERE pay.ptnr_id=#{id})))
+            OR (#{purpose}='CONTRACT_SALES' AND r.role_id=4 AND EXISTS(SELECT 1 FROM prj.prj p JOIN sys.user_part up ON up.bsn_part_id=p.bsn_part_id JOIN mst.bsn_part bp ON bp.bsn_part_id=up.bsn_part_id
+              WHERE up.user_id=#{userId} AND p.use_yn='Y' AND bp.use_yn='Y' AND r.data_scope_cd='PART' AND (
+                p.cust_ptnr_id=#{id} OR EXISTS(SELECT 1 FROM asgn.asgn ag JOIN mst.dev d ON d.dev_id=ag.dev_id WHERE ag.prj_id=p.prj_id AND d.vndr_ptnr_id=#{id} AND ag.asgn_stts_cd='ACTIVE' AND ag.bgn_dt &lt;= #{today} AND ag.end_dt &gt;= #{today}))))
+          </otherwise>
+        </choose>
+      ))
+  </select>
+  <insert id="audit">INSERT INTO sys.acs_hist(user_id,acs_ty_cd,scrn_id,obj_desc,result_cd,purpose_desc,created_at) VALUES(#{userId},'CONTACT_VIEW',#{screenId},CAST(#{id} AS text),'SUCCESS',#{purpose},#{now})</insert>
+</mapper>

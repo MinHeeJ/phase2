@@ -102,7 +102,39 @@ beforeEach(() => {
     dense: false,
   });
   fetcher = vi.fn(async (url: string, init?: RequestInit) => {
+    if (url === "/api/auth/me")
+      return response({
+        userId: 417,
+        name: "검증 관리자",
+        roleIds: [1],
+        roles: ["시스템 관리자"],
+      });
+    if (url === "/api/navigation") return response(menus);
     if (url === "/api/menus") return response(menus);
+    if (url === "/api/notifications/unread-count")
+      return response({ count: 0 });
+    if (url === "/api/auth/csrf")
+      return response({ headerName: "X-CSRF-TOKEN", csrfToken: "test-csrf" });
+    if (url === "/api/me/permissions")
+      return response({
+        roles: [{ name: "시스템 관리자" }],
+        menus,
+        permissions: screenIds.map((screenId, index) => ({
+          menuId: index + 2,
+          screenId,
+          inq: true,
+          reg: true,
+          mdfcn: true,
+          del: true,
+          upld: true,
+          dwnld: true,
+          cnfrm: true,
+        })),
+      });
+    if (url === "/api/admin/roles" || url === "/api/admin/menus")
+      return response([]);
+    if (url.startsWith("/api/admin/users?"))
+      return response({ items: [], total: 0, page: 1, size: 50 });
     if (url.startsWith("/api/ai/staff-recommendation/options"))
       return response({
         sources: [
@@ -423,8 +455,13 @@ describe("application route registration", () => {
     );
     mount("/UI-30");
     expect(await screen.findByRole("alert")).toHaveTextContent("AI 접근 제한");
-    expect(screen.getByTestId("recommendation-run")).toBeDisabled();
+    expect(screen.queryByTestId("recommendation-run")).not.toBeInTheDocument();
     expect(screen.getByTestId("options-retry")).toBeEnabled();
+    expect(
+      fetcher.mock.calls.every(
+        ([, init]) => !init?.method || init.method === "GET",
+      ),
+    ).toBe(true);
   });
   it.each(["/", "/UI-16"])(
     "renders the real dashboard once through %s and retains its fixed tab",
@@ -572,7 +609,7 @@ describe("application route registration", () => {
       expect(screen.getByTestId("billing-export")).toBeInTheDocument();
     },
   );
-  it.each([...screenIds, "UI-22"])(
+  it.each(screenIds)(
     "renders /%s through the single shared shell",
     async (id) => {
       mount(`/${id}`);
@@ -589,28 +626,46 @@ describe("application route registration", () => {
                     ? /개발자 등록/
                     : id === "UI-33"
                       ? /프로젝트 등록/
-                      : id,
+                      : id === "UI-23"
+                        ? "사용자 관리"
+                        : id === "UI-24"
+                          ? "권한 관리"
+                          : id === "UI-25"
+                            ? "메뉴 관리"
+                            : id,
         }),
       ).toBeInTheDocument();
       expect(screen.getAllByLabelText("열린 화면")).toHaveLength(1);
       expect(
         screen.queryByText("화면을 찾을 수 없습니다."),
       ).not.toBeInTheDocument();
-      if (id === "UI-22")
-        expect(
-          within(
-            screen.getByRole("navigation", { name: "열린 화면" }),
-          ).getByText("UI-22"),
-        ).toBeInTheDocument();
+      const marker = ["UI-23", "UI-24", "UI-25"].includes(id)
+        ? id
+        : `SCR-${id}`;
+      expect(
+        document.querySelector(`[data-screen-id="${marker}"]`),
+      ).toBeInTheDocument();
     },
   );
-  it("redirects root to the dashboard without introducing a login", async () => {
+  it("keeps the login screen outside the protected business shell", async () => {
+    mount("/UI-22");
+    expect(
+      await screen.findByRole("heading", { name: "로그인" }),
+    ).toBeVisible();
+    expect(screen.getByTestId("login-screen")).toHaveAttribute(
+      "data-screen-id",
+      "UI-22",
+    );
+    expect(screen.queryByLabelText("열린 화면")).not.toBeInTheDocument();
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+  it("checks authentication before redirecting root to the permitted dashboard", async () => {
     mount("/");
     await screen.findByRole("heading", { name: "UI-16" });
     expect(screen.getByLabelText("현재 주소")).toHaveTextContent("/UI-16");
-    expect(
-      fetcher.mock.calls.some(([url]) => String(url).includes("/auth/")),
-    ).toBe(false);
+    expect(fetcher.mock.calls.some(([url]) => url === "/api/auth/me")).toBe(
+      true,
+    );
   });
   it.each([
     "/UI-06",
@@ -658,7 +713,11 @@ describe("application route registration", () => {
     });
     const tabs = screen.getByLabelText("열린 화면");
     await waitFor(() => expect(tabs).toHaveTextContent("● UI-15"));
-    fireEvent.click(within(tabs).getByRole("button", { name: "UI-16" }));
+    fireEvent.click(
+      within(screen.getByLabelText("화면 탐색")).getByRole("button", {
+        name: "UI-16",
+      }),
+    );
     fireEvent.click(within(tabs).getByRole("button", { name: "● UI-15" }));
     expect(screen.getByLabelText(/상호/)).toHaveValue("작성 중");
     fireEvent.click(screen.getByLabelText("UI-15 닫기"));
@@ -675,7 +734,11 @@ describe("application route registration", () => {
     });
     const tabs = screen.getByLabelText("열린 화면");
     await waitFor(() => expect(tabs).toHaveTextContent("● 공통코드"));
-    fireEvent.click(within(tabs).getByRole("button", { name: "UI-16" }));
+    fireEvent.click(
+      within(screen.getByLabelText("화면 탐색")).getByRole("button", {
+        name: "UI-16",
+      }),
+    );
     fireEvent.click(within(tabs).getByRole("button", { name: "● 공통코드" }));
     expect(screen.getByLabelText("이름 1")).toHaveValue("작성 중");
     expect(
@@ -708,7 +771,15 @@ describe("application route registration", () => {
     await screen.findByRole("heading", { name: "UI-16" });
   });
   it("retains menu read recovery in the registered shell", async () => {
-    fetcher.mockRejectedValueOnce(new Error("offline"));
+    const implementation = fetcher.getMockImplementation()!;
+    let failed = false;
+    fetcher.mockImplementation((url: string, init?: RequestInit) => {
+      if (url === "/api/menus" && !failed) {
+        failed = true;
+        return Promise.reject(new Error("offline"));
+      }
+      return implementation(url, init);
+    });
     mount("/UI-27");
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "문의 번호 없음 (서버 응답 없음)",

@@ -5,6 +5,8 @@ from pathlib import Path
 import shlex
 import subprocess
 import unittest
+from unittest.mock import patch
+import secrets
 
 
 COMPOSE = Path(__file__).resolve().with_name("docker-compose.yml")
@@ -39,6 +41,18 @@ class ComposeNetworkTest(unittest.TestCase):
             self.assertTrue(services[name]["healthcheck"]["test"])
         self.assertEqual(services["backend"]["depends_on"]["db"]["condition"], "service_healthy")
         self.assertEqual(services["frontend"]["depends_on"]["backend"]["condition"], "service_healthy")
+
+    def test_smoke_slots_are_optional_without_defaults_and_forward_explicit_values(self):
+        slots = ("AIOPS_SMOKE_LOGIN_ID", "AIOPS_SMOKE_LOGIN_PASSWORD", "AIOPS_SMOKE_ROLE_CODES")
+        environment = {key: value for key, value in os.environ.items() if key not in slots}
+        with patch.dict(os.environ, environment, clear=True):
+            unset = self.config("smoke-slot-regression")["services"]["backend"]["environment"]
+            self.assertTrue(all(unset.get(name) in (None, "") for name in slots))
+            supplied = dict(zip(slots, (secrets.token_hex(12), secrets.token_urlsafe(32), "재무 담당")))
+            with patch.dict(os.environ, supplied):
+                forwarded = self.config("smoke-slot-regression")["services"]["backend"]["environment"]
+            # Boolean assertions cannot expose account values in failure output.
+            self.assertTrue(all(forwarded.get(name) == supplied[name] for name in slots))
 
     def test_database_health_requires_tcp_and_an_existing_database(self):
         probe = self.config("network-regression-a")["services"]["db"]["healthcheck"]["test"]

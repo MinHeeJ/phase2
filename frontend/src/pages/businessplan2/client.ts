@@ -1,5 +1,4 @@
-import { api, ApiFailure } from "../../shared/api";
-import type { ApiResponse, ApiError } from "../../shared/types";
+import { api } from "../../shared/api";
 
 export interface BusinessPlanPreview {
   row: number;
@@ -27,36 +26,12 @@ export async function validateBusinessPlanUpload(
 ): Promise<BusinessPlanUploadResult> {
   const body = new FormData();
   body.append("file", file);
-  let response: Response;
-  try {
-    response = await fetch("/api/uploads/business-plan/validate", {
+  return (
+    await api<BusinessPlanUploadResult>("/api/uploads/business-plan/validate", {
       method: "POST",
       body,
-    });
-  } catch {
-    throw new ApiFailure("서버에 연결할 수 없습니다.", null, null);
-  }
-  let result: ApiResponse<BusinessPlanUploadResult> | ApiError;
-  try {
-    result = await response.json();
-  } catch {
-    throw new ApiFailure(
-      "서버 응답을 확인할 수 없습니다.",
-      response.status,
-      response.headers.get("X-Request-Id"),
-    );
-  }
-  if (!response.ok || result.success !== true) {
-    const error = result as ApiError;
-    throw new ApiFailure(
-      error.message ?? "서버 오류가 발생했습니다.",
-      response.status,
-      error.requestId,
-      error.field,
-      error.code,
-    );
-  }
-  return (result as ApiResponse<BusinessPlanUploadResult>).data!;
+    })
+  ).data;
 }
 export const applyBusinessPlanUpload = async (
   upload_id: string,

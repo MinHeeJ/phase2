@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sicost.authentication.AuthenticationMapper">
+  <resultMap id="credentials" type="com.sicost.authentication.AuthenticationModels$Credentials"><constructor>
+    <arg column="user_id" javaType="java.lang.Long"/><arg column="lgn_id" javaType="java.lang.String"/>
+    <arg column="pswd_hash" javaType="java.lang.String"/><arg column="email_addr" javaType="java.lang.String"/>
+    <arg column="user_stts_cd" javaType="java.lang.String"/><arg column="rsgn_dt" javaType="java.time.LocalDate"/>
+    <arg column="mfa" javaType="_boolean"/><arg column="change_required" javaType="_boolean"/>
+    <arg column="pswd_chg_at" javaType="java.time.LocalDateTime"/><arg column="otp_fail_cnt" javaType="_int"/>
+  </constructor></resultMap>
+  <resultMap id="proof" type="com.sicost.authentication.AuthenticationModels$Proof"><constructor>
+    <arg column="tkn_id" javaType="java.lang.Long"/><arg column="user_id" javaType="java.lang.Long"/>
+    <arg column="tkn_hash" javaType="java.lang.String"/><arg column="tkn_ty_cd" javaType="java.lang.String"/>
+    <arg column="expir_at" javaType="java.time.LocalDateTime"/>
+  </constructor></resultMap>
+  <sql id="accountColumns">u.user_id,u.lgn_id,u.pswd_hash,u.email_addr,u.user_stts_cd,u.rsgn_dt,
+    (u.mfa_yn='Y' OR EXISTS(SELECT 1 FROM sys.user_role ur JOIN sys.role r ON r.role_id=ur.role_id
+      WHERE ur.user_id=u.user_id AND r.admin_yn='Y' AND r.use_yn='Y')) AS mfa,
+    u.pswd_chg_need_yn='Y' AS change_required,u.pswd_chg_at,u.otp_fail_cnt</sql>
+  <select id="loginAccount" resultMap="credentials">SELECT <include refid="accountColumns"/> FROM sys.user_info u WHERE u.lgn_id=#{loginId}</select>
+  <select id="lockAccount" resultMap="credentials" flushCache="true" useCache="false">SELECT <include refid="accountColumns"/> FROM sys.user_info u WHERE u.user_id=#{userId} FOR UPDATE OF u</select>
+  <update id="failedPassword">UPDATE sys.user_info SET lgn_fail_cnt=lgn_fail_cnt+1,
+    user_stts_cd=CASE WHEN lgn_fail_cnt+1 &gt;=5 THEN 'LOCKED' ELSE user_stts_cd END,
+    lock_at=CASE WHEN lgn_fail_cnt+1 &gt;=5 THEN CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Seoul' ELSE lock_at END WHERE user_id=#{userId}</update>
+  <update id="failedOtp">UPDATE sys.user_info SET otp_fail_cnt=LEAST(5,otp_fail_cnt+1) WHERE user_id=#{userId}</update>
+  <update id="completeLogin">UPDATE sys.user_info SET lgn_fail_cnt=0,otp_fail_cnt=0,last_lgn_at=#{now} WHERE user_id=#{userId}</update>
+  <select id="createProof" resultType="long" affectData="true" flushCache="true">
+    INSERT INTO sys.auth_tkn(user_id,tkn_ty_cd,tkn_hash,expir_at,issued_at,binding_hash,issuance_stts_cd)
+    VALUES(#{challenge.userId},#{challenge.type},#{challenge.hash},#{challenge.expiresAt},#{challenge.now},#{bindingHash},'ISSUED') RETURNING tkn_id
+  </select>
+  <select id="preauth" resultMap="proof" useCache="false" flushCache="true">
+    SELECT tkn_id,user_id,tkn_hash,tkn_ty_cd,expir_at FROM sys.auth_tkn WHERE binding_hash=#{bindingHash} AND tkn_ty_cd='MFA'
+    AND issuance_stts_cd='ISSUED' AND use_at IS NULL AND revoked_at IS NULL AND expir_at &gt; #{now}
+    AND EXISTS(SELECT 1 FROM sys.mail_outbox o WHERE o.auth_tkn_id=sys.auth_tkn.tkn_id AND o.send_stts_cd='SENT')
+  </select>
+  <select id="resetProof" resultMap="proof" useCache="false" flushCache="true">
+    SELECT tkn_id,user_id,tkn_hash,tkn_ty_cd,expir_at FROM sys.auth_tkn WHERE tkn_hash=#{hash} AND tkn_ty_cd='RESET'
+    AND issuance_stts_cd='ISSUED' AND use_at IS NULL AND revoked_at IS NULL AND expir_at &gt; #{now}
+    AND EXISTS(SELECT 1 FROM sys.mail_outbox o WHERE o.auth_tkn_id=sys.auth_tkn.tkn_id AND o.send_stts_cd='SENT')
+  </select>
+  <update id="revokeProofs">UPDATE sys.auth_tkn SET revoked_at=CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Seoul' WHERE user_id=#{userId} AND revoked_at IS NULL AND use_at IS NULL</update>
+  <update id="consumeProof">UPDATE sys.auth_tkn SET use_at=#{now} WHERE tkn_id=#{id} AND use_at IS NULL AND revoked_at IS NULL AND expir_at &gt; #{now}</update>
+  <insert id="insertSession">INSERT INTO sys.login_session(session_id_hash,user_id,created_at,last_activity_at,expires_at) VALUES(#{hash},#{userId},#{now},#{now},#{expiresAt})</insert>
+  <update id="revokeSessions">UPDATE sys.login_session SET revoked_at=#{now} WHERE user_id=#{userId} AND revoked_at IS NULL</update>
+  <update id="logout">UPDATE sys.login_session SET revoked_at=#{now} WHERE session_id_hash=#{hash} AND revoked_at IS NULL</update>
+  <update id="activity">UPDATE sys.login_session SET last_activity_at=#{now},expires_at=#{now}+INTERVAL '30 minutes'
+    WHERE session_id_hash=#{hash} AND revoked_at IS NULL AND expires_at &gt; #{now} AND last_activity_at &gt; #{now}-INTERVAL '30 minutes'</update>
+  <update id="changePassword">UPDATE sys.user_info SET pswd_hash=#{hash},pswd_chg_at=#{now},pswd_chg_need_yn='N',lgn_fail_cnt=0,otp_fail_cnt=0,
+    user_stts_cd=CASE WHEN user_stts_cd='LOCKED' THEN 'ACTIVE' ELSE user_stts_cd END,lock_at=NULL WHERE user_id=#{userId}</update>
+  <insert id="audit">INSERT INTO sys.acs_hist(user_id,acs_ty_cd,result_cd,scrn_id,obj_desc,created_at) VALUES(#{userId},#{type},#{result},#{screenId},#{target},#{now})</insert>
+  <select id="rate" resultType="int" affectData="true" flushCache="true">
+    INSERT INTO sys.auth_request_window(key_hash,window_start,request_count) VALUES(#{hash},#{now},1)
+    ON CONFLICT(key_hash) DO UPDATE SET window_start=CASE WHEN sys.auth_request_window.window_start &lt;= #{now}-INTERVAL '15 minutes' THEN #{now} ELSE sys.auth_request_window.window_start END,
+    request_count=CASE WHEN sys.auth_request_window.window_start &lt;= #{now}-INTERVAL '15 minutes' THEN 1 ELSE sys.auth_request_window.request_count+1 END RETURNING request_count
+  </select>
+  <select id="outbox" resultType="long" affectData="true" flushCache="true">
+    INSERT INTO sys.mail_outbox(auth_tkn_id,recipient_user_id,mail_ty_cd,next_retry_at,created_at) VALUES(#{proofId},#{userId},#{type},#{now},#{now}) RETURNING mail_outbox_id
+  </select>
+  <update id="mailSent">UPDATE sys.mail_outbox SET send_stts_cd='SENT',sent_at=#{now} WHERE mail_outbox_id=#{id}</update>
+  <update id="mailFailed">UPDATE sys.mail_outbox SET send_stts_cd='FAILED',last_error_cd='SMTP_UNAVAILABLE' WHERE mail_outbox_id=#{id}</update>
+</mapper>

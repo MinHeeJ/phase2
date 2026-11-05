@@ -13,16 +13,37 @@
     }
   },
   "auth": {
-    "required": false
+    "required": true,
+    "test_role": "재무 담당",
+    "credential_ref": "smoke-primary",
+    "login": {
+      "operation_id": "createLogin",
+      "method": "POST",
+      "path": "/api/auth/login",
+      "body_fields": { "login_id": "loginId", "password": "password" },
+      "session": "cookie",
+      "bearer_json_path": null,
+      "expect": [{ "path": "data.state", "op": "equals", "value": "AUTHENTICATED" }]
+    },
+    "seed": { "initializer_path": "backend/src/main/java/com/sicost/common/security/SmokeAccountInitializer.java" }
+  },
+  "identity": {
+    "operation_id": "getCurrentUser",
+    "method": "GET",
+    "path": "/api/auth/me",
+    "expect": [
+      { "path": "data.roles", "op": "type", "value": "array_of_string" },
+      { "path": "data.roles", "op": "contains", "value": "$test_role" }
+    ]
   },
   "first_menu": {
-    "route": "/UI-16",
-    "operation_id": "getDashboard",
+    "route": "/UI-13",
+    "operation_id": "listBillings",
     "method": "GET",
-    "path": "/api/dashboard",
+    "path": "/api/billings",
     "expect": [
       { "path": "success", "op": "equals", "value": true },
-      { "path": "data.kpis", "op": "type", "value": "object" }
+      { "path": "data.items", "op": "type", "value": "array" }
     ]
   }
 }

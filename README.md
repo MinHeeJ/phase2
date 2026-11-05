@@ -12,16 +12,46 @@ FRONTEND_PORT와 BACKEND_PORT로 변경할 수 있습니다.
 
 첫 사용과 인증 범위
 
-승인 요구사항 REQ-001·REQ-002에 따라 이번 단계는 인증 없이 사용합니다.
-시작 후 /UI-16으로 진입하고 업무 메뉴에서 공통코드 관리(/UI-27)를 선택합니다.
-초기 관리자 생성, 로그인, 비밀번호 변경과 확인 계정 초기화는 이번 단계에 없습니다.
-CurrentUser와 PermissionService는 향후 연결을 위한 명세상 고정 어댑터이며 실제 인증이 아닙니다.
+시스템관리 변경부터 업무 API와 화면에는 실제 서버 세션 인증이 필요합니다.
+공개 진입 화면은 /UI-22이며 관리자는 반드시 이메일 MFA를 거칩니다.
+초기 관리자용 앱 시험 계정 안내는 aiops.initial-login.json에 있습니다.
+비운영 Compose는 이 안내 파일을 읽기 전용으로 마운트합니다. 비밀번호를 이미지에 포함하지 않습니다.
+첫 기동 전에 SICOST_INITIAL_ADMIN_EMAIL을 실제 수신 가능한 주소로 공급하고 SMTP_HOST,
+SMTP_PORT, SMTP_FROM, 필요한 경우 SMTP_USERNAME/SMTP_PASSWORD 및 SMTP_STARTTLS를 공급하세요.
+SMTP와 이메일 없이도 앱은 기동하지만 관리자 MFA는 503으로 실패 닫힘 처리됩니다.
+이때 로그인할 수 있는 것처럼 안내하거나 MFA를 생략하지 않습니다.
+APP_PUBLIC_ORIGIN은 RESET 메일 링크에 쓰는 배포 출처입니다. 프런트 API 호출은 상대경로만 사용합니다.
+안내 파일 기반 초기화는 비운영에서만 사용합니다. 운영은 SICOST_INITIAL_ADMIN_LOGIN_ID,
+SICOST_INITIAL_ADMIN_PASSWORD, SICOST_INITIAL_ADMIN_EMAIL을 비밀 관리자로 일회 공급합니다.
+이미 관리자 역할을 가진 계정이 있으면 초기화는 기존 계정을 덮어쓰지 않습니다.
+첫 로그인 순서: /UI-22에서 안내 계정으로 로그인 → 수신한 MFA 확인 → 비밀번호 변경 → 다시 로그인/MFA.
+최초 비밀번호 변경 전에는 업무 화면을 열 수 없습니다. 초기화 후 운영 일회 비밀은 제거하세요.
+확인 계정의 AIOPS_SMOKE_* 세 값은 초기 관리자와 독립적이며 세 값이 모두 있을 때만 DB에 반영합니다.
+평상시 시작·빌드·Compose 설정 검증에는 확인 계정 값이 필요하지 않습니다.
 계정·토큰·쿠키·요청 본문을 실행 로그나 검증 보고에 기록하지 마세요.
+
+인증 앱 사용 확인
+
+이미지는 확인 계정 환경 변수 없이 먼저 빌드합니다.
+    docker compose -f infra/docker-compose.yml build backend frontend
+    python infra/verify_runtime.py --start --project sicost-smoke-check
+
+대상을 지정하지 않고 python infra/verify_runtime.py를 실행해도 매번 새 이름의 격리
+프로젝트를 기동해 검사합니다. 이 기본 실행은 기존 앱의 계정이나 안내 계정을 사용하지
+않으며 확인 계정 슬롯은 메모리에서 생성해 기동 시에만 전달합니다.
+
+--start는 비어 있는 별도 Compose 프로젝트만 허용합니다. 매 실행 임시 확인 계정을
+메모리에서 만들고 세 환경 변수로 백엔드 기동 시에만 전달합니다. 안내 계정은 읽지 않습니다.
+기동·공개 JSON health·CSRF를 포함한 로그인·역할 identity·첫 업무 목록·nginx 프록시와
+화면 경로를 확인하고, 성공·실패 모두 해당 시험 프로젝트와 시험 볼륨을 제거합니다.
+계정·응답·쿠키·토큰은 출력하거나 임시 파일에 저장하지 않습니다.
+기존 전용 시험 프로젝트 확인은 실행 환경에 동일한 세 슬롯을 공급한 뒤 --start 없이
+실행합니다. 누락되거나 일부만 주어진 슬롯은 실패로 처리하며 안내 계정으로 대체하지 않습니다.
 
 검증
 
 백엔드 디렉터리에서:
-    mvn -B -Dtest=AdminApiTest test
+    mvn -B -Dtest=AuthenticationApiTest,SystemManagementApiTest,NotificationApiTest,SecurityBoundaryApiTest test
     mvn -B test
 
 기본 시험은 외부 DB 없이 실행하며 실제 DB 통합 시험은 TEST_DATABASE_URL,

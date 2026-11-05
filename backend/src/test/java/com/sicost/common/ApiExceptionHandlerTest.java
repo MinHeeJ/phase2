@@ -21,9 +21,11 @@ import org.springframework.web.multipart.MultipartException;
 import org.springframework.web.multipart.MultipartFile;
 
 @WebMvcTest(controllers = ApiExceptionHandlerTest.Errors.class)
-@Import({RequestIdFilter.class, ApiExceptionHandler.class, ApiExceptionHandlerTest.Errors.class})
+@Import({RequestIdFilter.class, ApiExceptionHandler.class, ApiExceptionHandlerTest.Errors.class,
+    com.sicost.common.security.ApplicationSecurityConfiguration.class, com.sicost.common.config.ClockConfig.class})
 class ApiExceptionHandlerTest {
     @Autowired MockMvc mvc;
+    @org.springframework.boot.test.mock.mockito.MockBean com.sicost.common.security.AccessPolicyMapper access;
 
     @RestController
     static class Errors {

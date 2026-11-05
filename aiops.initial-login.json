@@ -1,5 +1,8 @@
 {
   "schema_version": 1,
-  "auth_required": false,
-  "guide_path": "README.md"
+  "auth_required": true,
+  "guide_path": "README.md",
+  "login_id": "sicost.trial.admin",
+  "password": "Sicost-Trial-Start-48!",
+  "role_codes": ["시스템 관리자"]
 }

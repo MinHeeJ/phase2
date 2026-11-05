@@ -7,6 +7,7 @@ import static com.sicost.billings.BillingModels.*;
 
 @Mapper
 public interface BillingMapper {
+    com.sicost.common.security.AccessPolicyModels.Target projectTarget(long id);
     void lockClosingSources();
     List<BillingRow> list(BillingQuery query);
     long count(BillingQuery query);

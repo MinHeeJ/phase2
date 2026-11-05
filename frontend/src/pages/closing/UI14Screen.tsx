@@ -86,6 +86,7 @@ export default function UI14Screen({
   };
   return (
     <section
+      data-screen-id="SCR-UI-14"
       data-testid="closing-screen"
       aria-label="월 마감 화면"
       className={styles.workspace}
@@ -118,7 +119,10 @@ export default function UI14Screen({
         <>
           {data.status === "CLOSED" ? (
             <LockedBanner>
-              {month}는 {data.processedAt ? formatDateTime(data.processedAt) : "일시 미확인"}{" "}
+              {month}는{" "}
+              {data.processedAt
+                ? formatDateTime(data.processedAt)
+                : "일시 미확인"}{" "}
               {data.actorName || "시스템 처리"}가 마감했습니다.
               {!data.canReopen &&
                 " 가장 최근에 마감한 달만 해제할 수 있으며 유효 조정 참조가 없어야 합니다."}
@@ -146,7 +150,8 @@ export default function UI14Screen({
               </div>
             </div>
             <p className={styles.timestamp}>
-              최근 점검: {data.checkedAt ? formatDateTime(data.checkedAt) : "점검 미실행"}
+              최근 점검:{" "}
+              {data.checkedAt ? formatDateTime(data.checkedAt) : "점검 미실행"}
             </p>
             {data.checks.length === 0 && (
               <p className={tables.empty}>
@@ -184,7 +189,10 @@ export default function UI14Screen({
                         aria-label={`${code.name} 확인하기`}
                         onClick={() =>
                           navigate(destinations[code.code], {
-                            state: { closingMonth: month, closingCheck: code.code },
+                            state: {
+                              closingMonth: month,
+                              closingCheck: code.code,
+                            },
                           })
                         }
                       >

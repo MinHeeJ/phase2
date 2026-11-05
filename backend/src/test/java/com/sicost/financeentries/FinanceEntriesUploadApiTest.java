@@ -31,6 +31,7 @@ import static com.sicost.entries.FinanceEntryModels.*;
 import static com.sicost.uploadsops.UploadModels.*;
 
 @WebMvcTest(controllers=FinanceEntriesUploadController.class)
+@org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc(addFilters=false)
 @Import({RequestIdFilter.class,ApiExceptionHandler.class,FinanceEntriesUploadService.class,
     FinanceEntriesUploadForm.class,CurrentUser.class,PermissionService.class,UploadWorkbookWriter.class})
 class FinanceEntriesUploadApiTest {
@@ -45,6 +46,8 @@ class FinanceEntriesUploadApiTest {
     @MockBean FinanceEntryMapper entries;
     @MockBean UploadService uploads;
     @MockBean UploadMapper common;
+    @MockBean CurrentUser user;
+    @MockBean PermissionService permissions;
     @MockBean Clock clock;
     static final java.util.concurrent.atomic.AtomicLong sequence=new java.util.concurrent.atomic.AtomicLong(100);
     @BeforeEach void setup() {
@@ -133,6 +136,11 @@ class FinanceEntriesUploadApiTest {
     @Test void confirmationIsRequired()throws Exception {mvc.perform(post("/api/uploads/finance-entries/apply").contentType("application/json").content("{\"upload_id\":\"1\"}")).andExpect(status().isBadRequest()).andExpect(jsonPath("$.field").value("confirm"));}
     @Test void appliedReplayDoesNotReplaceAgain()throws Exception {String id=accepted();when(mapper.uploadStatus(Long.parseLong(id))).thenReturn("APPLIED");apply(id,true).andExpect(status().isOk());unchanged();}
     @Test void emptyFileIs400()throws Exception {validate(new byte[0],"재무.xlsx").andExpect(status().isBadRequest());}
+    @Test void servletMultipartPostWithoutFileHasNoBusinessSideEffect()throws Exception {
+        mvc.perform(post("/api/uploads/finance-entries/validate").contentType("multipart/form-data"))
+            .andExpect(status().isBadRequest()).andExpect(jsonPath("$.field").value("file"));
+        unchanged();verify(uploads,never()).store(any(),any());
+    }
     @Test void missingFileIs400()throws Exception {mvc.perform(multipart("/api/uploads/finance-entries/validate")).andExpect(status().isBadRequest());}
     @Test void oversizedFileIs400()throws Exception {validate(new byte[10*1024*1024+1],"재무.xlsx").andExpect(status().isBadRequest());}
     @Test void unexpectedFailureIsSafe()throws Exception {when(mapper.nextUploadId()).thenThrow(new IllegalStateException("private database details"));validate(workbook("2026-10,SGA,임대료,0"),"재무.xlsx").andExpect(status().isInternalServerError()).andExpect(jsonPath("$.code").value("INTERNAL_ERROR")).andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("private database"))));}

@@ -15,24 +15,24 @@ import org.junit.jupiter.api.Test;
 
 class CommonValuesTest {
     record Visible(@Sensitive String salary) {}
-    @Test void fixedActorUsesNullAndAll() {
+    @Test void anonymousActorCannotBecomeAdministrator() {
         var user = new CurrentUser();
-        assertThat(user.userId()).isNull();
-        assertThat(user.name()).isEqualTo("기본 사용자");
-        assertThat(user.roleIds()).containsExactly(1L);
-        assertThat(user.dataScope()).isEqualTo(DataScope.ALL);
+        assertThatThrownBy(user::userId).isInstanceOf(com.sicost.common.api.ApiException.class);
+        assertThatThrownBy(user::name).isInstanceOf(com.sicost.common.api.ApiException.class);
+        assertThatThrownBy(user::roleIds).isInstanceOf(com.sicost.common.api.ApiException.class);
+        assertThatThrownBy(user::dataScope).isInstanceOf(com.sicost.common.api.ApiException.class);
         assertThat(DataScope.values()).containsExactly(DataScope.ALL, DataScope.PART, DataScope.PROJECT, DataScope.SELF);
     }
-    @Test void everyPermissionIsAllowedWithoutRoleReads() {
+    @Test void everyPermissionRequiresAuthenticatedRoleReads() {
         var permissions = new PermissionService();
-        for (String action : PermissionService.AUTH_COLUMNS.keySet()) assertThat(permissions.can("UI-27." + action)).isTrue();
+        for (String action : PermissionService.AUTH_COLUMNS.keySet()) assertThatThrownBy(()->permissions.can("UI-27." + action)).isInstanceOf(com.sicost.common.api.ApiException.class);
     }
-    @Test void partnerActionsReuseAllExistingPermissionKeysWithoutRoleDenial() {
+    @Test void partnerActionsRetainKeysButDenyAnonymousCallers() {
         var permissions = new PermissionService();
         assertThat(PermissionService.AUTH_COLUMNS).containsAllEntriesOf(java.util.Map.of(
             "read", "inq_auth_yn", "create", "reg_auth_yn", "update", "mdfcn_auth_yn",
             "delete", "del_auth_yn", "upload", "upld_auth_yn", "download", "dwnld_auth_yn"));
-        for (String action : PermissionService.AUTH_COLUMNS.keySet()) assertThat(permissions.can("UI-15." + action)).isTrue();
+        for (String action : PermissionService.AUTH_COLUMNS.keySet()) assertThatThrownBy(()->permissions.can("UI-15." + action)).isInstanceOf(com.sicost.common.api.ApiException.class);
     }
     @Test void sensitiveAnnotationDoesNotMask() throws Exception {
         assertThat(JsonMapper.builder().build().writeValueAsString(new Visible("200000"))).contains("200000");
