@@ -9,7 +9,7 @@
     "typecheck": "tsc --noEmit",
     "build": "tsc --noEmit && vite build",
     "test": "vitest",
-    "test:e2e": "playwright test",
+    "test:e2e": "NODE_PATH=./node_modules playwright test",
     "preview": "vite preview --host 0.0.0.0"
   },
   "dependencies": {

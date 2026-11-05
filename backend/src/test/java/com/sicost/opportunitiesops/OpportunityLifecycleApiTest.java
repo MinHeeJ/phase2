@@ -9,6 +9,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sicost.common.api.*;
 import com.sicost.common.security.*;
+import static com.sicost.common.security.AccessPolicyModels.*;
+import jakarta.servlet.http.Cookie;
 import com.sicost.common.excel.ExcelExportService;
 import com.sicost.common.finance.MonthlyProfitReader;
 import com.sicost.projects.*;
@@ -31,19 +33,35 @@ import org.springframework.test.web.servlet.*;
 @WebMvcTest(controllers=OpportunityLifecycleController.class)
 @Import({RequestIdFilter.class,ApiExceptionHandler.class,OpportunityLifecycleService.class,OpportunityWinService.class,
     OpportunityQuoteVerifier.class,OpportunityExportService.class,WorkforceForecastService.class,ExcelExportService.class,
-    CurrentUser.class,OpportunityLifecycleApiTest.Time.class})
+    CurrentUser.class,PermissionService.class,ApplicationSecurityConfiguration.class,OpportunityLifecycleApiTest.Time.class})
 class OpportunityLifecycleApiTest {
     @TestConfiguration static class Time {@Bean Clock clock(){return Clock.fixed(Instant.parse("2026-10-22T15:01:00Z"),ZoneId.of("Asia/Seoul"));}}
     @Autowired MockMvc mvc;@Autowired ObjectMapper json;
     @MockBean OpportunityLifecycleMapper mapper;@MockBean OpportunityForecastMapper forecast;
     @MockBean MonthlyProfitReader profit;@MockBean ProjectService projects;@MockBean AssignmentService assignments;
+    @MockBean AccessPolicyMapper access;
+    @Autowired org.springframework.web.context.WebApplicationContext context;
+    MockMvc anonymousMvc;
     String status,stage,approval,evidence,validation,lost,rejected;BigDecimal probability;Long project;
     LocalDateTime approvalDate;BigDecimal approvalMargin;List<ApprovalHistory> history;List<Audit> audit;
     List<Need> needs;long revenue,cost;boolean costKnown;boolean exists;
     Row row(){return new Row(7,"O-07","기회",1,1L,null,stage,probability,90000000,"MO","2026-11",4,null,null,null,status,project,
         LocalDateTime.of(2026,10,8,0,0),null,"영업 추정과 견적 차이",approval,revenue,cost,BigDecimal.valueOf(revenue-cost).multiply(BigDecimal.valueOf(100)).divide(BigDecimal.valueOf(revenue),2,RoundingMode.HALF_UP),approvalMargin,approvalDate,evidence,validation,lost,rejected);}
     Need need(){return new Need(11,"BE","S",2,"2026-11",4,BigDecimal.ONE,10000000L,8000000L,8000000L,10000000L,null);}
-    @BeforeEach void setup(){
+    @BeforeEach void setup()throws Exception{
+        var account=new Account(42L,"검증 사용자",null,"ACTIVE",null,false,LocalDateTime.of(2026,10,24,0,0));
+        when(access.sessionOwner(any())).thenReturn(account);when(access.activeSession(any())).thenReturn(account);
+        when(access.grants(any())).thenReturn(List.of(new Grant(4L,DataScope.PART,false,false,false,true,"영업 파트장")));
+        when(access.parts(42L)).thenReturn(List.of(1L));when(access.projects(42L)).thenReturn(List.of());
+        anonymousMvc=mvc;
+        var csrf=mvc.perform(get("/api/health")).andReturn();
+        var token=(org.springframework.security.web.csrf.CsrfToken)csrf.getRequest().getAttribute(org.springframework.security.web.csrf.CsrfToken.class.getName());
+        var csrfValue=token.getToken();
+        mvc=org.springframework.test.web.servlet.setup.MockMvcBuilders.webAppContextSetup(context)
+            .addFilters(new RequestIdFilter())
+            .apply(org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity())
+            .defaultRequest(get("/").cookie(new Cookie("JSESSIONID",AuthenticationProofs.randomSessionId()),csrf.getResponse().getCookie("XSRF-TOKEN"))
+                .header("X-CSRF-TOKEN",csrfValue)).build();
         status="OPEN";stage="DISC";approval="PENDING";probability=BigDecimal.TEN;project=null;approvalDate=null;approvalMargin=null;evidence=null;validation=null;lost=null;rejected=null;
         history=new ArrayList<>();audit=new ArrayList<>();needs=List.of(need());revenue=80000000;cost=64000000;costKnown=true;exists=true;
         when(mapper.lock(anyLong())).thenAnswer(i->exists?row():null);when(mapper.row(anyLong())).thenAnswer(i->row());when(mapper.needs(anyLong())).thenAnswer(i->needs);
@@ -65,14 +83,14 @@ class OpportunityLifecycleApiTest {
     Map<String,Object> project(){return new LinkedHashMap<>(Map.of("prj_nm","수주 프로젝트","cust_ptnr_id",1,"bsn_part_id",1,"cntrct_ty_cd","MO","prj_stts_cd","RUN","cntrct_bgn_dt","2026-11-01","cntrct_end_dt","2027-02-28","init_cntrct_amt",80000000));}
     void error(ResultActions result,String field)throws Exception{result.andExpect(status().isBadRequest()).andExpect(jsonPath("$.success").value(false)).andExpect(jsonPath("$.field").value(field)).andExpect(jsonPath("$.message").isNotEmpty()).andExpect(jsonPath("$.requestId").isNotEmpty());}
     void untouched(){verify(mapper,never()).change(any());verify(mapper,never()).approval(any());verify(mapper,never()).release(any());verify(mapper,never()).audit(any());verify(projects,never()).create(any());}
-    @Test void anonymousStageResetsProbabilityAndWritesBothAuditFields()throws Exception{
+    @Test void authenticatedStageResetsProbabilityAndWritesBothAuditFields()throws Exception{
         probability=new BigDecimal("55");post("stage",Map.of("bsn_stg_cd","PROP")).andExpect(status().isOk()).andExpect(jsonPath("$.data.bsn_stg_cd").value("PROP")).andExpect(jsonPath("$.data.win_prblt_rt").value(30));
-        assertThat(audit).extracting(Audit::column).containsExactlyInAnyOrder("bsn_stg_cd","win_prblt_rt");assertThat(audit).allMatch(a->a.actor()==null);
+        assertThat(audit).extracting(Audit::column).containsExactlyInAnyOrder("bsn_stg_cd","win_prblt_rt");assertThat(audit).allMatch(a->Long.valueOf(42).equals(a.actor()));
     }
     @ParameterizedTest @ValueSource(strings={"WON","LOST","X",""})void stageValidation(String value)throws Exception{error(post("stage",Map.of("bsn_stg_cd",value)),"bsn_stg_cd");untouched();}
     @ParameterizedTest @ValueSource(strings={"NEGO","PRE"})void pendingCannotEnterLateStage(String value)throws Exception{post("stage",Map.of("bsn_stg_cd",value)).andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("QUOTE_APPROVAL_REQUIRED"));untouched();}
     @Test void pendingAlreadyPreCannotMoveAway()throws Exception{stage="PRE";post("stage",Map.of("bsn_stg_cd","DISC")).andExpect(status().isConflict());assertThat(stage).isEqualTo("PRE");untouched();}
-    @Test void anonymousApprovalRecordsNullableActorAndSnapshot()throws Exception{post("approve",Map.of("opinion","승인")).andExpect(status().isOk()).andExpect(jsonPath("$.data.quote.approval_state").value("APPROVED")).andExpect(jsonPath("$.data.approval_history[0].user_id").isEmpty()).andExpect(jsonPath("$.data.approval_history[0].action").value("APPROVE"));assertThat(approvalDate).isNotNull();assertThat(approvalMargin).isEqualByComparingTo("20");}
+    @Test void approvalRecordsAuthenticatedActorAndSnapshot()throws Exception{post("approve",Map.of("opinion","승인")).andExpect(status().isOk()).andExpect(jsonPath("$.data.quote.approval_state").value("APPROVED")).andExpect(jsonPath("$.data.approval_history[0].user_id").value(42)).andExpect(jsonPath("$.data.approval_history[0].action").value("APPROVE"));assertThat(approvalDate).isNotNull();assertThat(approvalMargin).isEqualByComparingTo("20");}
     @Test void approvalEmptyOpinionAllowed()throws Exception{post("approve",Map.of()).andExpect(status().isOk());}
     @Test void commandResponseUsesSameAmountDifferenceAsOpportunityRead()throws Exception{
         long difference=Math.subtractExact(revenue,row().expc_amt());
@@ -87,7 +105,7 @@ class OpportunityLifecycleApiTest {
     @Test void realZeroCostEvidenceIsBoundAndInvalidatedBySourceChange()throws Exception{cost=0;post("approve",Map.of("zero_cost_evidence","cst.mth_cst:4")).andExpect(status().isOk()).andExpect(jsonPath("$.data.quote.cost_status").value("PROVEN_ZERO"));assertThat(validation).isNotBlank();costKnown=false;post("win",Map.of("project",project())).andExpect(status().isConflict());verify(projects,never()).create(any());}
     @Test void inventedZeroProofIsRejected()throws Exception{error(post("approve",Map.of("zero_cost_evidence","true")),"zero_cost_evidence");untouched();}
     @Test void staleCostCannotBeApproved()throws Exception{cost=1;post("approve",Map.of()).andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("QUOTE_CHANGED"));untouched();}
-    @Test void anonymousRejectionSavesBusinessReason()throws Exception{post("reject",Map.of("reason","단가 재검토")).andExpect(status().isOk()).andExpect(jsonPath("$.data.quote.approval_state").value("REJECTED")).andExpect(jsonPath("$.data.approval_history[0].opinion").value("단가 재검토"));assertThat(rejected).isEqualTo("단가 재검토");}
+    @Test void anonymousRejectionSavesBusinessReason()throws Exception{mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/opportunities/7/reject").contentType("application/json").content(json.writeValueAsString(Map.of("reason","단가 재검토")))).andExpect(status().isOk()).andExpect(jsonPath("$.data.quote.approval_state").value("REJECTED")).andExpect(jsonPath("$.data.approval_history[0].opinion").value("단가 재검토"));assertThat(rejected).isEqualTo("단가 재검토");}
     @ParameterizedTest @ValueSource(strings={"reject","lose"})void emptyReasonIsRejected(String action)throws Exception{error(post(action,Map.of("reason"," ")),"reason");untouched();}
     @ParameterizedTest @ValueSource(strings={"reject","lose"})void longReasonIsRejected(String action)throws Exception{error(post(action,Map.of("reason","가".repeat(501))),"reason");untouched();}
     @ParameterizedTest @ValueSource(strings={"NONE","APPROVED","REJECTED"})void rejectionRequiresPending(String value)throws Exception{approval=value;post("reject",Map.of("reason","반려")).andExpect(status().isConflict());untouched();}
@@ -113,9 +131,69 @@ class OpportunityLifecycleApiTest {
         var response=mvc.perform(get("/api/opportunities/export").param("q","고객").param("from","2026-11")).andExpect(status().isOk()).andExpect(jsonPath("$.success").value(true)).andExpect(jsonPath("$.data.file_name").value("영업파이프라인_20261023.xlsx")).andReturn();
         var data=json.readTree(response.getResponse().getContentAsString()).get("data");
         try(var book=new XSSFWorkbook(new ByteArrayInputStream(Base64.getDecoder().decode(data.get("content_base64").asText())))){assertThat(book.getSheetAt(0).getLastRowNum()).isEqualTo(76);assertThat(book.getSheetAt(0).getRow(76).getCell(2).getStringCellValue()).isEqualTo("고객");}
-        verify(mapper).exportRows(argThat(q->q.status().equals("OPEN")&&q.q().equals("고객")&&q.from().equals("2026-11")));verify(mapper).download(argThat(d->d.actor()==null));untouched();
+        verify(mapper).exportRows(argThat(q->q.status().equals("OPEN")&&q.q().equals("고객")&&q.from().equals("2026-11")));verify(mapper).download(argThat(d->Long.valueOf(42).equals(d.actor())));untouched();
     }
     @Test void emptyExportHasOnlyHeaders()throws Exception{var response=mvc.perform(get("/api/opportunities/export")).andExpect(status().isOk()).andReturn();var data=json.readTree(response.getResponse().getContentAsString()).get("data");try(var book=new XSSFWorkbook(new ByteArrayInputStream(Base64.getDecoder().decode(data.get("content_base64").asText())))){assertThat(book.getSheetAt(0).getLastRowNum()).isEqualTo(3);}untouched();}
     @ParameterizedTest @CsvSource({"from,2026-13","months,7","year,0","size,10","sort,unknown","page,-1","unknown,x"})void forecastValidation(String key,String value)throws Exception{error(mvc.perform(get("/api/opportunities/forecast").param(key,value)),key);untouched();}
     @Test void anonymousForecastEmptyPastYearReturnsEnvelope()throws Exception{mvc.perform(get("/api/opportunities/forecast").param("year","2025")).andExpect(status().isOk()).andExpect(jsonPath("$.data.items").isEmpty()).andExpect(jsonPath("$.data.total").value(0)).andExpect(jsonPath("$.data.workforce.message").value("예측할 미래월이 없습니다."));untouched();}
+    Object payload(String action){return switch(action){case "stage"->Map.of("bsn_stg_cd","PROP");case "win"->Map.of("project",project());case "reject","lose"->Map.of("reason","검토");default->Map.of();};}
+    @ParameterizedTest @ValueSource(strings={"stage","approve","reject","lose","disable","win"})
+    void anonymousCannotMutate(String action)throws Exception{
+        anonymousMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/opportunities/7/"+action)
+            .contentType("application/json").content(json.writeValueAsString(payload(action))))
+            .andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("UNAUTHENTICATED"));untouched();
+    }
+    @ParameterizedTest @ValueSource(strings={"stage","approve","reject","lose","disable","win"})
+    void missingActionIsForbiddenBeforeBusinessReads(String action)throws Exception{
+        when(access.grants(any())).thenReturn(List.of());post(action,payload(action)).andExpect(status().isForbidden());
+        verify(mapper,never()).lock(anyLong());untouched();
+    }
+    @ParameterizedTest @ValueSource(strings={"stage","approve","reject","lose","disable","win"})
+    void otherPartIsHiddenWithoutWrites(String action)throws Exception{
+        when(access.parts(42L)).thenReturn(List.of(2L));post(action,payload(action)).andExpect(status().isNotFound());untouched();
+    }
+    @ParameterizedTest @ValueSource(strings={"stage","approve","reject","lose","disable","win"})
+    void executiveCannotWriteEvenWithStoredGrant(String action)throws Exception{
+        when(access.grants(any())).thenReturn(List.of(new Grant(2L,DataScope.ALL,true,false,false,true,"경영진")));
+        post(action,payload(action)).andExpect(status().isForbidden());untouched();
+    }
+    @ParameterizedTest @ValueSource(strings={"stage","approve","reject","lose","disable","win"})
+    void expiredOrRevokedSessionCannotWrite(String action)throws Exception{
+        when(access.sessionOwner(any())).thenReturn(null);post(action,payload(action)).andExpect(status().isUnauthorized());untouched();
+    }
+    @ParameterizedTest @ValueSource(strings={"stage","approve","reject","lose","disable","win"})
+    void passwordChangeSessionCannotWrite(String action)throws Exception{
+        when(access.sessionOwner(any())).thenReturn(new Account(42L,"검증",null,"ACTIVE",null,true,LocalDateTime.of(2026,10,24,0,0)));
+        post(action,payload(action)).andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("PASSWORD_CHANGE_REQUIRED"));untouched();
+    }
+    @ParameterizedTest @ValueSource(strings={"stage","approve","reject","lose","disable","win"})
+    void missingResourceDoesNotWrite(String action)throws Exception{
+        exists=false;post(action,payload(action)).andExpect(status().isNotFound());untouched();
+    }
+    @Test void scopesAreUnionedOnlyAcrossActionGrants()throws Exception{
+        when(access.parts(42L)).thenReturn(List.of(2L));
+        when(access.grants(any())).thenReturn(List.of(new Grant(4L,DataScope.PART,false,false,false,true,"영업 파트장"),
+            new Grant(5L,DataScope.ALL,false,false,false,false,"추가 업무 역할")));
+        post("stage",payload("stage")).andExpect(status().isOk());
+    }
+    @Test void approvalUsesConfirmNotUpdatePermission()throws Exception{
+        when(access.grants(any())).thenAnswer(i->"confirm".equals(i.getArgument(0,PermissionLookup.class).action())?List.of():List.of(new Grant(4L,DataScope.ALL,false,false,false,true,"영업 파트장")));
+        post("approve",Map.of()).andExpect(status().isForbidden());untouched();
+    }
+    @Test void previousApproverIsRecordedExactly()throws Exception{
+        when(mapper.auditState(7)).thenReturn(new AuditState(null,9L));post("approve",Map.of()).andExpect(status().isOk());
+        assertThat(audit).anyMatch(a->a.column().equals("aprv_user_id")&&"9".equals(a.before())&&"42".equals(a.after()));
+    }
+    @Test void previousClosingDateIsRecordedExactly()throws Exception{
+        when(mapper.auditState(7)).thenReturn(new AuditState(LocalDate.of(2026,10,1),null));post("lose",payload("lose")).andExpect(status().isOk());
+        assertThat(audit).anyMatch(a->a.column().equals("end_dt")&&"2026-10-01".equals(a.before())&&"2026-10-23".equals(a.after()));
+    }
+    @Test void unprovenCostsAreNullWithoutHidingRevenue()throws Exception{
+        post("stage",payload("stage")).andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.quote.expc_sls_amt").value(80000000))
+            .andExpect(jsonPath("$.data.quote.expc_cst_amt").isEmpty())
+            .andExpect(jsonPath("$.data.quote.expc_mrgn_rt").isEmpty())
+            .andExpect(jsonPath("$.data.quote.reasonCode").value("UNPROVEN_SAFETY"))
+            .andExpect(jsonPath("$.data.needs[0].psn_mth_cst_amt").isEmpty());
+    }
 }

@@ -32,6 +32,19 @@ services:
       DB_PASSWORD: ${POSTGRES_PASSWORD:-dev-only-password}
       TZ: Asia/Seoul
       # AI 분석(UI-26)·추천 조건 초안(UI-30)이 쓰는 로컬 sLLM. 내부망의 ollama 서비스로만 연결한다.
+      AIOPS_SMOKE_LOGIN_ID: ${AIOPS_SMOKE_LOGIN_ID}
+      AIOPS_SMOKE_LOGIN_PASSWORD: ${AIOPS_SMOKE_LOGIN_PASSWORD}
+      AIOPS_SMOKE_ROLE_CODES: ${AIOPS_SMOKE_ROLE_CODES}
+      SICOST_INITIAL_ADMIN_LOGIN_ID: ${SICOST_INITIAL_ADMIN_LOGIN_ID}
+      SICOST_INITIAL_ADMIN_PASSWORD: ${SICOST_INITIAL_ADMIN_PASSWORD}
+      SICOST_INITIAL_ADMIN_EMAIL: ${SICOST_INITIAL_ADMIN_EMAIL}
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_FROM: ${SMTP_FROM}
+      SMTP_USERNAME: ${SMTP_USERNAME}
+      SMTP_PASSWORD: ${SMTP_PASSWORD}
+      SMTP_STARTTLS: ${SMTP_STARTTLS:-true}
+      APP_PUBLIC_ORIGIN: ${APP_PUBLIC_ORIGIN}
       AI_OLLAMA_ENABLED: ${AI_OLLAMA_ENABLED:-true}
       AI_OLLAMA_BASE_URL: http://ollama:11434
       AI_OLLAMA_MODEL: ${AI_OLLAMA_MODEL:-qwen3:4b}
@@ -40,6 +53,7 @@ services:
       - "${BACKEND_PORT:-8081}:8080"
     volumes:
       - uploads:/app/data/uploads
+      - ../aiops.initial-login.json:/app/initial-login.json:ro
     depends_on:
       db:
         condition: service_healthy

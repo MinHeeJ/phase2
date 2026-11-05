@@ -10,7 +10,7 @@ import static com.sicost.opportunitiesops.OpportunityLifecycleModels.*;
 
 @RestController
 public class OpportunityLifecycleController {
-    public static final Set<String> PERMISSION_KEYS=Set.of("UI-29.read","UI-29.download","UI-29.approve","UI-29.update","UI-29.win");
+    public static final Set<String> PERMISSION_KEYS=Set.of("UI-29.read","UI-29.download","UI-29.confirm","UI-29.update","UI-29.delete");
     private final OpportunityLifecycleService lifecycle;
     private final OpportunityWinService wins;
     private final WorkforceForecastService forecast;

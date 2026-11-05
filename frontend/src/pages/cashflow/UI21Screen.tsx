@@ -142,7 +142,11 @@ export default function UI21Screen({
     ["forecast_closing", "예상 최종 잔액", false],
   ];
   return (
-    <section data-testid="cashflow-screen" aria-label="자금수지표 화면">
+    <section
+      data-screen-id="SCR-UI-21"
+      data-testid="cashflow-screen"
+      aria-label="자금수지표 화면"
+    >
       <ScreenHeading
         screenId="UI-21"
         name={name}

@@ -205,6 +205,16 @@ export async function exportAnalysis(
   query?: StructuredQuery,
 ) {
   const message = id !== null && answer.messageId !== undefined;
+  const headers = new Headers();
+  if (!message) {
+    const csrf = await readData<{ headerName: string; csrfToken: string }>(
+      "/api/auth/csrf",
+    );
+    if (csrf.headerName !== "X-CSRF-TOKEN" || !csrf.csrfToken)
+      throw new ApiFailure("보안 정보를 확인할 수 없습니다.", 403, null);
+    headers.set(csrf.headerName, csrf.csrfToken);
+    headers.set("Content-Type", "application/json");
+  }
   const response = await fetch(
     message
       ? `${root}/conversations/${id}/messages/${answer.messageId}/export`
@@ -212,7 +222,7 @@ export async function exportAnalysis(
     {
       method: message ? "GET" : "POST",
       credentials: "same-origin",
-      headers: message ? {} : { "Content-Type": "application/json" },
+      headers,
       body: message ? undefined : JSON.stringify(query),
     },
   );

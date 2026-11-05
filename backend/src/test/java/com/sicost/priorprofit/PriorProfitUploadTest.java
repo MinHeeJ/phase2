@@ -29,6 +29,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static com.sicost.priorprofit.PriorProfitUploadModels.*;
 
 @WebMvcTest(controllers=PriorProfitUploadController.class)
+@org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc(addFilters=false)
 @Import({RequestIdFilter.class,ApiExceptionHandler.class,PriorProfitUploadService.class,
     PriorProfitUploadForm.class,UploadWorkbookWriter.class,CurrentUser.class,PermissionService.class})
 class PriorProfitUploadTest {
@@ -38,6 +39,8 @@ class PriorProfitUploadTest {
     @MockBean PriorProfitUploadMapper mapper;
     @MockBean UploadService uploads;
     @MockBean UploadMapper common;
+    @MockBean CurrentUser user;
+    @MockBean PermissionService permissions;
     @TempDir Path directory;
     AtomicLong sequence=new AtomicLong(100);
     Map<Long,String> statuses=new HashMap<>();
@@ -138,6 +141,11 @@ class PriorProfitUploadTest {
     void malformedApplyIsValidationError(String body) throws Exception {
         mvc.perform(post("/api/uploads/prior-profit/apply").contentType("application/json").content(body))
             .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));untouched();
+    }
+    @Test void servletMultipartPostWithoutFileHasNoBusinessSideEffect()throws Exception {
+        mvc.perform(post("/api/uploads/prior-profit/validate").contentType("multipart/form-data"))
+            .andExpect(status().isBadRequest()).andExpect(jsonPath("$.field").value("file"));
+        untouched();verify(uploads,never()).store(any(),any());
     }
     @Test void missingFileIs400() throws Exception {mvc.perform(multipart("/api/uploads/prior-profit/validate")).andExpect(status().isBadRequest()).andExpect(jsonPath("$.field").value("file"));}
     @Test void oversizedFileIs400BeforeStorage() throws Exception {validate(new byte[10*1024*1024+1]).andExpect(status().isBadRequest());verify(uploads,never()).store(any(),any());}

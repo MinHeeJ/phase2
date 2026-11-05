@@ -46,6 +46,10 @@
     aprv_mrgn_rt AS approved_margin,aprv_at AS approved_at,zero_cost_evidence AS evidence,zero_cost_validation AS validation,lost_rsn_desc,rjct_rsn_desc
     FROM bsn.oppt WHERE oppt_id=#{id}</sql>
   <select id="row" resultMap="opportunity"><include refid="header"/></select>
+  <resultMap id="auditState" type="com.sicost.opportunitiesops.OpportunityLifecycleModels$AuditState"><constructor>
+    <arg column="end_dt" javaType="java.time.LocalDate"/><arg column="aprv_user_id" javaType="java.lang.Long"/>
+  </constructor></resultMap>
+  <select id="auditState" resultMap="auditState">SELECT end_dt,aprv_user_id FROM bsn.oppt WHERE oppt_id=#{id}</select>
   <select id="lock" resultMap="opportunity" flushCache="true" useCache="false"><include refid="header"/> FOR UPDATE</select>
   <select id="needs" resultMap="need">SELECT need_id,job_cd,grd_cd,psn_cnt,bgn_ym,mnth_qty AS mth_cnt,mth_mm_qty,
     expc_untprc_amt,psn_mth_cst_amt,min_untprc_amt,trgt_untprc_amt,rmrk_desc FROM bsn.oppt_need WHERE oppt_id=#{id} AND use_yn='Y' ORDER BY sort_seq,need_id</select>

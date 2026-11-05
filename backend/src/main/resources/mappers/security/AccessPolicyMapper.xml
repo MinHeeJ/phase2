@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sicost.common.security.AccessPolicyMapper">
+  <resultMap id="account" type="com.sicost.common.security.AccessPolicyModels$Account"><constructor>
+    <arg column="user_id" javaType="java.lang.Long"/><arg column="user_nm" javaType="java.lang.String"/>
+    <arg column="dev_id" javaType="java.lang.Long"/><arg column="user_stts_cd" javaType="java.lang.String"/>
+    <arg column="rsgn_dt" javaType="java.time.LocalDate"/><arg column="password_change_required" javaType="_boolean"/>
+    <arg column="expires_at" javaType="java.time.LocalDateTime"/>
+  </constructor></resultMap>
+  <resultMap id="role" type="com.sicost.common.security.AccessPolicyModels$Role"><constructor>
+    <arg column="role_id" javaType="java.lang.Long"/><arg column="role_nm" javaType="java.lang.String"/>
+    <arg column="data_scope_cd" javaType="com.sicost.common.security.DataScope"/>
+    <arg column="sensitive" javaType="_boolean"/><arg column="part_standard_change" javaType="_boolean"/>
+    <arg column="admin" javaType="_boolean"/><arg column="built_in" javaType="_boolean"/>
+  </constructor></resultMap>
+  <resultMap id="grant" type="com.sicost.common.security.AccessPolicyModels$Grant"><constructor>
+    <arg column="role_id" javaType="java.lang.Long"/><arg column="data_scope_cd" javaType="com.sicost.common.security.DataScope"/>
+    <arg column="sensitive" javaType="_boolean"/><arg column="part_standard_change" javaType="_boolean"/>
+    <arg column="admin" javaType="_boolean"/><arg column="built_in" javaType="_boolean"/>
+    <arg column="role_nm" javaType="java.lang.String"/>
+  </constructor></resultMap>
+  <sql id="sessionProjection">
+    SELECT u.user_id,u.user_nm,u.dev_id,u.user_stts_cd,u.rsgn_dt,u.pswd_chg_need_yn='Y' AS password_change_required,s.expires_at
+    FROM sys.user_info u JOIN sys.login_session s ON s.user_id=u.user_id
+    WHERE s.session_id_hash=#{sessionIdHash}
+      AND s.revoked_at IS NULL AND s.expires_at &gt; #{now}
+      AND s.last_activity_at &gt; #{now} - INTERVAL '30 minutes'
+      AND s.last_activity_at &lt;= #{now}
+      AND u.user_stts_cd='ACTIVE' AND (u.rsgn_dt IS NULL OR u.rsgn_dt &gt; CAST(#{now} AS date))
+  </sql>
+  <select id="activeSession" resultMap="account" useCache="false" flushCache="true">
+    <include refid="sessionProjection"/> AND u.user_id=#{userId}
+  </select>
+  <select id="sessionOwner" resultMap="account" useCache="false" flushCache="true">
+    <include refid="sessionProjection"/>
+  </select>
+  <sql id="roleProjection">r.role_id,r.role_nm,r.data_scope_cd,r.snstv_inq_yn='Y' AS sensitive,
+    r.part_std_chg_auth_yn='Y' AS part_standard_change,r.admin_yn='Y' AS admin,r.bltin_yn='Y' AS built_in</sql>
+  <select id="roles" resultMap="role" useCache="false" flushCache="true">
+    SELECT <include refid="roleProjection"/> FROM sys.role r JOIN sys.user_role ur ON ur.role_id=r.role_id
+    WHERE ur.user_id=#{userId} AND r.use_yn='Y' ORDER BY r.sort_seq,r.role_id
+  </select>
+  <select id="parts" resultType="long" useCache="false" flushCache="true">
+    SELECT p.bsn_part_id FROM sys.user_part up JOIN mst.bsn_part p ON p.bsn_part_id=up.bsn_part_id
+    WHERE up.user_id=#{userId} AND p.use_yn='Y' ORDER BY p.bsn_part_id
+  </select>
+  <select id="projects" resultType="long" useCache="false" flushCache="true">
+    SELECT p.prj_id FROM sys.user_prj up JOIN prj.prj p ON p.prj_id=up.prj_id
+    WHERE up.user_id=#{userId} AND p.use_yn='Y' ORDER BY p.prj_id
+  </select>
+  <select id="grants" resultMap="grant" useCache="false" flushCache="true">
+    WITH RECURSIVE menu_path AS (
+      SELECT menu_id,upr_menu_id,use_yn,ARRAY[menu_id] AS visited FROM sys.menu WHERE scrn_id=#{screenId}
+      UNION ALL
+      SELECT m.menu_id,m.upr_menu_id,m.use_yn,p.visited || m.menu_id FROM sys.menu m JOIN menu_path p ON p.upr_menu_id=m.menu_id
+      WHERE NOT m.menu_id=ANY(p.visited)
+    )
+    SELECT <include refid="roleProjection"/>
+    FROM sys.user_role ur JOIN sys.role r ON r.role_id=ur.role_id
+    JOIN sys.role_menu_auth a ON a.role_id=r.role_id JOIN sys.menu m ON m.menu_id=a.menu_id
+    WHERE ur.user_id=#{userId} AND r.use_yn='Y' AND m.scrn_id=#{screenId} AND m.use_yn='Y' AND a.inq_auth_yn='Y'
+      AND NOT EXISTS (SELECT 1 FROM menu_path WHERE use_yn &lt;&gt; 'Y' OR upr_menu_id=ANY(visited))
+      <choose>
+        <when test="action == 'read'">AND a.inq_auth_yn='Y'</when>
+        <when test="action == 'create'">AND a.reg_auth_yn='Y'</when>
+        <when test="action == 'update'">AND a.mdfcn_auth_yn='Y'</when>
+        <when test="action == 'delete'">AND a.del_auth_yn='Y'</when>
+        <when test="action == 'upload'">AND a.upld_auth_yn='Y'</when>
+        <when test="action == 'download'">AND a.dwnld_auth_yn='Y'</when>
+        <when test="action == 'confirm'">AND a.cnfrm_auth_yn='Y'</when>
+        <otherwise>AND FALSE</otherwise>
+      </choose>
+    ORDER BY r.role_id
+  </select>
+  <select id="lockAdministration" resultType="string" useCache="false" flushCache="true">
+    SELECT pg_advisory_xact_lock(hashtextextended('sicost.administrator.recovery',0))
+  </select>
+  <select id="recoveryAdministratorCount" resultType="long" useCache="false" flushCache="true">
+    SELECT count(*) FROM sys.user_info u WHERE u.user_stts_cd='ACTIVE' AND u.rsgn_dt IS NULL
+      AND u.email_addr IS NOT NULL AND btrim(u.email_addr)&lt;&gt;''
+      AND EXISTS (SELECT 1 FROM sys.user_role ur JOIN sys.role r ON r.role_id=ur.role_id
+        WHERE ur.user_id=u.user_id AND r.admin_yn='Y' AND r.use_yn='Y'
+          AND (SELECT count(DISTINCT m.scrn_id) FROM sys.role_menu_auth a JOIN sys.menu m ON m.menu_id=a.menu_id
+            WHERE a.role_id=r.role_id AND a.inq_auth_yn='Y' AND m.use_yn='Y'
+              AND m.scrn_id IN ('UI-23','UI-24','UI-25'))=3)
+  </select>
+  <select id="insertInitialAdministrator" resultType="long" affectData="true" flushCache="true">
+    INSERT INTO sys.user_info(lgn_id,pswd_hash,user_nm,email_addr,mfa_yn,pswd_chg_need_yn)
+    SELECT #{loginId},#{passwordHash},'초기 관리자',#{email},'Y','Y'
+    WHERE NOT EXISTS(SELECT 1 FROM sys.user_role ur JOIN sys.role r ON r.role_id=ur.role_id WHERE r.admin_yn='Y')
+      AND EXISTS(SELECT 1 FROM sys.role WHERE role_id=1 AND bltin_yn='Y' AND admin_yn='Y' AND use_yn='Y')
+    RETURNING user_id
+  </select>
+  <insert id="assignInitialAdministrator">
+    INSERT INTO sys.user_role(user_id,role_id) VALUES(#{userId},1)
+  </insert>
+</mapper>

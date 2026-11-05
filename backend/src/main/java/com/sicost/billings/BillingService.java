@@ -38,8 +38,23 @@ public class BillingService {
             mapper.count(query), query.page(), query.size());
     }
     public BillingDetail get(long id) {
-        permissions.can(BillingActions.READ);
-        return detail(require(id), new ArrayList<>());
+        var scope = billingScope(BillingActions.READ);
+        var state = require(id);
+        requireScope(scope, state);
+        return detail(state, new ArrayList<>());
+    }
+    private AccessPolicyModels.AuthorizedScope billingScope(String action) {
+        var scope = permissions.scope(action);
+        Set<String> roles = BillingActions.READ.equals(action)
+            ? Set.of("시스템 관리자", "경영진", "재무 담당") : Set.of("시스템 관리자", "재무 담당");
+        var grants = scope.grants().stream().filter(g -> roles.contains(g.roleName())).toList();
+        if (grants.isEmpty()) throw PermissionService.forbidden();
+        return new AccessPolicyModels.AuthorizedScope(scope.userId(), scope.developerId(),
+            scope.partIds(), scope.projectIds(), grants);
+    }
+    private void requireScope(AccessPolicyModels.AuthorizedScope scope, State state) {
+        if (!scope.permits(mapper.projectTarget(state.prj_id())))
+            throw ApiException.notFound("청구가 없습니다.");
     }
     private State require(long id) {
         var state = mapper.state(BillingInput.id(id));
@@ -55,6 +70,9 @@ public class BillingService {
             if (sum != state.sply_amt()) warnings.add("공급가액과 원천 상세 합계가 다릅니다. 확인 후 확정할 수 있습니다.");
         }
         if (state.txinv_no() == null || state.txinv_no().isBlank()) warnings.add("세금계산서 번호가 없습니다.");
+        if (state.atrb_ym() != null && state.bill_dt() != null
+                && !state.atrb_ym().equals(YearMonth.from(state.bill_dt()).toString()))
+            warnings.add("청구일이 귀속월과 다릅니다. 귀속월과 원천 상세는 기존 기준을 유지합니다.");
         return new BillingDetail(row, lines, mapper.receipts(state.bill_id()), mapper.amendments(state.bill_id()),
             state.orgnl_bill_id(), mapper.history(state.bill_id()), List.copyOf(warnings));
     }
@@ -130,10 +148,12 @@ public class BillingService {
     }
     @Transactional(isolation = Isolation.READ_COMMITTED)
     public BillingDetail update(long id, Input input) {
-        permissions.can(BillingActions.UPDATE);
+        var scope = billingScope(BillingActions.UPDATE);
         mapper.lockClosingSources();
         var observed = require(id);
+        requireScope(scope, observed);
         var project = project(observed.prj_id());
+        requireScope(scope, observed);
         long root = observed.orgnl_bill_id() == null ? id : observed.orgnl_bill_id();
         mapper.lockBill(root);
         var before = mapper.lockBill(id);

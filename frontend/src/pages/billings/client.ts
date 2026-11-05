@@ -1,4 +1,4 @@
-import { api, readData } from "../../shared/api";
+import { api, readData, ApiFailure } from "../../shared/api";
 
 export interface BillingRow {
   bill_id: number | null;
@@ -137,13 +137,37 @@ export const createBilling = async (input: BillingCreate) =>
       body: JSON.stringify(input),
     })
   ).data!;
-export const updateBilling = async (id: number, input: BillingUpdate) =>
-  (
-    await api<BillingDetail>(`/api/billings/${encodeURIComponent(id)}`, {
-      method: "PUT",
-      body: JSON.stringify(input),
-    })
-  ).data!;
+export const updateBilling = async (id: number, input: BillingUpdate) => {
+  const csrf = await readData<{ headerName: string; csrfToken: string }>(
+    "/api/auth/csrf",
+  );
+  if (
+    csrf.headerName !== "X-CSRF-TOKEN" ||
+    typeof csrf.csrfToken !== "string" ||
+    !csrf.csrfToken ||
+    csrf.csrfToken.length > 4096
+  )
+    throw new ApiFailure("보안 확인을 다시 시도하세요.", null, null);
+  await api<BillingDetail>(`/api/billings/${encodeURIComponent(id)}`, {
+    method: "PUT",
+    credentials: "same-origin",
+    headers: { "X-CSRF-TOKEN": csrf.csrfToken },
+    body: JSON.stringify(input),
+  });
+  try {
+    return await getBilling(id);
+  } catch (error) {
+    const failure = error instanceof ApiFailure ? error : null;
+    throw new ApiFailure(
+      "저장 후 조회에 실패했습니다. 현재 상태를 확인하세요.",
+      failure?.status ?? null,
+      failure?.requestId ?? null,
+      failure?.field ?? null,
+      failure?.code ?? null,
+      true,
+    );
+  }
+};
 export const previewBilling = (
   projectId: number,
   stageId?: number,

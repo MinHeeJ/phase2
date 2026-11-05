@@ -31,6 +31,7 @@ class OpportunityLifecyclePersistenceTest {
     String adminUrl,user,password,database;DriverManagerDataSource source;AnnotationConfigApplicationContext context;
     OpportunityLifecycleService lifecycle;OpportunityWinService wins;OpportunityLifecycleMapper mapper;WorkforceForecastService forecasts;
     org.springframework.test.web.servlet.MockMvc mvc;ObjectMapper json=new ObjectMapper().findAndRegisterModules();JdbcTemplate jdbc;
+    Long actor;String proof;
     @BeforeEach void database()throws Exception{
         adminUrl=System.getenv("TEST_DATABASE_URL");assumeTrue(adminUrl!=null&&!adminUrl.isBlank(),"Real PostgreSQL requires TEST_DATABASE_URL");
         user=System.getenv("TEST_DATABASE_USER");password=System.getenv("TEST_DATABASE_PASSWORD");assumeTrue(user!=null&&password!=null,"Test database connection settings are absent");
@@ -38,10 +39,16 @@ class OpportunityLifecyclePersistenceTest {
         try(var c=DriverManager.getConnection(adminUrl,user,password);var s=c.createStatement()){com.sicost.support.TestDatabaseDdl.create(s,database);}
         source=new DriverManagerDataSource(adminUrl.substring(0,adminUrl.lastIndexOf('/')+1)+database,user,password);jdbc=new JdbcTemplate(source);
         Flyway.configure().dataSource(source).defaultSchema("public").locations("classpath:db/migration").load().migrate();
+        actor=jdbc.queryForObject("INSERT INTO sys.user_info(lgn_id,pswd_hash,user_nm,pswd_chg_need_yn) VALUES(?,?,?,'N') RETURNING user_id",Long.class,
+            "test_"+UUID.randomUUID().toString().replace("-",""),new org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder(12).encode(AuthenticationProofs.randomSessionId()),"검증 사용자");
+        jdbc.update("INSERT INTO sys.user_role(user_id,role_id) VALUES(?,1)",actor);
+        proof=AuthenticationProofs.randomSessionId();
+        jdbc.update("INSERT INTO sys.login_session(session_id_hash,user_id,created_at,last_activity_at,expires_at) VALUES(?,?,?,?,?)",
+            AuthenticationProofs.hash(proof),actor,LocalDateTime.of(2026,10,22,9,0),LocalDateTime.of(2026,10,22,9,0),LocalDateTime.of(2026,10,22,9,30));
         var factory=new SqlSessionFactoryBean();factory.setDataSource(source);factory.setMapperLocations(
             new ClassPathResource("mappers/opportunitiesops/OpportunityLifecycleMapper.xml"),new ClassPathResource("mappers/opportunitiesops/OpportunityForecastMapper.xml"),
             new ClassPathResource("mappers/projects/ProjectMapper.xml"),new ClassPathResource("mappers/assignments/AssignmentMapper.xml"),
-            new ClassPathResource("mappers/common/AssignmentConcurrencyMapper.xml"));factory.afterPropertiesSet();var session=new SqlSessionTemplate(factory.getObject());
+            new ClassPathResource("mappers/common/AssignmentConcurrencyMapper.xml"),new ClassPathResource("mappers/security/AccessPolicyMapper.xml"));factory.afterPropertiesSet();var session=new SqlSessionTemplate(factory.getObject());
         context=new AnnotationConfigApplicationContext();context.register(Transactions.class,OpportunityLifecycleService.class,OpportunityWinService.class,OpportunityQuoteVerifier.class,
             OpportunityExportService.class,WorkforceForecastService.class,ExcelExportService.class,ProjectService.class,AssignmentService.class,AssignmentConcurrencyService.class,CurrentUser.class,PermissionService.class);
         context.registerBean(ObjectMapper.class,()->json);context.registerBean(Clock.class,()->Clock.fixed(Instant.parse("2026-10-22T00:00:00Z"),ZoneId.of("Asia/Seoul")));
@@ -49,9 +56,12 @@ class OpportunityLifecyclePersistenceTest {
         context.registerBean(OpportunityLifecycleMapper.class,()->session.getMapper(OpportunityLifecycleMapper.class));context.registerBean(OpportunityForecastMapper.class,()->session.getMapper(OpportunityForecastMapper.class));
         context.registerBean(ProjectMapper.class,()->session.getMapper(ProjectMapper.class));context.registerBean(AssignmentMapper.class,()->session.getMapper(AssignmentMapper.class));
         context.registerBean(AssignmentConcurrencyMapper.class,()->session.getMapper(AssignmentConcurrencyMapper.class));
+        context.registerBean(AccessPolicyMapper.class,()->session.getMapper(AccessPolicyMapper.class));
         context.registerBean(MonthlyProfitReader.class,()->month->new MonthlyProfitReader.Month(month,null,null,List.of("FUTURE_ACTUAL")));
         context.refresh();lifecycle=context.getBean(OpportunityLifecycleService.class);wins=context.getBean(OpportunityWinService.class);mapper=context.getBean(OpportunityLifecycleMapper.class);forecasts=context.getBean(WorkforceForecastService.class);
-        mvc=org.springframework.test.web.servlet.setup.MockMvcBuilders.standaloneSetup(new OpportunityLifecycleController(lifecycle,wins,forecasts,context.getBean(OpportunityExportService.class),json)).setControllerAdvice(new ApiExceptionHandler()).addFilters(new RequestIdFilter()).build();
+        mvc=org.springframework.test.web.servlet.setup.MockMvcBuilders.standaloneSetup(new OpportunityLifecycleController(lifecycle,wins,forecasts,context.getBean(OpportunityExportService.class),json)).setControllerAdvice(new ApiExceptionHandler())
+            .addFilters(new RequestIdFilter(),new SessionAuthenticationFilter(context.getBean(AccessPolicyMapper.class),context.getBean(Clock.class),json))
+            .defaultRequest(get("/").cookie(new jakarta.servlet.http.Cookie("JSESSIONID",proof))).build();
         jdbc.update("INSERT INTO mst.ptnr(ptnr_id,ptnr_no,ptnr_se_cd,ptnr_nm,biz_reg_no) VALUES(91,'C-OWN','CUST','검증 고객','123-45-67890')");
         jdbc.update("INSERT INTO mst.dev(dev_id,mng_no,dev_nm,emp_se_cd,duty_se_cd,main_job_cd,grd_cd) VALUES(91,'K-OWN','검증 인력','FT','DIRECT','BE','SR')");
         jdbc.update("INSERT INTO cst.mth_cst(dev_id,cst_ym,emp_se_cd,duty_se_cd,slry_amt) VALUES(91,'2026-10','FT','DIRECT',8000000)");
@@ -68,7 +78,7 @@ class OpportunityLifecyclePersistenceTest {
         mvc.perform(post("/api/opportunities/91/stage").contentType("application/json").content("{\"bsn_stg_cd\":\"PROP\"}")).andExpect(status().isOk()).andExpect(jsonPath("$.data.win_prblt_rt").value(30));
         assertThat(value("SELECT bsn_stg_cd FROM bsn.oppt WHERE oppt_id=91")).isEqualTo("PROP");
         mvc.perform(post("/api/opportunities/91/approve").contentType("application/json").content("{}")).andExpect(status().isOk());
-        assertThat(count("SELECT count(*) FROM bsn.quot_aprv_hist WHERE oppt_id=91 AND aprv_prcs_cd='APPROVE' AND prcs_user_id IS NULL")).isEqualTo(1);
+        assertThat(count("SELECT count(*) FROM bsn.quot_aprv_hist WHERE oppt_id=91 AND aprv_prcs_cd='APPROVE' AND prcs_user_id="+actor)).isEqualTo(1);
         assertThat(value("SELECT quot_aprv_stts_cd FROM bsn.oppt WHERE oppt_id=91")).isEqualTo("APPROVED");
     }
     @ParameterizedTest @ValueSource(strings={"lose","disable"})void closingRetainsNeedsAndReleasesAllTemps(String action)throws Exception{

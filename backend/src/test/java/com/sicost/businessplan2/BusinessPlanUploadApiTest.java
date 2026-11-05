@@ -27,6 +27,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static com.sicost.businessplan2.BusinessPlanUploadModels.*;
 
 @WebMvcTest(controllers=BusinessPlanUploadController.class)
+@org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc(addFilters=false)
 @Import({RequestIdFilter.class,ApiExceptionHandler.class,BusinessPlanUploadService.class,
     BusinessPlanUploadForm.class,CurrentUser.class,PermissionService.class,UploadWorkbookWriter.class})
 class BusinessPlanUploadApiTest {
@@ -40,6 +41,8 @@ class BusinessPlanUploadApiTest {
     @MockBean BusinessPlanUploadMapper mapper;
     @MockBean UploadService uploads;
     @MockBean UploadMapper common;
+    @MockBean CurrentUser user;
+    @MockBean PermissionService permissions;
     static final java.util.concurrent.atomic.AtomicLong sequence=new java.util.concurrent.atomic.AtomicLong(100);
     @BeforeEach void setup() {
         when(mapper.nextUploadId()).thenAnswer(i->sequence.incrementAndGet());
@@ -175,6 +178,11 @@ class BusinessPlanUploadApiTest {
     }
     @Test void emptyFileIsValidationError()throws Exception {
         validate(new byte[0],"계획.xlsx").andExpect(status().isBadRequest()).andExpect(jsonPath("$.field").value("file"));
+    }
+    @Test void servletMultipartPostWithoutFileHasNoBusinessSideEffect()throws Exception {
+        mvc.perform(post("/api/uploads/business-plan/validate").contentType("multipart/form-data"))
+            .andExpect(status().isBadRequest()).andExpect(jsonPath("$.field").value("file"));
+        verify(mapper,never()).replace(any());verify(mapper,never()).audit(any());verify(uploads,never()).store(any(),any());
     }
     @Test void missingFileIsValidationError()throws Exception {
         mvc.perform(multipart("/api/uploads/business-plan/validate")).andExpect(status().isBadRequest())

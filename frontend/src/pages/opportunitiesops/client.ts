@@ -1,4 +1,5 @@
-import { api, readData } from "../../shared/api";
+import { readData } from "../../shared/api";
+import { opportunityRequest } from "./opportunityRequest";
 import type { ProjectInput, ProjectDetail } from "../projects/client";
 import type { AssignmentSave } from "../assignments/client";
 
@@ -11,9 +12,9 @@ export interface Need {
   mth_cnt: number;
   mth_mm_qty: number;
   expc_untprc_amt: number;
-  psn_mth_cst_amt: number;
-  min_untprc_amt: number;
-  trgt_untprc_amt: number;
+  psn_mth_cst_amt: number | null;
+  min_untprc_amt: number | null;
+  trgt_untprc_amt: number | null;
   warnings: string[];
 }
 export interface OpportunityDetail {
@@ -39,12 +40,13 @@ export interface OpportunityDetail {
   needs: Need[];
   quote: {
     expc_sls_amt: number;
-    expc_cst_amt: number;
+    expc_cst_amt: number | null;
     expc_mrgn_rt: number | null;
     cost_status: string;
     approval_state: string;
     approved_quote_amount: number | null;
     warnings: string[];
+    reasonCode?: string | null;
   };
   approval_history: {
     action: string;
@@ -162,12 +164,10 @@ export const getOpportunity = (id: number) =>
 export const getOpportunityForecast = (filters: ForecastFilters = {}) =>
   readData<ForecastPage>(`/api/opportunities/forecast?${query(filters)}`);
 async function command<T>(id: number, action: string, body?: unknown) {
-  return (
-    await api<T>(`/api/opportunities/${id}/${action}`, {
-      method: "POST",
-      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-    })
-  ).data!;
+  return opportunityRequest<T>(`/api/opportunities/${id}/${action}`, {
+    method: "POST",
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+  });
 }
 export const updateOpportunityStage = (id: number, stage: string) =>
   command<OpportunityDetail>(id, "stage", { bsn_stg_cd: stage });

@@ -10,12 +10,13 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api")
 public class SharedReadController {
     private final SharedReadService service;
+    private final com.sicost.systemmanagement.NavigationService navigation;
 
-    public SharedReadController(SharedReadService service) { this.service = service; }
+    public SharedReadController(SharedReadService service,com.sicost.systemmanagement.NavigationService navigation) { this.service = service;this.navigation=navigation; }
 
     @GetMapping("/menus")
     public ApiResponse<List<MenuNode>> getMenus() {
-        return ApiResponse.ok(service.menus(DataScope.ALL));
+        return ApiResponse.ok(navigation.navigation());
     }
 
     @GetMapping("/codes/{group}")

@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sicost.systemmanagement.SystemManagementMapper">
+  <sql id="userColumns">u.user_id AS "id",u.lgn_id AS "loginId",u.user_nm AS "name",u.email_addr AS "email",u.tel_no AS "phone",
+    u.bsn_part_id AS "basePartId",u.dev_id AS "developerId",u.user_stts_cd AS "status",u.last_lgn_at AS "lastLoginAt",u.rsgn_dt AS "resignDate",
+    (u.mfa_yn='Y' OR EXISTS(SELECT 1 FROM sys.user_role ur JOIN sys.role r ON r.role_id=ur.role_id WHERE ur.user_id=u.user_id AND r.admin_yn='Y' AND r.use_yn='Y')) AS "mfaRequired"</sql>
+  <sql id="userFilters"><where>
+    <if test="name != null and name != ''">AND u.user_nm ILIKE '%' || #{name} || '%'</if>
+    <if test="loginId != null and loginId != ''">AND u.lgn_id ILIKE '%' || #{loginId} || '%'</if>
+    <if test="status != null and status != ''">AND u.user_stts_cd=#{status}</if>
+    <if test="partId != null">AND EXISTS(SELECT 1 FROM sys.user_part p WHERE p.user_id=u.user_id AND p.bsn_part_id=#{partId})</if>
+    <if test="roleId != null">AND EXISTS(SELECT 1 FROM sys.user_role r WHERE r.user_id=u.user_id AND r.role_id=#{roleId})</if>
+  </where></sql>
+  <select id="users" resultType="map">SELECT <include refid="userColumns"/> FROM sys.user_info u <include refid="userFilters"/> ORDER BY u.user_id DESC <if test="limit != null">LIMIT #{limit} OFFSET #{offset}</if></select>
+  <select id="userCount" resultType="long">SELECT count(*) FROM sys.user_info u <include refid="userFilters"/></select>
+  <select id="user" resultType="map">SELECT <include refid="userColumns"/> FROM sys.user_info u WHERE u.user_id=#{id}</select>
+  <select id="createUser" resultType="long" affectData="true" flushCache="true">INSERT INTO sys.user_info(lgn_id,user_nm,email_addr,bsn_part_id,dev_id,pswd_hash,created_by)
+    VALUES(#{loginId},#{name},#{email},#{basePartId},#{developerId},#{passwordHash},#{actor}) RETURNING user_id</select>
+  <update id="updateUser">UPDATE sys.user_info SET user_nm=#{name},email_addr=#{email},tel_no=#{phone},bsn_part_id=#{basePartId},rsgn_dt=#{resignDate},user_stts_cd=#{status},updated_by=#{actor},updated_at=CURRENT_TIMESTAMP WHERE user_id=#{id}</update>
+  <select id="userRoles" resultType="long">SELECT role_id FROM sys.user_role WHERE user_id=#{id} ORDER BY role_id</select>
+  <select id="userParts" resultType="long">SELECT bsn_part_id FROM sys.user_part WHERE user_id=#{id} ORDER BY bsn_part_id</select>
+  <select id="userProjects" resultType="long">SELECT prj_id FROM sys.user_prj WHERE user_id=#{id} ORDER BY prj_id</select>
+  <delete id="clearRoles">DELETE FROM sys.user_role WHERE user_id=#{id}</delete>
+  <delete id="clearParts">DELETE FROM sys.user_part WHERE user_id=#{id}</delete>
+  <delete id="clearProjects">DELETE FROM sys.user_prj WHERE user_id=#{id}</delete>
+  <insert id="assignRoles">INSERT INTO sys.user_role(user_id,role_id,created_by) VALUES <foreach collection="ids" item="role" separator=",">(#{id},#{role},#{actor})</foreach></insert>
+  <insert id="assignParts">INSERT INTO sys.user_part(user_id,bsn_part_id) VALUES <foreach collection="ids" item="part" separator=",">(#{id},#{part})</foreach></insert>
+  <insert id="assignProjects">INSERT INTO sys.user_prj(user_id,prj_id) VALUES <foreach collection="ids" item="project" separator=",">(#{id},#{project})</foreach></insert>
+  <update id="unlock">UPDATE sys.user_info SET user_stts_cd='ACTIVE',lock_at=NULL,lgn_fail_cnt=0,otp_fail_cnt=0 WHERE user_id=#{id} AND user_stts_cd='LOCKED' AND (rsgn_dt IS NULL OR rsgn_dt &gt; (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Seoul')::date)</update>
+  <sql id="roleColumns">role_id AS "id",role_nm AS "name",role_desc AS "description",data_scope_cd AS "dataScope",use_yn AS "useYn",
+    snstv_inq_yn='Y' AS "sensitiveView",part_std_chg_auth_yn='Y' AS "partStandardChange",admin_yn='Y' AS "admin",bltin_yn='Y' AS "builtIn"</sql>
+  <select id="roles" resultType="map">SELECT <include refid="roleColumns"/> FROM sys.role ORDER BY sort_seq,role_id</select>
+  <select id="role" resultType="map">SELECT <include refid="roleColumns"/> FROM sys.role WHERE role_id=#{id}</select>
+  <select id="createRole" resultType="long" affectData="true" flushCache="true">
+    INSERT INTO sys.role(role_nm,role_desc,data_scope_cd,use_yn,snstv_inq_yn,part_std_chg_auth_yn,admin_yn,copy_role_id,created_by)
+    VALUES(#{name},#{description},#{dataScope},#{useYn},CASE WHEN #{sensitiveView} THEN 'Y' ELSE 'N' END,CASE WHEN #{partStandardChange} THEN 'Y' ELSE 'N' END,CASE WHEN #{admin} THEN 'Y' ELSE 'N' END,#{copyRoleId},#{actor}) RETURNING role_id
+  </select>
+  <update id="updateRole">UPDATE sys.role SET role_nm=#{name},role_desc=#{description},data_scope_cd=#{dataScope},use_yn=#{useYn},snstv_inq_yn=CASE WHEN #{sensitiveView} THEN 'Y' ELSE 'N' END,part_std_chg_auth_yn=CASE WHEN #{partStandardChange} THEN 'Y' ELSE 'N' END,admin_yn=CASE WHEN #{admin} THEN 'Y' ELSE 'N' END,updated_by=#{actor},updated_at=CURRENT_TIMESTAMP WHERE role_id=#{id}</update>
+  <update id="copyPermissions">UPDATE sys.role_menu_auth a SET inq_auth_yn=b.inq_auth_yn,reg_auth_yn=b.reg_auth_yn,mdfcn_auth_yn=b.mdfcn_auth_yn,del_auth_yn=b.del_auth_yn,upld_auth_yn=b.upld_auth_yn,dwnld_auth_yn=b.dwnld_auth_yn,cnfrm_auth_yn=b.cnfrm_auth_yn FROM sys.role_menu_auth b WHERE a.role_id=#{id} AND b.role_id=#{sourceId} AND a.menu_id=b.menu_id</update>
+  <select id="permissions" resultType="map">SELECT m.menu_id AS "menuId",m.menu_nm AS "name",m.scrn_id AS "screenId",m.upr_menu_id AS "parentId",
+    COALESCE(a.inq_auth_yn='Y',false) AS "inq",COALESCE(a.reg_auth_yn='Y',false) AS "reg",COALESCE(a.mdfcn_auth_yn='Y',false) AS "mdfcn",COALESCE(a.del_auth_yn='Y',false) AS "del",COALESCE(a.upld_auth_yn='Y',false) AS "upld",COALESCE(a.dwnld_auth_yn='Y',false) AS "dwnld",COALESCE(a.cnfrm_auth_yn='Y',false) AS "cnfrm"
+    FROM sys.menu m LEFT JOIN sys.role_menu_auth a ON a.menu_id=m.menu_id AND a.role_id=#{id} ORDER BY m.sort_seq,m.menu_id</select>
+  <update id="savePermission">UPDATE sys.role_menu_auth SET inq_auth_yn=CASE WHEN #{inq} THEN 'Y' ELSE 'N' END,reg_auth_yn=CASE WHEN #{reg} THEN 'Y' ELSE 'N' END,mdfcn_auth_yn=CASE WHEN #{mdfcn} THEN 'Y' ELSE 'N' END,del_auth_yn=CASE WHEN #{del} THEN 'Y' ELSE 'N' END,upld_auth_yn=CASE WHEN #{upld} THEN 'Y' ELSE 'N' END,dwnld_auth_yn=CASE WHEN #{dwnld} THEN 'Y' ELSE 'N' END,cnfrm_auth_yn=CASE WHEN #{cnfrm} THEN 'Y' ELSE 'N' END,updated_by=#{actor},updated_at=CURRENT_TIMESTAMP WHERE role_id=#{id} AND menu_id=#{menuId}</update>
+  <sql id="menuColumns">menu_id AS "id",menu_nm AS "name",scrn_id AS "screenId",upr_menu_id AS "parentId",icon_nm AS "icon",sort_seq AS "sortOrder",use_yn AS "useYn",mbl_expsr_yn='Y' AS "mobileVisible"</sql>
+  <select id="menus" resultType="map">SELECT <include refid="menuColumns"/> FROM sys.menu ORDER BY sort_seq,menu_id</select>
+  <select id="createMenu" resultType="long" affectData="true" flushCache="true">INSERT INTO sys.menu(menu_nm,scrn_id,upr_menu_id,icon_nm,sort_seq,use_yn,mbl_expsr_yn,created_by) VALUES(#{name},#{screenId},#{parentId},#{icon},#{sortOrder},#{useYn},CASE WHEN #{mobileVisible} THEN 'Y' ELSE 'N' END,#{actor}) RETURNING menu_id</select>
+  <update id="updateMenu">UPDATE sys.menu SET menu_nm=#{name},upr_menu_id=#{parentId},icon_nm=#{icon},sort_seq=#{sortOrder},use_yn=#{useYn},mbl_expsr_yn=CASE WHEN #{mobileVisible} THEN 'Y' ELSE 'N' END,updated_by=#{actor},updated_at=CURRENT_TIMESTAMP WHERE menu_id=#{id}</update>
+  <sql id="historyFilters"><where>
+    <if test="userId != null">AND h.user_id=#{userId}</if>
+    <if test="from != null">AND h.created_at &gt;= #{from}</if>
+    <if test="to != null">AND h.created_at &lt; #{to}</if>
+    <if test="type != null and type != ''">AND h.acs_ty_cd=#{type}</if>
+    <if test="result != null and result != ''">AND COALESCE(h.result_cd,'UNKNOWN')=#{result}</if>
+    <if test="screenId != null and screenId != ''">AND h.scrn_id=#{screenId}</if>
+  </where></sql>
+  <select id="history" resultType="map">SELECT h.acs_hist_id AS "id",h.user_id AS "userId",h.lgn_id AS "loginId",h.acs_ty_cd AS "type",h.scrn_id AS "screenId",h.obj_desc AS "target",COALESCE(h.result_cd,'UNKNOWN') AS "result",h.ip_addr AS "ip",h.created_at AS "createdAt" FROM sys.acs_hist h <include refid="historyFilters"/> ORDER BY h.created_at DESC,h.acs_hist_id DESC <if test="limit != null">LIMIT #{limit} OFFSET #{offset}</if></select>
+  <select id="historyCount" resultType="long">SELECT count(*) FROM sys.acs_hist h <include refid="historyFilters"/></select>
+  <insert id="audit">INSERT INTO sys.acs_hist(user_id,acs_ty_cd,result_cd,scrn_id,obj_desc,dtl_desc) VALUES(#{actor},#{type},'SUCCESS',#{screenId},#{target},#{detail})</insert>
+  <select id="partExists" resultType="boolean">SELECT EXISTS(SELECT 1 FROM mst.bsn_part WHERE bsn_part_id=#{id} AND use_yn='Y')</select>
+  <select id="projectExists" resultType="boolean">SELECT EXISTS(SELECT 1 FROM prj.prj WHERE prj_id=#{id} AND use_yn='Y')</select>
+  <select id="developerExists" resultType="boolean">SELECT EXISTS(SELECT 1 FROM mst.dev WHERE dev_id=#{id} AND use_yn='Y')</select>
+  <select id="channels" resultType="map">SELECT DISTINCT ON (oprt_std_id) replace(oprt_std_id,'NOTIFICATION_EMAIL_','') AS "type",txt_val='Y' AS "emailEnabled" FROM cmn.oprt_std WHERE oprt_std_id LIKE 'NOTIFICATION_EMAIL_%' AND aply_bgn_ym &lt;= #{month} ORDER BY oprt_std_id,aply_bgn_ym DESC</select>
+  <insert id="saveChannel">INSERT INTO cmn.oprt_std(oprt_std_id,aply_bgn_ym,oprt_std_nm,txt_val,created_by) VALUES('NOTIFICATION_EMAIL_' || #{type},#{month},#{type},CASE WHEN #{emailEnabled} THEN 'Y' ELSE 'N' END,#{actor}) ON CONFLICT(oprt_std_id,aply_bgn_ym) DO UPDATE SET txt_val=EXCLUDED.txt_val</insert>
+</mapper>

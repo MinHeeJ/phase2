@@ -162,6 +162,7 @@ export function ProfitScreen({
       : ["revenue", "cost", "operating_profit", "net_profit"];
   return (
     <section
+      data-screen-id={`SCR-${screenId}`}
       data-testid={`profit-${screenId.toLowerCase()}-screen`}
       className={styles.content}
     >

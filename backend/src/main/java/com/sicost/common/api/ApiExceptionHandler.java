@@ -20,6 +20,14 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 @RestControllerAdvice
 public class ApiExceptionHandler {
+    @ExceptionHandler(org.springframework.security.core.AuthenticationException.class)
+    public ResponseEntity<ApiError> authentication(Exception ex, HttpServletRequest request) {
+        return error(401, "UNAUTHENTICATED", "로그인이 필요합니다.", null, request);
+    }
+    @ExceptionHandler(org.springframework.security.access.AccessDeniedException.class)
+    public ResponseEntity<ApiError> authorization(Exception ex, HttpServletRequest request) {
+        return error(403, "FORBIDDEN", "허용된 업무 권한이 없습니다.", null, request);
+    }
     @ExceptionHandler(ApiException.class)
     public ResponseEntity<ApiError> application(ApiException ex, HttpServletRequest request) {
         return error(ex.status(), ex.code(), ex.getMessage(), ex.field(), request);

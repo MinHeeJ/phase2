@@ -143,6 +143,8 @@ beforeEach(() => {
     areaErrors: [],
   };
   fetcher = vi.fn(async (url: string, init?: RequestInit) => {
+    if (url === "/api/auth/csrf")
+      return response({ headerName: "X-CSRF-TOKEN", csrfToken: "test-csrf" });
     if (fail)
       return new Response(
         JSON.stringify({
@@ -441,6 +443,10 @@ describe("SCR-UI-26", () => {
     const exported = fetcher.mock.calls.find(([url]) =>
       url.endsWith("/structured/export"),
     )!;
+    expect(exported[1]?.method).toBe("POST");
+    expect(new Headers(exported[1]?.headers).get("X-CSRF-TOKEN")).toBe(
+      "test-csrf",
+    );
     expect(JSON.parse(String(exported[1]?.body))).toMatchObject({
       intent: "PROJECT_PROFIT_RANKING",
       baseYm: "2026-11",

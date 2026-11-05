@@ -9,7 +9,13 @@ Docker 주소 풀이 고갈된 환경에서는 운영자가 데몬 주소 풀을
 다른 프로젝트의 네트워크를 prune하거나 Docker 데몬의 전역 주소 풀을 변경하지 않습니다.
 기동 후 python infra/verify_runtime.py --project <Compose-프로젝트명>으로 3개 서비스의 healthy 상태,
 runtime-check의 헬스·첫 메뉴 응답 계약, nginx API 프록시와 첫 메뉴 경로를 읽기 전용 검증합니다.
-프로젝트명을 생략하면 Compose 기본 프로젝트를 검사합니다. 응답 본문·헤더·접속 설정은 출력하지 않습니다.
+프로젝트명을 생략하면 매번 새 격리 프로젝트를 기동해 검사한 뒤 해당 프로젝트와 볼륨만 제거합니다.
+프로젝트명을 지정해도 세 확인 계정 슬롯이 모두 없으면 새 격리 프로젝트로 기동합니다.
+기존 컨테이너나 볼륨이 있으면 기동·초기화·제거 없이 실패합니다. 기존 배포 검사는
+그 배포를 시작할 때 사용한 세 플랫폼 슬롯이 모두 있는 환경에서만 실행하세요.
+일부 슬롯만 있으면 값을 보충하거나 안내 계정을 대신 사용하지 않고 실패합니다.
+새 격리 검사 전 docker compose -f infra/docker-compose.yml build backend frontend 로 빌드하세요.
+확인 계정은 실행마다 메모리에서 생성해 기동 시에만 전달합니다. 응답 본문·헤더·계정 값은 출력하지 않습니다.
 검증기 회귀 시험: python -m unittest discover -s infra -p 'test_verify_runtime.py'
 네트워크·DB 준비 상태 회귀 시험: python -m unittest discover -s infra -p 'test_compose_network.py'
 이 시험은 실제 PostgreSQL 이미지의 비루트 임시 컨테이너에서 소켓 전용 초기 서버와
@@ -17,7 +23,9 @@ runtime-check의 헬스·첫 메뉴 응답 계약, nginx API 프록시와 첫 �
 앱 볼륨은 사용하지 않습니다.
 Compose의 비운영 DB 기본 설정은 로컬 개발용입니다. 운영에서는 POSTGRES_DB, POSTGRES_USER,
 POSTGRES_PASSWORD를 배포 환경에서 재정의하고 운영 비밀을 저장소에 넣지 마세요.
-인증은 제공하지 않으며 계정 생성이나 확인 계정 환경변수 없이 시작합니다.
+앱은 세션 쿠키 인증을 사용합니다. 평상시 시작에는 확인 계정 슬롯이 필요하지 않습니다.
+초기 관리자 생성과 첫 로그인은 루트 README.md 및 aiops.initial-login.json 안내를 따르세요.
+초기 관리자와 임시 확인 계정의 초기화는 서로 독립적입니다. 첫 로그인 후 비밀번호를 변경하세요.
 
 데이터베이스
 

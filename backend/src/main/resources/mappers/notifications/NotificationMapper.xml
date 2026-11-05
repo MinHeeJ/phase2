@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sicost.notifications.NotificationMapper">
+  <sql id="visibility">
+    n.user_id=#{userId} AND (
+      (n.link_scrn_id IS NULL AND n.ntf_ty_cd IN ('ACCOUNT_SECURITY','ANNOUNCEMENT'))
+      OR EXISTS (
+        SELECT 1 FROM sys.user_role ur JOIN sys.role r ON r.role_id=ur.role_id
+        JOIN sys.role_menu_auth a ON a.role_id=r.role_id JOIN sys.menu m ON m.menu_id=a.menu_id
+        WHERE ur.user_id=#{userId} AND r.use_yn='Y' AND a.inq_auth_yn='Y' AND m.scrn_id=n.link_scrn_id AND m.use_yn='Y'
+          AND (m.scrn_id NOT IN ('UI-23','UI-24','UI-25') OR r.admin_yn='Y')
+          AND NOT EXISTS (
+            WITH RECURSIVE ancestors AS (
+              SELECT menu_id,upr_menu_id,use_yn,ARRAY[menu_id] AS visited FROM sys.menu WHERE menu_id=m.menu_id
+              UNION ALL SELECT p.menu_id,p.upr_menu_id,p.use_yn,c.visited || p.menu_id FROM sys.menu p JOIN ancestors c ON c.upr_menu_id=p.menu_id WHERE NOT p.menu_id=ANY(c.visited)
+            ) SELECT 1 FROM ancestors WHERE use_yn&lt;&gt;'Y' OR upr_menu_id=ANY(visited)
+          )
+          AND (r.data_scope_cd='ALL'
+            OR (r.data_scope_cd='PART' AND EXISTS(SELECT 1 FROM sys.user_part up JOIN mst.bsn_part bp ON bp.bsn_part_id=up.bsn_part_id
+              WHERE up.user_id=#{userId} AND bp.use_yn='Y' AND (up.bsn_part_id=n.bsn_part_id OR EXISTS(SELECT 1 FROM prj.prj p WHERE p.prj_id=n.prj_id AND p.bsn_part_id=up.bsn_part_id AND p.use_yn='Y'))))
+            OR (r.data_scope_cd='PROJECT' AND EXISTS(SELECT 1 FROM sys.user_prj up JOIN prj.prj p ON p.prj_id=up.prj_id WHERE up.user_id=#{userId} AND up.prj_id=n.prj_id AND p.use_yn='Y')))
+      )
+    )
+  </sql>
+  <sql id="projection">n.ntf_id AS "id",n.ntf_ty_cd AS "type",n.ttl_nm AS "title",n.msg_desc AS "message",n.created_at AS "createdAt",
+    n.read_yn='Y' AS "read",n.read_at AS "readAt",n.link_scrn_id AS "screenId",n.prj_id AS "projectId",n.bsn_part_id AS "partId",
+    EXISTS(SELECT 1 FROM sys.ntf_event_key e WHERE e.event_key_id=n.event_key_id AND e.resolved_at IS NOT NULL) AS "resolved"</sql>
+  <select id="list" resultType="map">SELECT <include refid="projection"/> FROM sys.ntf n WHERE <include refid="visibility"/>
+    <if test="unreadOnly">AND n.read_yn='N'</if> ORDER BY n.created_at DESC,n.ntf_id DESC LIMIT #{size} OFFSET #{offset}</select>
+  <select id="count" resultType="long">SELECT count(*) FROM sys.ntf n WHERE <include refid="visibility"/><if test="unreadOnly">AND n.read_yn='N'</if></select>
+  <select id="owned" resultType="map">SELECT <include refid="projection"/> FROM sys.ntf n WHERE n.user_id=#{userId} AND n.ntf_id=#{id}</select>
+  <select id="visible" resultType="boolean">SELECT EXISTS(SELECT 1 FROM sys.ntf n WHERE n.ntf_id=#{id} AND <include refid="visibility"/>)</select>
+  <update id="read">UPDATE sys.ntf n SET read_yn='Y',read_at=COALESCE(read_at,#{now}) WHERE n.ntf_id=#{id} AND <include refid="visibility"/></update>
+  <update id="readAll">UPDATE sys.ntf n SET read_yn='Y',read_at=#{now} WHERE n.read_yn='N' AND <include refid="visibility"/></update>
+</mapper>

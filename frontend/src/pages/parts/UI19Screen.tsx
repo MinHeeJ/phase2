@@ -64,7 +64,10 @@ export default function UI19Screen({
   const location = useLocation();
   const incomingMonth = closingNavigation(location.state).month;
   const [month, setMonth] = useState(
-    () => incomingMonth ?? sessionStorage.getItem("part-settlement-month") ?? seoulMonth(),
+    () =>
+      incomingMonth ??
+      sessionStorage.getItem("part-settlement-month") ??
+      seoulMonth(),
   );
   useEffect(() => {
     if (location.pathname !== "/UI-19" || !incomingMonth) return;
@@ -99,6 +102,7 @@ export default function UI19Screen({
   };
   return (
     <section
+      data-screen-id="SCR-UI-19"
       data-testid="part-settlement-screen"
       aria-label="영업 파트 이익금 화면"
     >

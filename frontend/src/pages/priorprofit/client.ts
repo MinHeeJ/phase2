@@ -1,5 +1,4 @@
-import { api, ApiFailure } from "../../shared/api";
-import type { ApiResponse, ApiError } from "../../shared/types";
+import { api } from "../../shared/api";
 
 export interface PriorProfitSnapshot {
   month: string;
@@ -36,36 +35,12 @@ export async function validatePriorProfitUpload(
 ): Promise<PriorProfitUploadResult> {
   const body = new FormData();
   body.append("file", file);
-  let response: Response;
-  try {
-    response = await fetch("/api/uploads/prior-profit/validate", {
+  return (
+    await api<PriorProfitUploadResult>("/api/uploads/prior-profit/validate", {
       method: "POST",
       body,
-    });
-  } catch {
-    throw new ApiFailure("서버에 연결할 수 없습니다.", null, null);
-  }
-  let result: ApiResponse<PriorProfitUploadResult> | ApiError;
-  try {
-    result = await response.json();
-  } catch {
-    throw new ApiFailure(
-      "서버 응답을 확인할 수 없습니다.",
-      response.status,
-      response.headers.get("X-Request-Id"),
-    );
-  }
-  if (!response.ok || result.success !== true) {
-    const error = result as ApiError;
-    throw new ApiFailure(
-      error.message ?? "서버 오류가 발생했습니다.",
-      response.status,
-      error.requestId,
-      error.field,
-      error.code,
-    );
-  }
-  return (result as ApiResponse<PriorProfitUploadResult>).data!;
+    })
+  ).data;
 }
 export const applyPriorProfitUpload = async (
   upload_id: string,

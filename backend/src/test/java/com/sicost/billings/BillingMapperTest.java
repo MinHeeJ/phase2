@@ -59,14 +59,22 @@ class BillingMapperTest {
     }
     @Test void insertUsesReturningIdentityAndNeverWritesGeneratedOrInventedColumns() throws Exception {
         var c = configuration();
-        var s = BillingApiTest.state("MO", "DRAFT", "2026-10", null);
+        var s = BillingDetailApiTest.state("MO", "DRAFT", "2026-10", null);
         String insert = sql(c, "insert", new Write(0, "B-2610-01", s, null));
         assertThat(insert).contains("RETURNING bill_id").doesNotContain("tot_amt", "dev_id");
-        assertThat(sql(c, "insertDetail", new DetailWrite(7, BillingApiTest.line()))).contains("cntrct_dev_id", "work_ym").doesNotContain(",dev_id");
+        assertThat(sql(c, "insertDetail", new DetailWrite(7, BillingDetailApiTest.line()))).contains("cntrct_dev_id", "work_ym").doesNotContain(",dev_id");
         assertThat(sql(c, "update", new Write(7, null, s, null))).contains("AND bill_stts_cd='DRAFT'").doesNotContain("prj_id=", "atrb_ym=", "bill_stg_id=");
     }
     @Test void detailHistoryIncludesReceiptAuditLinks() throws Exception {
         assertThat(sql(configuration(), "history", 7))
             .contains("h.tbl_nm='bill.bill'", "h.tbl_nm='bill.rcpt'", "h.rsn_desc='bill_id=' || ?::text");
+    }
+    @Test void scopeTargetUsesExistingProjectOwnershipColumnsAndExactConstructorTypes() throws Exception {
+        var c = configuration();
+        assertThat(sql(c, "projectTarget", 1L)).contains("pm_user_id AS user_id", "pm_dev_id AS developer_id",
+            "bsn_part_id AS part_id", "prj_id AS project_id", "FROM prj.prj WHERE prj_id=?");
+        var mappings = c.getResultMap(BillingMapper.class.getName() + ".projectTarget").getConstructorResultMappings();
+        for (var mapping : mappings) assertThat(mapping.getJavaType()).isEqualTo(Long.class);
+        assertThat(mappings).extracting(m -> m.getColumn()).containsExactly("user_id","developer_id","part_id","project_id");
     }
 }

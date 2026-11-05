@@ -186,7 +186,11 @@ export default function UI18Screen({
     }
   };
   return (
-    <section data-testid="business-plan-screen" className={styles.content}>
+    <section
+      data-screen-id="SCR-UI-18"
+      data-testid="business-plan-screen"
+      className={styles.content}
+    >
       <ScreenHeading
         screenId="UI-18"
         name={name}

@@ -22,6 +22,11 @@ const response = (data: unknown) =>
 let detail: BillingDetail;
 let fetcher: ReturnType<typeof vi.fn>;
 let empty: boolean, failRead: boolean, failWrite: boolean, closed: boolean;
+let roleName: string,
+  canUpdate: boolean,
+  permissionFailure: boolean,
+  detailFailure: boolean,
+  csrfProof: string;
 const saved = vi.fn(),
   cancelled = vi.fn(),
   reload = vi.fn().mockResolvedValue(undefined);
@@ -38,6 +43,11 @@ beforeEach(() => {
   failRead = false;
   failWrite = false;
   closed = false;
+  roleName = "재무 담당";
+  canUpdate = true;
+  permissionFailure = false;
+  detailFailure = false;
+  csrfProof = crypto.randomUUID();
   saved.mockClear();
   cancelled.mockClear();
   reload.mockClear();
@@ -93,6 +103,24 @@ beforeEach(() => {
     warnings: [],
   };
   fetcher = vi.fn(async (url: string, init?: RequestInit) => {
+    if (url === "/api/auth/csrf")
+      return response({ headerName: "X-CSRF-TOKEN", csrfToken: csrfProof });
+    if (url === "/api/me/permissions") {
+      if (permissionFailure)
+        return new Response(
+          JSON.stringify({
+            success: false,
+            code: "FORBIDDEN",
+            message: "권한 조회 실패",
+          }),
+          { status: 403 },
+        );
+      return response({
+        roles: [{ name: roleName }],
+        menus: [{ menuId: 13, screenId: "UI-13", children: [] }],
+        permissions: [{ menuId: 13, inq: true, mdfcn: canUpdate }],
+      });
+    }
     if (url === "/api/projects/options")
       return response([
         { id: 3, no: "P-2603", name: "실제 프로젝트", type: "MO" },
@@ -174,7 +202,18 @@ beforeEach(() => {
         size: 50,
       });
     }
-    if (url === "/api/billings/7") return response(detail);
+    if (url === "/api/billings/7") {
+      if (detailFailure)
+        return new Response(
+          JSON.stringify({
+            success: false,
+            code: "FORBIDDEN",
+            message: "청구 조회 거절",
+          }),
+          { status: 403 },
+        );
+      return response(detail);
+    }
     throw new Error(`Unexpected URL ${url}`);
   });
   vi.stubGlobal("fetch", fetcher);
@@ -226,10 +265,14 @@ describe("청구 목록", () => {
     "opens the %s closing check with its selected month",
     async (closingCheck) => {
       render(
-        <MemoryRouter initialEntries={[{
-          pathname: "/UI-13",
-          state: { closingMonth: "2026-10", closingCheck },
-        }]}>
+        <MemoryRouter
+          initialEntries={[
+            {
+              pathname: "/UI-13",
+              state: { closingMonth: "2026-10", closingCheck },
+            },
+          ]}
+        >
           <ActiveBillingScreen />
         </MemoryRouter>,
       );
@@ -435,6 +478,13 @@ describe("청구 등록/수정", () => {
     await waitFor(() => expect(saved).toHaveBeenCalled());
     const call = fetcher.mock.calls.find(([, i]) => i?.method === "PUT")!;
     expect(call[0]).toBe("/api/billings/7");
+    expect(call[1].headers).toMatchObject({ "X-CSRF-TOKEN": csrfProof });
+    const putIndex = fetcher.mock.calls.indexOf(call);
+    expect(
+      fetcher.mock.calls
+        .slice(putIndex + 1)
+        .some(([url, init]) => url === "/api/billings/7" && !init?.method),
+    ).toBe(true);
     const payload = JSON.parse(call[1].body as string);
     expect(payload.sply_amt).toBe(1234);
     expect(payload.vat_amt).toBe(77);
@@ -540,5 +590,156 @@ describe("청구 등록/수정", () => {
     );
     const call = fetcher.mock.calls.find(([, i]) => i?.method === "PUT")!;
     expect(JSON.parse(call[1].body as string)).toEqual({ recalculate: true });
+  });
+  it("executives see billing details but no update or recalculation action", async () => {
+    roleName = "경영진";
+    render(
+      <UI13DetailPanel
+        id={7}
+        readOnly={false}
+        onClose={cancelled}
+        onEdit={saved}
+        onOpen={vi.fn()}
+        onProject={vi.fn()}
+        refresh={reload}
+        actions={() => <button>청구 확정</button>}
+      />,
+    );
+    await screen.findByText("입금 이력 (부가세 포함)");
+    expect(screen.queryByTestId("billing-edit")).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("billing-recalculate-save"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "청구 확정" }),
+    ).not.toBeInTheDocument();
+  });
+  it("a missing update action hides edit controls despite a finance role", async () => {
+    canUpdate = false;
+    render(
+      <UI13DetailPanel
+        id={7}
+        readOnly={false}
+        onClose={cancelled}
+        onEdit={saved}
+        onOpen={vi.fn()}
+        onProject={vi.fn()}
+        refresh={reload}
+      />,
+    );
+    await screen.findByText("입금 이력 (부가세 포함)");
+    expect(screen.queryByTestId("billing-edit")).not.toBeInTheDocument();
+  });
+  it("empty details render an explicit empty state", async () => {
+    detail.details = [];
+    render(
+      <UI13DetailPanel
+        id={7}
+        readOnly={false}
+        onClose={cancelled}
+        onEdit={saved}
+        onOpen={vi.fn()}
+        onProject={vi.fn()}
+        refresh={reload}
+      />,
+    );
+    expect(
+      await screen.findByText("청구 상세 내역이 없습니다."),
+    ).toBeInTheDocument();
+  });
+  it("a role outside billing readership cannot see returned billing contents", async () => {
+    roleName = "일반 사용자(PM)";
+    render(
+      <UI13DetailPanel
+        id={7}
+        readOnly={false}
+        onClose={cancelled}
+        onEdit={saved}
+        onOpen={vi.fn()}
+        onProject={vi.fn()}
+        refresh={reload}
+      />,
+    );
+    await screen.findByText("청구 조회 권한이 없습니다.");
+    expect(
+      screen.queryByText("입금 이력 (부가세 포함)"),
+    ).not.toBeInTheDocument();
+  });
+  it("opening the editor directly cannot bypass executive read-only policy", async () => {
+    roleName = "경영진";
+    renderEditor(true);
+    await screen.findByText("청구 수정 권한이 없습니다.");
+    expect(screen.queryByTestId("billing-editor-save")).not.toBeInTheDocument();
+    expect(fetcher.mock.calls.some(([, init]) => init?.method === "PUT")).toBe(
+      false,
+    );
+  });
+  it.each(["CONFIRM", "CANCEL", "PLAN"] as const)(
+    "a %s billing cannot be edited through a direct editor",
+    async (status) => {
+      detail.billing.bill_stts_cd = status;
+      renderEditor(true);
+      await screen.findByText("읽기 전용 청구입니다. 수정할 수 없습니다.");
+      expect(
+        screen.queryByTestId("billing-editor-save"),
+      ).not.toBeInTheDocument();
+    },
+  );
+  it("historical editor is read-only", async () => {
+    detail.billing.atrb_ym = "2025-10";
+    renderEditor(true);
+    await screen.findByText("읽기 전용 청구입니다. 수정할 수 없습니다.");
+    expect(screen.queryByTestId("billing-editor-save")).not.toBeInTheDocument();
+  });
+  it("failed permission lookup never falls back to the legacy default user", async () => {
+    permissionFailure = true;
+    renderEditor(true);
+    await screen.findByText("권한 조회 실패");
+    expect(screen.queryByTestId("billing-editor-save")).not.toBeInTheDocument();
+  });
+  it("a failed detail request displays the error instead of stale billing contents", async () => {
+    const props = {
+      id: 7,
+      readOnly: false,
+      onClose: cancelled,
+      onEdit: saved,
+      onOpen: vi.fn(),
+      onProject: vi.fn(),
+      refresh: reload,
+    };
+    const view = render(<UI13DetailPanel {...props} />);
+    await screen.findByText("입금 이력 (부가세 포함)");
+    detailFailure = true;
+    view.rerender(<UI13DetailPanel {...props} version={1} />);
+    await screen.findByText("청구 조회 거절");
+    expect(
+      screen.queryByText("입금 이력 (부가세 포함)"),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByTestId("billing-edit")).not.toBeInTheDocument();
+  });
+  it("out-of-period date warns while the month stays immutable", async () => {
+    renderEditor(true);
+    const date = await screen.findByLabelText("청구일");
+    fireEvent.change(date, { target: { value: "2026-11-02" } });
+    expect(screen.getByText(/청구일이 귀속월과 다릅니다/)).toBeInTheDocument();
+    expect(screen.getByLabelText("귀속월")).toHaveValue("2026-10");
+    expect(screen.getByLabelText("귀속월")).toHaveAttribute("readonly");
+  });
+  it("readback failure blocks resubmission until the exact billing can be read", async () => {
+    renderEditor(true);
+    await screen.findByLabelText("프로젝트");
+    await waitFor(() =>
+      expect(screen.getByTestId("billing-editor-save")).toBeEnabled(),
+    );
+    detailFailure = true;
+    fireEvent.click(screen.getByTestId("billing-editor-save"));
+    await screen.findByText(
+      "저장 후 조회에 실패했습니다. 현재 상태를 확인하세요.",
+    );
+    expect(saved).not.toHaveBeenCalled();
+    expect(screen.getByTestId("billing-editor-save")).toBeDisabled();
+    expect(
+      fetcher.mock.calls.filter(([, init]) => init?.method === "PUT"),
+    ).toHaveLength(1);
   });
 });

@@ -11,6 +11,7 @@ import {
 } from "./client";
 import tables from "../developers/Developers.module.css";
 import styles from "./Billings.module.css";
+import { useBillingAccess } from "./useBillingAccess";
 
 export function BillingStatus({ row }: { row: BillingRow }) {
   const labels = {
@@ -51,6 +52,13 @@ export function BillingLines({ lines }: { lines: BillingDetailLine[] }) {
           </tr>
         </thead>
         <tbody>
+          {lines.length === 0 && (
+            <tr>
+              <td colSpan={9} className={tables.empty}>
+                청구 상세 내역이 없습니다.
+              </td>
+            </tr>
+          )}
           {lines.map((l) => (
             <tr data-testid={`billing-line-${l.asgn_id}`} key={l.asgn_id}>
               <td>{l.display_name}</td>
@@ -99,6 +107,7 @@ export function UI13DetailPanel({
     reload: () => Promise<unknown>,
   ) => ReactNode;
 }) {
+  const access = useBillingAccess();
   const detail = useAdminRead(useCallback(() => getBilling(id), [id, version]));
   const reload = async () => {
     await detail.reload();
@@ -127,10 +136,19 @@ export function UI13DetailPanel({
           onRetry={() => void detail.reload().catch(() => {})}
         />
         <ErrorBanner error={write.error} onRetry={() => void write.recover()} />
-        {detail.loading ? (
+        <ErrorBanner
+          error={access.error}
+          onRetry={() => void access.reload().catch(() => {})}
+        />
+        {!access.loading && !access.error && !access.canRead && (
+          <p>청구 조회 권한이 없습니다.</p>
+        )}
+        {detail.loading || access.loading ? (
           <Skeleton />
         ) : (
           d &&
+          !detail.error &&
+          access.canRead &&
           row && (
             <>
               <h3>
@@ -240,13 +258,13 @@ export function UI13DetailPanel({
                   key={`${h.changed_at}-${i}`}
                   data-testid={`billing-history-${i}`}
                 >
-                  <time>{h.changed_at}</time> · {h.user_id ?? "기본 사용자"}
+                  <time>{h.changed_at}</time> · {h.user_id ?? "기록 없음"}
                   <p>{h.description}</p>
                 </article>
               ))}
-              {!readOnly && (
+              {!readOnly && access.canWrite && (
                 <div className={styles.actions}>
-                  {row.bill_stts_cd === "DRAFT" && (
+                  {row.bill_stts_cd === "DRAFT" && access.canUpdate && (
                     <>
                       <Button
                         data-testid="billing-edit"

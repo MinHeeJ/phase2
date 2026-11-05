@@ -9,6 +9,7 @@ import static com.sicost.opportunitiesops.OpportunityLifecycleModels.*;
 public interface OpportunityLifecycleMapper {
     Row lock(long id);
     Row row(long id);
+    AuditState auditState(long id);
     List<Need> needs(long id);
     List<ApprovalHistory> history(long id);
     List<CostSource> costSources(java.time.LocalDate today);
