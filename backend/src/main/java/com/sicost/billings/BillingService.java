@@ -38,8 +38,12 @@ public class BillingService {
             mapper.count(query), query.page(), query.size());
     }
     public BillingDetail get(long id) {
-        permissions.can(BillingActions.READ);
-        return detail(require(id), new ArrayList<>());
+        return detail(requireScoped(id, permissions.scope(BillingActions.READ)), new ArrayList<>());
+    }
+    private State requireScoped(long id, ScopePredicate scope) {
+        var state = mapper.scopedState(new BillingAccess(BillingInput.id(id), scope));
+        if (state == null) throw ApiException.notFound("청구가 없습니다.");
+        return state;
     }
     private State require(long id) {
         var state = mapper.state(BillingInput.id(id));
@@ -47,6 +51,10 @@ public class BillingService {
         return state;
     }
     private BillingDetail detail(State state, List<String> warnings) {
+        if (state.atrb_ym() != null && state.bill_dt() != null
+                && !state.atrb_ym().equals(YearMonth.from(state.bill_dt()).toString())) {
+            warnings.add("청구일이 귀속월과 다릅니다. 귀속월과 원천 상세는 유지됩니다.");
+        }
         var row = reminder(mapper.row(state.bill_id()));
         var lines = mapper.details(state.bill_id());
         if (!"TK".equals(state.cntrct_ty_cd()) && !"Y".equals(state.amnd_yn())) {
@@ -130,13 +138,13 @@ public class BillingService {
     }
     @Transactional(isolation = Isolation.READ_COMMITTED)
     public BillingDetail update(long id, Input input) {
-        permissions.can(BillingActions.UPDATE);
+        var scope = permissions.scope(BillingActions.UPDATE);
         mapper.lockClosingSources();
-        var observed = require(id);
+        var observed = requireScoped(id, scope);
         var project = project(observed.prj_id());
         long root = observed.orgnl_bill_id() == null ? id : observed.orgnl_bill_id();
         mapper.lockBill(root);
-        var before = mapper.lockBill(id);
+        var before = mapper.lockScopedBill(new BillingAccess(id, scope));
         if (before == null) throw ApiException.notFound("청구가 없습니다.");
         BillingRules.requireDraft(BillingRules.Status.valueOf(before.bill_stts_cd()));
         open(before);

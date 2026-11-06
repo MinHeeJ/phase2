@@ -47,6 +47,22 @@
     FROM bsn.oppt WHERE oppt_id=#{id}</sql>
   <select id="row" resultMap="opportunity"><include refid="header"/></select>
   <select id="lock" resultMap="opportunity" flushCache="true" useCache="false"><include refid="header"/> FOR UPDATE</select>
+  <select id="lockScoped" resultMap="opportunity" flushCache="true" useCache="false">
+    <include refid="header"/> AND (FALSE
+    <foreach collection="scope.grants" item="grant">
+      <choose>
+        <when test="grant.scope.name() == 'ALL'">OR TRUE</when>
+        <when test="grant.scope.name() == 'PART' and !grant.partIds.isEmpty()">
+          OR bsn_part_id IN <foreach collection="grant.partIds" item="part" open="(" close=")" separator=",">#{part}</foreach>
+        </when>
+        <when test="grant.scope.name() == 'PROJECT' and !grant.projectIds.isEmpty()">
+          OR win_prj_id IN <foreach collection="grant.projectIds" item="project" open="(" close=")" separator=",">#{project}</foreach>
+        </when>
+        <when test="grant.scope.name() == 'SELF'">OR bsn_chrg_user_id=#{scope.userId}</when>
+      </choose>
+    </foreach>) FOR UPDATE
+  </select>
+  <select id="auditValues" resultType="map">SELECT oppt_id,end_dt,aprv_user_id FROM bsn.oppt WHERE oppt_id=#{id}</select>
   <select id="needs" resultMap="need">SELECT need_id,job_cd,grd_cd,psn_cnt,bgn_ym,mnth_qty AS mth_cnt,mth_mm_qty,
     expc_untprc_amt,psn_mth_cst_amt,min_untprc_amt,trgt_untprc_amt,rmrk_desc FROM bsn.oppt_need WHERE oppt_id=#{id} AND use_yn='Y' ORDER BY sort_seq,need_id</select>
   <select id="history" resultMap="approvalHistory">SELECT aprv_prcs_cd AS action,opnn_desc AS opinion,prcs_user_id AS user_id,

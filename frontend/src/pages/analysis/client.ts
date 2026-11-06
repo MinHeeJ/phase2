@@ -1,4 +1,4 @@
-import { api, readData, ApiFailure } from "../../shared/api";
+import { api, ApiFailure, csrfHeaders, readData } from "../../shared/api";
 
 export type AnalysisStatus =
   | "OK"
@@ -212,7 +212,9 @@ export async function exportAnalysis(
     {
       method: message ? "GET" : "POST",
       credentials: "same-origin",
-      headers: message ? {} : { "Content-Type": "application/json" },
+      headers: message
+        ? {}
+        : { "Content-Type": "application/json", ...csrfHeaders() },
       body: message ? undefined : JSON.stringify(query),
     },
   );

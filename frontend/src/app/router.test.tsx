@@ -102,7 +102,32 @@ beforeEach(() => {
     dense: false,
   });
   fetcher = vi.fn(async (url: string, init?: RequestInit) => {
+    if (url === "/api/auth/me")
+      return response({
+        name: "합성 시험 관리자",
+        roles: ["1"],
+        passwordAgeWarning: false,
+      });
+    if (url === "/api/me/permissions")
+      return response({
+        permissions: screenIds.map((screenId) => ({
+          screenId,
+          read: true,
+          create: true,
+          update: true,
+          delete: true,
+          upload: true,
+          download: true,
+          confirm: true,
+        })),
+      });
+    if (url === "/api/navigation")
+      return response({ firstAllowedScreenId: "UI-16" });
     if (url === "/api/menus") return response(menus);
+    if (url === "/api/notifications/unread-count")
+      return response({ unreadCount: 0 });
+    if (url.startsWith("/api/notifications?"))
+      return response({ items: [], total: 0, page: 0, size: 20 });
     if (url.startsWith("/api/ai/staff-recommendation/options"))
       return response({
         sources: [
@@ -423,8 +448,14 @@ describe("application route registration", () => {
     );
     mount("/UI-30");
     expect(await screen.findByRole("alert")).toHaveTextContent("AI 접근 제한");
-    expect(screen.getByTestId("recommendation-run")).toBeDisabled();
+    expect(
+      screen.queryByTestId("recommendation-form-panel"),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByTestId("recommendation-run")).not.toBeInTheDocument();
     expect(screen.getByTestId("options-retry")).toBeEnabled();
+    fetcher.mockImplementation(original);
+    fireEvent.click(screen.getByTestId("options-retry"));
+    expect(await screen.findByTestId("recommendation-run")).toBeEnabled();
   });
   it.each(["/", "/UI-16"])(
     "renders the real dashboard once through %s and retains its fixed tab",

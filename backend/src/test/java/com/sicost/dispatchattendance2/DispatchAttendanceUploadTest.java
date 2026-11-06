@@ -26,9 +26,10 @@ import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@WebMvcTest(controllers=DispatchAttendanceUploadController.class)
+@WebMvcTest(controllers=DispatchAttendanceUploadController.class, excludeFilters=@org.springframework.context.annotation.ComponentScan.Filter(
+    type=org.springframework.context.annotation.FilterType.ASSIGNABLE_TYPE, classes=com.sicost.authentication.AuthenticationFilter.class))
 @Import({RequestIdFilter.class,ApiExceptionHandler.class,DispatchAttendanceUploadService.class,
-    DispatchAttendanceUploadForm.class,UploadWorkbookWriter.class,CurrentUser.class,PermissionService.class})
+    DispatchAttendanceUploadForm.class,UploadWorkbookWriter.class})
 class DispatchAttendanceUploadTest {
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper json;
@@ -36,11 +37,14 @@ class DispatchAttendanceUploadTest {
     @MockBean DispatchAttendanceUploadMapper mapper;
     @MockBean UploadService uploads;
     @MockBean UploadMapper common;
+    @MockBean CurrentUser currentUser;
+    @MockBean PermissionService permissions;
     @TempDir Path directory;
     AtomicLong sequence=new AtomicLong(100);
     Map<Long,String> statuses=new HashMap<>();
     Source source=new Source(11,21,"D-100","홍길동",new BigDecimal("0.50"),true);
     @BeforeEach void setup() throws Exception {
+        when(currentUser.userId()).thenReturn(null);
         statuses.clear();
         ReflectionTestUtils.setField(service,"directory",directory.toString());
         when(mapper.project(1)).thenReturn(new Project("DP","DAY","Y"));
@@ -75,6 +79,12 @@ class DispatchAttendanceUploadTest {
         verify(mapper,never()).deleteAttendance(any());
         verify(mapper,never()).insertAttendance(any());
         verify(mapper,never()).audit(any());
+    }
+    @Test void missingFileIsRejectedBeforeBusinessWrite() throws Exception {
+        mvc.perform(post("/api/uploads/dispatch-attendance/validate").contentType("multipart/form-data")
+            .param("month","2026-10").param("projectId","1"))
+            .andExpect(status().isBadRequest()).andExpect(jsonPath("$.field").value("file"));
+        untouched();verify(uploads,never()).store(any(),anyString());
     }
     @Test void anonymousValidationHasCommonEnvelopeRealRowsAndDoesNotWriteBusinessData() throws Exception {
         mvc.perform(multipart("/api/uploads/dispatch-attendance/validate")

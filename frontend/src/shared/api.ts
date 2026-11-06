@@ -13,6 +13,18 @@ export class ApiFailure extends Error {
     this.name = "ApiFailure";
   }
 }
+// Login rotates this readable cookie together with the HttpOnly session cookie.
+// Read it per request rather than retaining a proof from an earlier session.
+export function csrfHeaders(): Record<string, string> {
+  const token = document.cookie
+    .split(";")
+    .map((cookie) => cookie.trim())
+    .find((cookie) => cookie.startsWith("XSRF-TOKEN="))
+    ?.slice("XSRF-TOKEN=".length);
+  return token && /^[A-Za-z0-9_-]{43}$/.test(token)
+    ? { "X-CSRF-TOKEN": token }
+    : {};
+}
 export async function api<T = void>(
   path: string,
   init: RequestInit = {},
@@ -26,6 +38,7 @@ export async function api<T = void>(
       ...init,
       headers: {
         ...(init.body ? { "Content-Type": "application/json" } : {}),
+        ...(write ? csrfHeaders() : {}),
         ...init.headers,
       },
     });
@@ -55,6 +68,9 @@ export async function api<T = void>(
   }
   if (!response.ok || body.success !== true) {
     const error = body as ApiError;
+    if (response.status === 401 && !path.startsWith("/api/auth/"))
+      window.dispatchEvent(new Event("sicost-session-expired"));
+
     throw new ApiFailure(
       typeof error.message === "string"
         ? error.message

@@ -22,13 +22,17 @@ import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.*;
 
-@WebMvcTest(controllers = ProjectAllocationController.class)
-@Import({RequestIdFilter.class, ApiExceptionHandler.class, ProjectAllocationService.class,
-        CurrentUser.class, PermissionService.class})
+@WebMvcTest(controllers = ProjectAllocationController.class,
+        excludeFilters = @org.springframework.context.annotation.ComponentScan.Filter(
+                type = org.springframework.context.annotation.FilterType.ASSIGNABLE_TYPE,
+                classes = com.sicost.authentication.AuthenticationFilter.class))
+@Import({RequestIdFilter.class, ApiExceptionHandler.class, ProjectAllocationService.class})
 class ProjectAllocationApiTest {
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper json;
     @MockBean ProjectAllocationMapper mapper;
+    @MockBean CurrentUser currentUser;
+    @MockBean PermissionService permissions;
     final Map<AllocationScope, List<AllocationStoredLine>> rows = new HashMap<>();
     final Map<Long, List<AllocationMonth>> months = new HashMap<>();
     final List<AllocationAudit> audits = new ArrayList<>();
@@ -37,6 +41,10 @@ class ProjectAllocationApiTest {
     String realoc;
 
     @BeforeEach void setup() {
+        // Security is outside this business-rule slice; retain its nullable audit actor fixture.
+        when(currentUser.userId()).thenReturn(null);
+        when(permissions.can("UI-01.read")).thenReturn(true);
+        when(permissions.can("UI-01.update")).thenReturn(true);
         rows.clear(); months.clear(); audits.clear(); sequence = 10; realoc = "Y";
         project = new AllocationProject("TK", "Y", 600000000L,
                 LocalDate.of(2026, 1, 1), LocalDate.of(2026, 12, 31));

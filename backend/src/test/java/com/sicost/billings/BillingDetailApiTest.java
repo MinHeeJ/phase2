@@ -24,24 +24,37 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @WebMvcTest(controllers = BillingController.class)
 @Import({RequestIdFilter.class, ApiExceptionHandler.class, BillingService.class, BillingAmountService.class,
-    CurrentUser.class, PermissionService.class, BillingApiTest.Time.class})
-class BillingApiTest {
+    CurrentUser.class, PermissionService.class, BillingDetailApiTest.Time.class})
+class BillingDetailApiTest {
     @TestConfiguration static class Time {
         @Bean Clock clock() { return Clock.fixed(Instant.parse("2026-10-20T00:00:00Z"), ZoneId.of("Asia/Seoul")); }
     }
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper json;
+    @Autowired org.springframework.web.context.WebApplicationContext context;
     @MockBean BillingMapper mapper;
+    @MockBean SecurityPermissionMapper security;
     State current;
     List<DetailLine> lines;
     List<Audit> audits;
     @BeforeEach void setup() {
+        mvc = org.springframework.test.web.servlet.setup.MockMvcBuilders.webAppContextSetup(context)
+            .defaultRequest(get("/").principal(com.sicost.common.AuthenticatedTestSupport.principal(30, List.of(3L), DataScope.ALL)))
+            .addFilters(new RequestIdFilter()).build();
+        when(security.grants(any())).thenReturn(List.of(new SecurityPermissionMapper.GrantRow(3, "ALL", true, false, null)));
+        when(security.parts(30)).thenReturn(List.of(10L));
+        when(security.projects(30)).thenReturn(List.of(1L));
         current = state("MO", "DRAFT", "2026-10", LocalDate.of(2026, 10, 10));
         lines = new ArrayList<>(List.of(line()));
         audits = new ArrayList<>();
         when(mapper.lockProject(1)).thenReturn(new Project(1, "MO", "MONTH", "Y"));
         when(mapper.state(anyLong())).thenAnswer(i -> i.getArgument(0, Long.class) == 99 ? null : current);
         when(mapper.lockBill(anyLong())).thenAnswer(i -> current);
+        when(mapper.scopedState(any())).thenAnswer(i -> {
+            var access = i.getArgument(0, BillingAccess.class);
+            return access.id() == 99 || !access.scope().allows(new ScopePredicate.Target(10L, 1L, null, null)) ? null : current;
+        });
+        when(mapper.lockScopedBill(any())).thenAnswer(i -> current);
         when(mapper.row(anyLong())).thenAnswer(i -> row(current));
         when(mapper.details(anyLong())).thenAnswer(i -> List.copyOf(lines));
         when(mapper.receipts(anyLong())).thenReturn(new ArrayList<>());
@@ -83,16 +96,16 @@ class BillingApiTest {
         return mvc.perform(put("/api/billings/7").contentType("application/json").content(body));
     }
     void noWrite() { verify(mapper, never()).insert(any()); verify(mapper, never()).update(any()); verify(mapper, never()).audit(any()); }
-    @Test void anonymousCreateStoresDraftAndEffectiveVatWithNullableActor() throws Exception {
+    @Test void authenticatedCreateStoresDraftAndEffectiveVatWithCurrentActor() throws Exception {
         postBody("{\"project_id\":1,\"month\":\"2026-10\"}").andExpect(status().isOk())
             .andExpect(jsonPath("$.success").value(true)).andExpect(jsonPath("$.data.billing.vat_amt").value(75))
             .andExpect(jsonPath("$.data.details[0].bill_amt").value(1000));
         var order = inOrder(mapper);
         order.verify(mapper).lockClosingSources();
         order.verify(mapper).numberLock("B-2610-"); order.verify(mapper).lockProject(1);
-        order.verify(mapper).insert(argThat(w -> w.number().equals("B-2610-01") && w.actor() == null));
+        order.verify(mapper).insert(argThat(w -> w.number().equals("B-2610-01") && Long.valueOf(30).equals(w.actor())));
         order.verify(mapper).insertDetail(any());
-        assertThat(audits).hasSize(2); assertThat(audits.get(0).actor()).isNull();
+        assertThat(audits).hasSize(2); assertThat(audits.get(0).actor()).isEqualTo(30L);
     }
     @Test void turnkeyCreateUsesStageWithoutFabricatedAssignmentLine() throws Exception {
         when(mapper.lockProject(1)).thenReturn(new Project(1, "TK", "STAGE", "Y"));
@@ -151,12 +164,16 @@ class BillingApiTest {
         postBody("{\"project_id\":1,\"month\":\"2026-10\"}").andExpect(status().isOk())
             .andExpect(jsonPath("$.data.details").isEmpty()).andExpect(jsonPath("$.data.warnings[0]").value(org.hamcrest.Matchers.containsString("근태 미입력")));
     }
-    @Test void anonymousUpdatePreservesManualVatAndSnapshotWithoutRecalculation() throws Exception {
+    @Test void authenticatedUpdatePreservesManualVatAndSnapshotWithoutRecalculation() throws Exception {
         putBody("{\"sply_amt\":1234,\"vat_amt\":17,\"bill_dt\":\"2026-11-01\",\"txinv_no\":\"기록\"}").andExpect(status().isOk())
             .andExpect(jsonPath("$.data.billing.sply_amt").value(1234)).andExpect(jsonPath("$.data.billing.vat_amt").value(17))
             .andExpect(jsonPath("$.data.billing.atrb_ym").value("2026-10")).andExpect(jsonPath("$.data.details[0].work_ym").value("2026-10"));
         verify(mapper, never()).sources(any()); verify(mapper, never()).deleteDetails(anyLong());
         assertThat(audits.get(0).before()).contains("1000"); assertThat(audits.get(0).after()).contains("1234", "기록");
+        assertThat(audits.get(0).actor()).isEqualTo(30L);
+        assertThat(json.readTree(audits.get(0).before()).get("bill_dt").asText()).isEqualTo("2026-10-10");
+        assertThat(json.readTree(audits.get(0).after()).get("bill_dt").asText()).isEqualTo("2026-11-01");
+        assertThat(current.atrb_ym()).isEqualTo(lines.get(0).work_ym());
     }
     @Test void explicitRecalculateRefreshesDetailButPreservesManualVat() throws Exception {
         when(mapper.sources(any())).thenReturn(List.of(new Source(2, 4, 4, "인력", "NEW", "2026-10", BigDecimal.ONE,
@@ -182,9 +199,10 @@ class BillingApiTest {
         putBody("{\"vat_amt\":17}").andExpect(status().isOk());
         var order = inOrder(mapper);
         order.verify(mapper).lockClosingSources();
-        order.verify(mapper).state(7);
+        order.verify(mapper).scopedState(any());
         order.verify(mapper).lockProject(1);
-        order.verify(mapper, times(2)).lockBill(7);
+        order.verify(mapper).lockBill(7);
+        order.verify(mapper).lockScopedBill(any());
         order.verify(mapper).monthStatus("2026-10");
     }
     @Test void listDoesNotAcquireWriteGuardOrCreateMonthState() throws Exception {
@@ -220,7 +238,7 @@ class BillingApiTest {
         verify(mapper).updateDetail(argThat(w -> w.line().bill_amt() == 1017 && w.line().untprc_amt() == 2000));
         verify(mapper, never()).sources(any()); verify(mapper, never()).deleteDetails(anyLong());
     }
-    @Test void listAndDetailRemainAnonymousAndReadOnly() throws Exception {
+    @Test void listAndDetailAreAuthenticatedAndReadOnly() throws Exception {
         mvc.perform(get("/api/billings?year=2026&type=MO&q=프로젝트&size=20")).andExpect(status().isOk())
             .andExpect(jsonPath("$.data.total").value(1)).andExpect(jsonPath("$.data.page").value(0));
         mvc.perform(get("/api/billings/7")).andExpect(status().isOk()).andExpect(jsonPath("$.data.change_history").isArray()); noWrite();
@@ -233,6 +251,59 @@ class BillingApiTest {
         mvc.perform(get("/api/billings").param("sort", "txinv_no,asc")).andExpect(status().isOk());
         verify(mapper).list(argThat(q -> q.orderColumn().equals("txinv_no") && q.direction().equals("ASC")));
         noWrite();
+    }
+    @ParameterizedTest @ValueSource(strings = {"GET", "PUT"})
+    void anonymousDetailAndUpdateAre401BeforeDataAccess(String method) throws Exception {
+        var request = method.equals("GET") ? get("/api/billings/7")
+            : put("/api/billings/7").contentType("application/json").content("{\"vat_amt\":17}");
+        mvc.perform(request.with(r -> { r.setUserPrincipal(null); return r; }))
+            .andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("UNAUTHENTICATED"));
+        verifyNoInteractions(mapper, security);
+    }
+    @ParameterizedTest @ValueSource(strings = {"GET", "PUT"})
+    void removedActionGrantIs403BeforeAnyBillingQuery(String method) throws Exception {
+        when(security.grants(any())).thenReturn(List.of());
+        var request = method.equals("GET") ? get("/api/billings/7")
+            : put("/api/billings/7").contentType("application/json").content("{\"vat_amt\":17}");
+        mvc.perform(request).andExpect(status().isForbidden()).andExpect(jsonPath("$.data").doesNotExist());
+        verifyNoInteractions(mapper);
+    }
+    @ParameterizedTest @ValueSource(strings = {"GET", "PUT"})
+    void outsideAssignedProjectIs404WithoutDetailOrMutation(String method) throws Exception {
+        when(security.grants(any())).thenReturn(List.of(new SecurityPermissionMapper.GrantRow(5, "PROJECT", false, false, null)));
+        when(security.projects(30)).thenReturn(List.of(80L));
+        var request = method.equals("GET") ? get("/api/billings/7")
+            : put("/api/billings/7").contentType("application/json").content("{\"vat_amt\":17}");
+        mvc.perform(request).andExpect(status().isNotFound()).andExpect(jsonPath("$.data").doesNotExist());
+        verify(mapper, never()).details(anyLong()); verify(mapper, never()).lockProject(anyLong()); noWrite();
+    }
+    @ParameterizedTest @ValueSource(strings = {"GET", "PUT"})
+    void actionQualifiedPartAndProjectGrantsAreUnioned(String method) throws Exception {
+        when(security.grants(any())).thenReturn(List.of(
+            new SecurityPermissionMapper.GrantRow(4, "PART", false, false, null),
+            new SecurityPermissionMapper.GrantRow(5, "PROJECT", false, false, null)));
+        when(security.parts(30)).thenReturn(List.of(90L));
+        var request = method.equals("GET") ? get("/api/billings/7")
+            : put("/api/billings/7").contentType("application/json").content("{\"vat_amt\":17}");
+        mvc.perform(request).andExpect(status().isOk()).andExpect(jsonPath("$.data.billing.prj_id").value(1));
+        verify(mapper).scopedState(argThat(a -> a.scope().grants().size() == 2));
+        verify(security).grants(argThat(q -> q.screenId().equals("UI-13")
+            && q.actionColumn().equals(method.equals("GET") ? "inq_auth_yn" : "mdfcn_auth_yn")));
+    }
+    @Test void missingUpdateIs404WithoutMutation() throws Exception {
+        mvc.perform(put("/api/billings/99").contentType("application/json").content("{\"vat_amt\":17}"))
+            .andExpect(status().isNotFound()); noWrite();
+    }
+    @Test void scopeChangeBeforeLockedReadDoesNotWrite() throws Exception {
+        when(mapper.lockScopedBill(any())).thenReturn(null);
+        putBody("{\"vat_amt\":17}").andExpect(status().isNotFound()); noWrite();
+        assertThat(current.vat_amt()).isEqualTo(100);
+    }
+    @Test void updateKeepsAttributionAndWarnsForOutOfPeriodBillingDate() throws Exception {
+        putBody("{\"bill_dt\":\"2027-01-01\"}").andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.billing.atrb_ym").value("2026-10"))
+            .andExpect(jsonPath("$.data.details[0].work_ym").value("2026-10"))
+            .andExpect(jsonPath("$.data.warnings[0]").value("청구일이 귀속월과 다릅니다. 귀속월과 원천 상세는 유지됩니다."));
     }
     @Test void undatedTurnkeyAmendmentCanBeEditedUsingTheOriginalBillingMonth() throws Exception {
         var original = state("TK", "CONFIRM", null, LocalDate.of(2026, 10, 1));

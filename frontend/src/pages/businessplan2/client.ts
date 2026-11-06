@@ -1,4 +1,4 @@
-import { api, ApiFailure } from "../../shared/api";
+import { api, ApiFailure, csrfHeaders } from "../../shared/api";
 import type { ApiResponse, ApiError } from "../../shared/types";
 
 export interface BusinessPlanPreview {
@@ -31,6 +31,7 @@ export async function validateBusinessPlanUpload(
   try {
     response = await fetch("/api/uploads/business-plan/validate", {
       method: "POST",
+      headers: csrfHeaders(),
       body,
     });
   } catch {

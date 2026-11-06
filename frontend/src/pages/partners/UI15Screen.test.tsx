@@ -15,6 +15,7 @@ import {
   updatePartner,
 } from "./client";
 import { useSharedPreferences } from "../shared/preferences";
+import { setSecurity } from "../../shared/types";
 
 const customer: PartnerDetail = {
   ...emptyPartner,
@@ -613,6 +614,94 @@ describe("partner create and edit", () => {
     fireEvent.click(screen.getByRole("button", { name: "저장" }));
     await waitFor(() => expect(writes()).toHaveLength(1));
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+});
+
+describe("partner business contact binding", () => {
+  it("opens the selected partner's existing detail, requests the chosen purpose and discards contact on close", async () => {
+    setSecurity("담당 영업", [4], [{ screenId: "UI-15", read: true }]);
+    const original = fetcher.getMockImplementation()!;
+    fetcher.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (
+        url ===
+        `/api/partners/${customer.ptnr_id}/contact?purpose=CONTRACT_SALES`
+      )
+        return response({
+          phone: "02-000-0042",
+          email: "contact@example.invalid",
+          masked: false,
+        });
+      return original(url, init);
+    });
+    render(<UI15Screen />);
+    fireEvent.click(
+      await screen.findByRole("button", { name: customer.ptnr_nm }),
+    );
+    expect(screen.getByTestId("partners-screen")).toHaveAttribute(
+      "data-screen-id",
+      "SCR-UI-15",
+    );
+    const detail = await screen.findByRole("dialog", { name: "거래처 상세" });
+    await within(detail).findByRole("heading", { name: customer.ptnr_nm });
+    expect(screen.queryByTestId("partner-create")).not.toBeInTheDocument();
+    expect(
+      within(detail).queryByRole("button", { name: "수정" }),
+    ).not.toBeInTheDocument();
+    expect(fetcher.mock.calls.some(([url]) => url.includes("/contact?"))).toBe(
+      false,
+    );
+    fireEvent.click(within(detail).getByRole("button", { name: "원문 보기" }));
+    expect(await within(detail).findByText(/02-000-0042/)).toBeVisible();
+    fireEvent.click(within(detail).getByRole("button", { name: "상세 닫기" }));
+    expect(screen.queryByText(/02-000-0042/)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: customer.ptnr_nm }));
+    await screen.findByRole("heading", { name: customer.ptnr_nm });
+    expect(screen.queryByText(/02-000-0042/)).not.toBeInTheDocument();
+    expect(
+      fetcher.mock.calls.filter(([url]) => url.includes("/contact?")),
+    ).toHaveLength(1);
+  });
+  it("shows a purpose denial in the existing detail without retaining contact or opening an account route", async () => {
+    setSecurity("담당 재무", [3], [{ screenId: "UI-15", read: true }]);
+    const original = fetcher.getMockImplementation()!;
+    fetcher.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url.includes("/contact?"))
+        return new Response(
+          JSON.stringify({
+            success: false,
+            meta: {},
+            code: "FORBIDDEN",
+            message: "연락처 열람 권한이 없습니다.",
+          }),
+          { status: 403 },
+        );
+      return original(url, init);
+    });
+    render(<UI15Screen />);
+    fireEvent.click(
+      await screen.findByRole("button", { name: customer.ptnr_nm }),
+    );
+    await screen.findByRole("heading", { name: customer.ptnr_nm });
+    fireEvent.change(screen.getByLabelText("업무 목적"), {
+      target: { value: "BILLING_RECEIPT_PAYMENT" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "원문 보기" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "연락처 열람 권한이 없습니다.",
+    );
+    expect(
+      fetcher.mock.calls.some(
+        ([url]) =>
+          url ===
+          `/api/partners/${customer.ptnr_id}/contact?purpose=BILLING_RECEIPT_PAYMENT`,
+      ),
+    ).toBe(true);
+    expect(
+      fetcher.mock.calls.some(([url]) => url.startsWith("/api/admin/users")),
+    ).toBe(false);
+    expect(
+      screen.queryByRole("button", { name: "원문 닫기" }),
+    ).not.toBeInTheDocument();
   });
 });
 

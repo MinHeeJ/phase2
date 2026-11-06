@@ -24,12 +24,20 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
 @WebMvcTest(controllers = {SharedReadController.class, HealthController.class})
-@Import({RequestIdFilter.class, ApiExceptionHandler.class, SharedReadService.class})
+@Import({RequestIdFilter.class, ApiExceptionHandler.class, SharedReadService.class,com.sicost.menumanagement.NavigationService.class,com.sicost.common.security.CurrentUser.class})
 class SharedReadApiTest {
     @Autowired MockMvc mvc;
     @MockBean SharedReadMapper mapper;
+    @MockBean com.sicost.useraccounts.ManagementMapper management;
+    @MockBean com.sicost.common.security.PermissionService permissions;
+    @MockBean com.sicost.authentication.AuthenticationService authentication;
 
-    @BeforeEach void existingGroup() { when(mapper.groupExists("JOB")).thenReturn(true); }
+    @BeforeEach void existingGroup() {
+        when(mapper.groupExists("JOB")).thenReturn(true);
+        when(authentication.session(any())).thenReturn(java.util.Map.of("passwordChangeRequired",false));
+        when(authentication.principal(any())).thenReturn(new com.sicost.common.security.SecurityPrincipal(101L,"합성 시험 관리자",List.of(1L),com.sicost.common.security.DataScope.ALL));
+        when(management.menus()).thenAnswer(invocation -> mapper.menus().stream().map(row -> com.sicost.authentication.AuthenticationService.values("id",row.menuId(),"parentId",row.parentId(),"name",row.name(),"screenId",row.screenId(),"icon",row.icon(),"mobileVisible",row.mobile(),"useYn","Y")).toList());
+    }
 
     @Test void operationNamesMatchDurableContract() throws Exception {
         try (var input = new ClassPathResource("contracts/openapi.yaml").getInputStream()) {

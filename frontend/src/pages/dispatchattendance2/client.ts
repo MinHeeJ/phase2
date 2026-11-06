@@ -1,4 +1,4 @@
-import { api, ApiFailure, readData } from "../../shared/api";
+import { api, ApiFailure, csrfHeaders, readData } from "../../shared/api";
 import type { UploadResult } from "../apiops/client";
 import type { PersonnelIssue, PersonnelPage } from "../uploadsops/client";
 
@@ -37,6 +37,7 @@ export async function validateDispatchAttendanceUpload(
   try {
     response = await fetch("/api/uploads/dispatch-attendance/validate", {
       method: "POST",
+      headers: csrfHeaders(),
       body,
     });
   } catch {

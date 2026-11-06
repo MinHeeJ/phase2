@@ -16,6 +16,13 @@
 .form {
   composes: form from "../developers/Developers.module.css";
 }
+.editorFields {
+  display: contents;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
 .scrim {
   composes: scrim from "../projects/Projects.module.css";
 }

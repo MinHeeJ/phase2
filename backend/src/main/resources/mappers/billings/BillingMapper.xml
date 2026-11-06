@@ -193,6 +193,37 @@
     JOIN prj.prj p ON p.prj_id=b.prj_id LEFT JOIN prj.bill_stg s ON s.bill_stg_id=b.bill_stg_id
     WHERE b.bill_id=#{id}
   </select>
+  <sql id="billingScope">
+    AND (FALSE
+      <foreach collection="scope.grants" item="grant">
+        <choose>
+          <when test="grant.scope.name() == 'ALL'">OR TRUE</when>
+          <when test="grant.scope.name() == 'PART' and !grant.partIds.isEmpty()">
+            OR p.bsn_part_id IN
+            <foreach collection="grant.partIds" item="partId" open="(" close=")" separator=",">#{partId}</foreach>
+          </when>
+          <when test="grant.scope.name() == 'PROJECT' and !grant.projectIds.isEmpty()">
+            OR p.prj_id IN
+            <foreach collection="grant.projectIds" item="projectId" open="(" close=")" separator=",">#{projectId}</foreach>
+          </when>
+          <when test="grant.scope.name() == 'SELF'">
+            OR p.pm_user_id=#{scope.userId}
+            <if test="scope.developerId != null">OR p.pm_dev_id=#{scope.developerId}</if>
+          </when>
+        </choose>
+      </foreach>
+    )
+  </sql>
+  <select id="scopedState" resultMap="state" useCache="false" flushCache="true">
+    SELECT <include refid="stateColumns"/> FROM bill.bill b
+    JOIN prj.prj p ON p.prj_id=b.prj_id LEFT JOIN prj.bill_stg s ON s.bill_stg_id=b.bill_stg_id
+    WHERE b.bill_id=#{id} <include refid="billingScope"/>
+  </select>
+  <select id="lockScopedBill" resultMap="state" useCache="false" flushCache="true">
+    SELECT <include refid="stateColumns"/> FROM bill.bill b
+    JOIN prj.prj p ON p.prj_id=b.prj_id LEFT JOIN prj.bill_stg s ON s.bill_stg_id=b.bill_stg_id
+    WHERE b.bill_id=#{id} <include refid="billingScope"/> FOR UPDATE OF b
+  </select>
   <select id="lockBill" resultMap="state">
     SELECT <include refid="stateColumns"/> FROM bill.bill b
     JOIN prj.prj p ON p.prj_id=b.prj_id LEFT JOIN prj.bill_stg s ON s.bill_stg_id=b.bill_stg_id

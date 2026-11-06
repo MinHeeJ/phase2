@@ -2,6 +2,7 @@ package com.sicost.opportunitiesops;
 
 import com.sicost.common.api.*;
 import com.sicost.common.security.CurrentUser;
+import com.sicost.common.security.PermissionService;
 import java.math.*;
 import java.time.*;
 import java.util.*;
@@ -16,13 +17,15 @@ public class OpportunityLifecycleService {
     private final OpportunityQuoteVerifier quotes;
     private final CurrentUser user;
     private final Clock clock;
-    public OpportunityLifecycleService(OpportunityLifecycleMapper mapper,OpportunityQuoteVerifier quotes,CurrentUser user,Clock clock){
-        this.mapper=mapper;this.quotes=quotes;this.user=user;this.clock=clock;
+    private final PermissionService permissions;
+    public OpportunityLifecycleService(OpportunityLifecycleMapper mapper,OpportunityQuoteVerifier quotes,CurrentUser user,Clock clock,PermissionService permissions){
+        this.mapper=mapper;this.quotes=quotes;this.user=user;this.clock=clock;this.permissions=permissions;
     }
     LocalDate today(){return LocalDate.now(clock.withZone(ZoneId.of("Asia/Seoul")));}
     Long actor(){return user.userId();}
-    Row open(long id){
-        var row=mapper.lock(id);if(row==null)throw ApiException.notFound("기회가 없습니다.");
+    Row open(long id,String action){
+        var scope=permissions.scope("UI-29."+action);
+        var row=mapper.lockScoped(id,scope);if(row==null)throw ApiException.notFound("기회가 없습니다.");
         if(!"OPEN".equals(row.oppt_stts_cd()))throw ApiException.conflict("OPPORTUNITY_CLOSED","종료된 기회는 변경할 수 없습니다.","id");return row;
     }
     public Detail detail(long id){
@@ -41,8 +44,10 @@ public class OpportunityLifecycleService {
         return new Detail(row,rows,quote,mapper.history(id),stale,List.copyOf(warnings));
     }
     void change(Row row,Map<String,Object> before,Map<String,Object> values){
+        var original=new LinkedHashMap<String,Object>(mapper.auditValues(row.oppt_id()));
+        original.putAll(before);
         mapper.change(new Change(row.oppt_id(),values,user.userId()));
-        values.forEach((k,v)->{if(!Objects.equals(before.get(k),v))mapper.audit(new Audit("bsn.oppt",Long.toString(row.oppt_id()),k,masked(before.get(k)),masked(v),user.userId()));});
+        values.forEach((k,v)->{if(!Objects.equals(original.get(k),v))mapper.audit(new Audit("bsn.oppt",Long.toString(row.oppt_id()),k,masked(original.get(k)),masked(v),user.userId()));});
     }
     private static String masked(Object v){
         if(v==null)return null;return v.toString().replaceAll("[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}","[연락처 마스킹]")
@@ -50,7 +55,7 @@ public class OpportunityLifecycleService {
     }
     @Transactional
     public Detail stage(long id,String stage){
-        var row=open(id);
+        var row=open(id,"update");
         if("PENDING".equals(row.approval())&&(Set.of("NEGO","PRE").contains(stage)||"PRE".equals(row.bsn_stg_cd())))
             throw ApiException.conflict("QUOTE_APPROVAL_REQUIRED","견적 승인 후 단계를 변경하세요.","bsn_stg_cd");
         var probability=switch(stage){case "DISC"->10;case "PROP"->30;case "NEGO"->60;case "PRE"->90;default->throw OpportunityLifecycleInput.invalid("bsn_stg_cd");};
@@ -62,7 +67,7 @@ public class OpportunityLifecycleService {
     @Transactional
     public Detail reject(long id,String reason){return approval(id,new Approval(reason,null),true);}
     private Detail approval(long id,Approval input,boolean reject){
-        var row=open(id);
+        var row=open(id,"confirm");
         if(!"PENDING".equals(row.approval()))throw ApiException.conflict("QUOTE_ALREADY_PROCESSED","승인 대기 견적만 처리할 수 있습니다.","id");
         var s=quotes.calculate(row,mapper.needs(id),today());
         if(!quotes.current(row,s))throw ApiException.conflict("QUOTE_CHANGED","견적 원천이 변경되었습니다. 다시 저장하여 승인 요청하세요.","needs");
@@ -84,7 +89,7 @@ public class OpportunityLifecycleService {
     @Transactional
     public Detail disable(long id){return close(id,"DELETED",null);}
     private Detail close(long id,String status,String reason){
-        var row=open(id);mapper.lockNeeds(id);
+        var row=open(id,status.equals("DELETED")?"delete":"update");mapper.lockNeeds(id);
         var before=new LinkedHashMap<String,Object>();before.put("oppt_stts_cd",row.oppt_stts_cd());before.put("bsn_stg_cd",row.bsn_stg_cd());before.put("lost_rsn_desc",row.lost_rsn_desc());
         var values=new LinkedHashMap<String,Object>();values.put("oppt_stts_cd",status);values.put("end_dt",today());
         if(status.equals("LOST")){values.put("bsn_stg_cd","LOST");values.put("lost_rsn_desc",reason);}

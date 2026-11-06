@@ -47,8 +47,17 @@ public class SchemaValidator implements InitializingBean {
         try (Connection connection = dataSource.getConnection()) {
             DatabaseMetaData metadata = connection.getMetaData();
             if (!"PostgreSQL".equals(metadata.getDatabaseProductName())) fail("PostgreSQL required");
-            for (Table table : expected) validateTable(metadata, table);
+            for (Table table : expected) validateTable(metadata, current(table));
         }
+    }
+    private Table current(Table baseline) {
+        if (!baseline.table().equals("sys.role_menu_auth")) return baseline;
+        List<Map<String,Object>> columns = new ArrayList<>(baseline.columns());
+        for (String name : List.of("contact_inq_auth_yn", "contact_dwnld_auth_yn")) {
+            columns.add(Map.of("name", name, "type", "CHAR(1)", "nullable", false,
+                "identity", false, "default", "'N'"));
+        }
+        return new Table(baseline.table(), columns, baseline.primaryKey(), baseline.foreignKeys(), baseline.uniqueKeys());
     }
     private void validateTable(DatabaseMetaData metadata, Table table) throws SQLException {
         String[] name = table.table().split("\\.");

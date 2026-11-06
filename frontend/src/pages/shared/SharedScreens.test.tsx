@@ -78,12 +78,13 @@ describe("shared screen inventory and states", () => {
       expect(screen.queryByText("저장")).not.toBeInTheDocument();
     },
   );
-  it("has actual 31 screen identities, excludes UI06 and keeps unlisted UI22 compatibility", () => {
+  it("has 31 menu screen identities and keeps authentication and notification routes separate", () => {
     expect(screenIds).toHaveLength(31);
     expect(screenIds).not.toContain("UI-06");
     expect(screenIds).not.toContain("UI-22");
-    expect(sharedRoutes).toHaveLength(31);
+    expect(sharedRoutes).toHaveLength(32);
     expect(sharedRoutes).toContain("/UI-22");
+    expect(sharedRoutes).toContain("/UI-34");
     expect(sharedRoutes).not.toContain("/UI-27");
     expect(screenIds).toContain("UI-32");
     expect(screenIds).toContain("UI-33");

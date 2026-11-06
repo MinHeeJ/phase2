@@ -10,6 +10,7 @@ import {
 } from "../../shared/Controls";
 import { ErrorBanner } from "../../shared/ErrorBanner";
 import { Can } from "../../shared/Can";
+import { BusinessContact } from "../shared/BusinessContact";
 import { useAdminRead } from "../admin/useAdminResource";
 import { useCodes } from "../shared/useCodes";
 import {
@@ -233,6 +234,7 @@ export function PartnerDrawer({
                     </dd>
                   </dl>
                 )}
+                {tab === "basic" && <BusinessContact kind="partners" id={id} />}
                 {tab === "assignments" && <PartnerAssignments id={id} />}
                 {tab === "history" && (
                   <>

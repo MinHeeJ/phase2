@@ -1,4 +1,5 @@
-import { api, readData } from "../../shared/api";
+import { readData } from "../../shared/api";
+import { opportunitySessionWrite } from "./opportunitySession";
 import type { ProjectInput, ProjectDetail } from "../projects/client";
 import type { AssignmentSave } from "../assignments/client";
 
@@ -163,7 +164,7 @@ export const getOpportunityForecast = (filters: ForecastFilters = {}) =>
   readData<ForecastPage>(`/api/opportunities/forecast?${query(filters)}`);
 async function command<T>(id: number, action: string, body?: unknown) {
   return (
-    await api<T>(`/api/opportunities/${id}/${action}`, {
+    await opportunitySessionWrite<T>(`/api/opportunities/${id}/${action}`, {
       method: "POST",
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     })

@@ -13,16 +13,21 @@
     }
   },
   "auth": {
-    "required": false
+    "required": true,
+    "login": {"operation_id":"createLogin","method":"POST","path":"/api/auth/login","body_fields":{"login_id":"loginId","password":"password"},"session":"cookie","bearer_json_path":null,"expect":[{"path":"success","op":"equals","value":true}]},
+    "test_role":"1",
+    "credential_ref":"smoke-primary",
+    "seed":{"initializer_path":"backend/src/main/java/com/sicost/authentication/SmokeAccountInitializer.java"}
   },
+  "identity":{"operation_id":"getCurrentUser","method":"GET","path":"/api/auth/me","expect":[{"path":"data.roles","op":"type","value":"array_of_string"},{"path":"data.roles","op":"contains","value":"$test_role"}]},
   "first_menu": {
-    "route": "/UI-16",
-    "operation_id": "getDashboard",
+    "route": "/UI-23",
+    "operation_id": "listAdminUsers",
     "method": "GET",
-    "path": "/api/dashboard",
+    "path": "/api/admin/users",
     "expect": [
       { "path": "success", "op": "equals", "value": true },
-      { "path": "data.kpis", "op": "type", "value": "object" }
+      { "path": "data.items", "op": "type", "value": "array" }
     ]
   }
 }

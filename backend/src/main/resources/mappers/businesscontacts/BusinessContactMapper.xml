@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sicost.businesscontacts.BusinessContactMapper">
+  <sql id="role">SELECT 1 FROM sys.user_info u JOIN sys.user_role ur ON ur.user_id=u.user_id JOIN sys.role r ON r.role_id=ur.role_id AND r.use_yn='Y' JOIN sys.role_menu_auth a ON a.role_id=r.role_id JOIN sys.menu m ON m.menu_id=a.menu_id AND m.scrn_id=#{screenId} AND m.use_yn='Y'
+    WHERE u.user_id=#{userId} AND u.user_stts_cd='ACTIVE' AND (u.rsgn_dt IS NULL OR u.rsgn_dt &gt; #{today}) AND a.inq_auth_yn='Y' AND a.contact_inq_auth_yn='Y'</sql>
+  <select id="developer" resultType="map">
+    SELECT CASE WHEN d.use_yn='Y' AND (d.rsgn_dt IS NULL OR d.rsgn_dt &gt; #{today}) THEN d.tel_no ELSE NULL END AS phone,
+      CASE WHEN d.use_yn='Y' AND (d.rsgn_dt IS NULL OR d.rsgn_dt &gt; #{today}) THEN d.email_addr ELSE NULL END AS email,
+      NOT(d.use_yn='Y' AND (d.rsgn_dt IS NULL OR d.rsgn_dt &gt; #{today})) AS masked
+    FROM mst.dev d WHERE d.dev_id=#{id} AND EXISTS(<include refid="role"/>
+      AND #{purpose}='STAFF_OPERATION'
+      AND ((r.role_id=4 AND r.data_scope_cd='PART' AND EXISTS(SELECT 1 FROM sys.user_part up WHERE up.user_id=u.user_id AND up.bsn_part_id=d.bsn_part_id))
+        OR (r.role_id=5 AND r.data_scope_cd='PROJECT' AND EXISTS(SELECT 1 FROM asgn.asgn ag JOIN sys.user_prj up ON up.prj_id=ag.prj_id AND up.user_id=u.user_id WHERE ag.dev_id=d.dev_id AND ag.asgn_stts_cd='ACTIVE' AND ag.bgn_dt &lt;= #{today} AND ag.end_dt &gt;= #{today}))))
+  </select>
+  <select id="partner" resultType="map">SELECT CASE WHEN p.use_yn='Y' THEN p.chrg_tel_no ELSE NULL END AS phone,CASE WHEN p.use_yn='Y' THEN p.chrg_email_addr ELSE NULL END AS email,p.use_yn&lt;&gt;'Y' AS masked
+    FROM mst.ptnr p WHERE p.ptnr_id=#{id} AND EXISTS(<include refid="role"/>
+      AND ((r.role_id=3 AND #{purpose}='BILLING_RECEIPT_PAYMENT' AND r.data_scope_cd='ALL')
+      OR (r.role_id=4 AND #{purpose}='CONTRACT_SALES' AND r.data_scope_cd='PART' AND EXISTS(SELECT 1 FROM prj.prj pr JOIN sys.user_part up ON up.bsn_part_id=pr.bsn_part_id AND up.user_id=u.user_id WHERE pr.cust_ptnr_id=p.ptnr_id AND pr.use_yn='Y'))))
+  </select>
+</mapper>

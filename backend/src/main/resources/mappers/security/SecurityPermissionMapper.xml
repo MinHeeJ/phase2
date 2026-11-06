@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sicost.common.security.SecurityPermissionMapper">
+  <resultMap id="securityGrant" type="com.sicost.common.security.SecurityPermissionMapper$GrantRow"><constructor>
+    <arg column="roleId" javaType="_long"/>
+    <arg column="scope" javaType="java.lang.String"/>
+    <arg column="sensitive" javaType="_boolean"/>
+    <arg column="partStandardChange" javaType="_boolean"/>
+    <arg column="developerId" javaType="java.lang.Long"/>
+  </constructor></resultMap>
+  <select id="grants" resultMap="securityGrant" useCache="false" flushCache="true">
+    WITH RECURSIVE ancestors AS (
+      SELECT menu_id,upr_menu_id,use_yn FROM sys.menu WHERE scrn_id=#{screenId}
+      UNION
+      SELECT m.menu_id,m.upr_menu_id,m.use_yn FROM sys.menu m JOIN ancestors p ON m.menu_id=p.upr_menu_id
+    )
+    SELECT r.role_id AS "roleId",r.data_scope_cd AS scope,r.snstv_inq_yn='Y' AS sensitive,
+           r.part_std_chg_auth_yn='Y' AS "partStandardChange",u.dev_id AS "developerId"
+    FROM sys.user_info u JOIN sys.user_role ur ON ur.user_id=u.user_id
+    JOIN sys.role r ON r.role_id=ur.role_id AND r.use_yn='Y'
+    JOIN sys.role_menu_auth a ON a.role_id=r.role_id
+    JOIN sys.menu m ON m.menu_id=a.menu_id AND m.scrn_id=#{screenId} AND m.use_yn='Y'
+    WHERE u.user_id=#{userId} AND u.user_stts_cd='ACTIVE'
+      AND (u.rsgn_dt IS NULL OR u.rsgn_dt &gt; #{today})
+      AND NOT EXISTS(SELECT 1 FROM ancestors WHERE use_yn&lt;&gt;'Y')
+      AND (m.scrn_id NOT IN ('UI-23','UI-24','UI-25','UI-27') OR r.admin_yn='Y')
+      AND (r.role_id&lt;&gt;2 OR #{actionColumn} IN ('inq_auth_yn','dwnld_auth_yn'))
+      AND <choose>
+        <when test="actionColumn == 'inq_auth_yn'">a.inq_auth_yn='Y'</when>
+        <when test="actionColumn == 'reg_auth_yn'">a.reg_auth_yn='Y'</when>
+        <when test="actionColumn == 'mdfcn_auth_yn'">a.mdfcn_auth_yn='Y'</when>
+        <when test="actionColumn == 'del_auth_yn'">a.del_auth_yn='Y'</when>
+        <when test="actionColumn == 'upld_auth_yn'">a.upld_auth_yn='Y'</when>
+        <when test="actionColumn == 'dwnld_auth_yn'">a.dwnld_auth_yn='Y'</when>
+        <when test="actionColumn == 'cnfrm_auth_yn'">a.cnfrm_auth_yn='Y'</when>
+        <otherwise>FALSE</otherwise>
+      </choose>
+    ORDER BY r.role_id
+  </select>
+  <select id="parts" resultType="long" useCache="false" flushCache="true">
+    SELECT p.bsn_part_id FROM sys.user_part p JOIN mst.bsn_part b ON b.bsn_part_id=p.bsn_part_id AND b.use_yn='Y'
+    WHERE p.user_id=#{userId} ORDER BY p.bsn_part_id
+  </select>
+  <select id="projects" resultType="long" useCache="false" flushCache="true">
+    SELECT p.prj_id FROM sys.user_prj p JOIN prj.prj b ON b.prj_id=p.prj_id AND b.use_yn='Y'
+    WHERE p.user_id=#{userId} ORDER BY p.prj_id
+  </select>
+  <select id="lockAdministrator" resultType="int" useCache="false" flushCache="true">
+    SELECT 1 FROM (SELECT pg_advisory_xact_lock(1600,1)) administrator_guard
+  </select>
+  <select id="recoverableAdministrators" resultType="long" useCache="false" flushCache="true">
+    SELECT count(*) FROM sys.user_info u
+    WHERE u.user_stts_cd='ACTIVE' AND u.rsgn_dt IS NULL
+      AND length(btrim(COALESCE(u.email_addr,'')))&gt;0 AND length(u.pswd_hash)&gt;0
+      AND EXISTS (
+        SELECT 1 FROM sys.user_role ur JOIN sys.role r ON r.role_id=ur.role_id
+        WHERE ur.user_id=u.user_id AND r.admin_yn='Y' AND r.use_yn='Y'
+          AND NOT EXISTS (
+            SELECT required.screen FROM (VALUES ('UI-23'),('UI-24'),('UI-25')) required(screen)
+            WHERE NOT EXISTS (
+              SELECT 1 FROM sys.role_menu_auth a JOIN sys.menu m ON m.menu_id=a.menu_id
+              WHERE a.role_id=r.role_id AND m.scrn_id=required.screen AND m.use_yn='Y'
+                AND a.inq_auth_yn='Y' AND a.mdfcn_auth_yn='Y'
+                AND NOT EXISTS (
+                  WITH RECURSIVE parents AS (
+                    SELECT menu_id,upr_menu_id,use_yn FROM sys.menu WHERE menu_id=m.menu_id
+                    UNION
+                    SELECT p.menu_id,p.upr_menu_id,p.use_yn FROM sys.menu p JOIN parents c ON p.menu_id=c.upr_menu_id
+                  ) SELECT 1 FROM parents WHERE use_yn&lt;&gt;'Y'
+                )
+            )
+          )
+      )
+  </select>
+</mapper>

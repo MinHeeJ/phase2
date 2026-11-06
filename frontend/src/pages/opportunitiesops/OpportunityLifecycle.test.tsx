@@ -179,6 +179,11 @@ beforeEach(() => {
     },
   };
   fetcher = vi.fn(async (url: string, init?: RequestInit) => {
+    if (url === "/api/auth/csrf")
+      return response({
+        headerName: "X-CSRF-TOKEN",
+        csrfToken: "test-csrf-proof",
+      });
     if (url.startsWith("/api/codes/"))
       return response([
         {
