@@ -1,6 +1,7 @@
 import { useCallback, type ReactNode } from "react";
 import { Badge, Button, Skeleton } from "../../shared/Controls";
 import { ErrorBanner } from "../../shared/ErrorBanner";
+import { can } from "../../shared/types";
 import { useAdminRead, useAdminWrite } from "../admin/useAdminResource";
 import {
   getBilling,
@@ -131,6 +132,7 @@ export function UI13DetailPanel({
           <Skeleton />
         ) : (
           d &&
+          !detail.error &&
           row && (
             <>
               <h3>
@@ -246,7 +248,7 @@ export function UI13DetailPanel({
               ))}
               {!readOnly && (
                 <div className={styles.actions}>
-                  {row.bill_stts_cd === "DRAFT" && (
+                  {row.bill_stts_cd === "DRAFT" && can("UI-13.update") && (
                     <>
                       <Button
                         data-testid="billing-edit"

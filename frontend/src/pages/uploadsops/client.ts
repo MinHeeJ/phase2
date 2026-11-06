@@ -1,4 +1,4 @@
-import { api, ApiFailure } from "../../shared/api";
+import { api, ApiFailure, csrfHeaders } from "../../shared/api";
 import type { ApiResponse, ApiError } from "../../shared/types";
 
 export interface UploadIssue {
@@ -50,6 +50,7 @@ export async function createUploadValidation(
         : `/api/uploads/${enc(form)}/validate`,
       {
         method: "POST",
+        headers: csrfHeaders(),
         body,
       },
     );

@@ -11472,6 +11472,30 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiResponse'
+  /api/billings/{id:[0-9]+}:
+    parameters:
+    - name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+    get:
+      summary: 청구 상세 조회
+      responses:
+        '200':
+          description: 청구 상세 조회 성공
+    put:
+      summary: 청구 수정
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: 청구 수정 성공
   /api/billings/{id}/amendments:
     parameters:
     - name: id
@@ -11713,6 +11737,108 @@ paths:
       responses:
         '200':
           description: 등록 성공
+  /api/opportunities/{id}/approve:
+    post:
+      summary: 영업 기회 승인
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: 승인 처리 성공
+  /api/opportunities/{id}/disable:
+    post:
+      summary: 영업 기회 사용 중지
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: 사용 중지 처리 성공
+  /api/opportunities/{id}/lose:
+    post:
+      summary: 영업 기회 실주 처리
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: 실주 처리 성공
+  /api/opportunities/{id}/reject:
+    post:
+      summary: 영업 기회 반려
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: 반려 처리 성공
+  /api/opportunities/{id}/stage:
+    post:
+      summary: 영업 기회 단계 변경
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: 단계 변경 성공
+  /api/opportunities/{id}/win:
+    post:
+      summary: 영업 기회 수주 처리
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: 수주 처리 성공
   /api/opportunities/export:
     get:
       summary: 영업 기회 목록 다운로드
@@ -16626,6 +16752,11 @@ paths:
         business: 없음 — POST는검증된조건의읽기/계산전송일뿐업무상태전이아님.
       x-success-envelope-exemption: XLSX는실제binary첨부, JSON success/meta 봉투로감싸지않음. 오류만ApiError. SPEC-REQUEST.md:38,65.
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
   schemas:
     DashboardMonth:
       type: string

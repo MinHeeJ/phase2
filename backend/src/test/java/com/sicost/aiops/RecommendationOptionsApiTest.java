@@ -28,7 +28,8 @@ import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@WebMvcTest(controllers=RecommendationOptionsController.class)
+@WebMvcTest(controllers=RecommendationOptionsController.class, excludeFilters=@org.springframework.context.annotation.ComponentScan.Filter(
+    type=org.springframework.context.annotation.FilterType.ASSIGNABLE_TYPE, classes=com.sicost.authentication.AuthenticationFilter.class))
 @Import({RequestIdFilter.class,ApiExceptionHandler.class,RecommendationOptionsService.class,
     AiAccessGuard.class,AiOwnerSession.class,AiSourceReads.class,RecommendationOptionsApiTest.Time.class})
 class RecommendationOptionsApiTest {
@@ -63,7 +64,7 @@ class RecommendationOptionsApiTest {
     }
     @AfterEach void resetEnvironment() { environment.setActiveProfiles(profiles); environment.getPropertySources().remove("ai-options-test"); }
     @Test void anonymousHappyPathUsesCamelCaseCodesAndSeoulNextMonth() throws Exception {
-        var result=mvc.perform(get(URL)).andExpect(status().isOk())
+        var result=mvc.perform(get("/api/ai/staff-recommendation/options")).andExpect(status().isOk())
             .andExpect(jsonPath("$.data.defaultStartYm").value("2027-02"))
             .andExpect(jsonPath("$.data.sources[0].criteria.jobCode").value("BE"))
             .andExpect(jsonPath("$.data.sources[0].criteria.startYm").value("2027-02"))
@@ -101,7 +102,7 @@ class RecommendationOptionsApiTest {
         var session=new MockHttpSession(); long id=handle(session,0);
         when(mapper.sources(anyString(),nullable(String.class))).thenReturn(List.of(
             new SourceRow("PROJECT",1,11L,null,"FE","SR","2027-03",1,1,BigDecimal.ONE,9L,null)));
-        mvc.perform(get(URL).session(session).param("sourceId",Long.toString(id)))
+        mvc.perform(get("/api/ai/staff-recommendation/options").session(session).param("sourceId",Long.toString(id)))
             .andExpect(status().isConflict()).andExpect(jsonPath("$.field").value("sourceId"));
     }
     @Test void disappearedOrFullyStaffedSourceIsConflict() throws Exception {
@@ -117,7 +118,7 @@ class RecommendationOptionsApiTest {
     }
     @ParameterizedTest @ValueSource(strings={"A","B","","PROJECT"})
     void invalidDirectionIs400(String direction) throws Exception {
-        mvc.perform(get(URL).param("direction",direction)).andExpect(status().isBadRequest()).andExpect(jsonPath("$.field").value("direction"));
+        mvc.perform(get("/api/ai/staff-recommendation/options").param("direction",direction)).andExpect(status().isBadRequest()).andExpect(jsonPath("$.field").value("direction"));
         verifyNoInteractions(mapper);
     }
     @ParameterizedTest @ValueSource(strings={"0","-1","abc","9223372036854775808"})
@@ -146,7 +147,7 @@ class RecommendationOptionsApiTest {
     @Test void productionWithTestBypassIs403BeforeAnySourceAccess() throws Exception {
         environment.setActiveProfiles("test","production");
         environment.getPropertySources().addFirst(new MapPropertySource("ai-options-test",Map.of("sicost.ai.environment","test","sicost.ai.synthetic-test-enabled",true)));
-        mvc.perform(get(URL)).andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("FORBIDDEN"));
+        mvc.perform(get("/api/ai/staff-recommendation/options")).andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("FORBIDDEN"));
         verifyNoInteractions(mapper,transactions);
     }
 }

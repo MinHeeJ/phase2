@@ -20,6 +20,18 @@ class OpportunityLifecycleMapperTest {
         var c=configuration();for(var type:List.of(OpportunityLifecycleMapper.class,OpportunityForecastMapper.class))for(var method:type.getDeclaredMethods())
             assertThat(c.hasStatement(type.getName()+"."+method.getName())).as(method.getName()).isTrue();
     }
+    @Test void scopedLockUnionsActionQualifiedGrantsAndFailsClosedWhenEmpty()throws Exception{
+        var c=configuration();var statement=c.getMappedStatement(OpportunityLifecycleMapper.class.getName()+".lockScoped");
+        var scope=new com.sicost.common.security.ScopePredicate(13L,null,List.of(
+            new com.sicost.common.security.ScopePredicate.Grant(4L,com.sicost.common.security.DataScope.PART,Set.of(1L),Set.of(),false,false),
+            new com.sicost.common.security.ScopePredicate.Grant(5L,com.sicost.common.security.DataScope.PROJECT,Set.of(),Set.of(99L),false,false),
+            new com.sicost.common.security.ScopePredicate.Grant(6L,com.sicost.common.security.DataScope.SELF,Set.of(),Set.of(),false,false)));
+        var sql=statement.getBoundSql(Map.of("id",7L,"scope",scope));
+        assertThat(sql.getSql()).contains("AND (FALSE","OR bsn_part_id IN","OR win_prj_id IN","OR bsn_chrg_user_id=","FOR UPDATE");
+        assertThat(sql.getParameterMappings()).hasSize(4);
+        var empty=statement.getBoundSql(Map.of("id",7L,"scope",new com.sicost.common.security.ScopePredicate(13L,null,List.of())));
+        assertThat(empty.getSql()).contains("AND (FALSE").doesNotContain("OR TRUE"," IN ");
+    }
     @Test void exportOmitsAbsentOptionalBindsAndNeverCutsToPage()throws Exception{
         var c=configuration();var q=OpportunityLifecycleInput.export(Map.of());var sql=c.getMappedStatement(OpportunityLifecycleMapper.class.getName()+".exportRows").getBoundSql(q);
         assertThat(sql.getParameterMappings()).extracting(p->p.getProperty()).containsExactly("status");assertThat(sql.getSql()).doesNotContain("LIMIT","OFFSET","IS NULL OR").contains("ORDER BY o.oppt_id");

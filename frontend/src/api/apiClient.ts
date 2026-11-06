@@ -1,5 +1,18 @@
 export { api, readData, ApiFailure, retryRecovery } from "../shared/api";
 export {
+  listNotifications,
+  getNotificationUnreadCount,
+  getNotification,
+  updateNotificationRead,
+  saveNotificationsReadAll,
+} from "../pages/opportunitiesops/notificationClient";
+export type {
+  SecurityNotification,
+  SecurityNotificationPage,
+  SecurityNotificationRead,
+  NotificationFilters,
+} from "../pages/opportunitiesops/notificationClient";
+export {
   getOpportunities,
   getClosedOpportunities,
   getOpportunity,

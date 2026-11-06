@@ -28,9 +28,10 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 import static com.sicost.priorprofit.PriorProfitUploadModels.*;
 
-@WebMvcTest(controllers=PriorProfitUploadController.class)
+@WebMvcTest(controllers=PriorProfitUploadController.class, excludeFilters=@org.springframework.context.annotation.ComponentScan.Filter(
+    type=org.springframework.context.annotation.FilterType.ASSIGNABLE_TYPE, classes=com.sicost.authentication.AuthenticationFilter.class))
 @Import({RequestIdFilter.class,ApiExceptionHandler.class,PriorProfitUploadService.class,
-    PriorProfitUploadForm.class,UploadWorkbookWriter.class,CurrentUser.class,PermissionService.class})
+    PriorProfitUploadForm.class,UploadWorkbookWriter.class})
 class PriorProfitUploadTest {
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper json;
@@ -38,10 +39,13 @@ class PriorProfitUploadTest {
     @MockBean PriorProfitUploadMapper mapper;
     @MockBean UploadService uploads;
     @MockBean UploadMapper common;
+    @MockBean CurrentUser currentUser;
+    @MockBean PermissionService permissions;
     @TempDir Path directory;
     AtomicLong sequence=new AtomicLong(100);
     Map<Long,String> statuses=new HashMap<>();
     @BeforeEach void setup() throws Exception {
+        when(currentUser.userId()).thenReturn(null);
         ReflectionTestUtils.setField(service,"directory",directory.toString());
         when(mapper.nextUploadId()).thenAnswer(i->sequence.incrementAndGet());
         when(mapper.uploadStatus(anyLong())).thenAnswer(i->statuses.get(i.getArgument(0,Long.class)));
@@ -139,7 +143,7 @@ class PriorProfitUploadTest {
         mvc.perform(post("/api/uploads/prior-profit/apply").contentType("application/json").content(body))
             .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));untouched();
     }
-    @Test void missingFileIs400() throws Exception {mvc.perform(multipart("/api/uploads/prior-profit/validate")).andExpect(status().isBadRequest()).andExpect(jsonPath("$.field").value("file"));}
+    @Test void missingFileIs400() throws Exception {mvc.perform(post("/api/uploads/prior-profit/validate").contentType("multipart/form-data")).andExpect(status().isBadRequest()).andExpect(jsonPath("$.field").value("file"));untouched();}
     @Test void oversizedFileIs400BeforeStorage() throws Exception {validate(new byte[10*1024*1024+1]).andExpect(status().isBadRequest());verify(uploads,never()).store(any(),any());}
     @Test void internalFailureDoesNotLeakDetails() throws Exception {
         when(mapper.nextUploadId()).thenThrow(new IllegalStateException("private database detail"));

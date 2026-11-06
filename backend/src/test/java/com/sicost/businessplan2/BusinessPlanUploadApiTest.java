@@ -26,9 +26,10 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 import static com.sicost.businessplan2.BusinessPlanUploadModels.*;
 
-@WebMvcTest(controllers=BusinessPlanUploadController.class)
+@WebMvcTest(controllers=BusinessPlanUploadController.class, excludeFilters=@org.springframework.context.annotation.ComponentScan.Filter(
+    type=org.springframework.context.annotation.FilterType.ASSIGNABLE_TYPE, classes=com.sicost.authentication.AuthenticationFilter.class))
 @Import({RequestIdFilter.class,ApiExceptionHandler.class,BusinessPlanUploadService.class,
-    BusinessPlanUploadForm.class,CurrentUser.class,PermissionService.class,UploadWorkbookWriter.class})
+    BusinessPlanUploadForm.class,UploadWorkbookWriter.class})
 class BusinessPlanUploadApiTest {
     @TempDir static Path directory;
     @DynamicPropertySource static void properties(DynamicPropertyRegistry r) {
@@ -40,8 +41,11 @@ class BusinessPlanUploadApiTest {
     @MockBean BusinessPlanUploadMapper mapper;
     @MockBean UploadService uploads;
     @MockBean UploadMapper common;
+    @MockBean CurrentUser currentUser;
+    @MockBean PermissionService permissions;
     static final java.util.concurrent.atomic.AtomicLong sequence=new java.util.concurrent.atomic.AtomicLong(100);
     @BeforeEach void setup() {
+        when(currentUser.userId()).thenReturn(null);
         when(mapper.nextUploadId()).thenAnswer(i->sequence.incrementAndGet());
         when(mapper.parts(anyString())).thenReturn(List.of(7L));
         when(mapper.plans(anyString())).thenReturn(List.of());
@@ -177,7 +181,7 @@ class BusinessPlanUploadApiTest {
         validate(new byte[0],"계획.xlsx").andExpect(status().isBadRequest()).andExpect(jsonPath("$.field").value("file"));
     }
     @Test void missingFileIsValidationError()throws Exception {
-        mvc.perform(multipart("/api/uploads/business-plan/validate")).andExpect(status().isBadRequest())
+        mvc.perform(post("/api/uploads/business-plan/validate").contentType("multipart/form-data")).andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
     }
     @Test void oversizedFileIsValidationError()throws Exception {

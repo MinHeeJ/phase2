@@ -13,6 +13,7 @@ import { UI13M1 } from "./UI13M1";
 import { UI13DetailPanel } from "./UI13DetailPanel";
 import type { BillingDetail } from "./client";
 import tables from "../developers/Developers.module.css";
+import * as permissions from "../../shared/types";
 
 const response = (data: unknown) =>
   new Response(JSON.stringify({ success: true, meta: {}, data }), {
@@ -180,6 +181,7 @@ beforeEach(() => {
   vi.stubGlobal("fetch", fetcher);
 });
 afterEach(() => {
+  vi.restoreAllMocks();
   vi.useRealTimers();
   vi.unstubAllGlobals();
 });
@@ -226,10 +228,14 @@ describe("청구 목록", () => {
     "opens the %s closing check with its selected month",
     async (closingCheck) => {
       render(
-        <MemoryRouter initialEntries={[{
-          pathname: "/UI-13",
-          state: { closingMonth: "2026-10", closingCheck },
-        }]}>
+        <MemoryRouter
+          initialEntries={[
+            {
+              pathname: "/UI-13",
+              state: { closingMonth: "2026-10", closingCheck },
+            },
+          ]}
+        >
           <ActiveBillingScreen />
         </MemoryRouter>,
       );
@@ -418,6 +424,86 @@ describe("청구 목록", () => {
   });
 });
 describe("청구 등록/수정", () => {
+  it("hides edit and recalculate for a read-only action grant while retaining detail", async () => {
+    vi.spyOn(permissions, "can").mockImplementation(
+      (key) => key !== "UI-13.update",
+    );
+    render(
+      <UI13DetailPanel
+        id={7}
+        readOnly={false}
+        onClose={cancelled}
+        onEdit={vi.fn()}
+        onOpen={vi.fn()}
+        onProject={vi.fn()}
+        refresh={reload}
+      />,
+    );
+    await screen.findByText("입금 이력 (부가세 포함)");
+    expect(screen.getByText("청구 인력")).toBeInTheDocument();
+    expect(screen.queryByTestId("billing-edit")).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("billing-recalculate-save"),
+    ).not.toBeInTheDocument();
+  });
+  it("rejects a directly mounted editor without update permission", async () => {
+    vi.spyOn(permissions, "can").mockReturnValue(false);
+    renderEditor(true);
+    await screen.findByLabelText("공급가액");
+    expect(
+      screen.getByText("수정 권한이 없습니다. 읽기 전용입니다."),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("공급가액")).toBeDisabled();
+    expect(screen.getByTestId("billing-editor-save")).toBeDisabled();
+    fireEvent.submit(screen.getByTestId("billing-editor-form"));
+    expect(fetcher.mock.calls.some(([, init]) => init?.method === "PUT")).toBe(
+      false,
+    );
+  });
+  it.each(["CONFIRM", "CANCEL", "PLAN"] as const)(
+    "locks a directly mounted %s editor",
+    async (status) => {
+      detail.billing.bill_stts_cd = status;
+      renderEditor(true);
+      await screen.findByLabelText("공급가액");
+      expect(
+        screen.getByText("작성 상태의 청구만 수정할 수 있습니다."),
+      ).toBeInTheDocument();
+      expect(screen.getByLabelText("공급가액")).toBeDisabled();
+      fireEvent.submit(screen.getByTestId("billing-editor-form"));
+      expect(
+        fetcher.mock.calls.some(([, init]) => init?.method === "PUT"),
+      ).toBe(false);
+    },
+  );
+  it("does not render billing content or mutation controls after a forbidden detail request", async () => {
+    fetcher.mockImplementation(
+      async () =>
+        new Response(
+          JSON.stringify({
+            success: false,
+            code: "FORBIDDEN",
+            message: "접근 권한이 없습니다.",
+            requestId: "billing-denied",
+          }),
+          { status: 403 },
+        ),
+    );
+    render(
+      <UI13DetailPanel
+        id={7}
+        readOnly={false}
+        onClose={cancelled}
+        onEdit={vi.fn()}
+        onOpen={vi.fn()}
+        onProject={vi.fn()}
+        refresh={reload}
+      />,
+    );
+    await screen.findByText("접근 권한이 없습니다.");
+    expect(screen.queryByText("청구 인력")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("billing-edit")).not.toBeInTheDocument();
+  });
   it("edit identities are readonly and PUT contains only BillingUpdate fields", async () => {
     renderEditor(true);
     await screen.findByLabelText("프로젝트");

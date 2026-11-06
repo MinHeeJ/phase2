@@ -1,5 +1,8 @@
 {
   "schema_version": 1,
-  "auth_required": false,
+  "auth_required": true,
+  "login_id": "app-initial-admin",
+  "password": "AppTrial!6nQ4vZ8s2w",
+  "role_codes": ["1"],
   "guide_path": "README.md"
 }

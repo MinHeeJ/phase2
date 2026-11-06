@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sicost.authentication.AuthenticationMapper">
+  <select id="rateLock" resultType="int">SELECT 1 FROM (SELECT pg_advisory_xact_lock(1601,hashtext(#{key}))) budget</select>
+  <select id="attempts" resultType="long">SELECT count(*) FROM sys.acs_hist WHERE acs_ty_cd='AUTH_ATTEMPT' AND created_at &gt; #{since} AND (obj_desc=#{target} OR ip_addr=#{ip})</select>
+  <sql id="accountColumns">u.user_id AS "id",u.lgn_id AS "loginId",u.user_nm AS "name",u.pswd_hash AS "passwordHash",
+    u.email_addr AS email,u.user_stts_cd AS status,u.rsgn_dt AS "resignationDate",u.pswd_chg_at AS "passwordChangedAt",
+    u.pswd_chg_need_yn='Y' AS "passwordChangeRequired",(u.mfa_yn='Y' OR EXISTS(SELECT 1 FROM sys.user_role ur JOIN sys.role r ON r.role_id=ur.role_id WHERE ur.user_id=u.user_id AND r.use_yn='Y' AND r.admin_yn='Y')) AS "mfaRequired"
+  </sql>
+  <select id="account" resultType="map" useCache="false" flushCache="true">
+    SELECT <include refid="accountColumns"/> FROM sys.user_info u
+    <where><choose><when test="id != null">u.user_id=#{id}</when><otherwise>u.lgn_id=#{loginId}</otherwise></choose></where>
+    <if test="lock == true">FOR UPDATE OF u</if>
+  </select>
+  <select id="roles" resultType="long" useCache="false" flushCache="true">SELECT r.role_id FROM sys.user_role ur JOIN sys.role r ON r.role_id=ur.role_id WHERE ur.user_id=#{userId} AND r.use_yn='Y' ORDER BY r.role_id</select>
+  <select id="session" resultType="map" useCache="false" flushCache="true">
+    SELECT <include refid="accountColumns"/>,s.session_id_hash AS "sessionHash",s.csrf_token_hash AS "csrfHash"
+    FROM sys.login_session s JOIN sys.user_info u ON u.user_id=s.user_id
+    WHERE s.session_id_hash=#{sessionHash} AND s.revoked_at IS NULL AND s.expires_at &gt; #{now}
+      AND u.user_stts_cd='ACTIVE' AND (u.rsgn_dt IS NULL OR u.rsgn_dt &gt; CAST(#{now} AS date))
+  </select>
+  <update id="failed">UPDATE sys.user_info SET lgn_fail_cnt=lgn_fail_cnt+1,
+    user_stts_cd=CASE WHEN lgn_fail_cnt+1 &gt;=5 THEN 'LOCKED' ELSE user_stts_cd END,
+    lock_at=CASE WHEN lgn_fail_cnt+1 &gt;=5 THEN #{now} ELSE lock_at END WHERE user_id=#{id} AND user_stts_cd='ACTIVE'</update>
+  <update id="complete">UPDATE sys.user_info SET lgn_fail_cnt=0,last_lgn_at=#{now} WHERE user_id=#{id} AND user_stts_cd='ACTIVE'</update>
+  <insert id="insertSession">INSERT INTO sys.login_session(session_id_hash,user_id,created_at,last_activity_at,expires_at,csrf_token_hash,password_change_required_yn)
+    VALUES(#{sessionHash},#{id},#{now},#{now},#{expiresAt},#{csrfHash},CASE WHEN #{passwordChangeRequired} THEN 'Y' ELSE 'N' END)</insert>
+  <update id="activity">UPDATE sys.login_session SET last_activity_at=#{now},expires_at=#{expiresAt}
+    WHERE session_id_hash=#{sessionHash} AND revoked_at IS NULL AND expires_at &gt; #{now} AND last_activity_at &lt;= #{mergeBefore}</update>
+  <update id="revoke">UPDATE sys.login_session SET revoked_at=#{now} WHERE revoked_at IS NULL
+    <choose><when test="id != null">AND user_id=#{id}</when><otherwise>AND session_id_hash=#{sessionHash}</otherwise></choose></update>
+  <update id="invalidateTokens">UPDATE sys.auth_tkn SET revoked_at=#{now} WHERE user_id=#{id} AND use_at IS NULL AND revoked_at IS NULL
+    <if test="type != null">AND tkn_ty_cd=#{type}</if></update>
+  <select id="insertChallenge" resultType="long" affectData="true" flushCache="true">INSERT INTO sys.auth_tkn(user_id,tkn_ty_cd,tkn_hash,expir_at,created_at,last_sent_at,preauth_id_hash,otp_fail_cnt)
+    VALUES(#{id},#{type},#{proofHash},#{expiresAt},#{now},#{now},#{chainHash},#{failures}) RETURNING tkn_id</select>
+  <select id="challenge" resultType="map" useCache="false" flushCache="true">SELECT tkn_id AS "tokenId",user_id AS id,tkn_hash AS "proofHash",expir_at AS "expiresAt",last_sent_at AS "lastSentAt",otp_fail_cnt AS failures
+    FROM sys.auth_tkn WHERE tkn_ty_cd=#{type} AND use_at IS NULL AND revoked_at IS NULL
+    <choose><when test="type == 'MFA'">AND preauth_id_hash=#{chainHash}</when><otherwise>AND tkn_hash=#{proofHash}</otherwise></choose>
+    ORDER BY tkn_id DESC LIMIT 1 FOR UPDATE</select>
+  <update id="consume">UPDATE sys.auth_tkn SET use_at=#{now} WHERE tkn_id=#{tokenId} AND use_at IS NULL AND revoked_at IS NULL AND expir_at &gt; #{now} AND otp_fail_cnt &lt; 5</update>
+  <update id="failedOtp">UPDATE sys.auth_tkn SET otp_fail_cnt=LEAST(5,otp_fail_cnt+1),revoked_at=CASE WHEN otp_fail_cnt+1 &gt;=5 THEN #{now} ELSE revoked_at END WHERE tkn_id=#{tokenId}</update>
+  <update id="password">UPDATE sys.user_info SET pswd_hash=#{passwordHash},pswd_chg_at=#{now},pswd_chg_need_yn='N',lgn_fail_cnt=0,lock_at=NULL,
+    user_stts_cd=CASE WHEN user_stts_cd='LOCKED' THEN 'ACTIVE' ELSE user_stts_cd END
+    WHERE user_id=#{id} AND user_stts_cd &lt;&gt; 'DISABLED' AND (rsgn_dt IS NULL OR rsgn_dt &gt; CAST(#{now} AS date))</update>
+  <insert id="audit">INSERT INTO sys.acs_hist(user_id,acs_ty_cd,scrn_id,obj_desc,dtl_desc,ip_addr,created_at)
+    VALUES(#{id},#{action},#{screenId},#{target},#{detail},#{ip},#{now})</insert>
+  <select id="delivery" resultType="long" affectData="true" flushCache="true">INSERT INTO sys.mail_outbox(auth_tkn_id,recipient_user_id,mail_ty_cd,send_stts_cd)
+    VALUES(#{tokenId},#{id},#{type},'SENDING') RETURNING mail_outbox_id</select>
+  <update id="deliveryResult">UPDATE sys.mail_outbox SET send_stts_cd=#{deliveryStatus},sent_at=CASE WHEN #{deliveryStatus}='SENT' THEN #{now} ELSE NULL END,last_error_cd=#{errorCode} WHERE mail_outbox_id=#{deliveryId}</update>
+</mapper>

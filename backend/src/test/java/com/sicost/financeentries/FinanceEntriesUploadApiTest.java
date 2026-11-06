@@ -30,9 +30,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static com.sicost.entries.FinanceEntryModels.*;
 import static com.sicost.uploadsops.UploadModels.*;
 
-@WebMvcTest(controllers=FinanceEntriesUploadController.class)
+@WebMvcTest(controllers=FinanceEntriesUploadController.class, excludeFilters=@org.springframework.context.annotation.ComponentScan.Filter(
+    type=org.springframework.context.annotation.FilterType.ASSIGNABLE_TYPE, classes=com.sicost.authentication.AuthenticationFilter.class))
 @Import({RequestIdFilter.class,ApiExceptionHandler.class,FinanceEntriesUploadService.class,
-    FinanceEntriesUploadForm.class,CurrentUser.class,PermissionService.class,UploadWorkbookWriter.class})
+    FinanceEntriesUploadForm.class,UploadWorkbookWriter.class})
 class FinanceEntriesUploadApiTest {
     @TempDir static Path directory;
     @DynamicPropertySource static void properties(DynamicPropertyRegistry r) {
@@ -46,8 +47,11 @@ class FinanceEntriesUploadApiTest {
     @MockBean UploadService uploads;
     @MockBean UploadMapper common;
     @MockBean Clock clock;
+    @MockBean CurrentUser currentUser;
+    @MockBean PermissionService permissions;
     static final java.util.concurrent.atomic.AtomicLong sequence=new java.util.concurrent.atomic.AtomicLong(100);
     @BeforeEach void setup() {
+        when(currentUser.userId()).thenReturn(null);
         when(clock.withZone(any())).thenReturn(Clock.fixed(Instant.parse("2026-10-30T00:00:00Z"),ZoneId.of("Asia/Seoul")));
         when(mapper.nextUploadId()).thenAnswer(i->sequence.incrementAndGet());
         when(mapper.codes()).thenReturn(List.of(new UploadCode("FIN_CATEGORY","SGA","판관비"),new UploadCode("FIN_CATEGORY","NOI","영업외수익"),new UploadCode("FIN_CATEGORY","NOE","영업외비용")));
@@ -133,7 +137,7 @@ class FinanceEntriesUploadApiTest {
     @Test void confirmationIsRequired()throws Exception {mvc.perform(post("/api/uploads/finance-entries/apply").contentType("application/json").content("{\"upload_id\":\"1\"}")).andExpect(status().isBadRequest()).andExpect(jsonPath("$.field").value("confirm"));}
     @Test void appliedReplayDoesNotReplaceAgain()throws Exception {String id=accepted();when(mapper.uploadStatus(Long.parseLong(id))).thenReturn("APPLIED");apply(id,true).andExpect(status().isOk());unchanged();}
     @Test void emptyFileIs400()throws Exception {validate(new byte[0],"재무.xlsx").andExpect(status().isBadRequest());}
-    @Test void missingFileIs400()throws Exception {mvc.perform(multipart("/api/uploads/finance-entries/validate")).andExpect(status().isBadRequest());}
+    @Test void missingFileIs400()throws Exception {mvc.perform(post("/api/uploads/finance-entries/validate").contentType("multipart/form-data")).andExpect(status().isBadRequest());unchanged();}
     @Test void oversizedFileIs400()throws Exception {validate(new byte[10*1024*1024+1],"재무.xlsx").andExpect(status().isBadRequest());}
     @Test void unexpectedFailureIsSafe()throws Exception {when(mapper.nextUploadId()).thenThrow(new IllegalStateException("private database details"));validate(workbook("2026-10,SGA,임대료,0"),"재무.xlsx").andExpect(status().isInternalServerError()).andExpect(jsonPath("$.code").value("INTERNAL_ERROR")).andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("private database"))));}
     @Test void templateAndErrorsContainRealWorkbookBytes()throws Exception {String id=accepted();try(var book=new XSSFWorkbook(new ByteArrayInputStream(service.template().bytes()))){assertThat(book.getSheetAt(0).getRow(3).getCell(0).getStringCellValue()).isEqualTo("연월");}try(var book=new XSSFWorkbook(new ByteArrayInputStream(service.errors(Long.parseLong(id)).bytes()))){assertThat(book.getNumberOfSheets()).isPositive();}}

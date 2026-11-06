@@ -1,4 +1,4 @@
-import { api, ApiFailure } from "../../shared/api";
+import { api, ApiFailure, csrfHeaders } from "../../shared/api";
 import type { ApiResponse, ApiError } from "../../shared/types";
 import type { FinanceEntryInput } from "../entries/client";
 
@@ -34,6 +34,7 @@ export async function validateFinanceEntriesUpload(
   try {
     response = await fetch("/api/uploads/finance-entries/validate", {
       method: "POST",
+      headers: csrfHeaders(),
       body,
     });
   } catch {

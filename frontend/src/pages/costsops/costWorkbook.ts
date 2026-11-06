@@ -15,7 +15,13 @@ export async function downloadCostWorkbook(
 ) {
   let response: Response;
   try {
-    response = await fetch(`/api/costs/${resource}?${query}`, {
+    const path =
+      resource === "people"
+        ? `/api/costs/people?${query}`
+        : resource === "projects"
+          ? `/api/costs/projects?${query}`
+          : `/api/costs/renegotiations?${query}`;
+    response = await fetch(path, {
       method: "GET",
       credentials: "same-origin",
       cache: "no-store",

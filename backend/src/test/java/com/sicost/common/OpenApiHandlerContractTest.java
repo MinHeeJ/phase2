@@ -83,13 +83,40 @@ import org.yaml.snakeyaml.Yaml;
     com.sicost.workforceops.WorkforceDemandController.class,
     com.sicost.board.WorkforceBoardController.class,
     com.sicost.candidates.CandidateController.class,
-    com.sicost.candidatesops.CandidateContactController.class})
+    com.sicost.candidatesops.CandidateContactController.class,
+    com.sicost.authentication.AuthenticationController.class,
+    com.sicost.useraccounts.UserAccountsController.class,
+    com.sicost.rolepermissions.RolePermissionsController.class,
+    com.sicost.menumanagement.MenuManagementController.class,
+    com.sicost.menumanagement.NavigationController.class,
+    com.sicost.notifications.NotificationController.class,
+    com.sicost.businesscontacts.BusinessContactController.class,
+    DashboardController.class, com.sicost.dashboardops.DashboardExportController.class,
+    com.sicost.aiops.RecommendationOptionsController.class,
+    com.sicost.staffrecommendations.StaffRecommendationController.class,
+    com.sicost.analysis.AnalysisController.class})
 @Import(CurrentUser.class)
 class OpenApiHandlerContractTest {
     @Autowired RequestMappingHandlerMapping handlers;
     @MockBean java.time.Clock clock;
+    @MockBean DashboardQueryService dashboardQuery;
+    @MockBean com.sicost.dashboardops.DashboardExportService dashboardExport;
+    @MockBean com.sicost.aiops.RecommendationOptionsService recommendationOptions;
+    @MockBean com.sicost.staffrecommendations.StaffRecommendationService recommendations;
+    @MockBean com.sicost.staffrecommendations.RecommendationCriteriaService recommendationCriteria;
+    @MockBean com.sicost.staffrecommendations.CareerCardService careerCards;
+    @MockBean com.sicost.analysis.AnalysisRouter analysisRouter;
+    @MockBean com.sicost.analysis.ConversationService conversations;
+    @MockBean com.sicost.analysis.AnalysisExportService analysisExport;
+    @MockBean com.sicost.common.ai.AiAccessGuard aiAccess;
+    @MockBean com.sicost.analysis.AnalysisModelClient analysisModel;
+    @MockBean com.sicost.authentication.AuthenticationService authentication;
+    @MockBean com.sicost.useraccounts.ManagementService management;
+    @MockBean com.sicost.notifications.NotificationService notifications;
+    @MockBean com.sicost.businesscontacts.BusinessContactService businessContacts;
     @MockBean AdminService admin;
     @MockBean SharedReadService shared;
+    @MockBean com.sicost.menumanagement.NavigationService navigation;
     @MockBean PartnerService partners;
     @MockBean PartnerLifecycleService partnerLifecycle;
     @MockBean SalesPartService salesParts;
@@ -223,6 +250,26 @@ class OpenApiHandlerContractTest {
         // Existing phases expose additional APIs; they must not hide a missing contract operation.
         assertThat(actual.keySet()).containsAll(expected);
         legacyHandlers.forEach((key,handler)->assertThat(actual).containsEntry(key,handler));
+    }
+    @Test void systemManagementOperationsHaveExactlyOneRegisteredHandler() throws Exception {
+        List<String> operations;
+        try (var input = new ClassPathResource("contracts/system-management-operations.txt").getInputStream();
+             var reader = new java.io.BufferedReader(new java.io.InputStreamReader(input, java.nio.charset.StandardCharsets.UTF_8))) {
+            operations = reader.lines().filter(line -> !line.isBlank()).toList();
+        }
+        assertThat(operations).isNotEmpty().doesNotHaveDuplicates();
+        for (String operation : operations) {
+            int separator = operation.indexOf(' ');
+            String method = operation.substring(0, separator);
+            String path = normalize(operation.substring(separator + 1));
+            var matches = handlers.getHandlerMethods().entrySet().stream()
+                .filter(entry -> entry.getKey().getMethodsCondition().getMethods().stream()
+                    .anyMatch(value -> value.name().equals(method)))
+                .filter(entry -> entry.getKey().getPatternValues().stream()
+                    .anyMatch(value -> normalize(value).equals(path)))
+                .toList();
+            assertThat(matches).as(operation).hasSize(1);
+        }
     }
     private static String normalize(String path) { return path.replaceAll("\\{[^/{}]+}", "{}"); }
 }

@@ -27,6 +27,7 @@ class BillingPersistenceTest {
     AnnotationConfigApplicationContext context;
     BillingService service;
     BillingMapper mapper;
+    long actor;
     ObjectMapper json = new ObjectMapper().findAndRegisterModules();
     @BeforeEach void restoreIsolatedDatabase() throws Exception {
         adminUrl = System.getenv("TEST_DATABASE_URL");
@@ -39,11 +40,22 @@ class BillingPersistenceTest {
         }
         source = new DriverManagerDataSource(adminUrl.substring(0, adminUrl.lastIndexOf('/') + 1) + database, user, password);
         Flyway.configure().dataSource(source).defaultSchema("public").locations("classpath:db/migration").load().migrate();
+        actor = Long.parseLong(value("INSERT INTO sys.user_info(lgn_id,pswd_hash,user_nm,pswd_chg_need_yn) VALUES(?,?,'청구 시험 사용자','N') RETURNING user_id",
+            "billing_" + UUID.randomUUID().toString().replace("-", ""), UUID.randomUUID().toString()));
+        sql("INSERT INTO sys.user_role(user_id,role_id) VALUES(" + actor + ",3)");
         var factory = new SqlSessionFactoryBean(); factory.setDataSource(source);
-        factory.setMapperLocations(new ClassPathResource("mappers/billings/BillingMapper.xml")); factory.afterPropertiesSet();
-        mapper = new SqlSessionTemplate(factory.getObject()).getMapper(BillingMapper.class);
+        factory.setMapperLocations(new ClassPathResource("mappers/billings/BillingMapper.xml"),
+            new ClassPathResource("mappers/security/SecurityPermissionMapper.xml")); factory.afterPropertiesSet();
+        var template = new SqlSessionTemplate(factory.getObject());
+        mapper = template.getMapper(BillingMapper.class);
         context = new AnnotationConfigApplicationContext();
-        context.register(Transactions.class, BillingService.class, BillingAmountService.class, CurrentUser.class, PermissionService.class);
+        context.register(Transactions.class, BillingService.class, BillingAmountService.class, PermissionService.class);
+        context.registerBean(CurrentUser.class, () -> new CurrentUser() {
+            @Override public SecurityPrincipal principal() {
+                return com.sicost.common.AuthenticatedTestSupport.principal(actor, List.of(3L), DataScope.ALL);
+            }
+        });
+        context.registerBean(SecurityPermissionMapper.class, () -> template.getMapper(SecurityPermissionMapper.class));
         context.registerBean(BillingMapper.class, () -> mapper);
         context.registerBean(org.springframework.transaction.PlatformTransactionManager.class, () -> new DataSourceTransactionManager(source));
         context.registerBean(ObjectMapper.class, () -> json);
@@ -83,7 +95,7 @@ class BillingPersistenceTest {
         var recalculated = service.update(id, input("{\"recalculate\":true}", false));
         assertThat(recalculated.details().get(0).bill_amt()).isEqualTo(2000);
         assertThat(recalculated.billing().vat_amt()).isEqualTo(7);
-        assertThat(value("SELECT chg_user_id FROM sys.data_chg_hist LIMIT 1")).isNull();
+        assertThat(value("SELECT chg_user_id FROM sys.data_chg_hist WHERE tbl_nm='bill.bill' ORDER BY data_chg_hist_id DESC LIMIT 1")).isEqualTo(Long.toString(actor));
         assertThat(value("SELECT count(*) FROM bill.bill_dtl WHERE bill_id=?", id)).isEqualTo("1");
         var otherSession = new SqlSessionFactoryBean(); otherSession.setDataSource(source);
         otherSession.setMapperLocations(new ClassPathResource("mappers/billings/BillingMapper.xml")); otherSession.afterPropertiesSet();
@@ -167,6 +179,47 @@ class BillingPersistenceTest {
             assertThat(result.get(10, TimeUnit.SECONDS)).isEqualTo("CLOSED_MONTH");
             assertThat(snapshot()).isEqualTo(before);
         } finally { pool.shutdownNow(); }
+    }
+    long assignRole(String scope, String read, String update) {
+        long role = Long.parseLong(value("INSERT INTO sys.role(role_nm,data_scope_cd) VALUES(?,?) RETURNING role_id",
+            "청구 역할 " + UUID.randomUUID(), scope));
+        new org.springframework.jdbc.core.JdbcTemplate(source).update(
+            "INSERT INTO sys.role_menu_auth(role_id,menu_id,inq_auth_yn,mdfcn_auth_yn) SELECT ?,menu_id,?,? FROM sys.menu WHERE scrn_id='UI-13'", role, read, update);
+        new org.springframework.jdbc.core.JdbcTemplate(source).update("INSERT INTO sys.user_role(user_id,role_id) VALUES(?,?)", actor, role);
+        return role;
+    }
+    @Test void realScopeUnionAndActionCorrelationProtectDetailAndUpdate() throws Exception {
+        var created = monthly(); long id = created.billing().bill_id();
+        sql("DELETE FROM sys.user_role WHERE user_id=" + actor);
+        assignRole("PART", "Y", "Y");
+        assignRole("PROJECT", "Y", "Y");
+        sql("INSERT INTO sys.user_prj(user_id,prj_id) VALUES(" + actor + ",1)");
+        assertThat(service.get(id).billing().bill_id()).isEqualTo(id);
+        service.update(id, input("{\"vat_amt\":17}", false));
+        assertThat(mapper.state(id).vat_amt()).isEqualTo(17);
+        sql("DELETE FROM sys.user_prj WHERE user_id=" + actor);
+        String before = snapshot();
+        assertThatThrownBy(() -> service.get(id)).isInstanceOfSatisfying(ApiException.class, e -> assertThat(e.status()).isEqualTo(404));
+        assertThatThrownBy(() -> service.update(id, input("{\"vat_amt\":18}", false)))
+            .isInstanceOfSatisfying(ApiException.class, e -> assertThat(e.status()).isEqualTo(404));
+        assertThat(snapshot()).isEqualTo(before);
+        assignRole("ALL", "Y", "N");
+        assertThat(service.get(id).billing().bill_id()).isEqualTo(id);
+        assertThatThrownBy(() -> service.update(id, input("{\"vat_amt\":19}", false)))
+            .isInstanceOfSatisfying(ApiException.class, e -> assertThat(e.status()).isEqualTo(404));
+        assertThat(snapshot()).isEqualTo(before);
+    }
+    @Test void executiveAndAccountDisableAreDeniedWithNoChanges() throws Exception {
+        var created = monthly(); long id = created.billing().bill_id();
+        sql("DELETE FROM sys.user_role WHERE user_id=" + actor);
+        sql("INSERT INTO sys.user_role(user_id,role_id) VALUES(" + actor + ",2)");
+        assertThat(service.get(id).billing().bill_id()).isEqualTo(id);
+        String before = snapshot();
+        assertThatThrownBy(() -> service.update(id, input("{\"vat_amt\":18}", false)))
+            .isInstanceOfSatisfying(ApiException.class, e -> assertThat(e.status()).isEqualTo(403));
+        sql("UPDATE sys.user_info SET user_stts_cd='DISABLED' WHERE user_id=" + actor);
+        assertThatThrownBy(() -> service.get(id)).isInstanceOfSatisfying(ApiException.class, e -> assertThat(e.status()).isEqualTo(403));
+        assertThat(snapshot()).isEqualTo(before);
     }
     @Test void confirmedAdjustmentAndReceiptsUseRootAdjustedVatIncludedBalance() throws Exception {
         var row = monthly(); long id = row.billing().bill_id();

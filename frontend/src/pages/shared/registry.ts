@@ -34,7 +34,7 @@ export const screenIds = [
   "UI-32",
   "UI-33",
 ] as const;
-export type ScreenId = (typeof screenIds)[number] | "UI-22";
+export type ScreenId = (typeof screenIds)[number] | "UI-22" | "UI-34";
 const year = new Set<string>([
   "UI-01",
   "UI-12",
@@ -62,9 +62,14 @@ export function periodType(screenId: string): PeriodType {
 export const sharedRoutes = [
   ...screenIds.filter((id) => id !== "UI-27"),
   "UI-22",
+  "UI-34",
 ].map((id) => `/${id}`);
 export function isScreenId(value: string): value is ScreenId {
-  return value === "UI-22" || screenIds.some((id) => id === value);
+  return (
+    value === "UI-22" ||
+    value === "UI-34" ||
+    screenIds.some((id) => id === value)
+  );
 }
 export function locateScreen(
   menus: readonly MenuNode[],

@@ -25,7 +25,7 @@ public class OpportunityWinService {
     }
     @Transactional
     public WinResult win(long id,ProjectSave project){
-        var row=lifecycle.open(id);mapper.lockNeeds(id);var needs=mapper.needs(id);
+        var row=lifecycle.open(id,"confirm");mapper.lockNeeds(id);var needs=mapper.needs(id);
         var s=quotes.calculate(row,needs,lifecycle.today());
         BigDecimal threshold=mapper.approvalRate(YearMonth.from(lifecycle.today()).toString());
         if(threshold==null)throw ApiException.conflict("QUOTE_CRITERIA_MISSING","견적 승인 기준값을 확인하세요.",null);

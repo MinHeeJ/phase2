@@ -24,10 +24,34 @@ export interface CurrentUser {
 }
 export const currentUser: CurrentUser = {
   userId: null,
-  name: "기본 사용자",
-  roleIds: [1],
+  name: "",
+  roleIds: [],
 };
 export const currentScope: DataScope = "ALL";
-export function can(_permission: string): boolean {
-  return true;
+let effectivePermissions = new Map<string, boolean>();
+export function setSecurity(
+  name: string,
+  roles: number[],
+  rows: ({ screenId: string } & Record<string, boolean | string>)[],
+) {
+  currentUser.name = name;
+  currentUser.roleIds = roles;
+  effectivePermissions = new Map(
+    rows.flatMap((row) =>
+      Object.entries(row)
+        .filter(([, value]) => typeof value === "boolean")
+        .map(
+          ([action, value]) =>
+            [`${row.screenId}.${action}`, value === true] as const,
+        ),
+    ),
+  );
+}
+export function clearSecurity() {
+  currentUser.name = "";
+  currentUser.roleIds = [];
+  effectivePermissions.clear();
+}
+export function can(permission: string): boolean {
+  return effectivePermissions.get(permission) === true;
 }

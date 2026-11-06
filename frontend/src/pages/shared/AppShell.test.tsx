@@ -99,15 +99,22 @@ beforeEach(() => {
   });
   vi.stubGlobal(
     "fetch",
-    vi
-      .fn()
-      .mockImplementation(() =>
-        Promise.resolve(
-          new Response(
-            JSON.stringify({ success: true, meta: {}, data: menus }),
-          ),
+    vi.fn().mockImplementation((url: string) =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            success: true,
+            meta: {},
+            data:
+              url === "/api/notifications/unread-count"
+                ? { unreadCount: 0 }
+                : url.startsWith("/api/notifications?")
+                  ? { items: [], total: 0, page: 0, size: 20 }
+                  : menus,
+          }),
         ),
       ),
+    ),
   );
 });
 afterEach(() => vi.unstubAllGlobals());
@@ -118,7 +125,8 @@ describe("shell navigation and preferences", () => {
     expect(screen.getByLabelText("현재 주소")).toHaveTextContent("/UI-16");
     expect(screen.queryByLabelText("대시보드 닫기")).not.toBeInTheDocument();
     fireEvent.click(screen.getByLabelText("알림"));
-    expect(screen.getByText("새 알림이 없습니다")).toBeInTheDocument();
+    expect(await screen.findByText("알림이 없습니다.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "닫기" }));
     fireEvent.click(screen.getByLabelText("사용자 설정"));
     expect(screen.getByText("목록 건수")).toBeInTheDocument();
     expect(screen.getByText("좁게 보기")).toBeInTheDocument();

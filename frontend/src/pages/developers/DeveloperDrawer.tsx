@@ -14,6 +14,7 @@ import {
   Tabs,
 } from "../../shared/Controls";
 import { Can } from "../../shared/Can";
+import { BusinessContact } from "../shared/BusinessContact";
 import { ErrorBanner } from "../../shared/ErrorBanner";
 import { useAdminRead, useAdminWrite } from "../admin/useAdminResource";
 import { DeveloperForm } from "./DeveloperForm";
@@ -269,6 +270,7 @@ export function DeveloperDrawer({
                         </Fragment>
                       ))}
                     </dl>
+                    <BusinessContact kind="developers" id={id} />
                     <p data-sensitive="true">
                       최근 월 급여{" "}
                       {row.latest_salary

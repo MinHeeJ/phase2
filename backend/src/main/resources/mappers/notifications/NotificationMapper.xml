@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sicost.notifications.NotificationMapper">
+  <sql id="visible">n.user_id=#{userId} AND (
+    n.link_scrn_id IS NULL OR EXISTS(
+      SELECT 1 FROM sys.user_info u JOIN sys.user_role ur ON ur.user_id=u.user_id
+      JOIN sys.role r ON r.role_id=ur.role_id AND r.use_yn='Y'
+      JOIN sys.role_menu_auth a ON a.role_id=r.role_id AND a.inq_auth_yn='Y'
+      JOIN sys.menu m ON m.menu_id=a.menu_id AND m.scrn_id=n.link_scrn_id AND m.use_yn='Y'
+      WHERE u.user_id=#{userId} AND u.user_stts_cd='ACTIVE' AND (u.rsgn_dt IS NULL OR u.rsgn_dt &gt; CAST(#{now} AS date))
+      AND (m.scrn_id NOT IN ('UI-23','UI-24','UI-25','UI-27') OR r.admin_yn='Y')
+      AND NOT EXISTS(WITH RECURSIVE ancestors AS (SELECT menu_id,upr_menu_id,use_yn FROM sys.menu WHERE menu_id=m.menu_id UNION SELECT p.menu_id,p.upr_menu_id,p.use_yn FROM sys.menu p JOIN ancestors c ON p.menu_id=c.upr_menu_id) SELECT 1 FROM ancestors WHERE use_yn&lt;&gt;'Y')
+      AND (r.data_scope_cd='ALL'
+        OR (r.data_scope_cd='PART' AND EXISTS(SELECT 1 FROM sys.user_part up JOIN mst.bsn_part b ON b.bsn_part_id=up.bsn_part_id AND b.use_yn='Y' WHERE up.user_id=u.user_id AND up.bsn_part_id=COALESCE(n.target_part_id,(SELECT p.bsn_part_id FROM prj.prj p WHERE p.prj_id=n.target_prj_id))))
+        OR (r.data_scope_cd='PROJECT' AND EXISTS(SELECT 1 FROM sys.user_prj up JOIN prj.prj p ON p.prj_id=up.prj_id AND p.use_yn='Y' WHERE up.user_id=u.user_id AND up.prj_id=n.target_prj_id)))
+    ))</sql>
+  <sql id="columns">n.ntf_id AS id,n.ntf_ty_cd AS type,n.ttl_nm AS title,n.msg_desc AS content,n.created_at AS "createdAt",n.read_yn='Y' AS read,
+    (e.resolved_at IS NOT NULL) AS resolved,n.link_scrn_id AS "targetScreenId",n.target_rec_id AS "targetId",e.base_ym AS "basisMonth"</sql>
+  <sql id="filters">
+    <if test="unreadOnly == true">AND n.read_yn='N'</if>
+    <if test="type != null and type != ''">AND n.ntf_ty_cd=#{type}</if>
+    <if test="resolved != null">AND (e.resolved_at IS NOT NULL)=#{resolved}</if>
+    <if test="search != null and search != ''">AND n.ttl_nm ILIKE '%' || #{search} || '%'</if>
+  </sql>
+  <select id="list" resultType="map">SELECT <include refid="columns"/> FROM sys.ntf n LEFT JOIN sys.ntf_event_key e ON e.event_key_id=n.event_key_id
+    WHERE <include refid="visible"/> <include refid="filters"/> ORDER BY n.created_at DESC,n.ntf_id DESC LIMIT #{size} OFFSET #{offset}</select>
+  <select id="count" resultType="long">SELECT count(*) FROM sys.ntf n LEFT JOIN sys.ntf_event_key e ON e.event_key_id=n.event_key_id WHERE <include refid="visible"/> <include refid="filters"/></select>
+  <select id="owned" resultType="map">SELECT ntf_id AS id FROM sys.ntf WHERE ntf_id=#{id} AND user_id=#{userId}</select>
+  <select id="detail" resultType="map">SELECT <include refid="columns"/> FROM sys.ntf n LEFT JOIN sys.ntf_event_key e ON e.event_key_id=n.event_key_id WHERE n.ntf_id=#{id} AND <include refid="visible"/></select>
+  <update id="read">UPDATE sys.ntf n SET read_yn='Y',read_at=COALESCE(read_at,#{now}) WHERE n.ntf_id=#{id} AND <include refid="visible"/></update>
+  <update id="readAll">UPDATE sys.ntf n SET read_yn='Y',read_at=#{now} WHERE n.read_yn='N' AND <include refid="visible"/></update>
+</mapper>

@@ -44,6 +44,7 @@ public final class BillingModels {
             LocalDate rcpt_plan_dt, String txinv_no, LocalDate txinv_dt, String rmrk_desc,
             boolean recalculate, List<Overtime> details, Set<String> present) {}
     public record Write(long id, String number, State state, Long actor) {}
+    public record BillingAccess(long id, com.sicost.common.security.ScopePredicate scope) {}
     public record DetailWrite(long billId, DetailLine line) {}
     public record Audit(String id, String type, String field, String before, String after, Long actor) {}
     public record Amount(long supply, List<DetailLine> details, List<String> warnings) {}
