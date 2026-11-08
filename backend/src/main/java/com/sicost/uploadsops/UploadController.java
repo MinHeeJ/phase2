@@ -2,15 +2,20 @@ package com.sicost.uploadsops;
 
 import com.sicost.common.api.*;
 import com.sicost.common.security.PermissionService;
+import com.sicost.common.security.TargetedHandlerAuthorization;
+import com.sicost.common.security.AuthorizationService;
+import jakarta.servlet.http.HttpServletRequest;
+import java.util.Map;
 import java.nio.charset.StandardCharsets;
 import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.servlet.HandlerMapping;
 import static com.sicost.uploadsops.UploadModels.*;
 
 @RestController
 @RequestMapping("/api/uploads")
-public class UploadController {
+public class UploadController implements TargetedHandlerAuthorization {
     private final UploadService service;
     private final PermissionService permissions;
     @org.springframework.beans.factory.annotation.Autowired(required=false)
@@ -19,6 +24,30 @@ public class UploadController {
         return adapters.stream().filter(a->a.supports(id)).findFirst().orElse(null);
     }
     public UploadController(UploadService service,PermissionService permissions){this.service=service;this.permissions=permissions;}
+    @Override public void authorizeOperation(String operation,HttpServletRequest request) {
+        Object variables=request.getAttribute(HandlerMapping.URI_TEMPLATE_VARIABLES_ATTRIBUTE);
+        Map<?,?> path=variables instanceof Map<?,?> values?values:Map.of();
+        String key=switch(operation) {
+            case "getUploadTemplate" -> {
+                String form=(String)path.get("form");
+                var extension=adapters.stream().filter(a->a.supportsForm(form)).findFirst().orElse(null);
+                yield extension==null?("B.7".equals(form)?"UI-15.download":"UI-02.download"):extension.permissionKey("download");
+            }
+            case "createUploadValidation", "saveUploadRecheck", "saveValidatedUploadApply" -> "UI-15.upload";
+            case "getUploadErrorFile" -> "UI-15.download";
+            case "createPersonnelUploadValidation" -> "UI-02.upload";
+            case "listUploadIssues", "listUploadRows", "createUploadRevalidation", "saveUploadApplication", "getPersonnelUploadErrorFile" -> {
+                long id;
+                try { id=Long.parseLong((String)path.get("uploadId")); }
+                catch(NumberFormatException ex) { throw ApiException.badRequest("식별자를 확인하세요.","uploadId"); }
+                var extension=adapter(id);
+                String action=operation.equals("getPersonnelUploadErrorFile")?"download":"upload";
+                yield extension==null?"UI-02."+action:extension.permissionKey(action);
+            }
+            default -> throw AuthorizationService.forbidden();
+        };
+        permissions.can(key);
+    }
     private ResponseEntity<byte[]> file(UploadFile file){return ResponseEntity.ok().contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")).header(HttpHeaders.CONTENT_DISPOSITION,ContentDisposition.attachment().filename(file.fileName(),StandardCharsets.UTF_8).build().toString()).body(file.bytes());}
     @GetMapping("/templates/{form}") public ResponseEntity<byte[]> getUploadTemplate(@PathVariable String form){
         var extension=adapters.stream().filter(a->a.supportsForm(form)).findFirst().orElse(null);

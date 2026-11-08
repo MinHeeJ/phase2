@@ -10,6 +10,7 @@ public interface SharedReadMapper {
     boolean groupExists(@Param("group") String group);
     List<CodeOption> codeOptions(@Param("group") String group);
     List<MenuRow> menus();
+    List<MenuRow> authorizedMenus(Long userId);
     List<MonthClose> monthClose(@Param("from") String from, @Param("to") String to);
     OperatingParam effectiveParam(@Param("key") String key, @Param("month") String month);
 }

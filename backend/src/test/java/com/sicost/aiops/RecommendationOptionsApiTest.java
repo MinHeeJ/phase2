@@ -30,7 +30,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @WebMvcTest(controllers=RecommendationOptionsController.class)
 @Import({RequestIdFilter.class,ApiExceptionHandler.class,RecommendationOptionsService.class,
-    AiAccessGuard.class,AiOwnerSession.class,AiSourceReads.class,RecommendationOptionsApiTest.Time.class})
+    AiAccessGuard.class,AiOwnerSession.class,AiSourceReads.class,RecommendationOptionsApiTest.Time.class,
+    com.sicost.common.security.SecurityConfiguration.class,com.sicost.common.security.PermissionService.class})
 class RecommendationOptionsApiTest {
     static final String URL="/api/ai/staff-recommendation/options";
     @TestConfiguration static class Time {
@@ -41,12 +42,16 @@ class RecommendationOptionsApiTest {
     @Autowired ConfigurableEnvironment environment;
     @MockBean RecommendationOptionsMapper mapper;
     @MockBean PlatformTransactionManager transactions;
+    @MockBean com.sicost.common.security.SessionService sessions;
+    @MockBean com.sicost.common.security.AuthorizationService authorization;
+    @Autowired org.springframework.web.context.WebApplicationContext application;
     String[] profiles;
     static SourceRow row(String type,long id) {
         return new SourceRow(type,id,"PROJECT".equals(type)?11L:null,"OPP".equals(type)?id:null,
             "BE","SR","2027-02",3,2,new BigDecimal("0.50"),9L,null);
     }
     @BeforeEach void setup() {
+        mvc=com.sicost.support.AuthenticatedMvc.build(application,sessions);
         profiles=environment.getActiveProfiles(); environment.setActiveProfiles("test");
         when(transactions.getTransaction(any())).thenReturn(new SimpleTransactionStatus());
         when(mapper.sources(anyString(),nullable(String.class))).thenReturn(List.of(row("PROJECT",1),row("OPP",1)));
@@ -63,7 +68,7 @@ class RecommendationOptionsApiTest {
     }
     @AfterEach void resetEnvironment() { environment.setActiveProfiles(profiles); environment.getPropertySources().remove("ai-options-test"); }
     @Test void anonymousHappyPathUsesCamelCaseCodesAndSeoulNextMonth() throws Exception {
-        var result=mvc.perform(get(URL)).andExpect(status().isOk())
+        var result=mvc.perform(get("/api/ai/staff-recommendation/options")).andExpect(status().isOk())
             .andExpect(jsonPath("$.data.defaultStartYm").value("2027-02"))
             .andExpect(jsonPath("$.data.sources[0].criteria.jobCode").value("BE"))
             .andExpect(jsonPath("$.data.sources[0].criteria.startYm").value("2027-02"))
@@ -117,7 +122,7 @@ class RecommendationOptionsApiTest {
     }
     @ParameterizedTest @ValueSource(strings={"A","B","","PROJECT"})
     void invalidDirectionIs400(String direction) throws Exception {
-        mvc.perform(get(URL).param("direction",direction)).andExpect(status().isBadRequest()).andExpect(jsonPath("$.field").value("direction"));
+        mvc.perform(get("/api/ai/staff-recommendation/options").param("direction",direction)).andExpect(status().isBadRequest()).andExpect(jsonPath("$.field").value("direction"));
         verifyNoInteractions(mapper);
     }
     @ParameterizedTest @ValueSource(strings={"0","-1","abc","9223372036854775808"})
@@ -143,10 +148,11 @@ class RecommendationOptionsApiTest {
         mvc.perform(get(URL)).andExpect(status().isServiceUnavailable()).andExpect(jsonPath("$.code").value("SERVICE_UNAVAILABLE"))
             .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("SQL secret"))));
     }
-    @Test void productionWithTestBypassIs403BeforeAnySourceAccess() throws Exception {
+    @Test void deniedPermissionIs403BeforeAnySourceAccessEvenWithTestProperties() throws Exception {
         environment.setActiveProfiles("test","production");
         environment.getPropertySources().addFirst(new MapPropertySource("ai-options-test",Map.of("sicost.ai.environment","test","sicost.ai.synthetic-test-enabled",true)));
-        mvc.perform(get(URL)).andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("FORBIDDEN"));
+        when(authorization.require(AiActions.VIEW_RECOMMENDATIONS)).thenThrow(AiAccessGuard.forbidden());
+        mvc.perform(get("/api/ai/staff-recommendation/options")).andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("FORBIDDEN"));
         verifyNoInteractions(mapper,transactions);
     }
 }

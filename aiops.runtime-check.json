@@ -13,16 +13,28 @@
     }
   },
   "auth": {
-    "required": false
+    "required": true,
+    "login": {
+      "operation_id": "createLogin", "method": "POST", "path": "/api/auth/login",
+      "body_fields": {"login_id": "loginId", "password": "password"},
+      "session": "cookie", "bearer_json_path": null,
+      "expect": [{"path":"success","op":"equals","value":true},{"path":"data.status","op":"equals","value":"AUTHENTICATED"}]
+    },
+    "test_role": "경영진", "credential_ref": "smoke-primary",
+    "seed": {"initializer_path":"backend/src/main/java/com/sicost/authentication/SmokeAccountInitializer.java"}
+  },
+  "identity": {
+    "operation_id":"getCurrentUser", "method":"GET", "path":"/api/auth/me",
+    "expect":[{"path":"success","op":"equals","value":true},{"path":"data.roles","op":"type","value":"array_of_string"},{"path":"data.roles","op":"contains","value":"$test_role"}]
   },
   "first_menu": {
-    "route": "/UI-16",
-    "operation_id": "getDashboard",
+    "route": "/UI-01",
+    "operation_id": "listProjects",
     "method": "GET",
-    "path": "/api/dashboard",
+    "path": "/api/projects",
     "expect": [
       { "path": "success", "op": "equals", "value": true },
-      { "path": "data.kpis", "op": "type", "value": "object" }
+      { "path": "data.items", "op": "type", "value": "array" }
     ]
   }
 }

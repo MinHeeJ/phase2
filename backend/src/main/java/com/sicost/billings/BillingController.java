@@ -28,6 +28,7 @@ public class BillingController {
         return ApiResponse.ok(service.list(BillingQuery.parse(query, clock)));
     }
     @GetMapping("/api/billings/{id:[0-9]+}")
+    @com.sicost.common.security.HandlerAuthorization(com.sicost.common.security.BillingActions.READ)
     public ApiResponse<BillingDetail> getBilling(@PathVariable long id) {
         return ApiResponse.ok(service.get(id));
     }
@@ -36,6 +37,7 @@ public class BillingController {
         return ApiResponse.ok(service.create(input(body, true)));
     }
     @PutMapping("/api/billings/{id:[0-9]+}")
+    @com.sicost.common.security.HandlerAuthorization(com.sicost.common.security.BillingActions.UPDATE)
     public ApiResponse<BillingDetail> updateBilling(@PathVariable long id, @RequestBody String body) {
         return ApiResponse.ok(service.update(id, input(body, false)));
     }

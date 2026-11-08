@@ -137,13 +137,19 @@ export const createBilling = async (input: BillingCreate) =>
       body: JSON.stringify(input),
     })
   ).data!;
-export const updateBilling = async (id: number, input: BillingUpdate) =>
-  (
+export const updateBilling = async (id: number, input: BillingUpdate) => {
+  const csrf = await readData<{ headerName: string; csrfToken: string }>(
+    "/api/auth/csrf",
+  );
+  return (
     await api<BillingDetail>(`/api/billings/${encodeURIComponent(id)}`, {
       method: "PUT",
+      credentials: "same-origin",
+      headers: { "X-CSRF-TOKEN": csrf.csrfToken },
       body: JSON.stringify(input),
     })
   ).data!;
+};
 export const previewBilling = (
   projectId: number,
   stageId?: number,

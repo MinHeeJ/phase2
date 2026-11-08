@@ -1,0 +1,95 @@
+.screen {
+  min-width: 0;
+}
+.layout {
+  display: grid;
+  grid-template-columns: minmax(240px, 1fr) minmax(280px, 1fr);
+  gap: var(--space-4);
+  align-items: start;
+}
+.panel {
+  min-width: 0;
+  padding: var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+  background: var(--surface);
+}
+.fields {
+  display: grid;
+  gap: var(--space-3);
+}
+.fields label {
+  display: grid;
+  gap: var(--space-1);
+  color: var(--text-sub);
+}
+.fields input,
+.fields select,
+.fields textarea,
+.toolbar input,
+.toolbar select {
+  font: inherit;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  min-height: var(--control-height);
+  padding: var(--space-2);
+  max-width: 100%;
+  min-width: 0;
+}
+.fields input[readonly] {
+  background: var(--readonly-bg);
+}
+.check {
+  display: flex !important;
+  align-items: center;
+  gap: var(--space-2);
+}
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+.scroll {
+  overflow: auto;
+  max-width: 100%;
+  border: 1px solid var(--border);
+}
+.scroll table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--surface);
+}
+.scroll th,
+.scroll td {
+  padding: var(--space-2);
+  border-bottom: 1px solid var(--divider);
+  text-align: left;
+  white-space: nowrap;
+}
+.scroll th {
+  background: var(--header-bg);
+}
+.rowSelected {
+  background: var(--primary-bg);
+}
+.error {
+  color: var(--danger);
+}
+.success {
+  color: var(--primary);
+}
+.confirm {
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  background: var(--primary-bg);
+  margin-block: var(--space-3);
+}
+@media (max-width: 767px) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

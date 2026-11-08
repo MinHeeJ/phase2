@@ -55,7 +55,7 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllGlobals());
 describe("shared screen inventory and states", () => {
-  it.each(sharedRoutes)(
+  it.each(sharedRoutes.filter((route) => route !== "/UI-34"))(
     "%s renders the common placeholder with no business inputs",
     async (route) => {
       vi.stubGlobal(
@@ -82,7 +82,8 @@ describe("shared screen inventory and states", () => {
     expect(screenIds).toHaveLength(31);
     expect(screenIds).not.toContain("UI-06");
     expect(screenIds).not.toContain("UI-22");
-    expect(sharedRoutes).toHaveLength(31);
+    expect(sharedRoutes).toHaveLength(32);
+    expect(sharedRoutes).toContain("/UI-34");
     expect(sharedRoutes).toContain("/UI-22");
     expect(sharedRoutes).not.toContain("/UI-27");
     expect(screenIds).toContain("UI-32");

@@ -149,7 +149,7 @@ export default function UI02Screen({
     ["dflt_untprc_amt", "월 단가"],
   ];
   return (
-    <section data-testid="developer-workspace" data-screen-id="SCR-UI-02">
+    <section data-testid="developer-workspace" data-screen-id="UI-02">
       <div hidden={registration}>
         <ScreenHeading
           screenId="UI-02"

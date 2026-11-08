@@ -11,26 +11,24 @@ import org.yaml.snakeyaml.Yaml;
 class AnonymousSecurityContractTest {
     @Test
     @SuppressWarnings("unchecked")
-    void explicitAnonymousPolicyHasNoAuthenticationOrRoleRequirements() throws Exception {
+    void publicHealthAndLoginRemainAnonymousWhileBusinessReadsRequireSession() throws Exception {
         Map<String, Object> contract;
         try (var input = new ClassPathResource("contracts/openapi.yaml").getInputStream()) {
             contract = new Yaml().load(input);
         }
-        // A declared but unreferenced scheme does not require credentials.
-        // Both global and every operation's actual requirements remain empty below.
-        assertThat((List<Object>) contract.getOrDefault("security", List.of())).isEmpty();
+        assertThat((List<Object>) contract.get("security")).containsExactly(Map.of("serverSession", List.of()));
         var paths = (Map<String, Map<String, Object>>) contract.get("paths");
-        for (var path : paths.values()) {
-            for (var method : List.of("get", "post", "put", "patch", "delete", "head", "options", "trace")) {
-                if (path.get(method) instanceof Map<?, ?> operation) {
-                    assertThat(operation.get("security")).isIn(null, List.of());
-                    assertThat(operation.containsKey("x-roles")).isFalse();
-                }
-            }
+        for (String path : List.of("/api/auth/me", "/api/projects")) {
+            var operation=(Map<String,Object>) paths.get(path).get("get");
+            assertThat((List<String>)operation.get("x-roles")).contains("경영진");
+            assertThat(operation.getOrDefault("security",contract.get("security")))
+                .isEqualTo(List.of(Map.of("serverSession",List.of())));
         }
-        var firstMenu = (Map<String, Object>) paths.get("/api/admin/code-groups").get("get");
-        assertThat(firstMenu.get("operationId")).isEqualTo("listCodeGroups");
+        var login=(Map<String,Object>)paths.get("/api/auth/login").get("post");
+        assertThat(login.get("security")).isEqualTo(List.of());
+        assertThat(login.get("operationId")).isEqualTo("createLogin");
         var health = (Map<String, Object>) paths.get("/api/health").get("get");
         assertThat(health.get("operationId")).isEqualTo("getHealth");
+        assertThat(health.get("security")).isEqualTo(List.of());
     }
 }

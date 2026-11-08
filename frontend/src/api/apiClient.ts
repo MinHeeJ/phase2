@@ -32,6 +32,17 @@ export type {
   ForecastPage,
   Shortage,
 } from "../pages/opportunitiesops/client";
+export {
+  listNotifications,
+  notificationCount,
+  readNotification,
+  readAllNotifications,
+  NOTIFICATIONS_CHANGED,
+} from "../pages/opportunitiesops/notificationClient";
+export type {
+  NotificationItem,
+  NotificationPage,
+} from "../pages/opportunitiesops/notificationClient";
 export { getWorkforceForecast } from "../pages/workforceops/client";
 export type {
   WorkforceForecastFilters,

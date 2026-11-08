@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import {
   LayoutGrid,
   Database,
@@ -16,6 +16,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import type { MenuNode } from "./api";
+import { menuScreens } from "./api";
 import { locateScreen } from "./registry";
 import { useSharedMobile } from "./PlaceholderScreen";
 import { useSharedPreferences } from "./preferences";
@@ -46,15 +47,42 @@ export function MenuNavigation({
   const [expanded, setExpanded] = useState<number | null>(null);
   useEffect(() => {
     setExpanded(
-      menus.find((group) =>
-        group.children.some((child) => child.screenId === active),
-      )?.menuId ?? null,
+      menus.find((group) => locateScreen(group.children, active))?.menuId ??
+        null,
     );
   }, [active, menus]);
   const favorites = useSharedPreferences((state) => state.favorites);
   const recent = useSharedPreferences((state) => state.recent);
   const move = useSharedPreferences((state) => state.moveFavorite);
   const visible = (node: MenuNode) => !mobile || node.mobile;
+  const renderChildren = (
+    nodes: MenuNode[],
+    group: MenuNode,
+    icon: string | null,
+  ): ReactNode =>
+    nodes.filter(visible).map((child) => {
+      const ChildIcon = icons[child.icon ?? icon ?? ""];
+      return child.screenId ? (
+        <button
+          type="button"
+          key={child.menuId}
+          data-testid={`menu-screen-${child.menuId}`}
+          onClick={() => {
+            setExpanded(group.menuId);
+            if (child.screenId) onNavigate(child.screenId);
+          }}
+          aria-current={child.screenId === active ? "page" : undefined}
+        >
+          {ChildIcon && <ChildIcon aria-hidden="true" size={16} />}
+          <span>{child.name}</span>
+        </button>
+      ) : (
+        <div key={child.menuId} data-testid={`menu-folder-${child.menuId}`}>
+          <span>{child.name}</span>
+          {renderChildren(child.children, group, child.icon ?? icon)}
+        </div>
+      );
+    });
   const shortcut = (id: string, draggable = false) => {
     const location = locateScreen(menus, id);
     if (!location || !visible(location.screen)) return null;
@@ -102,12 +130,13 @@ export function MenuNavigation({
       {menus
         .filter(
           (group) =>
-            visible(group) && (group.screenId || group.children.some(visible)),
+            visible(group) &&
+            (group.screenId || menuScreens(group.children).some(visible)),
         )
         .map((group) => {
           const open =
             expanded === null
-              ? group.children.some((child) => child.screenId === active)
+              ? !!locateScreen(group.children, active)
               : expanded === group.menuId;
           const Icon = group.icon ? icons[group.icon] : null;
           const target =
@@ -160,27 +189,7 @@ export function MenuNavigation({
                 <div
                   className={`${styles.menuChildren} ${open ? styles.menuOpen : ""}`}
                 >
-                  {group.children.filter(visible).map((child) => {
-                    const ChildIcon = icons[child.icon ?? group.icon ?? ""];
-                    return (
-                      <button
-                        type="button"
-                        key={child.menuId}
-                        onClick={() => {
-                          setExpanded(group.menuId);
-                          if (child.screenId) onNavigate(child.screenId);
-                        }}
-                        aria-current={
-                          child.screenId === active ? "page" : undefined
-                        }
-                      >
-                        {ChildIcon && (
-                          <ChildIcon aria-hidden="true" size={16} />
-                        )}
-                        <span>{child.name}</span>
-                      </button>
-                    );
-                  })}
+                  {renderChildren(group.children, group, group.icon)}
                 </div>
               )}
             </section>

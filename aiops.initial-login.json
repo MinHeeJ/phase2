@@ -1,5 +1,8 @@
 {
   "schema_version": 1,
-  "auth_required": false,
-  "guide_path": "README.md"
+  "auth_required": true,
+  "guide_path": "README.md",
+  "login_id": "application-review-admin",
+  "password": "ReviewOnly!8kQ2zV6s",
+  "role_codes": ["시스템 관리자"]
 }

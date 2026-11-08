@@ -19,6 +19,7 @@ import {
   type PartnerDetail,
 } from "./client";
 import { PartnerForm } from "./PartnerForm";
+import { BusinessContactPanel } from "../contacts/BusinessContactPanel";
 import styles from "./Partners.module.css";
 
 export function PartnerDrawer({
@@ -232,6 +233,9 @@ export function PartnerDrawer({
                       </Badge>
                     </dd>
                   </dl>
+                )}
+                {tab === "basic" && (
+                  <BusinessContactPanel key={id} id={id} kind="partners" />
                 )}
                 {tab === "assignments" && <PartnerAssignments id={id} />}
                 {tab === "history" && (

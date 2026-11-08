@@ -1,0 +1,555 @@
+openapi: 3.0.3
+info:
+  title: 시스템 관리 추가 API
+  version: 1.0.0
+  description: 기존 업무 OpenAPI를 유지하는 추가 계약. 서버 세션과 CSRF를 사용하며 관리자 여부는 메뉴 action을 대체하지 않는다.
+security:
+  - serverSession: []
+paths:
+  /api/auth/csrf:
+    get:
+      operationId: csrf
+      security: []
+      responses:
+        '200': {description: CSRF 요청 헤더명과 proof, content: {application/json: {schema: {allOf: [{$ref: '#/components/schemas/Command'}, {type: object, properties: {data: {type: object, properties: {headerName: {type: string}, csrfToken: {type: string}}}}}]}}}}
+  /api/auth/login:
+    post:
+      operationId: createLogin
+      security: []
+      requestBody:
+        required: true
+        content: {application/json: {schema: {type: object, required: [loginId, password], properties: {loginId: {type: string, maxLength: 50}, password: {type: string, writeOnly: true}}}}}
+      x-business-rules: [아이디만 공백 정리, 비밀번호 공백 보존, 관리자 MFA 완료 전 정상 세션 금지, CSRF 필요]
+      responses:
+        '200': {description: AUTHENTICATED 또는 PASSWORD_CHANGE_REQUIRED 세션 쿠키 혹은 MFA_REQUIRED 사전 인증 쿠키. JSON에 세션 ID 및 OTP 없음, content: {application/json: {schema: {allOf: [{$ref: '#/components/schemas/Command'}, {type: object, properties: {data: {type: object, required: [status], properties: {status: {type: string, enum: [AUTHENTICATED, PASSWORD_CHANGE_REQUIRED, MFA_REQUIRED]}, expiresAt: {type: string, format: date-time}, expiresInSeconds: {type: integer}}}}}]}}}}
+        '401': {$ref: '#/components/responses/Error'}
+        '403': {$ref: '#/components/responses/Error'}
+        '429': {$ref: '#/components/responses/Error'}
+        '503': {$ref: '#/components/responses/Error'}
+  /api/auth/mfa/verify:
+    post:
+      operationId: validateMfa
+      security: []
+      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [code], properties: {code: {type: string, pattern: '^[0-9]{6}$', writeOnly: true}}}}}}
+      responses:
+        '200': {description: 정상 또는 비밀번호 변경 제한 세션 쿠키와 상태}
+        '401': {$ref: '#/components/responses/Error'}
+  /api/auth/mfa/resend:
+    post:
+      operationId: resend
+      security: []
+      responses:
+        '200': {description: 이전 코드 무효화 후 새 발급 시각의 expiresAt와 expiresInSeconds}
+        '429': {$ref: '#/components/responses/Error'}
+        '503': {$ref: '#/components/responses/Error'}
+  /api/auth/forgot-password:
+    post:
+      operationId: forgot
+      security: []
+      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [loginId], properties: {loginId: {type: string, maxLength: 50}}}}}}
+      responses:
+        '200': {description: 계정 존재 여부와 무관한 동일 안내}
+        '429': {$ref: '#/components/responses/Error'}
+  /api/auth/reset-password:
+    post:
+      operationId: reset
+      security: []
+      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [token, newPassword, confirmPassword], properties: {token: {type: string, writeOnly: true}, newPassword: {type: string, minLength: 8, writeOnly: true}, confirmPassword: {type: string, writeOnly: true}}}}}}
+      responses:
+        '200': {$ref: '#/components/responses/Command'}
+        '400': {$ref: '#/components/responses/Error'}
+        '401': {$ref: '#/components/responses/Error'}
+  /api/auth/change-password:
+    post:
+      operationId: change
+      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [currentPassword, newPassword, confirmPassword], properties: {currentPassword: {type: string, writeOnly: true}, newPassword: {type: string, minLength: 8, writeOnly: true}, confirmPassword: {type: string, writeOnly: true}}}}}}
+      responses:
+        '200': {$ref: '#/components/responses/Command'}
+        '400': {$ref: '#/components/responses/Error'}
+  /api/auth/logout:
+    post:
+      operationId: logout
+      responses:
+        '200': {$ref: '#/components/responses/Command'}
+  /api/auth/activity:
+    post:
+      operationId: activity
+      responses:
+        '200': {$ref: '#/components/responses/Command'}
+  /api/auth/me:
+    get:
+      operationId: getCurrentUser
+      x-roles: [시스템 관리자, 경영진, 재무 담당, 영업 파트장, 일반 사용자(PM)]
+      responses:
+        '200': {description: 현재 사용자 userId와 name 및 DB의 roleIds와 실제 역할명 문자열 배열 roles}
+        '401': {$ref: '#/components/responses/Error'}
+  /api/navigation:
+    get:
+      operationId: getNavigation
+      responses:
+        '200': {description: 현재 허용 leaf와 비어 있지 않은 상위 폴더 MenuNode 트리}
+  /api/me/permissions:
+    get:
+      operationId: getMyPermissions
+      responses:
+        '200': {description: 현재 사용자 permissions 사전과 menus 트리 및 scopes 문자열 배열}
+  /api/notifications:
+    get:
+      operationId: listNotifications
+      parameters:
+        - {name: page, in: query, schema: {type: integer, minimum: 0, default: 0}}
+        - {$ref: '#/components/parameters/Size'}
+        - {name: unreadOnly, in: query, schema: {type: boolean, default: false}}
+      x-business-rules: [수신자와 현재 대상 조회 권한을 같은 SQL predicate로 검사, GET은 읽음 상태 변경 금지]
+      responses:
+        '200': {description: data.items에 notificationId 및 title 및 message 및 createdAt 및 read 및 targetScreenId와 안전한 target을 가진 PageResult}
+  /api/notifications/unread-count:
+    get:
+      operationId: getNotificationUnreadCount
+      responses:
+        '200': {description: 현재 허용된 본인 알림의 data.count 원수이며 UI에서만 99+ 표기}
+  /api/notifications/{id}:
+    parameters: [{$ref: '#/components/parameters/Id'}]
+    get:
+      operationId: getNotification
+      responses:
+        '200': {description: 현재 허용된 본인 알림. 읽음 상태 불변}
+        '403': {$ref: '#/components/responses/Error'}
+        '404': {$ref: '#/components/responses/Error'}
+  /api/notifications/{id}/read:
+    parameters: [{$ref: '#/components/parameters/Id'}]
+    patch:
+      operationId: readNotification
+      x-required-tests: [다른 수신자 404, 본인 권한 상실 403과 상태 불변, 반복 읽음 멱등]
+      responses:
+        '200': {$ref: '#/components/responses/Command'}
+        '403': {$ref: '#/components/responses/Error'}
+        '404': {$ref: '#/components/responses/Error'}
+  /api/notifications/read-all:
+    post:
+      operationId: saveNotificationsReadAll
+      responses:
+        '200': {$ref: '#/components/responses/Command'}
+  /api/admin/users:
+    get:
+      operationId: listAdminUsers
+      x-roles: [시스템 관리자]
+      x-business-rules: [관리자 여부와 UI-23 조회 권한을 함께 검사, 동일 조건으로 목록과 total 조회]
+      parameters:
+        - {name: name, in: query, schema: {type: string}}
+        - {name: loginId, in: query, schema: {type: string}}
+        - {name: partId, in: query, schema: {type: integer, format: int64}}
+        - {name: roleId, in: query, schema: {type: integer, format: int64}}
+        - {name: status, in: query, schema: {type: string, enum: [ACTIVE, LOCKED, DISABLED]}}
+        - {$ref: '#/components/parameters/Page'}
+        - {$ref: '#/components/parameters/Size'}
+      responses:
+        '200': {$ref: '#/components/responses/Users'}
+        '401': {$ref: '#/components/responses/Error'}
+        '403': {$ref: '#/components/responses/Error'}
+    post:
+      operationId: createAdminUser
+      x-roles: [시스템 관리자]
+      x-side-effects: [사용자와 역할 및 담당 관계 원자 저장, RESET 해시와 메일 예약, 비밀번호 원문 응답 금지]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/UserCreate'}}}}
+      responses:
+        '200': {$ref: '#/components/responses/User'}
+        '400': {$ref: '#/components/responses/Error'}
+        '403': {$ref: '#/components/responses/Error'}
+        '409': {$ref: '#/components/responses/Error'}
+        '503': {$ref: '#/components/responses/Error'}
+  /api/admin/users/{id}:
+    parameters: [{$ref: '#/components/parameters/Id'}]
+    get:
+      operationId: getAdminUser
+      x-roles: [시스템 관리자]
+      responses:
+        '200': {$ref: '#/components/responses/User'}
+        '404': {$ref: '#/components/responses/Error'}
+    patch:
+      operationId: updateAdminUser
+      x-roles: [시스템 관리자]
+      x-business-rules: [loginId 및 역할과 담당 배열 수정 금지, 마지막 로그인 가능 관리자 미래 퇴사일도 LAST_ADMIN]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/UserPatch'}}}}
+      responses:
+        '200': {$ref: '#/components/responses/User'}
+        '400': {$ref: '#/components/responses/Error'}
+        '409': {$ref: '#/components/responses/Error'}
+  /api/admin/users/{id}/roles:
+    parameters: [{$ref: '#/components/parameters/Id'}]
+    put:
+      operationId: saveAdminUserRoles
+      x-roles: [시스템 관리자]
+      x-side-effects: [관리자 anchor 행 잠금, 전체 역할 교체와 세션 폐기 및 감사 원자 저장]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [roleIds]
+              properties:
+                roleIds: {type: array, minItems: 1, uniqueItems: true, items: {type: integer, format: int64}}
+                riskConfirmed: {type: boolean}
+      responses:
+        '200': {$ref: '#/components/responses/User'}
+        '400': {$ref: '#/components/responses/Error'}
+        '409': {$ref: '#/components/responses/Error'}
+  /api/admin/users/{id}/assignments:
+    parameters: [{$ref: '#/components/parameters/Id'}]
+    put:
+      operationId: saveAdminUserAssignments
+      x-roles: [시스템 관리자]
+      x-business-rules: [모든 ID 유효성 검사 후 전체 교체, 빈 배열을 ALL로 해석하지 않음]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/Assignments'}}}}
+      responses:
+        '200': {$ref: '#/components/responses/User'}
+        '400': {$ref: '#/components/responses/Error'}
+  /api/admin/users/{id}/disable:
+    parameters: [{$ref: '#/components/parameters/Id'}]
+    post:
+      operationId: disableAdminUser
+      x-roles: [시스템 관리자]
+      x-state-transitions: [ACTIVE 또는 LOCKED에서 DISABLED로 논리 전환]
+      responses:
+        '200': {$ref: '#/components/responses/User'}
+        '409': {$ref: '#/components/responses/Error'}
+  /api/admin/users/{id}/unlock:
+    parameters: [{$ref: '#/components/parameters/Id'}]
+    post:
+      operationId: unlockAdminUser
+      x-roles: [시스템 관리자]
+      x-state-transitions: [LOCKED에서 ACTIVE로 전환, DISABLED는 활성화하지 않음, MFA 유지]
+      responses:
+        '200': {$ref: '#/components/responses/User'}
+        '403': {$ref: '#/components/responses/Error'}
+  /api/admin/users/{id}/password-reset:
+    parameters: [{$ref: '#/components/parameters/Id'}]
+    post:
+      operationId: createAdminUserPasswordReset
+      x-roles: [시스템 관리자]
+      responses:
+        '200': {$ref: '#/components/responses/Command'}
+        '503': {$ref: '#/components/responses/Error'}
+  /api/admin/roles:
+    get:
+      operationId: listAdminRoles
+      x-roles: [시스템 관리자]
+      responses:
+        '200': {$ref: '#/components/responses/Roles'}
+        '403': {$ref: '#/components/responses/Error'}
+    post:
+      operationId: createAdminRole
+      x-roles: [시스템 관리자]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/RoleInput'}}}}
+      responses:
+        '200': {$ref: '#/components/responses/Role'}
+        '400': {$ref: '#/components/responses/Error'}
+        '409': {$ref: '#/components/responses/Error'}
+  /api/admin/roles/{id}:
+    parameters: [{$ref: '#/components/parameters/Id'}]
+    get:
+      operationId: getAdminRole
+      x-roles: [시스템 관리자]
+      responses:
+        '200': {$ref: '#/components/responses/Role'}
+        '404': {$ref: '#/components/responses/Error'}
+    patch:
+      operationId: updateAdminRole
+      x-roles: [시스템 관리자]
+      x-business-rules: [기본 역할 이름과 관리자 속성 불변, 물리 삭제 금지, LAST_ADMIN 보호]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/RoleInput'}}}}
+      responses:
+        '200': {$ref: '#/components/responses/Role'}
+        '409': {$ref: '#/components/responses/Error'}
+  /api/admin/roles/{id}/copy:
+    parameters: [{$ref: '#/components/parameters/Id'}]
+    post:
+      operationId: createAdminRoleCopy
+      x-roles: [시스템 관리자]
+      x-business-rules: [범위와 7권한 복사, 관리자 및 기본 역할 및 민감 보기 및 파트 기준 변경은 N]
+      requestBody:
+        required: true
+        content: {application/json: {schema: {type: object, additionalProperties: false, required: [name], properties: {name: {type: string, minLength: 1, maxLength: 50}}}}}
+      responses:
+        '200': {$ref: '#/components/responses/Role'}
+        '409': {$ref: '#/components/responses/Error'}
+  /api/admin/roles/{id}/permissions:
+    parameters: [{$ref: '#/components/parameters/Id'}]
+    get:
+      operationId: getAdminRolePermissions
+      x-roles: [시스템 관리자]
+      responses:
+        '200': {$ref: '#/components/responses/Permissions'}
+    put:
+      operationId: saveAdminRolePermissions
+      x-roles: [시스템 관리자]
+      x-required-tests: [조회 N과 다른 권한 Y는 400이며 저장 0건, 마지막 관리자 409 롤백, PERM_CHANGE와 원자 저장]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason, permissions]
+              additionalProperties: false
+              properties:
+                reason: {type: string, minLength: 1, maxLength: 500}
+                permissions: {type: array, items: {$ref: '#/components/schemas/MenuPermission'}}
+      responses:
+        '200': {$ref: '#/components/responses/Permissions'}
+        '400': {$ref: '#/components/responses/Error'}
+        '409': {$ref: '#/components/responses/Error'}
+  /api/admin/menus:
+    get:
+      operationId: listAdminMenus
+      x-roles: [시스템 관리자]
+      responses:
+        '200': {$ref: '#/components/responses/Menus'}
+    post:
+      operationId: createAdminMenu
+      x-roles: [시스템 관리자]
+      x-required-tests: [실제 고정 화면만 허용, 새 메뉴 모든 역할 7권한 N, 비활성 부모 아래 활성 자식 거절]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/MenuInput'}}}}
+      responses:
+        '200': {$ref: '#/components/responses/Menu'}
+        '400': {$ref: '#/components/responses/Error'}
+  /api/admin/menus/{id}:
+    parameters: [{$ref: '#/components/parameters/Id'}]
+    patch:
+      operationId: updateAdminMenu
+      x-roles: [시스템 관리자]
+      x-business-rules: [screenId 수정 거절, 중지 영향 확인, 마지막 복구 경로 중지 LAST_ADMIN]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/MenuPatch'}}}}
+      responses:
+        '200': {$ref: '#/components/responses/Menu'}
+        '400': {$ref: '#/components/responses/Error'}
+        '409': {$ref: '#/components/responses/Error'}
+  /api/admin/menus/reorder:
+    put:
+      operationId: saveAdminMenuOrder
+      x-roles: [시스템 관리자]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [items]
+              properties:
+                items:
+                  type: array
+                  items:
+                    type: object
+                    required: [menuId, parentId, sortOrder]
+                    properties:
+                      menuId: {type: integer, format: int64}
+                      parentId: {type: integer, format: int64, nullable: true}
+                      sortOrder: {type: integer, minimum: 0}
+      responses:
+        '200': {$ref: '#/components/responses/Menus'}
+        '400': {$ref: '#/components/responses/Error'}
+        '409': {$ref: '#/components/responses/Error'}
+  /api/admin/notification-channels:
+    get:
+      operationId: getNotificationChannels
+      x-roles: [시스템 관리자]
+      responses:
+        '200': {$ref: '#/components/responses/Channels'}
+    put:
+      operationId: saveNotificationChannels
+      x-roles: [시스템 관리자]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/Channels'}}}}
+      responses:
+        '200': {$ref: '#/components/responses/Channels'}
+        '400': {$ref: '#/components/responses/Error'}
+  /api/developers/{id}/contact:
+    parameters: [{$ref: '#/components/parameters/Id'}, {$ref: '#/components/parameters/Purpose'}]
+    get:
+      operationId: getDeveloperContact
+      x-roles: [영업 파트장, 일반 사용자(PM)]
+      x-required-tests: [현재 담당 범위 밖 404, 목적 무권한 403, 비활성자 마스킹, 감사 실패 시 원문 반환 금지]
+      responses:
+        '200': {$ref: '#/components/responses/Contact'}
+        '403': {$ref: '#/components/responses/Error'}
+        '404': {$ref: '#/components/responses/Error'}
+        '503': {$ref: '#/components/responses/Error'}
+  /api/partners/{id}/contact:
+    parameters: [{$ref: '#/components/parameters/Id'}, {$ref: '#/components/parameters/Purpose'}]
+    get:
+      operationId: getPartnerContact
+      x-roles: [영업 파트장, 재무 담당]
+      x-required-tests: [개발자와 독립된 거래처 담당 및 재무 목적, 계정 인증 속성 미노출, 열람 감사]
+      responses:
+        '200': {$ref: '#/components/responses/Contact'}
+        '403': {$ref: '#/components/responses/Error'}
+        '404': {$ref: '#/components/responses/Error'}
+components:
+  securitySchemes:
+    serverSession: {type: apiKey, in: cookie, name: JSESSIONID}
+  parameters:
+    Id: {name: id, in: path, required: true, schema: {type: integer, format: int64, minimum: 1}}
+    Page: {name: page, in: query, schema: {type: integer, minimum: 1, default: 1}}
+    Size: {name: size, in: query, schema: {type: integer, enum: [20, 50, 100], default: 20}}
+    Purpose: {name: purpose, in: query, required: true, schema: {type: string, enum: [STAFF_OPERATION, CONTRACT_SALES, BILLING, RECEIPT, PAYMENT]}}
+  schemas:
+    Command:
+      type: object
+      required: [success, meta]
+      properties:
+        success: {type: boolean, enum: [true]}
+        meta: {type: object, additionalProperties: true}
+    ApiError:
+      type: object
+      required: [success, meta, code, message, requestId]
+      properties:
+        success: {type: boolean, enum: [false]}
+        meta: {type: object, additionalProperties: true}
+        code: {type: string}
+        message: {type: string}
+        field: {type: string, nullable: true}
+        requestId: {type: string}
+    Assignments:
+      type: object
+      required: [partIds, projectIds]
+      additionalProperties: false
+      properties:
+        partIds: {type: array, uniqueItems: true, items: {type: integer, format: int64}}
+        projectIds: {type: array, uniqueItems: true, items: {type: integer, format: int64}}
+    UserCreate:
+      type: object
+      additionalProperties: false
+      required: [loginId, name, email, roleIds, partIds, projectIds]
+      properties:
+        loginId: {type: string, pattern: '^[A-Za-z0-9._-]{1,50}$'}
+        name: {type: string, minLength: 1, maxLength: 50}
+        email: {type: string, format: email, maxLength: 100}
+        phone: {type: string, maxLength: 30, nullable: true}
+        partId: {type: integer, format: int64, nullable: true}
+        developerId: {type: integer, format: int64, nullable: true}
+        roleIds: {type: array, minItems: 1, uniqueItems: true, items: {type: integer, format: int64}}
+        partIds: {$ref: '#/components/schemas/Assignments/properties/partIds'}
+        projectIds: {$ref: '#/components/schemas/Assignments/properties/projectIds'}
+        riskConfirmed: {type: boolean}
+    UserPatch:
+      type: object
+      additionalProperties: false
+      properties:
+        name: {type: string, minLength: 1, maxLength: 50}
+        email: {type: string, format: email, maxLength: 100}
+        phone: {type: string, maxLength: 30, nullable: true}
+        partId: {type: integer, format: int64, nullable: true}
+        status: {type: string, enum: [ACTIVE, LOCKED, DISABLED]}
+        resignationDate: {type: string, format: date, nullable: true}
+    User:
+      type: object
+      required: [userId, loginId, name, roleIds, status, partIds, projectIds]
+      properties:
+        userId: {type: integer, format: int64}
+        loginId: {type: string}
+        name: {$ref: '#/components/schemas/UserPatch/properties/name'}
+        email: {type: string, nullable: true}
+        phone: {$ref: '#/components/schemas/UserPatch/properties/phone'}
+        partId: {$ref: '#/components/schemas/UserPatch/properties/partId'}
+        status: {$ref: '#/components/schemas/UserPatch/properties/status'}
+        resignationDate: {$ref: '#/components/schemas/UserPatch/properties/resignationDate'}
+        developerId: {type: integer, format: int64, nullable: true}
+        roleIds: {type: array, items: {type: integer, format: int64}}
+        partIds: {$ref: '#/components/schemas/Assignments/properties/partIds'}
+        projectIds: {$ref: '#/components/schemas/Assignments/properties/projectIds'}
+        lastLoginAt: {type: string, nullable: true}
+    RoleInput:
+      type: object
+      properties:
+        name: {type: string, minLength: 1, maxLength: 50}
+        description: {type: string, maxLength: 500, nullable: true}
+        useYn: {type: string, enum: [Y, N]}
+        dataScope: {type: string, enum: [ALL, PART, PROJECT, SELF]}
+        admin: {type: boolean}
+        sensitiveInquiry: {type: boolean}
+        partStandardChange: {type: boolean}
+        riskConfirmed: {type: boolean}
+    Role:
+      allOf:
+        - {$ref: '#/components/schemas/RoleInput'}
+        - type: object
+          required: [roleId, builtin]
+          properties:
+            roleId: {type: integer, format: int64}
+            builtin: {type: boolean}
+    MenuPatch:
+      type: object
+      additionalProperties: false
+      properties:
+        name: {type: string, minLength: 1, maxLength: 50}
+        icon: {type: string, maxLength: 30, nullable: true}
+        parentId: {type: integer, format: int64, nullable: true}
+        sortOrder: {type: integer, minimum: 0}
+        useYn: {type: string, enum: [Y, N]}
+        mobileVisible: {type: boolean}
+        riskConfirmed: {type: boolean}
+    MenuInput:
+      type: object
+      additionalProperties: false
+      required: [name, sortOrder, useYn, mobileVisible]
+      properties:
+        name: {$ref: '#/components/schemas/MenuPatch/properties/name'}
+        icon: {$ref: '#/components/schemas/MenuPatch/properties/icon'}
+        parentId: {$ref: '#/components/schemas/MenuPatch/properties/parentId'}
+        sortOrder: {$ref: '#/components/schemas/MenuPatch/properties/sortOrder'}
+        useYn: {$ref: '#/components/schemas/MenuPatch/properties/useYn'}
+        mobileVisible: {$ref: '#/components/schemas/MenuPatch/properties/mobileVisible'}
+        riskConfirmed: {$ref: '#/components/schemas/MenuPatch/properties/riskConfirmed'}
+        screenId: {type: string, nullable: true, pattern: '^UI-[0-9]{2}$'}
+    Menu:
+      type: object
+      required: [menuId, name, sortOrder, useYn, mobileVisible]
+      properties:
+        menuId: {type: integer, format: int64}
+        name: {$ref: '#/components/schemas/MenuInput/properties/name'}
+        icon: {$ref: '#/components/schemas/MenuInput/properties/icon'}
+        parentId: {$ref: '#/components/schemas/MenuInput/properties/parentId'}
+        sortOrder: {$ref: '#/components/schemas/MenuInput/properties/sortOrder'}
+        useYn: {$ref: '#/components/schemas/MenuInput/properties/useYn'}
+        mobileVisible: {$ref: '#/components/schemas/MenuInput/properties/mobileVisible'}
+        screenId: {$ref: '#/components/schemas/MenuInput/properties/screenId'}
+    MenuPermission:
+      type: object
+      required: [menuId, inq, reg, mdfcn, del, upld, dwnld, cnfrm]
+      properties:
+        menuId: {type: integer, format: int64}
+        name: {type: string, readOnly: true}
+        screenId: {type: string, nullable: true, readOnly: true}
+        parentId: {type: integer, format: int64, nullable: true, readOnly: true}
+        inq: {type: string, enum: [Y, N]}
+        reg: {type: string, enum: [Y, N]}
+        mdfcn: {type: string, enum: [Y, N]}
+        del: {type: string, enum: [Y, N]}
+        upld: {type: string, enum: [Y, N]}
+        dwnld: {type: string, enum: [Y, N]}
+        cnfrm: {type: string, enum: [Y, N]}
+    Channels:
+      type: object
+      additionalProperties: false
+      required: [businessEmailEnabled]
+      properties:
+        businessEmailEnabled: {type: boolean}
+    Contact:
+      type: object
+      additionalProperties: false
+      properties:
+        phone: {type: string, nullable: true}
+        email: {type: string, nullable: true}
+  responses:
+    Error: {description: 공통 오류이며 비밀 및 SQL 내용은 포함하지 않음, content: {application/json: {schema: {$ref: '#/components/schemas/ApiError'}}}}
+    Command: {description: 명령 성공, content: {application/json: {schema: {$ref: '#/components/schemas/Command'}}}}
+    User: {description: 사용자 상세, content: {application/json: {schema: {allOf: [{$ref: '#/components/schemas/Command'}, {type: object, properties: {data: {$ref: '#/components/schemas/User'}}}]}}}}
+    Users: {description: 사용자 페이지, content: {application/json: {schema: {allOf: [{$ref: '#/components/schemas/Command'}, {type: object, properties: {data: {type: object, required: [items, total, page, size], properties: {items: {type: array, items: {$ref: '#/components/schemas/User'}}, total: {type: integer}, page: {type: integer}, size: {type: integer}}}}}]}}}}
+    Role: {description: 역할 상세, content: {application/json: {schema: {allOf: [{$ref: '#/components/schemas/Command'}, {type: object, properties: {data: {$ref: '#/components/schemas/Role'}}}]}}}}
+    Roles: {description: 역할 목록, content: {application/json: {schema: {allOf: [{$ref: '#/components/schemas/Command'}, {type: object, properties: {data: {type: array, items: {$ref: '#/components/schemas/Role'}}}}]}}}}
+    Menu: {description: 메뉴 상세, content: {application/json: {schema: {allOf: [{$ref: '#/components/schemas/Command'}, {type: object, properties: {data: {$ref: '#/components/schemas/Menu'}}}]}}}}
+    Menus: {description: 관리자 메뉴 목록, content: {application/json: {schema: {allOf: [{$ref: '#/components/schemas/Command'}, {type: object, properties: {data: {type: array, items: {$ref: '#/components/schemas/Menu'}}}}]}}}}
+    Permissions: {description: 역할 메뉴별 7권한, content: {application/json: {schema: {allOf: [{$ref: '#/components/schemas/Command'}, {type: object, properties: {data: {type: array, items: {$ref: '#/components/schemas/MenuPermission'}}}}]}}}}
+    Channels: {description: 업무 메일 선택 채널, content: {application/json: {schema: {allOf: [{$ref: '#/components/schemas/Command'}, {type: object, properties: {data: {$ref: '#/components/schemas/Channels'}}}]}}}}
+    Contact: {description: 목적과 범위 및 감사가 검증된 업무 연락처, content: {application/json: {schema: {allOf: [{$ref: '#/components/schemas/Command'}, {type: object, properties: {data: {$ref: '#/components/schemas/Contact'}}}]}}}}

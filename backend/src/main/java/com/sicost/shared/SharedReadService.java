@@ -25,12 +25,14 @@ public class SharedReadService {
     }
 
     public List<MenuNode> menus(DataScope scope) {
-        List<MenuRow> rows = mapper.menus();
-        return rows.stream().filter(row -> row.parentId() == null).map(root ->
-            new MenuNode(root.menuId(), root.name(), root.screenId(), root.icon(), root.mobile(),
-                rows.stream().filter(child -> Objects.equals(child.parentId(), root.menuId()))
-                    .map(child -> new MenuNode(child.menuId(), child.name(), child.screenId(), child.icon(), child.mobile(), List.of()))
-                    .toList())).toList();
+        List<MenuRow> rows = mapper.authorizedMenus(new com.sicost.common.security.CurrentUser().userId());
+        return menuChildren(null, rows);
+    }
+
+    private List<MenuNode> menuChildren(Long parentId, List<MenuRow> rows) {
+        return rows.stream().filter(row -> Objects.equals(row.parentId(), parentId))
+            .map(row -> new MenuNode(row.menuId(), row.name(), row.screenId(), row.icon(), row.mobile(),
+                menuChildren(row.menuId(), rows))).toList();
     }
 
     public List<MonthClose> monthClose(String from, String to, DataScope scope) {

@@ -103,6 +103,10 @@ beforeEach(() => {
   });
   fetcher = vi.fn(async (url: string, init?: RequestInit) => {
     if (url === "/api/menus") return response(menus);
+    if (url === "/api/auth/csrf")
+      return response({ headerName: "X-CSRF-TOKEN", csrfToken: "test-proof" });
+    if (url === "/api/notifications/unread-count")
+      return response({ count: 0 });
     if (url.startsWith("/api/ai/staff-recommendation/options"))
       return response({
         sources: [
@@ -423,8 +427,17 @@ describe("application route registration", () => {
     );
     mount("/UI-30");
     expect(await screen.findByRole("alert")).toHaveTextContent("AI 접근 제한");
-    expect(screen.getByTestId("recommendation-run")).toBeDisabled();
+    expect(screen.queryByTestId("recommendation-run")).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("recommendation-form-panel"),
+    ).not.toBeInTheDocument();
     expect(screen.getByTestId("options-retry")).toBeEnabled();
+    expect(fetcher.mock.calls.some(([url]) => url.endsWith("/search"))).toBe(
+      false,
+    );
+    fetcher.mockImplementation(original);
+    fireEvent.click(screen.getByTestId("options-retry"));
+    expect(await screen.findByTestId("recommendation-run")).toBeEnabled();
   });
   it.each(["/", "/UI-16"])(
     "renders the real dashboard once through %s and retains its fixed tab",

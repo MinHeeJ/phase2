@@ -21,15 +21,19 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WebMvcTest(controllers=AdjustmentController.class)
-@Import({RequestIdFilter.class,ApiExceptionHandler.class,AdjustmentService.class,CurrentUser.class,PermissionService.class})
+@Import({RequestIdFilter.class,ApiExceptionHandler.class,AdjustmentService.class,CurrentUser.class,PermissionService.class,SecurityConfiguration.class})
 class AdjustmentApiTest {
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper json;
     @MockBean AdjustmentMapper mapper;
     @MockBean Clock clock;
+    @MockBean AuthorizationService authorization;
+    @MockBean SessionService sessions;
+    @Autowired org.springframework.web.context.WebApplicationContext application;
     Row current;
     Input inserted;
     @BeforeEach void setup() {
+        mvc=com.sicost.support.AuthenticatedMvc.build(application,sessions);
         when(clock.withZone(any())).thenReturn(Clock.fixed(Instant.parse("2026-10-29T00:00:00Z"),ZoneId.of("Asia/Seoul")));
         current=row("ACTIVE","2026-10",100);
         when(mapper.monthStatus("2026-08")).thenReturn("CLOSED");
@@ -56,14 +60,14 @@ class AdjustmentApiTest {
             .andExpect(jsonPath("$.data.originalMonth").value("2026-08")).andExpect(jsonPath("$.data.applyMonth").value("2026-10"))
             .andExpect(jsonPath("$.data.amount").value(100)).andExpect(jsonPath("$.data.status").value("ACTIVE"));
         var order=inOrder(mapper);order.verify(mapper).lockMonths();order.verify(mapper).monthStatus("2026-10");
-        verify(mapper).audit(argThat(a->a.id()==7 && a.actor()==null && a.action().equals("INSERT")));
+        verify(mapper).audit(argThat(a->a.id()==7 && Long.valueOf(7).equals(a.actor()) && a.action().equals("INSERT")));
         verify(mapper).access(any());
     }
     @Test void anonymousCancelPreservesOriginalBusinessFields() throws Exception {
-        postBody("/api/closing/adjustments/7/cancel",Map.of("reason","  입력 취소  ")).andExpect(status().isOk())
+        mvc.perform(post("/api/closing/adjustments/7/cancel").contentType("application/json").content(json.writeValueAsBytes(Map.of("reason","  입력 취소  ")))).andExpect(status().isOk())
             .andExpect(jsonPath("$.data.status").value("CANCELLED")).andExpect(jsonPath("$.data.amount").value(100))
             .andExpect(jsonPath("$.data.reason").value("원본 사유")).andExpect(jsonPath("$.data.cancelledAt").exists());
-        verify(mapper).cancel(argThat(c->c.reason().equals("입력 취소") && c.actor()==null));
+        verify(mapper).cancel(argThat(c->c.reason().equals("입력 취소") && Long.valueOf(7).equals(c.actor())));
         verify(mapper).audit(argThat(a->a.before().contains("ACTIVE")&&a.after().contains("CANCELLED")&&a.after().contains("입력 취소")));
     }
     @Test void listIncludesCancelledAndUsesSameMonthForCountAndPage() throws Exception {

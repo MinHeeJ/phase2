@@ -117,7 +117,7 @@ export default function UI15Screen({
     }
   };
   return (
-    <section data-screen-id="SCR-UI-15" data-testid="partners-screen">
+    <section data-screen-id="UI-15" data-testid="partners-screen">
       <ScreenHeading
         screenId="UI-15"
         name={creating ? "거래처 등록" : name}

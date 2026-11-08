@@ -32,7 +32,8 @@ import static com.sicost.staffrecommendations.StaffRecommendationModels.*;
 @WebMvcTest(controllers=StaffRecommendationController.class)
 @Import({RequestIdFilter.class,ApiExceptionHandler.class,RecommendationErrors.class,StaffRecommendationService.class,
     RecommendationBoundary.class,AiOwnerSession.class,RecommendationCriteriaService.class,AiQuestionSanitizer.class,
-    CareerCardService.class,ExcelExportService.class,StaffRecommendationApiTest.Time.class})
+    CareerCardService.class,ExcelExportService.class,StaffRecommendationApiTest.Time.class,
+    com.sicost.common.security.SecurityConfiguration.class,com.sicost.common.security.PermissionService.class})
 class StaffRecommendationApiTest {
     @TestConfiguration static class Time {
         @Bean Clock clock(){return Clock.fixed(Instant.parse("2026-12-01T00:00:00Z"),ZoneId.of("Asia/Seoul"));}
@@ -44,12 +45,16 @@ class StaffRecommendationApiTest {
     @MockBean AiAccessGuard access;
     @MockBean AiSensitiveGuard sensitive;
     @MockBean AiLocalIntentParser parser;
+    @MockBean com.sicost.common.security.SessionService sessions;
+    @MockBean com.sicost.common.security.AuthorizationService authorization;
+    @Autowired org.springframework.web.context.WebApplicationContext application;
     Map<Long,Stored> requests;
     Map<String,ResultState> results;
     MockHttpSession session;
     ObjectNode person;
     static final String BASE="/api/ai/staff-recommendations";
     @BeforeEach void setup() throws Exception {
+        mvc=com.sicost.support.AuthenticatedMvc.build(application,sessions);
         requests=new LinkedHashMap<>();results=new LinkedHashMap<>();session=new MockHttpSession();AtomicLong ids=new AtomicLong();
         person=(ObjectNode)json.readTree("""
             {"job":"BE","grade":"SR","enabled":true,"resign":null,"jobs":["FE"],"skills":["JAVA","SPRING"],"leaves":[],"assignments":[],"temporary":[]}
@@ -83,8 +88,9 @@ class StaffRecommendationApiTest {
             .andExpect(jsonPath("$.data.criteria.startYm").value("2027-01")).andExpect(jsonPath("$.data.results[0].score").value(first.path("results").get(0).path("score").decimalValue()));
     }
     @Test void anonymousOwnerIsolatedAndNoLoginRequired() throws Exception {
-        var run=run(input());mvc.perform(get(BASE+"/{id}",run.path("requestId").longValue()).session(new MockHttpSession())).andExpect(status().isForbidden());
-        mvc.perform(get(BASE+"/history").session(new MockHttpSession())).andExpect(status().isOk()).andExpect(jsonPath("$.data.items").isEmpty());
+        var run=run(input());var other=com.sicost.support.AuthenticatedMvc.identity(sessions,8L);
+        mvc.perform(get("/api/ai/staff-recommendations/{id}",run.path("requestId").longValue()).cookie(other)).andExpect(status().isNotFound());
+        mvc.perform(get("/api/ai/staff-recommendations/history").cookie(other)).andExpect(status().isOk()).andExpect(jsonPath("$.data.items").isEmpty());
     }
     @Test void productionDeniesBeforeReadsOrWrites() throws Exception {
         doThrow(AiAccessGuard.forbidden()).when(access).requireAction(anyString());
@@ -124,7 +130,7 @@ class StaffRecommendationApiTest {
     }
     @Test void foreignDecisionLeavesStateUntouched() throws Exception {
         var data=run(input());long result=data.path("results").get(0).path("resultId").longValue();
-        mvc.perform(patch(BASE+"/results/{id}/decision",result).session(new MockHttpSession()).contentType("application/json").content("{\"direction\":\"PROJECT_TO_PERSON\",\"decision\":\"ADOPT\"}" )).andExpect(status().isForbidden());assertThat(results.values()).allMatch(r->r.decision().equals("PENDING"));
+        mvc.perform(patch("/api/ai/staff-recommendations/results/{id}/decision",result).cookie(com.sicost.support.AuthenticatedMvc.identity(sessions,8L)).contentType("application/json").content("{\"direction\":\"PROJECT_TO_PERSON\",\"decision\":\"ADOPT\"}" )).andExpect(status().isNotFound());assertThat(results.values()).allMatch(r->r.decision().equals("PENDING"));
     }
     @Test void staleDecision409PreservesSnapshot() throws Exception {
         var data=run(input());var before=new LinkedHashMap<>(requests);when(mapper.fingerprint()).thenReturn("changed");
@@ -143,11 +149,11 @@ class StaffRecommendationApiTest {
         mvc.perform(get(BASE+"/history?"+query)).andExpect(status().isBadRequest());verify(mapper,never()).history(any());
     }
     @Test void historyFilteredTotalAndNullQuality() throws Exception {
-        run(input());mvc.perform(get(BASE+"/history").session(session).param("direction",A)).andExpect(status().isOk()).andExpect(jsonPath("$.data.total").value(1))
+        run(input());mvc.perform(get("/api/ai/staff-recommendations/history").session(session).param("direction",A)).andExpect(status().isOk()).andExpect(jsonPath("$.data.total").value(1))
             .andExpect(jsonPath("$.data.page").value(0)).andExpect(jsonPath("$.data.size").value(50)).andExpect(jsonPath("$.data.quality.adoption.denominator").value(0)).andExpect(jsonPath("$.data.quality.adoption.rate").isEmpty());
     }
     @Test void draftUnavailableIsReadOnlyAndManualStillWorks() throws Exception {
-        mvc.perform(post(BASE+"/criteria-draft").session(session).contentType("application/json").content("{\"question\":\"백엔드 2명 6개월\"}" )).andExpect(status().isOk()).andExpect(jsonPath("$.data.status").value("MODEL_UNAVAILABLE"));
+        mvc.perform(post("/api/ai/staff-recommendations/criteria-draft").session(session).contentType("application/json").content("{\"question\":\"백엔드 2명 6개월\"}" )).andExpect(status().isOk()).andExpect(jsonPath("$.data.status").value("MODEL_UNAVAILABLE"));
         assertThat(requests).isEmpty();run(input());assertThat(requests).hasSize(1);
     }
     @Test void validDraftDoesNotRunRecommendation() throws Exception {
@@ -167,14 +173,14 @@ class StaffRecommendationApiTest {
             [{"projectId":1,"projectName":"실제 프로젝트","startDate":"2026-01-01","endDate":"2026-06-30","jobCode":"BE","skillCodes":["JAVA"],"monthByMonthMm":[{"month":"2026-01","mm":1}]},
              {"projectId":2,"projectName":"다음 실수행","startDate":"2026-07-01","jobCode":"FE","skillCodes":[],"monthByMonthMm":[]}]
             """);
-        byte[] bytes=mvc.perform(get(BASE+"/developers/1/career-card").session(session)).andExpect(status().isOk()).andExpect(content().contentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+        byte[] bytes=mvc.perform(get("/api/ai/staff-recommendations/developers/1/career-card").session(session)).andExpect(status().isOk()).andExpect(content().contentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
             .andExpect(header().string("Content-Disposition","attachment; filename=career-card.xlsx")).andReturn().getResponse().getContentAsByteArray();
         try(var workbook=new XSSFWorkbook(new ByteArrayInputStream(bytes))) {
             var sheet=workbook.getSheetAt(0);assertThat(sheet.getLastRowNum()).isEqualTo(5);assertThat(sheet.getRow(4).getCell(0).getStringCellValue()).isEqualTo("실제 프로젝트");
             assertThat(sheet.getRow(5).getCell(2).getStringCellValue()).isEqualTo("미기록");assertThat(sheet.getRow(4).getCell(5).getStringCellValue()).contains("2026-01: 1 MM");
             StringBuilder text=new StringBuilder();workbook.forEach(s->s.forEach(r->r.forEach(c->text.append(c.toString()))));assertThat(text.toString()).doesNotContain("급여","연락처","원가","salary","tel_no");
         }
-        mvc.perform(get(BASE+"/developers/1/career-card").session(new MockHttpSession())).andExpect(status().isForbidden());assertThat(requests).hasSize(1);
+        mvc.perform(get("/api/ai/staff-recommendations/developers/1/career-card").cookie(com.sicost.support.AuthenticatedMvc.identity(sessions,8L))).andExpect(status().isForbidden());assertThat(requests).hasSize(1);
     }
     @Test void missingDeveloper404() throws Exception {mvc.perform(get(BASE+"/developers/99/career-card").session(session)).andExpect(status().isNotFound());}
     @Test void requiredDependencyFailure503() throws Exception {

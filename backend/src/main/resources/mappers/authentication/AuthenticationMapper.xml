@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sicost.authentication.AuthenticationMapper">
+  <sql id="accountColumns">u.user_id AS "userId",u.lgn_id AS "loginId",u.pswd_hash AS "passwordHash",u.email_addr AS email,
+    u.user_stts_cd AS status,u.rsgn_dt AS "resignationDate",u.pswd_chg_need_yn='Y' AS restricted,u.pswd_chg_at AS "passwordChangedAt",
+    (u.mfa_yn='Y' OR EXISTS(SELECT 1 FROM sys.user_role ur JOIN sys.role r ON r.role_id=ur.role_id WHERE ur.user_id=u.user_id AND r.admin_yn='Y' AND r.use_yn='Y')) AS mfa</sql>
+  <select id="login" resultType="map">SELECT <include refid="accountColumns"/> FROM sys.user_info u WHERE u.lgn_id=#{loginId} FOR UPDATE OF u</select>
+  <select id="account" resultType="map">SELECT <include refid="accountColumns"/> FROM sys.user_info u WHERE u.user_id=#{id} FOR UPDATE OF u</select>
+  <update id="failed">UPDATE sys.user_info SET lgn_fail_cnt=LEAST(lgn_fail_cnt+1,5),
+    user_stts_cd=CASE WHEN lgn_fail_cnt+1 &gt;=5 THEN 'LOCKED' ELSE user_stts_cd END,
+    lock_at=CASE WHEN lgn_fail_cnt+1 &gt;=5 THEN CURRENT_TIMESTAMP ELSE lock_at END WHERE user_id=#{id} AND user_stts_cd='ACTIVE'</update>
+  <update id="success">UPDATE sys.user_info SET lgn_fail_cnt=0,last_lgn_at=CURRENT_TIMESTAMP WHERE user_id=#{id}</update>
+  <update id="password">UPDATE sys.user_info SET pswd_hash=#{hash},pswd_chg_at=#{now},pswd_chg_need_yn='N',lgn_fail_cnt=0,lock_at=NULL,
+    user_stts_cd=CASE WHEN user_stts_cd='LOCKED' THEN 'ACTIVE' ELSE user_stts_cd END WHERE user_id=#{id}</update>
+  <update id="revokeProofs">UPDATE sys.auth_tkn SET revoked_at=CURRENT_TIMESTAMP WHERE user_id=#{id} AND use_at IS NULL AND revoked_at IS NULL</update>
+  <select id="token" resultType="long" affectData="true" flushCache="true">INSERT INTO sys.auth_tkn(user_id,tkn_ty_cd,tkn_hash,expir_at,issued_at,challenge_id_hash)
+    VALUES(#{userId},#{type},#{hash},#{expiresAt},#{now},#{challengeHash}) RETURNING tkn_id</select>
+  <sql id="proofColumns">t.tkn_id AS "tokenId",t.user_id AS "userId",t.tkn_hash AS hash,t.expir_at AS "expiresAt",t.last_sent_at AS "lastSentAt",
+    t.otp_fail_cnt AS attempts,t.challenge_generation AS generation,t.use_at AS "usedAt",t.revoked_at AS "revokedAt"</sql>
+  <select id="challenge" resultType="map">SELECT <include refid="proofColumns"/> FROM sys.auth_tkn t WHERE t.challenge_id_hash=#{hash} AND t.tkn_ty_cd='MFA' FOR UPDATE</select>
+  <select id="reset" resultType="map">SELECT <include refid="proofColumns"/> FROM sys.auth_tkn t WHERE t.tkn_hash=#{hash} AND t.tkn_ty_cd='RESET' FOR UPDATE</select>
+  <update id="consume">UPDATE sys.auth_tkn SET use_at=CURRENT_TIMESTAMP WHERE tkn_id=#{id}</update>
+  <update id="failedOtp">UPDATE sys.auth_tkn SET otp_fail_cnt=LEAST(otp_fail_cnt+1,5),revoked_at=CASE WHEN otp_fail_cnt+1 &gt;=5 THEN CURRENT_TIMESTAMP ELSE revoked_at END WHERE tkn_id=#{id}</update>
+  <update id="rotate">UPDATE sys.auth_tkn SET tkn_hash=#{hash},issued_at=#{now},expir_at=#{expiresAt},last_sent_at=NULL,challenge_generation=challenge_generation+1 WHERE tkn_id=#{tokenId}</update>
+  <select id="outbox" resultType="long" affectData="true" flushCache="true">INSERT INTO sys.mail_outbox(auth_tkn_id,recipient_user_id,mail_ty_cd,challenge_generation)
+    VALUES(#{tokenId},#{userId},#{type},#{generation}) RETURNING mail_outbox_id</select>
+  <update id="delivered">UPDATE sys.mail_outbox SET send_stts_cd='SENT',sent_at=CURRENT_TIMESTAMP WHERE mail_outbox_id=#{id}</update>
+  <update id="deliveryFailed">UPDATE sys.mail_outbox SET send_stts_cd='FAILED',last_error_cd='SMTP_UNAVAILABLE' WHERE mail_outbox_id=#{id}</update>
+  <update id="tokenDelivered">UPDATE sys.auth_tkn SET last_sent_at=CURRENT_TIMESTAMP WHERE tkn_id=#{id}</update>
+  <select id="rateLock" resultType="object">SELECT pg_advisory_xact_lock(hashtextextended(#{key},0))</select>
+  <select id="attempts" resultType="long">SELECT count(*) FROM sys.acs_hist WHERE acs_ty_cd='AUTH_ATTEMPT' AND obj_desc=#{key} AND created_at &gt; (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Seoul')-interval '15 minutes'</select>
+  <insert id="attempt">INSERT INTO sys.acs_hist(acs_ty_cd,obj_desc,created_at) VALUES('AUTH_ATTEMPT',#{key},#{now})</insert>
+</mapper>

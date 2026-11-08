@@ -11,6 +11,8 @@ import { MemoryRouter, useLocation } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AppShell, type BusinessScreenBindings } from "./AppShell";
 import type { MenuNode } from "./api";
+import { menuScreens } from "./api";
+import { locateScreen } from "./registry";
 import { MenuNavigation } from "./MenuNavigation";
 import { useSharedPreferences } from "./preferences";
 
@@ -99,26 +101,57 @@ beforeEach(() => {
   });
   vi.stubGlobal(
     "fetch",
-    vi
-      .fn()
-      .mockImplementation(() =>
-        Promise.resolve(
-          new Response(
-            JSON.stringify({ success: true, meta: {}, data: menus }),
-          ),
+    vi.fn().mockImplementation((url: string) =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            success: true,
+            meta: {},
+            data:
+              url === "/api/notifications/unread-count"
+                ? { count: 0 }
+                : url.startsWith("/api/notifications?")
+                  ? { items: [], total: 0, page: 0, size: 20 }
+                  : menus,
+          }),
         ),
       ),
+    ),
   );
 });
 afterEach(() => vi.unstubAllGlobals());
 describe("shell navigation and preferences", () => {
+  it("retains nested authorized screens in navigation, search and breadcrumbs", () => {
+    const nested = {
+      ...menus[0],
+      menuId: 2,
+      name: "하위 그룹",
+      children: [children[1]],
+    };
+    const tree = [{ ...menus[0], children: [nested] }];
+    expect(menuScreens(tree)).toEqual([children[1]]);
+    expect(locateScreen(tree, "UI-27")).toEqual({
+      screen: children[1],
+      group: nested,
+    });
+    const navigate = vi.fn();
+    render(
+      <MenuNavigation menus={tree} active="UI-27" onNavigate={navigate} />,
+    );
+    expect(screen.getByRole("button", { name: "업무" })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "공통코드" }));
+    expect(navigate).toHaveBeenCalledWith("UI-27");
+  });
   it("redirects root to pinned dashboard, with empty notifications and two user settings", async () => {
     mount("/");
     await screen.findByRole("heading", { name: "대시보드" });
     expect(screen.getByLabelText("현재 주소")).toHaveTextContent("/UI-16");
     expect(screen.queryByLabelText("대시보드 닫기")).not.toBeInTheDocument();
     fireEvent.click(screen.getByLabelText("알림"));
-    expect(screen.getByText("새 알림이 없습니다")).toBeInTheDocument();
+    expect(await screen.findByText("새 알림이 없습니다")).toBeInTheDocument();
     fireEvent.click(screen.getByLabelText("사용자 설정"));
     expect(screen.getByText("목록 건수")).toBeInTheDocument();
     expect(screen.getByText("좁게 보기")).toBeInTheDocument();

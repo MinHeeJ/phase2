@@ -20,6 +20,7 @@ import { ResponsiveLayout } from "../../app/ResponsiveLayout";
 import { Button, ConfirmDialog, Modal, Skeleton } from "../../shared/Controls";
 import { ErrorBanner } from "../../shared/ErrorBanner";
 import { currentUser } from "../../shared/types";
+import { command } from "../systemadmin/client";
 import { menuScreens } from "./api";
 import { MenuNavigation } from "./MenuNavigation";
 import {
@@ -30,6 +31,11 @@ import {
 import { isScreenId, locateScreen } from "./registry";
 import { useSharedPreferences } from "./preferences";
 import { useMenus } from "./useMenus";
+import NotificationsScreen from "../opportunitiesops/NotificationsScreen";
+import {
+  notificationCount,
+  NOTIFICATIONS_CHANGED,
+} from "../opportunitiesops/notificationClient";
 import styles from "./SharedScreens.module.css";
 
 export interface BusinessScreenBindings {
@@ -81,7 +87,55 @@ export function AppShell({
   const [search, setSearch] = useState(false);
   const [query, setQuery] = useState("");
   const [notifications, setNotifications] = useState(false);
+  const [unreadCount, setUnreadCount] = useState<number | null>(null);
   const [settings, setSettings] = useState(false);
+  useEffect(() => {
+    if (loading) return;
+    setTabs((old) => {
+      const next = old.filter(
+        (tab) => tab.id === "UI-34" || locateScreen(menus, tab.id),
+      );
+      if (
+        isScreenId(id) &&
+        !next.some((tab) => tab.id === id) &&
+        (id === "UI-34" || locateScreen(menus, id))
+      )
+        next.push({ id, viewed: clock.current, dirty: false });
+      return next.length === old.length &&
+        next.every((tab, index) => tab.id === old[index]?.id)
+        ? old
+        : next;
+    });
+  }, [menus, loading, id]);
+
+  useEffect(() => {
+    let controller: AbortController | undefined;
+    const refresh = () => {
+      controller?.abort();
+      controller = new AbortController();
+      const signal = controller.signal;
+      setUnreadCount(null);
+      void notificationCount(signal)
+        .then((result) => {
+          if (!signal.aborted) setUnreadCount(result.count);
+        })
+        .catch(() => {
+          if (!signal.aborted) setUnreadCount(null);
+        });
+    };
+    const permissionsChanged = () => {
+      setNotifications(false);
+      refresh();
+    };
+    refresh();
+    window.addEventListener(NOTIFICATIONS_CHANGED, refresh);
+    window.addEventListener("permissions-changed", permissionsChanged);
+    return () => {
+      controller?.abort();
+      window.removeEventListener(NOTIFICATIONS_CHANGED, refresh);
+      window.removeEventListener("permissions-changed", permissionsChanged);
+    };
+  }, [pathname, notifications]);
 
   const developerRoute = useRef(pathname === "/UI-32" ? "/UI-32" : "/UI-02");
   if (id === "UI-02") developerRoute.current = pathname;
@@ -211,7 +265,9 @@ export function AppShell({
     (screen) => !mobile || screen.mobile,
   );
   const label = (screenId: string) =>
-    locateScreen(menus, screenId)?.screen.name ?? screenId;
+    screenId === "UI-34"
+      ? "내 알림"
+      : (locateScreen(menus, screenId)?.screen.name ?? screenId);
   const header = (
     <>
       <Button
@@ -235,6 +291,7 @@ export function AppShell({
         </Button>
         <Button
           aria-label="알림"
+          data-testid="app-shell-notifications"
           variant="text"
           aria-expanded={notifications}
           onClick={() => {
@@ -243,6 +300,14 @@ export function AppShell({
           }}
         >
           <Bell size={20} />
+          {unreadCount !== null && unreadCount > 0 && (
+            <span
+              data-testid="app-shell-notification-count"
+              className={styles.notificationCount}
+            >
+              {unreadCount > 99 ? "99+" : unreadCount}
+            </span>
+          )}
         </Button>
         <Button
           aria-label="사용자 설정"
@@ -259,8 +324,14 @@ export function AppShell({
         </Button>
       </div>
       {notifications && (
-        <div role="status" className={styles.popover}>
-          새 알림이 없습니다
+        <div
+          aria-label="최근 알림"
+          className={`${styles.popover} ${styles.notificationPopover}`}
+        >
+          <NotificationsScreen
+            popover
+            onClose={() => setNotifications(false)}
+          />
         </div>
       )}
       {settings && (
@@ -298,6 +369,27 @@ export function AppShell({
             />
             좁게 보기
           </label>
+          <Button
+            data-testid="account-change-password"
+            onClick={() => navigate("/UI-22#password")}
+          >
+            비밀번호 변경
+          </Button>
+          <Button
+            data-testid="account-logout"
+            onClick={() => {
+              void command("/api/auth/logout", "POST")
+                .then(() => {
+                  setTabs([]);
+                  window.dispatchEvent(new Event("session-expired"));
+                })
+                .catch(() =>
+                  window.dispatchEvent(new Event("session-expired")),
+                );
+            }}
+          >
+            로그아웃
+          </Button>
         </div>
       )}
     </>
@@ -374,9 +466,17 @@ export function AppShell({
               const location = locateScreen(menus, tab.id);
               return (
                 <div hidden={tab.id !== id} key={tab.id}>
-                  {location ? (
+                  {tab.id === "UI-34" ? (
+                    renderBusiness(tab.id, {
+                      onDirtyChange: (value) => markDirty(tab.id, value),
+                      name: "내 알림",
+                    })
+                  ) : location ? (
                     tab.id === "UI-16" ||
                     tab.id === "UI-27" ||
+                    tab.id === "UI-23" ||
+                    tab.id === "UI-24" ||
+                    tab.id === "UI-25" ||
                     tab.id === "UI-15" ||
                     tab.id === "UI-01" ||
                     tab.id === "UI-05" ||
@@ -403,7 +503,10 @@ export function AppShell({
                     tab.id === "UI-33" ||
                     tab.id === "UI-02" ? (
                       <SharedMobileGuard
-                        mobileAllowed={location.screen.mobile}
+                        mobileAllowed={
+                          location.screen.mobile ||
+                          ["UI-23", "UI-24", "UI-25"].includes(tab.id)
+                        }
                         onDashboard={() => open("UI-16")}
                       >
                         {renderBusiness(tab.id, {
@@ -440,6 +543,11 @@ export function AppShell({
               );
             })}
             {!isScreenId(id) && <p>화면을 찾을 수 없습니다.</p>}
+            {isScreenId(id) && id !== "UI-34" && !locateScreen(menus, id) && (
+              <p role="alert">
+                이 화면의 조회 권한이 없거나 메뉴가 중지되었습니다.
+              </p>
+            )}
           </>
         )}
       </ResponsiveLayout>

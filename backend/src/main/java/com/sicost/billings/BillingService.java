@@ -20,11 +20,11 @@ public class BillingService {
     private final BillingMapper mapper;
     private final BillingAmountService amounts;
     private final CurrentUser user;
-    private final PermissionService permissions;
+    private final AuthorizationService permissions;
     private final ObjectMapper json;
     private final Clock clock;
     public BillingService(BillingMapper mapper, BillingAmountService amounts, CurrentUser user,
-            PermissionService permissions, ObjectMapper json, Clock clock) {
+            AuthorizationService permissions, ObjectMapper json, Clock clock) {
         this.mapper = mapper;
         this.amounts = amounts;
         this.user = user;
@@ -33,13 +33,19 @@ public class BillingService {
         this.clock = clock;
     }
     public BillingPage list(BillingQuery query) {
-        permissions.can(BillingActions.READ);
+        permissions.require(BillingActions.READ);
         return new BillingPage(mapper.list(query).stream().map(this::reminder).toList(),
             mapper.count(query), query.page(), query.size());
     }
     public BillingDetail get(long id) {
-        permissions.can(BillingActions.READ);
-        return detail(require(id), new ArrayList<>());
+        var scope = permissions.scope(BillingActions.READ);
+        var state = require(id);
+        requireScope(scope, state);
+        return detail(state, new ArrayList<>());
+    }
+    private void requireScope(ScopePredicate scope, State state) {
+        var resource = mapper.resource(new ResourceKey(state.prj_id(), month(state).toString()));
+        if (!scope.allows(resource)) throw ApiException.notFound("청구가 없습니다.");
     }
     private State require(long id) {
         var state = mapper.state(BillingInput.id(id));
@@ -55,6 +61,9 @@ public class BillingService {
             if (sum != state.sply_amt()) warnings.add("공급가액과 원천 상세 합계가 다릅니다. 확인 후 확정할 수 있습니다.");
         }
         if (state.txinv_no() == null || state.txinv_no().isBlank()) warnings.add("세금계산서 번호가 없습니다.");
+        if (state.atrb_ym() != null && state.bill_dt() != null
+                && !state.atrb_ym().equals(YearMonth.from(state.bill_dt()).toString()))
+            warnings.add("청구일이 귀속월과 다릅니다. 귀속월과 원천 상세는 변경되지 않습니다.");
         return new BillingDetail(row, lines, mapper.receipts(state.bill_id()), mapper.amendments(state.bill_id()),
             state.orgnl_bill_id(), mapper.history(state.bill_id()), List.copyOf(warnings));
     }
@@ -85,7 +94,7 @@ public class BillingService {
     }
     @Transactional(isolation = Isolation.READ_COMMITTED)
     public BillingDetail create(Input input) {
-        permissions.can(BillingActions.CREATE);
+        permissions.require(BillingActions.CREATE);
         mapper.lockClosingSources();
         YearMonth creationMonth = YearMonth.from(ProjectValues.today(clock));
         String prefix = BillingNumbers.prefix(creationMonth);
@@ -130,14 +139,16 @@ public class BillingService {
     }
     @Transactional(isolation = Isolation.READ_COMMITTED)
     public BillingDetail update(long id, Input input) {
-        permissions.can(BillingActions.UPDATE);
+        var scope = permissions.scope(BillingActions.UPDATE);
         mapper.lockClosingSources();
         var observed = require(id);
+        requireScope(scope, observed);
         var project = project(observed.prj_id());
         long root = observed.orgnl_bill_id() == null ? id : observed.orgnl_bill_id();
         mapper.lockBill(root);
         var before = mapper.lockBill(id);
         if (before == null) throw ApiException.notFound("청구가 없습니다.");
+        requireScope(scope, before);
         BillingRules.requireDraft(BillingRules.Status.valueOf(before.bill_stts_cd()));
         open(before);
         List<DetailLine> oldLines = mapper.details(id);
@@ -172,6 +183,7 @@ public class BillingService {
         money(supply, vat, "Y".equals(before.amnd_yn()));
         var after = values(before, input, supply, vat);
         open(after);
+        requireScope(scope, after);
         BillingRules.requireChanged(mapper.update(new Write(id, null, after, user.userId())));
         if (source != null) {
             mapper.deleteDetails(id);

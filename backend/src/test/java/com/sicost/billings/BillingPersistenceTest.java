@@ -27,6 +27,8 @@ class BillingPersistenceTest {
     AnnotationConfigApplicationContext context;
     BillingService service;
     BillingMapper mapper;
+    long actor;
+    SecurityPrincipal principal;
     ObjectMapper json = new ObjectMapper().findAndRegisterModules();
     @BeforeEach void restoreIsolatedDatabase() throws Exception {
         adminUrl = System.getenv("TEST_DATABASE_URL");
@@ -40,11 +42,21 @@ class BillingPersistenceTest {
         source = new DriverManagerDataSource(adminUrl.substring(0, adminUrl.lastIndexOf('/') + 1) + database, user, password);
         Flyway.configure().dataSource(source).defaultSchema("public").locations("classpath:db/migration").load().migrate();
         var factory = new SqlSessionFactoryBean(); factory.setDataSource(source);
-        factory.setMapperLocations(new ClassPathResource("mappers/billings/BillingMapper.xml")); factory.afterPropertiesSet();
-        mapper = new SqlSessionTemplate(factory.getObject()).getMapper(BillingMapper.class);
+        factory.setMapperLocations(new ClassPathResource("mappers/billings/BillingMapper.xml"),
+            new ClassPathResource("mappers/security/SecurityStateMapper.xml")); factory.afterPropertiesSet();
+        var template = new SqlSessionTemplate(factory.getObject());
+        mapper = template.getMapper(BillingMapper.class);
+        var security = template.getMapper(SecurityStateMapper.class);
+        var jdbc = new org.springframework.jdbc.core.JdbcTemplate(source);
+        actor = jdbc.queryForObject("INSERT INTO sys.user_info(lgn_id,pswd_hash,user_nm,pswd_chg_need_yn) VALUES(?,?,?,'N') RETURNING user_id",
+            Long.class, "billing-" + UUID.randomUUID(), new org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder().encode(UUID.randomUUID().toString()), "청구 시험 사용자");
+        jdbc.update("INSERT INTO sys.user_role(user_id,role_id) SELECT ?,role_id FROM sys.role WHERE role_nm='재무 담당'", actor);
+        principal = new SecurityPrincipal(actor, "청구 시험 사용자", security.roles(actor), "a".repeat(64), false);
+        bindPrincipal();
         context = new AnnotationConfigApplicationContext();
-        context.register(Transactions.class, BillingService.class, BillingAmountService.class, CurrentUser.class, PermissionService.class);
+        context.register(Transactions.class, BillingService.class, BillingAmountService.class, CurrentUser.class, AuthorizationService.class);
         context.registerBean(BillingMapper.class, () -> mapper);
+        context.registerBean(SecurityStateMapper.class, () -> security);
         context.registerBean(org.springframework.transaction.PlatformTransactionManager.class, () -> new DataSourceTransactionManager(source));
         context.registerBean(ObjectMapper.class, () -> json);
         context.registerBean(Clock.class, () -> Clock.fixed(Instant.parse("2026-10-20T00:00:00Z"), ZoneId.of("Asia/Seoul")));
@@ -57,6 +69,7 @@ class BillingPersistenceTest {
         sql("INSERT INTO asgn.untprc_hist(asgn_id,aply_bgn_dt,bill_untprc_amt) VALUES(1,'2026-10-01',2000),(1,'2026-11-01',9000)");
     }
     @AfterEach void cleanup() throws Exception {
+        org.springframework.security.core.context.SecurityContextHolder.clearContext();
         if (context != null) context.close(); if (source == null) return;
         try (Connection admin = DriverManager.getConnection(adminUrl, user, password); var statement = admin.createStatement()) {
             com.sicost.support.TestDatabaseDdl.drop(statement, database);
@@ -65,6 +78,15 @@ class BillingPersistenceTest {
     void sql(String text) throws Exception { try (var c = source.getConnection(); var s = c.createStatement()) { s.execute(text); } }
     String value(String sql, Object... args) { return new org.springframework.jdbc.core.JdbcTemplate(source).queryForObject(sql, String.class, args); }
     Input input(String body, boolean create) throws Exception { return BillingInput.parse(json.readTree(body), create); }
+    void bindPrincipal() {
+        org.springframework.security.core.context.SecurityContextHolder.getContext().setAuthentication(
+            new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(principal, null, List.of()));
+    }
+    <T> T authenticated(Callable<T> work) throws Exception {
+        bindPrincipal();
+        try { return work.call(); }
+        finally { org.springframework.security.core.context.SecurityContextHolder.clearContext(); }
+    }
     BillingDetail monthly() throws Exception { return service.create(input("{\"project_id\":1,\"month\":\"2026-10\"}", true)); }
     String snapshot() {
         return value("SELECT json_build_object('b',(SELECT json_agg(b ORDER BY bill_id) FROM bill.bill b),'d',(SELECT json_agg(d ORDER BY bill_dtl_id) FROM bill.bill_dtl d),'h',(SELECT json_agg(h ORDER BY data_chg_hist_id) FROM sys.data_chg_hist h))::text");
@@ -83,7 +105,7 @@ class BillingPersistenceTest {
         var recalculated = service.update(id, input("{\"recalculate\":true}", false));
         assertThat(recalculated.details().get(0).bill_amt()).isEqualTo(2000);
         assertThat(recalculated.billing().vat_amt()).isEqualTo(7);
-        assertThat(value("SELECT chg_user_id FROM sys.data_chg_hist LIMIT 1")).isNull();
+        assertThat(value("SELECT chg_user_id FROM sys.data_chg_hist LIMIT 1")).isEqualTo(Long.toString(actor));
         assertThat(value("SELECT count(*) FROM bill.bill_dtl WHERE bill_id=?", id)).isEqualTo("1");
         var otherSession = new SqlSessionFactoryBean(); otherSession.setDataSource(source);
         otherSession.setMapperLocations(new ClassPathResource("mappers/billings/BillingMapper.xml")); otherSession.afterPropertiesSet();
@@ -132,8 +154,8 @@ class BillingPersistenceTest {
         var pool = Executors.newFixedThreadPool(2);
         try {
             var start = new CountDownLatch(1);
-            var a = pool.submit(() -> { start.await(); return service.create(input("{\"project_id\":2,\"stage_id\":1}", true)); });
-            var b = pool.submit(() -> { start.await(); return service.create(input("{\"project_id\":3,\"stage_id\":2}", true)); });
+            var a = pool.submit(() -> authenticated(() -> { start.await(); return service.create(input("{\"project_id\":2,\"stage_id\":1}", true)); }));
+            var b = pool.submit(() -> authenticated(() -> { start.await(); return service.create(input("{\"project_id\":3,\"stage_id\":2}", true)); }));
             start.countDown(); assertThat(a.get(20, TimeUnit.SECONDS).billing().bill_no()).isNotEqualTo(b.get(20, TimeUnit.SECONDS).billing().bill_no());
             assertThatThrownBy(() -> service.create(input("{\"project_id\":2,\"stage_id\":1}", true)))
                 .isInstanceOfSatisfying(ApiException.class, e -> assertThat(e.code()).isEqualTo("ALREADY_BILLED"));
@@ -149,10 +171,10 @@ class BillingPersistenceTest {
         try (var closer = source.getConnection(); var statement = closer.createStatement()) {
             closer.setAutoCommit(false);
             statement.execute("LOCK TABLE fin.mth_cls IN SHARE ROW EXCLUSIVE MODE");
-            var result = pool.submit(() -> {
+            var result = pool.submit(() -> authenticated(() -> {
                 try { monthly(); return "CREATED"; }
                 catch (ApiException ex) { return ex.code(); }
-            });
+            }));
             long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
             boolean waiting = false;
             while (System.nanoTime() < deadline && !result.isDone()) {
@@ -167,6 +189,23 @@ class BillingPersistenceTest {
             assertThat(result.get(10, TimeUnit.SECONDS)).isEqualTo("CLOSED_MONTH");
             assertThat(snapshot()).isEqualTo(before);
         } finally { pool.shutdownNow(); }
+    }
+    @Test void resourceMaterializationUsesEffectivePartAndPreservesExplicitUnassignedHistory() throws Exception {
+        long part = Long.parseLong(value("SELECT min(bsn_part_id) FROM mst.bsn_part WHERE use_yn='Y'"));
+        sql("UPDATE prj.prj SET bsn_part_id=" + part + " WHERE prj_id=1");
+        assertThat(mapper.resource(new ResourceKey(1, "2026-10")).partId()).isEqualTo(part);
+        sql("INSERT INTO prj.prj_part_hist(prj_id,aply_bgn_ym,bsn_part_id) VALUES(1,'2026-10',NULL)");
+        assertThat(mapper.resource(new ResourceKey(1, "2026-10")).partId()).isNull();
+        assertThat(mapper.resource(new ResourceKey(1, "2026-09")).partId()).isEqualTo(part);
+    }
+    @Test void revokedRoleDeniesDirectReadAndUpdateWithoutDatabaseChanges() throws Exception {
+        long id = monthly().billing().bill_id();
+        sql("DELETE FROM sys.user_role WHERE user_id=" + actor);
+        String before = snapshot();
+        assertThatThrownBy(() -> service.get(id)).isInstanceOfSatisfying(ApiException.class, e -> assertThat(e.status()).isEqualTo(403));
+        assertThatThrownBy(() -> service.update(id, input("{\"vat_amt\":17}", false)))
+            .isInstanceOfSatisfying(ApiException.class, e -> assertThat(e.status()).isEqualTo(403));
+        assertThat(snapshot()).isEqualTo(before);
     }
     @Test void confirmedAdjustmentAndReceiptsUseRootAdjustedVatIncludedBalance() throws Exception {
         var row = monthly(); long id = row.billing().bill_id();

@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sicost.common.security.SecurityStateMapper">
+  <resultMap id="accountRow" type="com.sicost.common.security.SecurityModels$Account"><constructor>
+    <arg column="user_id" javaType="java.lang.Long"/><arg column="user_nm" javaType="java.lang.String"/>
+    <arg column="dev_id" javaType="java.lang.Long"/><arg column="user_stts_cd" javaType="java.lang.String"/>
+    <arg column="rsgn_dt" javaType="java.time.LocalDate"/><arg column="restricted" javaType="_boolean"/>
+  </constructor></resultMap>
+  <resultMap id="sessionRow" type="com.sicost.common.security.SecurityModels$Session"><constructor>
+    <arg column="session_id_hash" javaType="java.lang.String"/><arg column="user_id" javaType="java.lang.Long"/>
+    <arg column="created_at" javaType="java.time.LocalDateTime"/><arg column="last_activity_at" javaType="java.time.LocalDateTime"/>
+    <arg column="expires_at" javaType="java.time.LocalDateTime"/><arg column="revoked_at" javaType="java.time.LocalDateTime"/>
+    <arg column="restricted" javaType="_boolean"/>
+  </constructor></resultMap>
+  <resultMap id="permissionRow" type="com.sicost.common.security.SecurityModels$Permission"><constructor>
+    <arg column="role_id" javaType="java.lang.Long"/><arg column="role_nm" javaType="java.lang.String"/>
+    <arg column="data_scope_cd" javaType="com.sicost.common.security.DataScope"/><arg column="admin" javaType="_boolean"/>
+    <arg column="sensitive" javaType="_boolean"/><arg column="partStandardChange" javaType="_boolean"/>
+    <arg column="scrn_id" javaType="java.lang.String"/><arg column="actions" javaType="java.lang.String"/>
+    <arg column="contactInquiry" javaType="_boolean"/><arg column="contactDownload" javaType="_boolean"/>
+  </constructor></resultMap>
+  <select id="account" resultMap="accountRow">SELECT user_id,user_nm,dev_id,user_stts_cd,rsgn_dt,pswd_chg_need_yn='Y' AS restricted FROM sys.user_info WHERE user_id=#{userId}</select>
+  <select id="roles" resultType="long">SELECT r.role_id FROM sys.user_role u JOIN sys.role r ON r.role_id=u.role_id WHERE u.user_id=#{userId} AND r.use_yn='Y' ORDER BY r.role_id</select>
+  <select id="parts" resultType="long">SELECT p.bsn_part_id FROM sys.user_part u JOIN mst.bsn_part p ON p.bsn_part_id=u.bsn_part_id WHERE u.user_id=#{userId} AND p.use_yn='Y'</select>
+  <select id="projects" resultType="long">SELECT p.prj_id FROM sys.user_prj u JOIN prj.prj p ON p.prj_id=u.prj_id WHERE u.user_id=#{userId} AND p.use_yn='Y'</select>
+  <select id="permissions" resultMap="permissionRow">
+    WITH RECURSIVE active_menu AS (
+      SELECT menu_id,scrn_id FROM sys.menu WHERE upr_menu_id IS NULL AND use_yn='Y'
+      UNION ALL SELECT m.menu_id,m.scrn_id FROM sys.menu m JOIN active_menu p ON p.menu_id=m.upr_menu_id WHERE m.use_yn='Y'
+    )
+    SELECT r.role_id,r.role_nm,r.data_scope_cd,r.admin_yn='Y' AS admin,r.snstv_inq_yn='Y' AS sensitive,
+      r.part_std_chg_auth_yn='Y' AS "partStandardChange",m.scrn_id,
+      a.inq_auth_yn||a.reg_auth_yn||a.mdfcn_auth_yn||a.del_auth_yn||a.upld_auth_yn||a.dwnld_auth_yn||a.cnfrm_auth_yn AS actions,
+      a.contact_inq_auth_yn='Y' AS "contactInquiry",a.contact_dwnld_auth_yn='Y' AS "contactDownload"
+    FROM sys.user_role u JOIN sys.role r ON r.role_id=u.role_id AND r.use_yn='Y'
+    JOIN sys.role_menu_auth a ON a.role_id=r.role_id JOIN active_menu m ON m.menu_id=a.menu_id
+    WHERE u.user_id=#{userId} AND m.scrn_id IS NOT NULL
+  </select>
+  <select id="session" resultMap="sessionRow">SELECT session_id_hash,user_id,created_at,last_activity_at,expires_at,revoked_at,password_change_only_yn='Y' AS restricted FROM sys.login_session WHERE session_id_hash=#{hash}</select>
+  <insert id="insertSession">INSERT INTO sys.login_session(session_id_hash,user_id,created_at,last_activity_at,expires_at,password_change_only_yn)
+    VALUES(#{hash},#{userId},#{now},#{now},#{expiresAt},CASE WHEN #{passwordChangeOnly} THEN 'Y' ELSE 'N' END)</insert>
+  <update id="activity">UPDATE sys.login_session SET last_activity_at=#{now},expires_at=#{now}+interval '30 minutes'
+    WHERE session_id_hash=#{hash} AND revoked_at IS NULL AND expires_at &gt; #{now}
+    AND last_activity_at &lt;= #{now}</update>
+  <update id="revoke">UPDATE sys.login_session SET revoked_at=#{now} WHERE session_id_hash=#{hash} AND revoked_at IS NULL</update>
+  <update id="revokeUser">UPDATE sys.login_session SET revoked_at=#{now} WHERE user_id=#{userId} AND revoked_at IS NULL</update>
+  <delete id="cleanup">DELETE FROM sys.login_session WHERE expires_at &lt;= #{now} OR revoked_at IS NOT NULL</delete>
+  <select id="lockAdministratorRoles" resultType="long">SELECT role_id FROM sys.role WHERE admin_yn='Y' ORDER BY role_id FOR UPDATE</select>
+  <select id="administratorCount" resultType="long">SELECT count(DISTINCT u.user_id) FROM sys.user_info u JOIN sys.user_role ur ON ur.user_id=u.user_id JOIN sys.role r ON r.role_id=ur.role_id WHERE r.admin_yn='Y'</select>
+  <select id="createAdministrator" resultType="long" affectData="true" flushCache="true">
+    INSERT INTO sys.user_info(lgn_id,pswd_hash,user_nm,email_addr,mfa_yn,pswd_chg_need_yn)
+    VALUES(#{loginId},#{passwordHash},#{name},#{email},'Y','Y') RETURNING user_id
+  </select>
+  <insert id="assignAdministrator">INSERT INTO sys.user_role(user_id,role_id) SELECT #{userId},role_id FROM sys.role WHERE role_nm='시스템 관리자' AND admin_yn='Y' AND use_yn='Y'</insert>
+</mapper>

@@ -54,8 +54,6 @@ export function monthStatus(
 }
 export function menuScreens(menus: readonly MenuNode[]): MenuNode[] {
   return menus.flatMap((node) =>
-    node.screenId
-      ? [node]
-      : node.children.filter((child) => child.screenId !== null),
+    node.screenId ? [node] : menuScreens(node.children),
   );
 }

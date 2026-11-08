@@ -1,6 +1,7 @@
 import { useCallback, type ReactNode } from "react";
 import { Badge, Button, Skeleton } from "../../shared/Controls";
 import { ErrorBanner } from "../../shared/ErrorBanner";
+import { can } from "../../shared/types";
 import { useAdminRead, useAdminWrite } from "../admin/useAdminResource";
 import {
   getBilling,
@@ -51,6 +52,11 @@ export function BillingLines({ lines }: { lines: BillingDetailLine[] }) {
           </tr>
         </thead>
         <tbody>
+          {!lines.length && (
+            <tr>
+              <td colSpan={9}>청구 상세 내역이 없습니다.</td>
+            </tr>
+          )}
           {lines.map((l) => (
             <tr data-testid={`billing-line-${l.asgn_id}`} key={l.asgn_id}>
               <td>{l.display_name}</td>
@@ -105,7 +111,8 @@ export function UI13DetailPanel({
     await refresh();
   };
   const write = useAdminWrite(reload);
-  const d = detail.data,
+  const denied = write.error?.status === 401 || write.error?.status === 403;
+  const d = detail.error || denied ? null : detail.data,
     row = d?.billing;
   return (
     <div className={styles.scrim} data-testid="billing-detail-root">
@@ -246,7 +253,7 @@ export function UI13DetailPanel({
               ))}
               {!readOnly && (
                 <div className={styles.actions}>
-                  {row.bill_stts_cd === "DRAFT" && (
+                  {row.bill_stts_cd === "DRAFT" && can("UI-13.update") && (
                     <>
                       <Button
                         data-testid="billing-edit"
