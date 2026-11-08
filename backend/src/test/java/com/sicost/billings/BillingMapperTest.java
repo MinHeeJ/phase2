@@ -59,10 +59,10 @@ class BillingMapperTest {
     }
     @Test void insertUsesReturningIdentityAndNeverWritesGeneratedOrInventedColumns() throws Exception {
         var c = configuration();
-        var s = BillingApiTest.state("MO", "DRAFT", "2026-10", null);
+        var s = BillingDetailApiTest.state("MO", "DRAFT", "2026-10", null);
         String insert = sql(c, "insert", new Write(0, "B-2610-01", s, null));
         assertThat(insert).contains("RETURNING bill_id").doesNotContain("tot_amt", "dev_id");
-        assertThat(sql(c, "insertDetail", new DetailWrite(7, BillingApiTest.line()))).contains("cntrct_dev_id", "work_ym").doesNotContain(",dev_id");
+        assertThat(sql(c, "insertDetail", new DetailWrite(7, BillingDetailApiTest.line()))).contains("cntrct_dev_id", "work_ym").doesNotContain(",dev_id");
         assertThat(sql(c, "update", new Write(7, null, s, null))).contains("AND bill_stts_cd='DRAFT'").doesNotContain("prj_id=", "atrb_ym=", "bill_stg_id=");
     }
     @Test void detailHistoryIncludesReceiptAuditLinks() throws Exception {

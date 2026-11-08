@@ -94,6 +94,19 @@
   background: var(--surface);
   box-shadow: var(--shadow-dropdown);
 }
+.notificationPopover {
+  width: min(420px, calc(100vw - 2 * var(--space-4)));
+  max-height: calc(100dvh - var(--header-height) - var(--space-4));
+  overflow-y: auto;
+  overflow-wrap: anywhere;
+}
+.notificationCount {
+  border-radius: var(--radius-control);
+  background: var(--primary-bg);
+  color: var(--primary);
+  padding: 0 var(--space-1);
+  font-size: var(--caption-size);
+}
 .navigation {
   display: grid;
   gap: var(--space-3);

@@ -23,20 +23,28 @@ public class OpportunityLifecycleController {
     }
     private JsonNode body(String body){try{return reader.readTree(body);}catch(JsonProcessingException e){throw OpportunityLifecycleInput.invalid(null);}}
     @GetMapping("/api/opportunities/export")
+    @com.sicost.common.security.HandlerAuthorization("UI-29.download")
     public ApiResponse<DownloadArtifact> exportOpportunities(@RequestParam Map<String,String> query){return ApiResponse.ok(exports.export(query));}
     @GetMapping("/api/opportunities/forecast")
+    @com.sicost.common.security.HandlerAuthorization("UI-29.read")
     public ApiResponse<OpportunityForecastModels.Page> getOpportunityForecast(@RequestParam Map<String,String> query){return ApiResponse.ok(forecast.opportunityForecast(query));}
     @PostMapping("/api/opportunities/{id}/stage")
+    @com.sicost.common.security.HandlerAuthorization("UI-29.update")
     public ApiResponse<Detail> updateOpportunityStage(@PathVariable String id,@RequestBody String body){return ApiResponse.ok(lifecycle.stage(OpportunityLifecycleInput.id(id),OpportunityLifecycleInput.stage(body(body))));}
     @PostMapping("/api/opportunities/{id}/approve")
+    @com.sicost.common.security.HandlerAuthorization("UI-29.confirm")
     public ApiResponse<Detail> updateOpportunityApproval(@PathVariable String id,@RequestBody String body){return ApiResponse.ok(lifecycle.approve(OpportunityLifecycleInput.id(id),OpportunityLifecycleInput.approval(body(body))));}
     @PostMapping("/api/opportunities/{id}/reject")
+    @com.sicost.common.security.HandlerAuthorization("UI-29.confirm")
     public ApiResponse<Detail> updateOpportunityRejection(@PathVariable String id,@RequestBody String body){return ApiResponse.ok(lifecycle.reject(OpportunityLifecycleInput.id(id),OpportunityLifecycleInput.reason(body(body))));}
     @PostMapping("/api/opportunities/{id}/lose")
+    @com.sicost.common.security.HandlerAuthorization("UI-29.update")
     public ApiResponse<Detail> updateOpportunityLoss(@PathVariable String id,@RequestBody String body){return ApiResponse.ok(lifecycle.lose(OpportunityLifecycleInput.id(id),OpportunityLifecycleInput.reason(body(body))));}
     @PostMapping("/api/opportunities/{id}/disable")
+    @com.sicost.common.security.HandlerAuthorization("UI-29.delete")
     public ApiResponse<Detail> updateOpportunityDisable(@PathVariable String id){return ApiResponse.ok(lifecycle.disable(OpportunityLifecycleInput.id(id)));}
     @PostMapping("/api/opportunities/{id}/win")
+    @com.sicost.common.security.HandlerAuthorization("UI-29.confirm")
     public ApiResponse<WinResult> createOpportunityWin(@PathVariable String id,@RequestBody String body){
         long key=OpportunityLifecycleInput.id(id);var n=body(body);OpportunityLifecycleInput.fields(n,Set.of("project"));
         return ApiResponse.ok(wins.win(key,ProjectInput.parse(n.get("project"),false)));

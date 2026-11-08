@@ -50,6 +50,18 @@
     SELECT menu_id, upr_menu_id, menu_nm, scrn_id, icon_nm, mbl_expsr_yn = 'Y' AS mobile
     FROM sys.menu WHERE use_yn = 'Y' ORDER BY sort_seq, menu_id
   </select>
+  <select id="authorizedMenus" resultMap="menuRow">
+    WITH RECURSIVE active AS (
+      SELECT * FROM sys.menu WHERE use_yn='Y' AND upr_menu_id IS NULL
+      UNION ALL SELECT m.* FROM sys.menu m JOIN active p ON p.menu_id=m.upr_menu_id WHERE m.use_yn='Y'
+    ), visible AS (
+      SELECT m.* FROM active m WHERE m.scrn_id IS NOT NULL AND EXISTS (
+        SELECT 1 FROM sys.user_role ur JOIN sys.role r ON r.role_id=ur.role_id AND r.use_yn='Y'
+        JOIN sys.role_menu_auth a ON a.role_id=r.role_id AND a.menu_id=m.menu_id AND a.inq_auth_yn='Y'
+        WHERE ur.user_id=#{userId} AND (m.scrn_id NOT IN ('UI-23','UI-24','UI-25') OR r.admin_yn='Y'))
+      UNION SELECT m.* FROM active m JOIN visible c ON c.upr_menu_id=m.menu_id
+    ) SELECT DISTINCT menu_id,upr_menu_id,menu_nm,scrn_id,icon_nm,mbl_expsr_yn='Y' AS mobile,sort_seq FROM visible ORDER BY sort_seq,menu_id
+  </select>
   <select id="monthClose" resultMap="monthClose">
     SELECT cls_ym, cls_stts_cd FROM fin.mth_cls
     WHERE cls_ym &gt;= #{from} AND cls_ym &lt;= #{to} ORDER BY cls_ym

@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sicost.notifications.NotificationMapper">
+  <sql id="target">CASE WHEN pg_input_is_valid(n.link_param_desc,'jsonb') THEN n.link_param_desc::jsonb ELSE '{}'::jsonb END</sql>
+  <sql id="visible">n.user_id=#{userId} AND (n.link_scrn_id IS NULL OR EXISTS (
+    WITH RECURSIVE active_menu AS (SELECT menu_id,scrn_id FROM sys.menu WHERE upr_menu_id IS NULL AND use_yn='Y'
+      UNION ALL SELECT m.menu_id,m.scrn_id FROM sys.menu m JOIN active_menu p ON p.menu_id=m.upr_menu_id WHERE m.use_yn='Y')
+    SELECT 1 FROM sys.user_role ur JOIN sys.role r ON r.role_id=ur.role_id AND r.use_yn='Y'
+    JOIN sys.role_menu_auth a ON a.role_id=r.role_id AND a.inq_auth_yn='Y'
+    JOIN active_menu m ON m.menu_id=a.menu_id AND m.scrn_id=n.link_scrn_id
+    WHERE ur.user_id=#{userId} AND (m.scrn_id NOT IN ('UI-23','UI-24','UI-25') OR r.admin_yn='Y') AND
+      (r.data_scope_cd='ALL' OR
+       (r.data_scope_cd='PART' AND EXISTS(SELECT 1 FROM sys.user_part p JOIN mst.bsn_part b ON b.bsn_part_id=p.bsn_part_id AND b.use_yn='Y'
+          WHERE p.user_id=#{userId} AND p.bsn_part_id::text=(<include refid="target"/>)->>'partId')) OR
+       (r.data_scope_cd='PROJECT' AND EXISTS(SELECT 1 FROM sys.user_prj p JOIN prj.prj b ON b.prj_id=p.prj_id AND b.use_yn='Y'
+          WHERE p.user_id=#{userId} AND p.prj_id::text=(<include refid="target"/>)->>'projectId')) OR
+       (r.data_scope_cd='SELF' AND (<include refid="target"/>)->>'userId'=CAST(#{userId} AS text)))
+  ))</sql>
+  <sql id="projection">n.ntf_id AS "notificationId",n.ttl_nm AS title,n.msg_desc AS message,n.created_at AS "createdAt",n.read_yn='Y' AS read,n.link_scrn_id AS "targetScreenId",n.link_param_desc AS "targetJson"</sql>
+  <select id="list" resultType="map">SELECT <include refid="projection"/> FROM sys.ntf n WHERE <include refid="visible"/>
+    <if test="unreadOnly">AND n.read_yn='N'</if> ORDER BY n.created_at DESC,n.ntf_id DESC LIMIT #{size} OFFSET #{offset}</select>
+  <select id="count" resultType="long">SELECT count(*) FROM sys.ntf n WHERE <include refid="visible"/><if test="unreadOnly">AND n.read_yn='N'</if></select>
+  <select id="own" resultType="map">SELECT <include refid="projection"/> FROM sys.ntf n WHERE n.ntf_id=#{id} AND n.user_id=#{userId}</select>
+  <select id="visible" resultType="boolean">SELECT EXISTS(SELECT 1 FROM sys.ntf n WHERE n.ntf_id=#{id} AND <include refid="visible"/>)</select>
+  <update id="read">UPDATE sys.ntf n SET read_yn='Y',read_at=COALESCE(read_at,#{now}) WHERE n.ntf_id=#{id} AND n.read_yn='N' AND <include refid="visible"/></update>
+  <update id="readAll">UPDATE sys.ntf n SET read_yn='Y',read_at=COALESCE(read_at,#{now}) WHERE n.read_yn='N' AND <include refid="visible"/></update>
+</mapper>

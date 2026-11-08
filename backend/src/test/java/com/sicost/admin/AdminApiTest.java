@@ -26,13 +26,16 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.*;
 
 @WebMvcTest(controllers=AdminController.class)
-@Import({RequestIdFilter.class,ApiExceptionHandler.class,AdminService.class,CurrentUser.class,PermissionService.class,AdminApiTest.Time.class})
+@Import({RequestIdFilter.class,ApiExceptionHandler.class,AdminService.class,CurrentUser.class,PermissionService.class,SecurityConfiguration.class,AdminApiTest.Time.class})
 class AdminApiTest {
     @TestConfiguration static class Time { @Bean Clock clock(){return Clock.fixed(Instant.parse("2026-10-22T00:00:00Z"),ZoneId.of("Asia/Seoul"));} }
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper json;
     @Autowired org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping handlers;
     @MockBean AdminMapper mapper;
+    @MockBean AuthorizationService authorization;
+    @MockBean SessionService sessions;
+    @Autowired org.springframework.web.context.WebApplicationContext application;
     CodeGroup biz=new CodeGroup("JOB","직무","BIZ","기본 단가(원)",null,null,1,"Y",2);
     CodeGroup system=new CodeGroup("CONTRACT_TYPE","계약 유형","SYSTEM",null,null,null,2,"Y",1);
     CodeRow be=new CodeRow("BE","백엔드",1,"Y","200000",null,null,null);
@@ -40,6 +43,7 @@ class AdminApiTest {
     ExcelMap mapping=new ExcelMap("1","기존 표기","JOB","BE","직무","백엔드","MAIN","원래 메모","Y");
     OperatingParam vat=new OperatingParam("VAT_RATE","2000-01","부가세",BigDecimal.TEN,null,"%","계산");
     @BeforeEach void setup() {
+        mvc=com.sicost.support.AuthenticatedMvc.build(application,sessions);
         when(mapper.group("JOB")).thenReturn(biz);when(mapper.group("CONTRACT_TYPE")).thenReturn(system);
         when(mapper.allCodes("JOB")).thenReturn(List.of(be,ops));
         when(mapper.allCodes("CONTRACT_TYPE")).thenReturn(List.of(new CodeRow("TK","턴키",1,"Y",null,null,null,null)));
@@ -56,7 +60,7 @@ class AdminApiTest {
         return new CodeRow(r.dtl_cd(),field.equals("cd_nm")?value:r.cd_nm(),r.sort_seq(),field.equals("use_yn")?value:r.use_yn(),field.equals("attr1_val")?value:r.attr1_val(),r.attr2_val(),r.attr3_val(),r.aply_bgn_dt());
     }
     void untouched() {verify(mapper,never()).insertCode(any());verify(mapper,never()).updateCode(any());verify(mapper,never()).appendHistory(any());}
-    @Test void publicGroupListIsFlatAndUsesDatabaseTotal()throws Exception {
+    @Test void authenticatedGroupListIsFlatAndUsesDatabaseTotal()throws Exception {
         when(mapper.groups(any())).thenReturn(List.of(biz,system));when(mapper.groupCount()).thenReturn(36L);
         mvc.perform(get("/api/admin/code-groups")).andExpect(status().isOk()).andExpect(jsonPath("$.data.total").value(36)).andExpect(jsonPath("$.data.page").value(1)).andExpect(jsonPath("$.data.size").value(50)).andExpect(jsonPath("$.data.items[0].attr1_nm").value("기본 단가(원)")).andExpect(jsonPath("$.data.items[1].cd_grp_se_cd").value("SYSTEM")).andExpect(jsonPath("$.data.data").doesNotExist());
     }
@@ -87,13 +91,13 @@ class AdminApiTest {
     void unknownReadIs404(String path)throws Exception {mvc.perform(get(path)).andExpect(status().isNotFound());}
     @ParameterizedTest @ValueSource(strings={"page=0","size=30","sort=unknown,asc","sort=sort_seq;DROP TABLE,asc","sort=sort_seq,up"})
     void invalidPagingAndSortAre400(String query)throws Exception {mvc.perform(get("/api/admin/code-groups?"+query)).andExpect(status().isBadRequest());}
-    @Test void anonymousCreatesBizGroupWithNullActorAndAddHistorySideEffect()throws Exception {
+    @Test void authenticatedCreatesBizGroupWithActorAndAddHistorySideEffect()throws Exception {
         mvc.perform(post("/api/admin/code-groups").contentType(MediaType.APPLICATION_JSON)
             .content(json.writeValueAsString(Map.of("cd_grp_id","NEW_GROUP","cd_grp_nm","새 그룹"))))
             .andExpect(status().isOk()).andExpect(jsonPath("$.success").value(true))
             .andExpect(jsonPath("$.meta").isMap()).andExpect(jsonPath("$.data").doesNotExist())
             .andExpect(header().exists("X-Request-Id"));
-        verify(mapper).createGroup(argThat(w->w.input().cd_grp_id().equals("NEW_GROUP")&&w.actor()==null));verify(mapper).appendHistory(argThat(h->h.type().equals("ADD")&&h.code()==null&&h.actor()==null));
+        verify(mapper).createGroup(argThat(w->w.input().cd_grp_id().equals("NEW_GROUP")&&Long.valueOf(7).equals(w.actor())));verify(mapper).appendHistory(argThat(h->h.type().equals("ADD")&&h.code()==null&&Long.valueOf(7).equals(h.actor())));
     }
     @ParameterizedTest @CsvSource({"cd_grp_id,A1","cd_grp_id,lower","cd_grp_id,''","cd_grp_nm,''"})
     void invalidGroupFieldsDoNotWrite(String field,String value)throws Exception {
@@ -114,13 +118,13 @@ class AdminApiTest {
             .andExpect(jsonPath("$.field").value("cd_grp_id")).andExpect(jsonPath("$.message").value("이미 있는 코드입니다."));
         verify(mapper,never()).createGroup(any());untouched();
     }
-    @Test void anonymousFullSaveAddsCodeAndSingleAddHistory()throws Exception {
+    @Test void authenticatedFullSaveAddsCodeAndSingleAddHistory()throws Exception {
         mvc.perform(put("/api/admin/code-groups/JOB/codes").contentType(MediaType.APPLICATION_JSON)
             .content(json.writeValueAsString(List.of(be,ops,new CodeRow("TEST1","테스트",3,"Y",null,null,null,null)))))
             .andExpect(status().isOk()).andExpect(jsonPath("$.success").value(true))
             .andExpect(jsonPath("$.meta").isMap()).andExpect(jsonPath("$.data").doesNotExist());
-        verify(mapper).insertCode(argThat(w->w.group().equals("JOB")&&w.row().dtl_cd().equals("TEST1")&&w.row().use_yn().equals("Y")&&w.actor()==null));
-        verify(mapper).appendHistory(argThat(h->h.group().equals("JOB")&&h.type().equals("ADD")&&h.code().equals("TEST1")&&h.actor()==null));
+        verify(mapper).insertCode(argThat(w->w.group().equals("JOB")&&w.row().dtl_cd().equals("TEST1")&&w.row().use_yn().equals("Y")&&Long.valueOf(7).equals(w.actor())));
+        verify(mapper).appendHistory(argThat(h->h.group().equals("JOB")&&h.type().equals("ADD")&&h.code().equals("TEST1")&&Long.valueOf(7).equals(h.actor())));
     }
     @Test void missingExistingIdentityIs400BeforeAnyMutation()throws Exception {
         mvc.perform(put("/api/admin/code-groups/JOB/codes").contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(List.of(ops))))
@@ -148,8 +152,8 @@ class AdminApiTest {
         mvc.perform(put("/api/admin/code-groups/JOB/codes").contentType(MediaType.APPLICATION_JSON)
             .content(json.writeValueAsString(List.of(change(change(be,"attr1_val","250000"),"use_yn","N"),ops))))
             .andExpect(status().isOk()).andExpect(jsonPath("$.success").value(true));
-        verify(mapper).updateCode(argThat(w->w.row().use_yn().equals("N")&&w.changed().equals(Set.of("attr1_val","use_yn"))&&w.actor()==null));
-        verify(mapper).appendHistory(argThat(h->h.type().equals("UPDATE")&&h.item().equals("attr1_val")&&h.before().equals("200000")&&h.after().equals("250000")&&h.actor()==null));
+        verify(mapper).updateCode(argThat(w->w.row().use_yn().equals("N")&&w.changed().equals(Set.of("attr1_val","use_yn"))&&Long.valueOf(7).equals(w.actor())));
+        verify(mapper).appendHistory(argThat(h->h.type().equals("UPDATE")&&h.item().equals("attr1_val")&&h.before().equals("200000")&&h.after().equals("250000")&&Long.valueOf(7).equals(h.actor())));
         verify(mapper).appendHistory(argThat(h->h.type().equals("DISABLE")&&h.item().equals("use_yn")));
     }
     @Test void reenableRecordsEnable()throws Exception {
@@ -157,15 +161,15 @@ class AdminApiTest {
         mvc.perform(put("/api/admin/code-groups/JOB/codes").contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(List.of(be,ops))))
             .andExpect(status().isOk()).andExpect(jsonPath("$.success").value(true));
         verify(mapper).updateCode(argThat(w->w.row().use_yn().equals("Y")&&w.changed().equals(Set.of("use_yn"))));
-        verify(mapper).appendHistory(argThat(h->h.type().equals("ENABLE")&&h.item().equals("use_yn")&&h.before().equals("N")&&h.after().equals("Y")&&h.actor()==null));
+        verify(mapper).appendHistory(argThat(h->h.type().equals("ENABLE")&&h.item().equals("use_yn")&&h.before().equals("N")&&h.after().equals("Y")&&Long.valueOf(7).equals(h.actor())));
     }
-    @Test void anonymousMappingCreateAndAuditUsesReturnedId()throws Exception {
+    @Test void authenticatedMappingCreateAndAuditUsesReturnedId()throws Exception {
         mvc.perform(post("/api/admin/excel-maps").contentType(MediaType.APPLICATION_JSON)
             .content(json.writeValueAsString(Map.of("excel_lbl_nm","테스트표기","trns_cd_grp_id","JOB","trns_cd","BE","map_role_cd","MAIN"))))
             .andExpect(status().isOk()).andExpect(jsonPath("$.success").value(true))
             .andExpect(jsonPath("$.meta").isMap()).andExpect(jsonPath("$.data").doesNotExist());
-        verify(mapper).insertMapping(argThat(w->w.input().excel_lbl_nm().equals("테스트표기")&&w.input().trns_cd_grp_id().equals("JOB")&&w.input().trns_cd().equals("BE")&&w.input().map_role_cd().equals("MAIN")&&w.actor()==null));
-        verify(mapper).appendHistory(argThat(h->h.item().equals("map_id=7:ADD")&&h.type().equals("ADD")&&h.actor()==null));
+        verify(mapper).insertMapping(argThat(w->w.input().excel_lbl_nm().equals("테스트표기")&&w.input().trns_cd_grp_id().equals("JOB")&&w.input().trns_cd().equals("BE")&&w.input().map_role_cd().equals("MAIN")&&Long.valueOf(7).equals(w.actor())));
+        verify(mapper).appendHistory(argThat(h->h.item().equals("map_id=7:ADD")&&h.type().equals("ADD")&&Long.valueOf(7).equals(h.actor())));
     }
     @ParameterizedTest @CsvSource({"excel_lbl_nm,엑셀 글자를 입력하세요.","trns_cd_grp_id,대응할 코드를 고르세요.","trns_cd,대응할 코드를 고르세요."})
     void mappingRequiredFields(String field,String message)throws Exception {
@@ -183,7 +187,7 @@ class AdminApiTest {
             .andExpect(jsonPath("$.message").value("이미 있는 대응입니다."));
         verify(mapper,never()).insertMapping(any());verify(mapper,never()).appendHistory(any());
     }
-    @Test void anonymousMappingPatchPreservesIdentityAndRecordsAllChanges()throws Exception {
+    @Test void authenticatedMappingPatchPreservesIdentityAndRecordsAllChanges()throws Exception {
         mvc.perform(patch("/api/admin/excel-maps/1").contentType(MediaType.APPLICATION_JSON)
             .content(json.writeValueAsString(Map.of("map_role_cd","SUB","rmrk_desc","수정 메모"))))
             .andExpect(status().isOk()).andExpect(jsonPath("$.success").value(true))
@@ -191,14 +195,14 @@ class AdminApiTest {
         verify(mapper).updateMapping(argThat(w->w.original().equals(mapping)&&w.patch().supplied().equals(Set.of("map_role_cd","rmrk_desc"))));
         verify(mapper).appendHistory(argThat(h->h.item().equals("map_id=1:rmrk_desc")&&h.before().equals("원래 메모")&&h.after().equals("수정 메모")));
         verify(mapper).appendHistory(argThat(h->h.item().equals("map_id=1:map_role_cd")&&h.before().equals("MAIN")&&h.after().equals("SUB")));
-        verify(mapper, times(2)).appendHistory(argThat(h -> h.actor() == null));
+        verify(mapper, times(2)).appendHistory(argThat(h -> Long.valueOf(7).equals(h.actor())));
         verify(mapper, never()).insertMapping(any());
     }
     @Test void mappingSoftDisableNeverDeletes()throws Exception {
         mvc.perform(patch("/api/admin/excel-maps/1").contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(Map.of("use_yn","N"))))
             .andExpect(status().isOk()).andExpect(jsonPath("$.success").value(true));
         verify(mapper).updateMapping(argThat(w->w.original().equals(mapping)&&w.patch().use_yn().equals("N")&&w.patch().supplied().equals(Set.of("use_yn"))));
-        verify(mapper).appendHistory(argThat(h->h.type().equals("DISABLE")&&h.item().equals("map_id=1:use_yn")&&h.before().equals("Y")&&h.after().equals("N")&&h.actor()==null));
+        verify(mapper).appendHistory(argThat(h->h.type().equals("DISABLE")&&h.item().equals("map_id=1:use_yn")&&h.before().equals("Y")&&h.after().equals("N")&&Long.valueOf(7).equals(h.actor())));
     }
     @Test void mappingMemo201RejectedWithoutHistory()throws Exception {
         mvc.perform(patch("/api/admin/excel-maps/1").contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(Map.of("rmrk_desc","X".repeat(201)))))
@@ -220,16 +224,16 @@ class AdminApiTest {
             .andExpect(status().isNotFound()).andExpect(jsonPath("$.code").value("NOT_FOUND"));
         verify(mapper,never()).updateMapping(any());verify(mapper,never()).appendHistory(any());
     }
-    @Test void anonymousFutureParamWriteCopiesSourceAndAuditsMonthAndValue()throws Exception {
+    @Test void authenticatedFutureParamWriteCopiesSourceAndAuditsMonthAndValue()throws Exception {
         mvc.perform(put("/api/admin/params/VAT_RATE/versions/2026-11").contentType(MediaType.APPLICATION_JSON)
             .content(json.writeValueAsString(Map.of("num_val",11))))
             .andExpect(status().isOk()).andExpect(jsonPath("$.success").value(true))
             .andExpect(jsonPath("$.meta").isMap()).andExpect(jsonPath("$.data").doesNotExist());
-        verify(mapper).saveParam(argThat(w->w.source().equals(vat)&&w.month().equals("2026-11")&&w.actor()==null));
+        verify(mapper).saveParam(argThat(w->w.source().equals(vat)&&w.month().equals("2026-11")&&Long.valueOf(7).equals(w.actor())));
         verify(mapper).appendHistory(argThat(h->h.group().equals("PARAM")&&h.code().equals("VAT_RATE")&&h.item().equals("적용 시작월")&&h.after().equals("2026-11")));
         verify(mapper).appendHistory(argThat(h->h.item().equals("2026-11:num_val")&&h.after().equals("11")));
         verify(mapper, times(2)).appendHistory(argThat(h -> h.group().equals("PARAM")
-            && h.code().equals("VAT_RATE") && h.type().equals("UPDATE") && h.actor() == null));
+            && h.code().equals("VAT_RATE") && h.type().equals("UPDATE") && Long.valueOf(7).equals(h.actor())));
     }
     @ParameterizedTest @ValueSource(strings={"-1","101","0.00001","100000000000000"})
     void invalidNumericIs400WithNoMutation(String value)throws Exception {

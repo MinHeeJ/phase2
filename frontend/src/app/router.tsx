@@ -16,6 +16,11 @@ import { ConfirmDialog } from "../shared/Controls";
 import { seoulMonth } from "../pages/shared/PeriodBar";
 import { closingNavigation } from "../pages/shared/closingNavigation";
 import UI27Screen from "../pages/admin/UI27Screen";
+import UserManagementScreen from "../pages/systemadmin/UserManagementScreen";
+import LoginScreen from "../pages/authentication/LoginScreen";
+import { AuthenticationBoundary } from "../pages/authentication/AuthenticationBoundary";
+import RolePermissionsScreen from "../pages/systemadmin/RolePermissionsScreen";
+import MenuManagementScreen from "../pages/systemadmin/MenuManagementScreen";
 import UI15Screen from "../pages/partners/UI15Screen";
 import SalesPartManagement from "../pages/salespartsops/SalesPartManagement";
 import UI02Screen from "../pages/developers/UI02Screen";
@@ -53,6 +58,7 @@ import type {
 } from "../pages/opportunities/client";
 import { OpportunityActionDialog } from "../pages/opportunitiesops/OpportunityPipelineScreen";
 import { ForecastContent } from "../pages/opportunitiesops/WorkforceDemandScreen";
+import NotificationsScreen from "../pages/opportunitiesops/NotificationsScreen";
 import {
   exportOpportunities,
   getOpportunityForecast,
@@ -1195,94 +1201,105 @@ function PaymentsPage({ onDirtyChange, ...bindings }: BusinessScreenBindings) {
 export function AppRouter() {
   return (
     <Routes>
+      <Route path="/UI-22" element={<LoginScreen />} />
       <Route
         path="/*"
         element={
-          <AppShell
-            renderBusiness={(id, bindings) =>
-              id === "UI-16" ? (
-                <UI16Screen {...bindings} />
-              ) : id === "UI-15" ? (
-                <PartnersScreen {...bindings} />
-              ) : id === "UI-02" ? (
-                <DevelopersScreen {...bindings} />
-              ) : id === "UI-03" ? (
-                <UI03Screen {...bindings} />
-              ) : id === "UI-04" ? (
-                <UI04Screen {...bindings} />
-              ) : id === "UI-19" ? (
-                <UI19Screen {...bindings} />
-              ) : id === "UI-01" ? (
-                <ProjectsScreen {...bindings} />
-              ) : id === "UI-05" ? (
-                <WithdrawalPage {...bindings} />
-              ) : id === "UI-17" ? (
-                <WorkforceDemandScreen {...bindings} />
-              ) : id === "UI-28" ? (
-                <WorkforceBoardPage {...bindings} />
-              ) : id === "UI-29" ? (
-                <OpportunitiesPage {...bindings} />
-              ) : id === "UI-33" ? (
-                <CandidateScreen {...bindings} />
-              ) : id === "UI-30" ? (
-                <UI30Screen {...bindings} />
-              ) : id === "UI-26" ? (
-                <UI26Screen {...bindings} />
-              ) : id === "UI-11" ? (
-                <UI11Screen
-                  {...bindings}
-                  renderShortages={({ filters, onChange, projects }) => (
-                    <MonthlyShortagesPanel
-                      filters={{
-                        year: filters.year,
-                        projectId: filters.projectId
-                          ? Number(filters.projectId)
-                          : undefined,
-                        job: filters.job || undefined,
-                      }}
-                      projects={projects}
-                      onFiltersChange={(next) =>
-                        onChange({
-                          ...filters,
-                          year: next.year,
-                          projectId:
-                            next.projectId === undefined
-                              ? ""
-                              : String(next.projectId),
-                          job: next.job ?? "",
-                          page: 0,
-                        })
-                      }
-                    />
-                  )}
-                />
-              ) : id === "UI-12" ? (
-                <AssignmentsScreen {...bindings} />
-              ) : id === "UI-13" ? (
-                <BillingsScreen {...bindings} />
-              ) : id === "UI-14" ? (
-                <ClosingWorkspace {...bindings} />
-              ) : id === "UI-31" ? (
-                <ProjectBoardScreen {...bindings} />
-              ) : id === "UI-27" ? (
-                <CommonCodesScreen {...bindings} />
-              ) : id === "UI-07" ? (
-                <UI07Screen {...bindings} />
-              ) : id === "UI-08" ? (
-                <OperatingProfitPage {...bindings} />
-              ) : id === "UI-09" ? (
-                <UI09Screen {...bindings} />
-              ) : id === "UI-10" ? (
-                <FinanceEntriesPage {...bindings} />
-              ) : id === "UI-18" ? (
-                <BusinessPlanPage {...bindings} />
-              ) : id === "UI-20" ? (
-                <PaymentsPage {...bindings} />
-              ) : id === "UI-21" ? (
-                <UI21Screen {...bindings} />
-              ) : null
-            }
-          />
+          <AuthenticationBoundary>
+            <AppShell
+              renderBusiness={(id, bindings) =>
+                id === "UI-16" ? (
+                  <UI16Screen {...bindings} />
+                ) : id === "UI-34" ? (
+                  <NotificationsScreen />
+                ) : id === "UI-23" ? (
+                  <UserManagementScreen />
+                ) : id === "UI-24" ? (
+                  <RolePermissionsScreen />
+                ) : id === "UI-25" ? (
+                  <MenuManagementScreen />
+                ) : id === "UI-15" ? (
+                  <PartnersScreen {...bindings} />
+                ) : id === "UI-02" ? (
+                  <DevelopersScreen {...bindings} />
+                ) : id === "UI-03" ? (
+                  <UI03Screen {...bindings} />
+                ) : id === "UI-04" ? (
+                  <UI04Screen {...bindings} />
+                ) : id === "UI-19" ? (
+                  <UI19Screen {...bindings} />
+                ) : id === "UI-01" ? (
+                  <ProjectsScreen {...bindings} />
+                ) : id === "UI-05" ? (
+                  <WithdrawalPage {...bindings} />
+                ) : id === "UI-17" ? (
+                  <WorkforceDemandScreen {...bindings} />
+                ) : id === "UI-28" ? (
+                  <WorkforceBoardPage {...bindings} />
+                ) : id === "UI-29" ? (
+                  <OpportunitiesPage {...bindings} />
+                ) : id === "UI-33" ? (
+                  <CandidateScreen {...bindings} />
+                ) : id === "UI-30" ? (
+                  <UI30Screen {...bindings} />
+                ) : id === "UI-26" ? (
+                  <UI26Screen {...bindings} />
+                ) : id === "UI-11" ? (
+                  <UI11Screen
+                    {...bindings}
+                    renderShortages={({ filters, onChange, projects }) => (
+                      <MonthlyShortagesPanel
+                        filters={{
+                          year: filters.year,
+                          projectId: filters.projectId
+                            ? Number(filters.projectId)
+                            : undefined,
+                          job: filters.job || undefined,
+                        }}
+                        projects={projects}
+                        onFiltersChange={(next) =>
+                          onChange({
+                            ...filters,
+                            year: next.year,
+                            projectId:
+                              next.projectId === undefined
+                                ? ""
+                                : String(next.projectId),
+                            job: next.job ?? "",
+                            page: 0,
+                          })
+                        }
+                      />
+                    )}
+                  />
+                ) : id === "UI-12" ? (
+                  <AssignmentsScreen {...bindings} />
+                ) : id === "UI-13" ? (
+                  <BillingsScreen {...bindings} />
+                ) : id === "UI-14" ? (
+                  <ClosingWorkspace {...bindings} />
+                ) : id === "UI-31" ? (
+                  <ProjectBoardScreen {...bindings} />
+                ) : id === "UI-27" ? (
+                  <CommonCodesScreen {...bindings} />
+                ) : id === "UI-07" ? (
+                  <UI07Screen {...bindings} />
+                ) : id === "UI-08" ? (
+                  <OperatingProfitPage {...bindings} />
+                ) : id === "UI-09" ? (
+                  <UI09Screen {...bindings} />
+                ) : id === "UI-10" ? (
+                  <FinanceEntriesPage {...bindings} />
+                ) : id === "UI-18" ? (
+                  <BusinessPlanPage {...bindings} />
+                ) : id === "UI-20" ? (
+                  <PaymentsPage {...bindings} />
+                ) : id === "UI-21" ? (
+                  <UI21Screen {...bindings} />
+                ) : null
+              }
+            />
+          </AuthenticationBoundary>
         }
       />
     </Routes>

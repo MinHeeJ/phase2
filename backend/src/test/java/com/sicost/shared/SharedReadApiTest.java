@@ -8,6 +8,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.sicost.common.api.ApiExceptionHandler;
 import com.sicost.common.api.RequestIdFilter;
 import com.sicost.common.health.HealthController;
+import com.sicost.common.security.AuthorizationService;
+import com.sicost.common.security.PermissionService;
+import com.sicost.common.security.SecurityConfiguration;
+import com.sicost.common.security.SessionService;
+import com.sicost.support.AuthenticatedMvc;
 import com.sicost.shared.SharedReadModels.*;
 import java.math.BigDecimal;
 import java.util.List;
@@ -24,12 +29,18 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
 @WebMvcTest(controllers = {SharedReadController.class, HealthController.class})
-@Import({RequestIdFilter.class, ApiExceptionHandler.class, SharedReadService.class})
+@Import({RequestIdFilter.class, ApiExceptionHandler.class, SharedReadService.class, SecurityConfiguration.class, PermissionService.class})
 class SharedReadApiTest {
     @Autowired MockMvc mvc;
     @MockBean SharedReadMapper mapper;
+    @MockBean SessionService sessions;
+    @MockBean AuthorizationService authorization;
+    @Autowired org.springframework.web.context.WebApplicationContext context;
 
-    @BeforeEach void existingGroup() { when(mapper.groupExists("JOB")).thenReturn(true); }
+    @BeforeEach void existingGroup() {
+        mvc = AuthenticatedMvc.build(context, sessions);
+        when(mapper.groupExists("JOB")).thenReturn(true);
+    }
 
     @Test void operationNamesMatchDurableContract() throws Exception {
         try (var input = new ClassPathResource("contracts/openapi.yaml").getInputStream()) {
@@ -59,7 +70,7 @@ class SharedReadApiTest {
         verifyNoInteractions(mapper);
     }
     @Test void menuRowsBecomeOrderedTwoLevelTreeWithoutInventedScreens() throws Exception {
-        when(mapper.menus()).thenReturn(List.of(
+        when(mapper.authorizedMenus(7L)).thenReturn(List.of(
             new MenuRow(2, null, "인력", null, "users", true),
             new MenuRow(1, null, "시스템", null, "settings", true),
             new MenuRow(12, 2L, "인력현황", "UI-12", null, true),
@@ -72,8 +83,18 @@ class SharedReadApiTest {
             .andExpect(content().string(org.hamcrest.Matchers.containsString("\"screenId\":null")));
     }
     @Test void inactiveParentsDoNotPromoteOrphanChildren() throws Exception {
-        when(mapper.menus()).thenReturn(List.of(new MenuRow(27, 1L, "공통코드", "UI-27", null, false)));
+        when(mapper.authorizedMenus(7L)).thenReturn(List.of(new MenuRow(27, 1L, "공통코드", "UI-27", null, false)));
         mvc.perform(get("/api/menus")).andExpect(status().isOk()).andExpect(jsonPath("$.data").isEmpty());
+    }
+    @Test void authorizedNestedFoldersKeepTheirLeafScreens() throws Exception {
+        when(mapper.authorizedMenus(7L)).thenReturn(List.of(
+            new MenuRow(1, null, "시스템", null, "settings", true),
+            new MenuRow(2, 1L, "관리", null, null, true),
+            new MenuRow(27, 2L, "공통코드", "UI-27", null, false)));
+        mvc.perform(get("/api/menus")).andExpect(status().isOk())
+            .andExpect(jsonPath("$.data[0].children[0].children[0].screenId").value("UI-27"));
+        verify(mapper).authorizedMenus(7L);
+        verify(mapper, never()).menus();
     }
     @Test void monthCloseReturnsSparseRowsWithoutExpansion() throws Exception {
         when(mapper.monthClose("2026-09", "2026-11")).thenReturn(List.of(new MonthClose("2026-09", "CLOSED"), new MonthClose("2026-10", "OPEN")));
@@ -133,7 +154,7 @@ class SharedReadApiTest {
     }
     @ParameterizedTest @ValueSource(strings = {"/api/menus", "/api/codes/JOB", "/api/month-close?from=2026-09&to=2026-10", "/api/params/VAT_RATE?month=2026-10"})
     void databaseFailuresAreSanitizedAndTraced(String path) throws Exception {
-        when(mapper.menus()).thenThrow(new IllegalStateException("private sql details"));
+        when(mapper.authorizedMenus(7L)).thenThrow(new IllegalStateException("private sql details"));
         when(mapper.codeOptions(anyString())).thenThrow(new IllegalStateException("private sql details"));
         when(mapper.monthClose(anyString(), anyString())).thenThrow(new IllegalStateException("private sql details"));
         when(mapper.effectiveParam(anyString(), anyString())).thenThrow(new IllegalStateException("private sql details"));

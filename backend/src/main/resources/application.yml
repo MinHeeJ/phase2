@@ -6,6 +6,11 @@ server:
     include-message: never
     include-stacktrace: never
 spring:
+  mail:
+    properties:
+      mail.smtp.connectiontimeout: 5000
+      mail.smtp.timeout: 5000
+      mail.smtp.writetimeout: 5000
   servlet:
     multipart:
       max-file-size: 10MB

@@ -13,6 +13,7 @@ import { UI13M1 } from "./UI13M1";
 import { UI13DetailPanel } from "./UI13DetailPanel";
 import type { BillingDetail } from "./client";
 import tables from "../developers/Developers.module.css";
+import * as permissions from "../../shared/types";
 
 const response = (data: unknown) =>
   new Response(JSON.stringify({ success: true, meta: {}, data }), {
@@ -22,6 +23,7 @@ const response = (data: unknown) =>
 let detail: BillingDetail;
 let fetcher: ReturnType<typeof vi.fn>;
 let empty: boolean, failRead: boolean, failWrite: boolean, closed: boolean;
+let forbiddenRead: boolean, forbiddenWrite: boolean;
 const saved = vi.fn(),
   cancelled = vi.fn(),
   reload = vi.fn().mockResolvedValue(undefined);
@@ -38,6 +40,8 @@ beforeEach(() => {
   failRead = false;
   failWrite = false;
   closed = false;
+  forbiddenRead = false;
+  forbiddenWrite = false;
   saved.mockClear();
   cancelled.mockClear();
   reload.mockClear();
@@ -93,6 +97,8 @@ beforeEach(() => {
     warnings: [],
   };
   fetcher = vi.fn(async (url: string, init?: RequestInit) => {
+    if (url === "/api/auth/csrf")
+      return response({ headerName: "X-CSRF-TOKEN", csrfToken: "test-csrf" });
     if (url === "/api/projects/options")
       return response([
         { id: 3, no: "P-2603", name: "실제 프로젝트", type: "MO" },
@@ -143,6 +149,16 @@ beforeEach(() => {
         missing_price_assignments: [],
       });
     if (init?.method === "POST" || init?.method === "PUT") {
+      if (forbiddenWrite)
+        return new Response(
+          JSON.stringify({
+            success: false,
+            code: "FORBIDDEN",
+            message: "접근 권한이 없습니다.",
+            requestId: "denied-write",
+          }),
+          { status: 403 },
+        );
       if (failWrite)
         return new Response(
           JSON.stringify({
@@ -174,12 +190,25 @@ beforeEach(() => {
         size: 50,
       });
     }
-    if (url === "/api/billings/7") return response(detail);
+    if (url === "/api/billings/7") {
+      if (forbiddenRead)
+        return new Response(
+          JSON.stringify({
+            success: false,
+            code: "FORBIDDEN",
+            message: "접근 권한이 없습니다.",
+            requestId: "denied-read",
+          }),
+          { status: 403 },
+        );
+      return response(detail);
+    }
     throw new Error(`Unexpected URL ${url}`);
   });
   vi.stubGlobal("fetch", fetcher);
 });
 afterEach(() => {
+  vi.restoreAllMocks();
   vi.useRealTimers();
   vi.unstubAllGlobals();
 });
@@ -226,10 +255,14 @@ describe("청구 목록", () => {
     "opens the %s closing check with its selected month",
     async (closingCheck) => {
       render(
-        <MemoryRouter initialEntries={[{
-          pathname: "/UI-13",
-          state: { closingMonth: "2026-10", closingCheck },
-        }]}>
+        <MemoryRouter
+          initialEntries={[
+            {
+              pathname: "/UI-13",
+              state: { closingMonth: "2026-10", closingCheck },
+            },
+          ]}
+        >
           <ActiveBillingScreen />
         </MemoryRouter>,
       );
@@ -418,6 +451,53 @@ describe("청구 목록", () => {
   });
 });
 describe("청구 등록/수정", () => {
+  it("uses a server CSRF proof and same-origin cookies on the selected billing PUT", async () => {
+    renderEditor(true);
+    await waitFor(() =>
+      expect(screen.getByTestId("billing-editor-save")).toBeEnabled(),
+    );
+    fireEvent.click(screen.getByTestId("billing-editor-save"));
+    await waitFor(() => expect(saved).toHaveBeenCalled());
+    const request = fetcher.mock.calls.find(
+      ([, init]) => init?.method === "PUT",
+    )!;
+    expect(request[0]).toBe("/api/billings/7");
+    expect(request[1]).toMatchObject({
+      credentials: "same-origin",
+      headers: { "X-CSRF-TOKEN": "test-csrf" },
+    });
+  });
+  it("permission-denied editor is disabled and cannot submit", async () => {
+    vi.spyOn(permissions, "can").mockReturnValue(false);
+    renderEditor(true);
+    await screen.findByText("수정 권한이 없습니다.");
+    expect(screen.getByTestId("billing-editor-save")).toBeDisabled();
+    fireEvent.submit(screen.getByTestId("billing-editor-form"));
+    expect(fetcher.mock.calls.some(([, init]) => init?.method === "PUT")).toBe(
+      false,
+    );
+  });
+  it("confirmed editor cannot submit even when opened directly", async () => {
+    detail.billing.bill_stts_cd = "CONFIRM";
+    renderEditor(true);
+    await screen.findByText("작성 상태의 청구만 수정할 수 있습니다.");
+    expect(screen.getByTestId("billing-editor-save")).toBeDisabled();
+    fireEvent.submit(screen.getByTestId("billing-editor-form"));
+    expect(fetcher.mock.calls.some(([, init]) => init?.method === "PUT")).toBe(
+      false,
+    );
+  });
+  it("revoked write permission clears the editor rather than leaving an editable stale form", async () => {
+    forbiddenWrite = true;
+    renderEditor(true);
+    await waitFor(() =>
+      expect(screen.getByTestId("billing-editor-save")).toBeEnabled(),
+    );
+    fireEvent.click(screen.getByTestId("billing-editor-save"));
+    await screen.findByText("접근 권한이 없습니다.");
+    expect(screen.queryByTestId("billing-editor-form")).not.toBeInTheDocument();
+    expect(saved).not.toHaveBeenCalled();
+  });
   it("edit identities are readonly and PUT contains only BillingUpdate fields", async () => {
     renderEditor(true);
     await screen.findByLabelText("프로젝트");
@@ -540,5 +620,52 @@ describe("청구 등록/수정", () => {
     );
     const call = fetcher.mock.calls.find(([, i]) => i?.method === "PUT")!;
     expect(JSON.parse(call[1].body as string)).toEqual({ recalculate: true });
+  });
+});
+describe("청구 상세 권한과 상태", () => {
+  const panel = (version = 0, readOnly = false) => (
+    <UI13DetailPanel
+      id={7}
+      version={version}
+      readOnly={readOnly}
+      onClose={cancelled}
+      onEdit={vi.fn()}
+      onOpen={vi.fn()}
+      onProject={vi.fn()}
+      refresh={reload}
+    />
+  );
+  it("hides edit and recalculation for a read-only role", async () => {
+    vi.spyOn(permissions, "can").mockReturnValue(false);
+    render(panel());
+    await screen.findByText("입금 이력 (부가세 포함)");
+    expect(screen.queryByTestId("billing-edit")).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("billing-recalculate-save"),
+    ).not.toBeInTheDocument();
+  });
+  it("read-only period hides all write controls", async () => {
+    render(panel(0, true));
+    await screen.findByText("입금 이력 (부가세 포함)");
+    expect(screen.queryByTestId("billing-edit")).not.toBeInTheDocument();
+  });
+  it("shows explicit empty detail and receipt states", async () => {
+    detail.details = [];
+    render(panel());
+    expect(
+      await screen.findByText("청구 상세 내역이 없습니다."),
+    ).toBeInTheDocument();
+    expect(screen.getByText("입금 이력이 없습니다.")).toBeInTheDocument();
+  });
+  it("failed authorized refresh clears previously visible detail", async () => {
+    const view = render(panel());
+    await screen.findByText("입금 이력 (부가세 포함)");
+    forbiddenRead = true;
+    view.rerender(panel(1));
+    await screen.findByText("접근 권한이 없습니다.");
+    expect(
+      screen.queryByText("입금 이력 (부가세 포함)"),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByTestId("billing-edit")).not.toBeInTheDocument();
   });
 });

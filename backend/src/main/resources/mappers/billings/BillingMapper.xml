@@ -193,6 +193,24 @@
     JOIN prj.prj p ON p.prj_id=b.prj_id LEFT JOIN prj.bill_stg s ON s.bill_stg_id=b.bill_stg_id
     WHERE b.bill_id=#{id}
   </select>
+  <resultMap id="billingResource" type="com.sicost.common.security.SecurityModels$Resource">
+    <constructor>
+      <arg column="user_id" javaType="java.lang.Long"/>
+      <arg column="part_id" javaType="java.lang.Long"/>
+      <arg column="project_id" javaType="java.lang.Long"/>
+      <arg column="developer_id" javaType="java.lang.Long"/>
+    </constructor>
+  </resultMap>
+  <select id="resource" resultMap="billingResource">
+    SELECT p.pm_user_id AS user_id,
+      CASE WHEN h.part_hist_id IS NULL THEN p.bsn_part_id ELSE h.bsn_part_id END AS part_id,
+      p.prj_id AS project_id,p.pm_dev_id AS developer_id
+    FROM prj.prj p
+    LEFT JOIN LATERAL (SELECT part_hist_id,bsn_part_id FROM prj.prj_part_hist
+      WHERE prj_id=p.prj_id AND aply_bgn_ym &lt;=#{month}
+      ORDER BY aply_bgn_ym DESC LIMIT 1) h ON true
+    WHERE p.prj_id=#{projectId}
+  </select>
   <select id="lockBill" resultMap="state">
     SELECT <include refid="stateColumns"/> FROM bill.bill b
     JOIN prj.prj p ON p.prj_id=b.prj_id LEFT JOIN prj.bill_stg s ON s.bill_stg_id=b.bill_stg_id

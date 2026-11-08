@@ -15,12 +15,23 @@ export async function downloadCostWorkbook(
 ) {
   let response: Response;
   try {
-    response = await fetch(`/api/costs/${resource}?${query}`, {
+    const options: RequestInit = {
       method: "GET",
       credentials: "same-origin",
       cache: "no-store",
       headers: { Accept: costWorkbookType },
-    });
+    };
+    switch (resource) {
+      case "people":
+        response = await fetch(`/api/costs/people?${query}`, options);
+        break;
+      case "projects":
+        response = await fetch(`/api/costs/projects?${query}`, options);
+        break;
+      case "renegotiations":
+        response = await fetch(`/api/costs/renegotiations?${query}`, options);
+        break;
+    }
   } catch {
     throw new ApiFailure("서버에 연결할 수 없습니다.", null, null);
   }

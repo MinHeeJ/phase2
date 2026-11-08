@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sicost.contacts.ContactMapper">
+  <resultMap id="resource" type="com.sicost.common.security.SecurityModels$Resource"><constructor>
+    <arg column="user_id" javaType="java.lang.Long"/><arg column="part_id" javaType="java.lang.Long"/>
+    <arg column="project_id" javaType="java.lang.Long"/><arg column="developer_id" javaType="java.lang.Long"/>
+  </constructor></resultMap>
+  <resultMap id="contact" type="com.sicost.contacts.ContactMapper$Contact"><constructor>
+    <arg column="phone" javaType="java.lang.String"/><arg column="email" javaType="java.lang.String"/>
+    <arg column="financial_email" javaType="java.lang.String"/><arg column="active" javaType="_boolean"/>
+  </constructor></resultMap>
+  <select id="developerResources" resultMap="resource">SELECT NULL::bigint AS user_id,d.bsn_part_id AS part_id,p.prj_id AS project_id,d.dev_id AS developer_id
+    FROM mst.dev d LEFT JOIN asgn.asgn a ON a.dev_id=d.dev_id LEFT JOIN prj.prj p ON p.prj_id=a.prj_id AND p.use_yn='Y' WHERE d.dev_id=#{id}</select>
+  <select id="partnerResources" resultMap="resource">SELECT NULL::bigint AS user_id,p.bsn_part_id AS part_id,p.prj_id AS project_id,NULL::bigint AS developer_id
+    FROM mst.ptnr v LEFT JOIN prj.prj p ON p.cust_ptnr_id=v.ptnr_id AND p.use_yn='Y' WHERE v.ptnr_id=#{id}
+    UNION SELECT NULL::bigint,d.bsn_part_id,p.prj_id,d.dev_id FROM mst.dev d
+    LEFT JOIN asgn.asgn a ON a.dev_id=d.dev_id LEFT JOIN prj.prj p ON p.prj_id=a.prj_id AND p.use_yn='Y' WHERE d.vndr_ptnr_id=#{id}</select>
+  <select id="developer" resultMap="contact">SELECT tel_no AS phone,email_addr AS email,NULL::text AS financial_email,
+    (use_yn='Y' AND (rsgn_dt IS NULL OR rsgn_dt &gt; (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Seoul')::date)) AS active FROM mst.dev WHERE dev_id=#{id}</select>
+  <select id="partner" resultMap="contact">SELECT chrg_tel_no AS phone,chrg_email_addr AS email,txinv_email_addr AS financial_email,use_yn='Y' AS active FROM mst.ptnr WHERE ptnr_id=#{id}</select>
+</mapper>

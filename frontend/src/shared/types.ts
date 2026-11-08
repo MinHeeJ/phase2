@@ -18,16 +18,20 @@ export interface PageResult<T> {
 }
 export type DataScope = "ALL" | "PART" | "PROJECT" | "SELF";
 export interface CurrentUser {
-  userId: null;
+  userId: number | null;
   name: string;
   roleIds: number[];
 }
 export const currentUser: CurrentUser = {
   userId: null,
-  name: "기본 사용자",
-  roleIds: [1],
+  name: "",
+  roleIds: [],
 };
-export const currentScope: DataScope = "ALL";
-export function can(_permission: string): boolean {
-  return true;
+export const currentScope: DataScope = "SELF";
+let effectivePermissions: Record<string, boolean> = {};
+export function setPermissions(permissions: Record<string, boolean>) {
+  effectivePermissions = { ...permissions };
+}
+export function can(permission: string): boolean {
+  return effectivePermissions[permission] === true;
 }

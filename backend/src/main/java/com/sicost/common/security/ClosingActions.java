@@ -14,7 +14,7 @@ public final class ClosingActions {
         "listClosingHistory", READ,
         "listClosingAdjustments", READ,
         "previewClosing", READ,
-        "runClosingCheck", UPDATE,
+        "runClosingCheck", READ,
         "confirmClosing", CONFIRM,
         "reopenClosing", REOPEN,
         "createClosingAdjustment", UPDATE,

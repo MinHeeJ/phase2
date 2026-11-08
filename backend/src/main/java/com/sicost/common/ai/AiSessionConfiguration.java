@@ -15,7 +15,7 @@ public class AiSessionConfiguration {
         var registration = new FilterRegistrationBean<>(new AiEnvironmentFilter(access, json));
         registration.setName("aiEnvironmentBoundary");
         registration.addUrlPatterns("/api/ai/*");
-        registration.setOrder(Ordered.HIGHEST_PRECEDENCE + 10);
+        registration.setOrder(org.springframework.boot.autoconfigure.security.SecurityProperties.DEFAULT_FILTER_ORDER + 10);
         return registration;
     }
     @Bean
@@ -24,7 +24,9 @@ public class AiSessionConfiguration {
     }
     @Bean
     public ServletContextInitializer aiSessionHttpOnly() {
-        // The servlet container keeps its standard name and enables Secure for HTTPS requests.
-        return context -> context.getSessionCookieConfig().setHttpOnly(true);
+        return context -> {
+            context.getSessionCookieConfig().setHttpOnly(true);
+            context.getSessionCookieConfig().setSecure(true);
+        };
     }
 }

@@ -39,7 +39,7 @@ public class SchemaValidator implements InitializingBean {
 
     public void validate() throws SQLException, IOException {
         List<Table> expected = new ArrayList<>();
-        for (String resource : List.of("schema-metadata.json", "finance-schema-metadata.json")) {
+        for (String resource : List.of("schema-metadata.json", "finance-schema-metadata.json", "security-schema-metadata.json")) {
             try (var input = new ClassPathResource(resource).getInputStream()) {
                 expected.addAll(mapper.readValue(input, new TypeReference<List<Table>>() {}));
             }

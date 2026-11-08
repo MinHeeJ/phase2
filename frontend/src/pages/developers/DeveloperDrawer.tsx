@@ -17,6 +17,7 @@ import { Can } from "../../shared/Can";
 import { ErrorBanner } from "../../shared/ErrorBanner";
 import { useAdminRead, useAdminWrite } from "../admin/useAdminResource";
 import { DeveloperForm } from "./DeveloperForm";
+import { BusinessContactPanel } from "../contacts/BusinessContactPanel";
 import { enableDeveloper, getDeveloper, type DeveloperDetail } from "./client";
 import { useDeveloperReadOnly } from "./useDeveloperReadOnly";
 import styles from "./Developers.module.css";
@@ -269,6 +270,11 @@ export function DeveloperDrawer({
                         </Fragment>
                       ))}
                     </dl>
+                    <BusinessContactPanel
+                      key={row.dev_id}
+                      id={row.dev_id}
+                      kind="developers"
+                    />
                     <p data-sensitive="true">
                       최근 월 급여{" "}
                       {row.latest_salary

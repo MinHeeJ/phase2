@@ -20,14 +20,19 @@ export async function api<T = void>(
   if (!path.startsWith("/api/") || path.startsWith("//"))
     throw new Error("상대 API 경로가 필요합니다.");
   const write = !["GET", "HEAD"].includes((init.method ?? "GET").toUpperCase());
+  const headers = new Headers(init.headers);
+  if (init.body && !(init.body instanceof FormData))
+    headers.set("Content-Type", "application/json");
+  if (write && !headers.has("X-CSRF-TOKEN")) {
+    const csrf = await readData<{ csrfToken: string }>("/api/auth/csrf");
+    headers.set("X-CSRF-TOKEN", csrf.csrfToken);
+  }
   let response: Response;
   try {
     response = await fetch(path, {
       ...init,
-      headers: {
-        ...(init.body ? { "Content-Type": "application/json" } : {}),
-        ...init.headers,
-      },
+      credentials: "same-origin",
+      headers,
     });
   } catch {
     throw new ApiFailure(
@@ -54,6 +59,14 @@ export async function api<T = void>(
     );
   }
   if (!response.ok || body.success !== true) {
+    if (response.status === 401 && !path.startsWith("/api/auth/"))
+      window.dispatchEvent(new Event("session-expired"));
+    if (
+      response.status === 403 &&
+      !path.startsWith("/api/auth/") &&
+      !path.startsWith("/api/me/")
+    )
+      window.dispatchEvent(new Event("permissions-changed"));
     const error = body as ApiError;
     throw new ApiFailure(
       typeof error.message === "string"

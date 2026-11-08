@@ -1,0 +1,38 @@
+.page {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  background: var(--bg);
+  padding: var(--space-4);
+}
+.card {
+  width: min(100%, 420px);
+  box-sizing: border-box;
+  background: var(--surface);
+  padding: var(--space-6);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+}
+.form {
+  display: grid;
+  gap: var(--space-3);
+}
+.form label {
+  display: grid;
+  gap: var(--space-1);
+}
+.form input {
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+  min-height: var(--control-height);
+  padding: var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  font: inherit;
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}

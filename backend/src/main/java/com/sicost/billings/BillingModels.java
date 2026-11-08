@@ -37,6 +37,7 @@ public final class BillingModels {
             BigDecimal mth_work_day_qty) {}
     public record SourceScope(long projectId, String month, LocalDate first, LocalDate last) {}
     public record StageKey(long projectId, Long stageId) {}
+    public record ResourceKey(long projectId, String month) {}
     public record DuplicateScope(long projectId, Long stageId, String month) {}
     public record Overtime(long asgn_id, long ovtm_amt) {}
     public record Input(Long project_id, Long stage_id, String month, boolean additional,

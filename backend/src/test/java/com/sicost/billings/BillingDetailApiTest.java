@@ -23,19 +23,28 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WebMvcTest(controllers = BillingController.class)
+@org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc(addFilters = false)
 @Import({RequestIdFilter.class, ApiExceptionHandler.class, BillingService.class, BillingAmountService.class,
-    CurrentUser.class, PermissionService.class, BillingApiTest.Time.class})
-class BillingApiTest {
+    CurrentUser.class, PermissionService.class, AuthorizationService.class, BillingDetailApiTest.Time.class})
+class BillingDetailApiTest {
     @TestConfiguration static class Time {
         @Bean Clock clock() { return Clock.fixed(Instant.parse("2026-10-20T00:00:00Z"), ZoneId.of("Asia/Seoul")); }
     }
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper json;
     @MockBean BillingMapper mapper;
+    @MockBean SecurityStateMapper security;
     State current;
     List<DetailLine> lines;
     List<Audit> audits;
     @BeforeEach void setup() {
+        var principal = new SecurityPrincipal(11L, "재무 담당", List.of(3L), "a".repeat(64), false);
+        org.springframework.security.core.context.SecurityContextHolder.getContext().setAuthentication(
+            new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(principal, null, List.of()));
+        when(security.account(11L)).thenReturn(new SecurityModels.Account(11L, "재무 담당", null, "ACTIVE", null, false));
+        when(security.permissions(11L)).thenReturn(List.of(new SecurityModels.Permission(3L, "재무 담당", DataScope.ALL,
+            false, true, false, "UI-13", "YYYYYYY", false, false)));
+        when(mapper.resource(any())).thenReturn(new SecurityModels.Resource(null, 2L, 1L, null));
         current = state("MO", "DRAFT", "2026-10", LocalDate.of(2026, 10, 10));
         lines = new ArrayList<>(List.of(line()));
         audits = new ArrayList<>();
@@ -83,16 +92,17 @@ class BillingApiTest {
         return mvc.perform(put("/api/billings/7").contentType("application/json").content(body));
     }
     void noWrite() { verify(mapper, never()).insert(any()); verify(mapper, never()).update(any()); verify(mapper, never()).audit(any()); }
-    @Test void anonymousCreateStoresDraftAndEffectiveVatWithNullableActor() throws Exception {
+    @AfterEach void clearPrincipal() { org.springframework.security.core.context.SecurityContextHolder.clearContext(); }
+    @Test void authenticatedCreateStoresDraftAndEffectiveVatWithActor() throws Exception {
         postBody("{\"project_id\":1,\"month\":\"2026-10\"}").andExpect(status().isOk())
             .andExpect(jsonPath("$.success").value(true)).andExpect(jsonPath("$.data.billing.vat_amt").value(75))
             .andExpect(jsonPath("$.data.details[0].bill_amt").value(1000));
         var order = inOrder(mapper);
         order.verify(mapper).lockClosingSources();
         order.verify(mapper).numberLock("B-2610-"); order.verify(mapper).lockProject(1);
-        order.verify(mapper).insert(argThat(w -> w.number().equals("B-2610-01") && w.actor() == null));
+        order.verify(mapper).insert(argThat(w -> w.number().equals("B-2610-01") && w.actor().equals(11L)));
         order.verify(mapper).insertDetail(any());
-        assertThat(audits).hasSize(2); assertThat(audits.get(0).actor()).isNull();
+        assertThat(audits).hasSize(2); assertThat(audits.get(0).actor()).isEqualTo(11L);
     }
     @Test void turnkeyCreateUsesStageWithoutFabricatedAssignmentLine() throws Exception {
         when(mapper.lockProject(1)).thenReturn(new Project(1, "TK", "STAGE", "Y"));
@@ -151,7 +161,7 @@ class BillingApiTest {
         postBody("{\"project_id\":1,\"month\":\"2026-10\"}").andExpect(status().isOk())
             .andExpect(jsonPath("$.data.details").isEmpty()).andExpect(jsonPath("$.data.warnings[0]").value(org.hamcrest.Matchers.containsString("근태 미입력")));
     }
-    @Test void anonymousUpdatePreservesManualVatAndSnapshotWithoutRecalculation() throws Exception {
+    @Test void authenticatedUpdatePreservesManualVatAndSnapshotWithoutRecalculation() throws Exception {
         putBody("{\"sply_amt\":1234,\"vat_amt\":17,\"bill_dt\":\"2026-11-01\",\"txinv_no\":\"기록\"}").andExpect(status().isOk())
             .andExpect(jsonPath("$.data.billing.sply_amt").value(1234)).andExpect(jsonPath("$.data.billing.vat_amt").value(17))
             .andExpect(jsonPath("$.data.billing.atrb_ym").value("2026-10")).andExpect(jsonPath("$.data.details[0].work_ym").value("2026-10"));
@@ -220,7 +230,7 @@ class BillingApiTest {
         verify(mapper).updateDetail(argThat(w -> w.line().bill_amt() == 1017 && w.line().untprc_amt() == 2000));
         verify(mapper, never()).sources(any()); verify(mapper, never()).deleteDetails(anyLong());
     }
-    @Test void listAndDetailRemainAnonymousAndReadOnly() throws Exception {
+    @Test void authenticatedListAndDetailRemainReadOnly() throws Exception {
         mvc.perform(get("/api/billings?year=2026&type=MO&q=프로젝트&size=20")).andExpect(status().isOk())
             .andExpect(jsonPath("$.data.total").value(1)).andExpect(jsonPath("$.data.page").value(0));
         mvc.perform(get("/api/billings/7")).andExpect(status().isOk()).andExpect(jsonPath("$.data.change_history").isArray()); noWrite();

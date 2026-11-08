@@ -53,7 +53,12 @@ export default function UI27Screen({
           대시보드로
         </a>
       </div>
-      <section className={styles.desktopOnly} aria-label="공통코드 관리">
+      <section
+        className={styles.desktopOnly}
+        aria-label="공통코드 관리"
+        data-screen-id="UI-27"
+        data-testid="common-codes-screen"
+      >
         <ScreenHeading
           screenId="UI-27"
           name={name}

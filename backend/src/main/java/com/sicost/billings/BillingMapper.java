@@ -12,6 +12,7 @@ public interface BillingMapper {
     long count(BillingQuery query);
     BillingRow row(long id);
     State state(long id);
+    com.sicost.common.security.SecurityModels.Resource resource(ResourceKey key);
     State lockBill(long id);
     Project lockProject(long id);
     Stage stage(StageKey key);

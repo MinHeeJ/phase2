@@ -9,7 +9,7 @@ import org.springframework.core.io.ClassPathResource;
 import static org.assertj.core.api.Assertions.*;
 
 class ClosingActionsTest {
-    @Test void approvedPublicOperationsHaveFuturePermissionHooks() throws Exception {
+    @Test void baselineOperationsHaveExplicitActionsButCannotAuthorizeAnonymousCalls() throws Exception {
         Map<?, ?> contract;
         try (var input = new ClassPathResource("contracts/openapi.yaml").getInputStream()) {
             contract = new org.yaml.snakeyaml.Yaml().load(input);
@@ -23,20 +23,23 @@ class ClosingActionsTest {
                 if (!(value instanceof Map<?, ?> operation) || !operation.containsKey("operationId")) continue;
                 String id = operation.get("operationId").toString();
                 assertThat((java.util.List<?>) operation.get("security")).isEmpty();
-                assertThat(permissions.can(ClosingActions.key(id))).isTrue();
+                String key=ClosingActions.key(id);
+                assertThatThrownBy(()->permissions.can(key)).isInstanceOfSatisfying(com.sicost.common.api.ApiException.class,
+                    error->assertThat(error.status()).isEqualTo(401));
                 operations++;
             }
         }
         assertThat(operations).isEqualTo(9);
         assertThat(ClosingActions.key("confirmClosing")).isEqualTo("UI-14.confirm");
         assertThat(ClosingActions.key("reopenClosing")).isEqualTo("UI-14.reopen");
-        assertThat(ClosingActions.key("runClosingCheck")).isEqualTo("UI-14.update");
+        assertThat(ClosingActions.key("runClosingCheck")).isEqualTo("UI-14.read");
         assertThat(ClosingActions.key("getClosing")).isEqualTo("UI-14.read");
         assertThat(ClosingActions.DOWNLOAD).isEqualTo("UI-14.download");
     }
 
-    @Test void anonymousActorRemainsNullableNotSeedUserOne() {
-        assertThat(new CurrentUser().userId()).isNull();
+    @Test void anonymousActorCannotBeUsedForNewBusinessHistory() {
+        assertThatThrownBy(()->new CurrentUser().userId()).isInstanceOfSatisfying(com.sicost.common.api.ApiException.class,
+            error->assertThat(error.status()).isEqualTo(401));
     }
 
     @Test void unknownOperationCannotSilentlyAcquireAPermissionKey() {

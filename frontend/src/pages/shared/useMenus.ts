@@ -9,6 +9,22 @@ export function useMenus() {
   const [revision, setRevision] = useState(0);
   const retry = useCallback(() => setRevision((value) => value + 1), []);
   useEffect(() => {
+    window.addEventListener("management-changed", retry);
+    window.addEventListener("focus", retry);
+    const timer = window.setInterval(retry, 30000);
+    const channel =
+      "BroadcastChannel" in window
+        ? new BroadcastChannel("system-authorization")
+        : null;
+    if (channel) channel.onmessage = retry;
+    return () => {
+      window.removeEventListener("management-changed", retry);
+      window.removeEventListener("focus", retry);
+      window.clearInterval(timer);
+      channel?.close();
+    };
+  }, [retry]);
+  useEffect(() => {
     const controller = new AbortController();
     setLoading(true);
     setError(null);
